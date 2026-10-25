@@ -14,16 +14,15 @@ if sys.stdout.encoding.lower() != 'utf-8':
         pass
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v1.0.1"
-TITLE = "MinNote v1.0.1 — Bảng Viết Kỹ Thuật Số & Sơ Đồ Tư Duy"
-BODY = """## MinNote v1.0.1
+TAG = "v0.0.0.1"
+TITLE = "MinNote v0.0.0.1 — Bảng Viết Kỹ Thuật Số & Sơ Đồ Tư Duy"
+BODY = """## MinNote v0.0.0.1
 
 ### Tính năng mới & Cải tiến:
-- **Cài đặt chuẩn ổ C:** Hỗ trợ trình cài đặt tự động gỡ phiên bản cũ qua Inno Setup.
-- **Thanh công cụ chuẩn hóa:** Tích hợp trực tiếp Kho Đề (Ctrl+Q) và Sơ đồ tư duy (Ctrl+M) xuống thanh công cụ dưới.
-- **Chỉnh sửa Mindmap:** Thêm nút [✏️ Chỉnh sửa] trực tiếp khi chọn sơ đồ tư duy trên bảng vẽ để tải lại cây dữ liệu và cập nhật thời gian thực.
-- **Độ phân giải Retina 4K:** Tối ưu chụp ảnh Sơ đồ tư duy sắc nét 4.5x chống vỡ hạt.
-- **Kích hoạt bản quyền Cloud:** Tích hợp đồng bộ mã máy với hệ thống quản trị MatrixExamAI.
+- **Đồng bộ bảng giá Admin:** Chuẩn hóa gói MinNote 299k/năm, MatrixExamAI Pro 899k, BASIC 399k, ULTRA 1.499k.
+- **Mã VietQR tinh giản:** Cắt gọt chi tiết thừa, hiển thị mã QR thuần túy (qr_only) rõ ràng, quét tự động kèm Mã máy.
+- **Quy chuẩn phiên bản:** Bản vá nhỏ tăng +0.0.0.1, tính năng mới tăng +0.0.1.0.
+- **Trình cài đặt tự động ổ C:** Đóng gói Inno Setup tự gỡ phiên bản cũ và cài vào C:\\Program Files\\MinNote.
 """
 
 def get_github_token():

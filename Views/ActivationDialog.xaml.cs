@@ -58,11 +58,11 @@ public partial class ActivationDialog : FluentWindow
         TxtLicenseDetail.Text = $"Chủ sở hữu: {owner} • Gói: {tier} • Hạn dùng: {expiry}";
     }
 
-    private void UpdateVietQrImage()
+    private async void UpdateVietQrImage()
     {
         try
         {
-            string amount = "350000";
+            string amount = "299000";
             string packageCode = "MINNOTE";
             if (CmbPricingPackage?.SelectedItem is ComboBoxItem item && item.Tag is string tagStr)
             {
@@ -74,13 +74,11 @@ public partial class ActivationDialog : FluentWindow
                 }
             }
 
-            string qrUrl = SupabaseLicenseService.GetVietQrUrl(_machineId, packageCode, amount);
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.UriSource = new Uri(qrUrl, UriKind.Absolute);
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.EndInit();
-            ImgVietQr.Source = bmp;
+            var bmp = await SupabaseLicenseService.GetVietQrBitmapAsync(_machineId, packageCode, amount);
+            if (bmp != null)
+            {
+                ImgVietQr.Source = bmp;
+            }
         }
         catch { }
     }

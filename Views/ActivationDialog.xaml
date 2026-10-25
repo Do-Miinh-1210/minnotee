@@ -116,34 +116,35 @@
                                 <TextBlock Text="Đăng ký &amp; Kích hoạt qua VietQR" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" />
                             </StackPanel>
 
-                            <!-- Gói dịch vụ -->
+                            <!-- Gói dịch vụ đồng bộ với Admin -->
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Gói dịch vụ:" VerticalAlignment="Center" FontSize="11.5" FontWeight="Medium" Margin="0,0,8,0" />
+                                <TextBlock Text="Gói:" VerticalAlignment="Center" FontSize="11.5" FontWeight="Medium" Margin="0,0,8,0" />
                                 <ComboBox x:Name="CmbPricingPackage" Grid.Column="1" SelectionChanged="CmbPricingPackage_SelectionChanged">
-                                    <ComboBoxItem Content="MinNote Bản quyền Trọn đời • 350.000 đ" Tag="minnote|lifetime|350000" IsSelected="True" />
-                                    <ComboBoxItem Content="MinNote 1 Năm • 199.000 đ" Tag="minnote|12|199000" />
-                                    <ComboBoxItem Content="MatrixExamAI Pro (Bao gồm MinNote) • 899.000 đ" Tag="pro|12|899000" />
+                                    <ComboBoxItem Content="MinNote (1 Năm) • 299.000 đ" Tag="minnote|12|299000" IsSelected="True" />
+                                    <ComboBoxItem Content="MatrixExamAI Pro (Gồm MinNote - 1 Năm) • 899.000 đ" Tag="pro|12|899000" />
+                                    <ComboBoxItem Content="Gói Cơ Bản (BASIC - 1 Năm) • 399.000 đ" Tag="basic|12|399000" />
+                                    <ComboBoxItem Content="Gói Toàn Năng (ULTRA Vĩnh viễn) • 1.499.000 đ" Tag="ultra|lifetime|1499000" />
                                 </ComboBox>
                             </Grid>
 
-                            <!-- Ảnh VietQR -->
+                            <!-- Ảnh VietQR (Chỉ hiển thị mã QR thuần túy, sạch sẽ) -->
                             <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" 
-                                    CornerRadius="6" Background="White" Width="160" Height="160" HorizontalAlignment="Center" Margin="0,4,0,8">
+                                    CornerRadius="8" Background="White" Width="180" Height="180" HorizontalAlignment="Center" Margin="0,4,0,8" Padding="6">
                                 <Image x:Name="ImgVietQr" RenderOptions.BitmapScalingMode="HighQuality" Stretch="Uniform" />
                             </Border>
 
-                            <TextBlock Text="Quét QR bằng ứng dụng Ngân hàng để thanh toán tự động với nội dung là Mã máy tính của bạn." 
-                                       FontSize="10.5" TextAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                            <TextBlock Text="Quét QR chuyển khoản tự động kèm Mã máy" 
+                                       FontSize="10.5" FontWeight="SemiBold" TextAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
 
                             <!-- Thông tin Admin -->
                             <Border Background="#0A0D9488" CornerRadius="4" Padding="8,6">
                                 <StackPanel>
-                                    <TextBlock Text="Vietcombank: 1017919118 • DO HUYNH BINH MINH" FontSize="10.5" FontWeight="SemiBold" Foreground="#0d9488" />
-                                    <TextBlock Text="Hỗ trợ &amp; Zalo: 033.999.8261 (Thầy Đỗ Minh)" FontSize="10.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                    <TextBlock Text="Vietcombank: 1017919118 • DO HUYNH BINH MINH" FontSize="10.5" FontWeight="SemiBold" Foreground="#0d9488" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Hỗ trợ &amp; Zalo: 033.999.8261 (Thầy Đỗ Minh)" FontSize="10.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

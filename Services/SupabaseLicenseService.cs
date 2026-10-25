@@ -396,7 +396,7 @@ public class SupabaseLicenseService
                 amount = amtNum,
                 addInfo = content,
                 format = "text",
-                template = "compact2"
+                template = "qr_only"
             };
 
             using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(8) };

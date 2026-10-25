@@ -22,7 +22,7 @@ public class GitHubUpdateService
 {
     public static GitHubUpdateService Instance { get; } = new();
 
-    public string CurrentVersion { get; set; } = "1.0.1";
+    public string CurrentVersion { get; set; } = "0.0.0.1";
     public string GitHubRepo { get; set; } = "Do-Miinh-1210/minnotee";
 
     private readonly HttpClient _httpClient;
