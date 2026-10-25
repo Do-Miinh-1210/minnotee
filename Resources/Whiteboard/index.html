@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <script>
+      if (window.minnoteNative || !window.chrome || !window.chrome.webview) {
+        window.chrome = window.chrome || {};
+        const _listeners = new Map();
+        window.chrome.webview = {
+          postMessage: function(msg) {
+            if (window.minnoteNative && window.minnoteNative.postMessage) {
+              window.minnoteNative.postMessage(msg);
+            }
+          },
+          addEventListener: function(type, fn) {
+            if (!_listeners.has(type)) _listeners.set(type, new Set());
+            _listeners.get(type).add(fn);
+          },
+          removeEventListener: function(type, fn) {
+            if (_listeners.has(type)) _listeners.get(type).delete(fn);
+          },
+          dispatchEvent: function(event) {
+            const fns = _listeners.get(event.type);
+            if (fns) fns.forEach(fn => fn(event));
+          }
+        };
+        window.addEventListener('message', function(e) {
+          if (window.chrome && window.chrome.webview && typeof window.chrome.webview.dispatchEvent === 'function') {
+            window.chrome.webview.dispatchEvent(new MessageEvent('message', { data: e.data }));
+          }
+        });
+      }
+    </script>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('GLOBAL_ERROR:', e.message, e.filename, e.lineno, e.error);
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'JS_ERROR', message: e.message, file: e.filename, line: e.lineno, stack: e.error ? e.error.stack : '' });
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('UNHANDLED_REJECTION:', e.reason);
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'JS_ERROR', message: String(e.reason) });
+        }
+      });
+    </script>
+
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' http://127.0.0.1:* http://localhost:* https: data: blob:; object-src 'none';" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <title>MatrixExamAI Pro • Bảng Viết & Vẽ Hình Toán Học</title>
+    <!-- Preload Critical Whiteboard Engine -->
+    <link rel="modulepreload" href="./assets/index--cPWPmO5.js">
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #18181b;
+        overflow: hidden;
+      }
+    </style>
+    <!-- KaTeX Math Engine (Local Offline) -->
+    <link rel="stylesheet" href="./katex.min.css">
+    <script src="./katex.min.js" defer></script>
+
+    <!-- Whiteboard Core Styles & Scripts (NoteRenderer v0.6.2) -->
+    <script type="module" crossorigin src="./assets/index--cPWPmO5.js"></script>
+    <script type="module" crossorigin src="./assets/ai-math-assistant.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CA_0RsQs.css">
+    <link rel="stylesheet" href="./assets/mea-whiteboard-theme.css">
+
+    <!-- Math Mindmap Studio Styles & Scripts -->
+    <link rel="stylesheet" href="./assets/mea-mindmap.css">
+    <script src="./assets/mea-mindmap.js" defer></script>
+
+    <!-- Question Bank & Card Styles & Scripts -->
+    <link rel="stylesheet" href="./assets/mea-question-card.css">
+    <script src="./assets/mea-question-card.js" defer></script>
+  </head>
+  <body>
+    <!-- TOP TITLE & INTEGRATION BADGE -->
+    <div id="mea-header-badge" style="display: none !important;">
+      <span style="display:flex;align-items:center;gap:6px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+          <path d="M2 2l7.586 7.586"></path>
+          <circle cx="11" cy="11" r="2"></circle>
+        </svg>
+        MatrixExamAI Pro • Bảng Viết &amp; Lời Giải Toán Học
+      </span>
+      <span class="badge-tag">STUDIO TEAL</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <button class="btn-mindmap-mea" id="btn-toggle-presentation" onclick="if (window.startFullHtmlPresentation) { window.startFullHtmlPresentation(); } else if (window.startExamPresentation) { window.startExamPresentation(); }" title="Trình Chiếu Slide HTML (F5)" style="background:rgba(99,102,241,0.18);border:1px solid rgba(129,140,248,0.5);color:#a5b4fc;margin-right:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          Trình Chiếu HTML (F5)
+        </button>
+        <button class="btn-mindmap-mea" id="btn-toggle-bank" onclick="if (window.toggleQuestionBankModal) { window.toggleQuestionBankModal(); }" title="Mở Kho Đề Thi & Ngân Hàng Câu Hỏi (Ctrl + Q)" style="background:rgba(20,184,166,0.18);border:1px solid rgba(45,212,191,0.5);color:#2dd4bf;margin-right:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          Kho Đề &amp; Câu hỏi (Ctrl + Q)
+        </button>
+        <button class="btn-mindmap-mea" id="btn-toggle-mindmap" onclick="if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();" title="Mở tab Sơ đồ tư duy Toán học (Ctrl + M)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+          Sơ đồ tư duy (Ctrl + M)
+        </button>
+        <!-- WINDOW CONTROLS: Thu nhỏ, Phóng to/Khôi phục, Đóng cửa sổ -->
+        <div class="mea-window-controls" style="display:flex;align-items:center;gap:3px;margin-left:8px;border-left:1px solid #334155;padding-left:8px;">
+          <button class="win-btn win-min" onclick="handleHostWindowAction('WINDOW_MINIMIZE')" title="Thu nhỏ cửa sổ xuống Taskbar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+          </button>
+          <button class="win-btn win-max" onclick="handleHostWindowAction('WINDOW_MAXIMIZE')" title="Phóng to toàn màn hình / Khôi phục kích thước">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+          </button>
+          <button class="win-btn win-close" onclick="handleHostWindowAction('WINDOW_CLOSE')" title="Đóng cửa sổ">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+    
+    <script>
+      function handleHostWindowAction(type) {
+        try {
+          if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage({ type: type, timestamp: Date.now() });
+          } else if (type === 'WINDOW_CLOSE') {
+            window.close();
+          }
+        } catch (e) {
+          console.error('[Whiteboard] handleHostWindowAction error:', e);
+        }
+      }
+      window.addEventListener('DOMContentLoaded', function() {
+        var badge = document.getElementById('mea-header-badge');
+        if (badge) {
+          badge.addEventListener('dblclick', function(e) {
+            if (e.target.closest('button')) return;
+            handleHostWindowAction('WINDOW_MAXIMIZE');
+          });
+        }
+      });
+    </script>
+
+</div>
+
+    <!-- 1. Whiteboard Canvas (NoteRenderer) - Root element directly under body -->
+    <div id="root"></div>
+
+    <!-- 2. Math Mindmap Studio Workspace -->
+    <div id="mea-mindmap-container" class="mode-closed">
+        <!-- Top Toolbar inside Mindmap -->
+        <div class="mindmap-toolbar">
+          <!-- Row 1: Title badge & Window mode controls -->
+          <div class="mindmap-toolbar-row-top">
+            <div class="mindmap-title-group">
+              <span class="mindmap-title-badge">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                Sơ đồ tư duy Toán học
+              </span>
+              <span class="mindmap-tag">LaTeX &amp; KaTeX</span>
+            </div>
+
+            <div class="mindmap-btn-group window-controls">
+              <button class="mm-btn mm-btn-icon-only" onclick="window.setMindMapMode('split')" title="Chế độ chia đôi (Sơ đồ tư duy bên cạnh Bảng viết)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="12" y1="3" x2="12" y2="21"></line>
+                </svg>
+              </button>
+              <button class="mm-btn mm-btn-icon-only" onclick="window.setMindMapMode('full')" title="Toàn màn hình Sơ đồ tư duy">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+              </button>
+              <button class="mm-btn mm-btn-icon-only danger" onclick="window.setMindMapMode('closed')" title="Đóng Sơ đồ tư duy">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 2: Action commands (Add, Edit, AI, Templates, Insert) -->
+          <div class="mindmap-toolbar-row-actions">
+            <div class="mindmap-btn-group">
+              <button class="mm-btn primary" onclick="window.addChildNode()" title="Thêm nhánh con (Phím Tab)">+ Con (Tab)</button>
+              <button class="mm-btn" onclick="window.addSiblingNode()" title="Thêm nhánh cùng cấp (Phím Enter)">+ Cùng cấp</button>
+              <button class="mm-btn" onclick="window.openMathEditor()" title="Sửa nội dung &amp; công thức toán (F2)">✏ Sửa (F2)</button>
+              <button class="mm-btn danger" onclick="window.deleteNode()" title="Xóa nhánh được chọn (Delete)">🗑 Xóa</button>
+            </div>
+
+            <div class="mindmap-btn-group">
+              <button class="mm-btn accent-purple" onclick="window.openAiMindmapModal()" title="AI tự động phân tích và tạo sơ đồ tư duy có công thức LaTeX">
+                ✨ AI Tạo sơ đồ
+              </button>
+              <button class="mm-btn accent-amber" onclick="window.openTemplatesModal()" title="Kho sơ đồ tư duy Toán 10, 11, 12 chuẩn SGK">
+                📁 Mẫu SGK
+              </button>
+              <button class="mm-btn" id="btn-toggle-md" onclick="window.toggleMarkdownView()" title="Chuyển đổi qua lại giữa Đồ họa và Dàn ý Markdown">
+                📝 Dàn ý
+              </button>
+            </div>
+
+            <div class="mindmap-btn-group">
+              <button class="mm-btn btn-insert-board" onclick="window.insertMindmapToWhiteboard()" title="Chèn sơ đồ trực tiếp vào Bảng viết để viết và chú thích bài giảng">
+                📋 Chèn Bảng vẽ
+              </button>
+              <button class="mm-btn" onclick="window.insertMindmapToWord()" title="Sao chép ảnh sơ đồ độ nét cao để dán vào file Word / đề thi MEA (Ctrl+V)">
+                Word
+              </button>
+              <button class="mm-btn" onclick="window.downloadMindmapPng()" title="Tải tệp ảnh sơ đồ PNG">
+                PNG
+              </button>
+              <button class="mm-btn" onclick="window.downloadMindmapSvg()" title="Tải vector SVG không vỡ nét">
+                SVG
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="mindmap-canvas-area" id="mindmap-canvas-area">
+          <div id="mindmap-svg-wrap" style="width:100%; height:100%; position:relative;"></div>
+
+          <!-- Floating Zoom & Fit Controls -->
+          <div class="mindmap-floating-controls">
+            <button class="mm-btn mm-btn-icon-only" onclick="window.zoomMindMap(0.1)" title="Phóng to (+)">+</button>
+            <span class="mindmap-zoom-text" id="mindmap-zoom-label">100%</span>
+            <button class="mm-btn mm-btn-icon-only" onclick="window.zoomMindMap(-0.1)" title="Thu nhỏ (-)">−</button>
+            <button class="mm-btn" onclick="window.fitMindMapView()" title="Căn giữa toàn bộ sơ đồ">Căn giữa</button>
+            <button class="mm-btn" onclick="window.resetMindMapZoom()" title="Về tỉ lệ 100%">1:1</button>
+          </div>
+        </div>
+
+        <!-- Markdown Outline Tab Area -->
+        <div class="mindmap-markdown-area" id="mindmap-markdown-area">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;font-weight:700;color:#0f172a;">Chỉnh sửa Dàn ý Markdown (Hỗ trợ công thức LaTeX $...$)</span>
+            <button class="mm-btn primary" onclick="window.applyMarkdownToTree()">Áp dụng vào Sơ đồ Đồ Họa</button>
+          </div>
+          <textarea class="mm-markdown-editor" id="mm-markdown-input" placeholder="# Chủ đề chính&#10;## Nhánh 1&#10;- Ý con kèm $x^2 + \sqrt{y}$"></textarea>
+        </div>
+      </div>
+
+    <!-- MODAL 1: FORMULA & TEXT NODE EDITOR -->
+    <div class="mm-modal-overlay" id="mindmap-math-modal" style="display:none;" onclick="if(event.target===this)window.closeMathEditor();">
+      <div class="mm-modal-card">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            Chỉnh sửa nội dung &amp; Công thức Toán học
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeMathEditor()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <!-- Quick Math Formula Palette -->
+          <div class="mm-quick-math-bar">
+            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;">Bấm để chèn nhanh công thức toán học (LaTeX):</div>
+            <div class="mm-math-categories">
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\frac{a}{b}')" title="Phân số">\frac{a}{b}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sqrt{x}')" title="Căn bậc hai">\sqrt{x}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sqrt[n]{x}')" title="Căn bậc n">\sqrt[n]{x}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('x^2')" title="Số mũ">x^2</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('x_i')" title="Chỉ số dưới">x_i</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\lim_{x \\to x_0}')" title="Giới hạn">\lim_{x \to x_0}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\int_a^b f(x)dx')" title="Tích phân">\int_a^b</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sum_{i=1}^n')" title="Tổng">\sum</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\vec{u}')" title="Vectơ">\vec{u}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\widehat{ABC}')" title="Góc">\widehat{ABC}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\begin{cases} x+y=1 \\\\ x-y=0 \\end{cases}')" title="Hệ phương trình">\begin{cases}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\pm')" title="Cộng trừ">\pm</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\infty')" title="Vô cực">\infty</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\pi')" title="Số Pi">\pi</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\alpha')" title="Alpha">\alpha</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\beta')" title="Beta">\beta</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Delta')" title="Delta">\Delta</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\in')" title="Thuộc">\in</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\subset')" title="Tập con">\subset</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\mathbb{R}')" title="Tập số thực">\mathbb{R}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\ge')" title="Lớn hơn hoặc bằng">\ge</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\le')" title="Nhỏ hơn hoặc bằng">\le</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\ne')" title="Khác">\ne</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\approx')" title="Xấp xỉ">\approx</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Rightarrow')" title="Suy ra">\Rightarrow</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Leftrightarrow')" title="Tương đương">\Leftrightarrow</button>
+            </div>
+          </div>
+
+          <!-- Textarea for text + formulas -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px;">Nhập văn bản và công thức (kẹp công thức trong cặp dấu $...$):</div>
+            <textarea class="mm-textarea" id="mm-math-input" placeholder="Ví dụ: Định lý Cosin: $a^2 = b^2 + c^2 - 2bc \cos A$"></textarea>
+          </div>
+
+          <!-- Realtime Math Preview Box -->
+          <div>
+            <div class="mm-preview-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              Xem trước hiển thị tức thời (KaTeX Engine):
+            </div>
+            <div class="mm-preview-box" id="mm-math-preview-box"></div>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeMathEditor()">Hủy (Esc)</button>
+          <button class="mm-btn primary" onclick="window.saveMathEditor()">Lưu thay đổi (Ctrl+Enter)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: AI MINDMAP GENERATOR -->
+    <div class="mm-modal-overlay" id="mindmap-ai-modal" style="display:none;" onclick="if(event.target===this)window.closeAiMindmapModal();">
+      <div class="mm-modal-card" style="max-width:540px;">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            Trợ lý AI Sinh Sơ Đồ Tư Duy Toán Học
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeAiMindmapModal()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <div style="font-size:12px;color:#475569;line-height:1.5;">
+            Nhập tên bài học, chủ đề Toán học hoặc đề mục cần tổng hợp kiến thức. Trợ lý AI sẽ tự động phân nhánh và nạp công thức toán học LaTeX chuẩn xác:
+          </div>
+          <input type="text" id="mm-ai-topic-input" class="mm-textarea" style="min-height:42px;height:42px;" placeholder="Ví dụ: Khảo sát hàm số bậc 3, Tọa độ không gian Oxyz, Xác suất Bayes..." onkeydown="if(event.key==='Enter')window.generateAiMindmap();" />
+
+          <div id="mm-ai-provider-badge" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:6px;display:flex;align-items:center;gap:4px;">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;"></span>
+            <span id="mm-ai-provider-text">Được hỗ trợ bởi AI Engine (Google Gemini / 9Router / Claude)</span>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;color:#64748b;margin-top:8px;">Chủ đề gợi ý nhanh:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Đạo hàm và ứng dụng khảo sát hàm số'">Đạo hàm 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Nguyên hàm, tích phân và ứng dụng diện tích, thể tích'">Tích phân 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Phương pháp tọa độ trong không gian Oxyz'">Hình Oxyz 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Xác suất có điều kiện và công thức Bayes'">Xác suất Bayes 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Phương trình lượng giác cơ bản và công thức cộng'">Lượng giác 11</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Hàm số mũ và hàm số logarit'">Mũ &amp; Logarit 11</button>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeAiMindmapModal()">Đóng</button>
+          <button class="mm-btn accent-purple" id="btn-exec-ai-gen" onclick="window.generateAiMindmap()">✨ Tạo sơ đồ ngay</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: CURATED TEMPLATE GALLERY -->
+    <div class="mm-modal-overlay" id="mindmap-templates-modal" style="display:none;" onclick="if(event.target===this)window.closeTemplatesModal();">
+      <div class="mm-modal-card" style="max-width:760px;">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Kho Mẫu Sơ Đồ Tư Duy Toán THPT Chuẩn BGD
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeTemplatesModal()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <div class="mm-template-grid">
+            <div class="mm-template-card" onclick="window.loadMathTemplate('dao_ham_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Đạo hàm &amp; Khảo sát</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Tính đơn điệu $f'(x) \ge 0$, cực trị đổi dấu, tiệm cận đứng, ngang, xiên.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('tich_phan_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Tích phân &amp; Nguyên hàm</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Định nghĩa, đổi biến số, tích phân từng phần $\int u \, dv$ và ứng dụng diện tích $S$.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('hinh_oxyz_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Tọa độ Oxyz</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Vectơ, mặt cầu $(S)$, mặt phẳng $(\alpha)$ và phương trình đường thẳng.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('xac_suat_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Xác suất &amp; Bayes</span>
+                <span class="mindmap-tag" style="background:#fef3c7;color:#b45309;">Mới 2025</span>
+              </div>
+              <div class="mm-template-desc">Xác suất có điều kiện $P(A|B)$, xác suất toàn phần và định lý Bayes.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('luong_giac_11')">
+              <div class="mm-template-title">
+                <span>Toán 11 • Lượng giác</span>
+                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+              </div>
+              <div class="mm-template-desc">Công thức cộng, nhân đôi, phương trình lượng giác cơ bản $\sin x = \sin \alpha$.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('mu_logarit_11')">
+              <div class="mm-template-title">
+                <span>Toán 11 • Mũ &amp; Logarit</span>
+                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+              </div>
+              <div class="mm-template-desc">Quy tắc lũy thừa, logarit cơ số $a$, đạo hàm $(a^x)'$ và $(\ln x)'$.</div>
+            </div>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeTemplatesModal()">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOATING EDIT BUTTON FOR MINDMAP (Removed per user request: use double-click instead) -->
+    <button id="btn-edit-active-mindmap" class="btn-edit-active-mm" style="display: none !important;">
+    </button>
+
+    <!-- C# INTEROP SCRIPT -->
+    <script>
+      function setFullScreenMode(isFs) { window.__isHostFullScreen = !!isFs; if (typeof window.onHostFullScreenChanged === 'function') window.onHostFullScreenChanged(window.__isHostFullScreen);
+        if (isFs) {
+          document.body.classList.add('fullscreen-mode');
+        } else {
+          document.body.classList.remove('fullscreen-mode');
+        }
+      }
+
+      function handleInsertToMEA() {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'INSERT_TO_MEA', timestamp: Date.now() });
+        } else {
+          if (window.showToast) window.showToast('Đã sẵn sàng kết nối C# (.NET 10)!'); else alert('Đã sẵn sàng kết nối C# (.NET 10)!');
+        }
+      }
+
+      function handleToggleFullScreen() {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'TOGGLE_FULLSCREEN', timestamp: Date.now() });
+        } else {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+            setFullScreenMode(true);
+          } else {
+            document.exitFullscreen().catch(() => {});
+            setFullScreenMode(false);
+          }
+        }
+      }
+
+      function handleVectorizeImage() {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'VECTORIZE_CLIPBOARD', timestamp: Date.now() });
+        } else {
+          if (window.showToast) window.showToast('Chức năng Vector hóa: Đang thực thi qua C# Engine...'); else alert('Chức năng Vector hóa...');
+        }
+      }
+
+      // Check and update floating button visibility based on selection (disabled)
+      function checkSelectedMindmap() {}
+
+      // Global Double-Click handler for the Whiteboard Canvas
+      document.addEventListener('dblclick', (e) => {
+        if (e.target.closest('#mea-mindmap-container') || e.target.closest('.mm-modal-overlay')) return;
+        const board = window.__meaBoardRef && window.__meaBoardRef.current;
+        if (!board) return;
+
+        let targetItem = null;
+        let pageIdx = -1;
+
+        if (board.sel && board.sel.items && board.sel.items.size > 0) {
+          pageIdx = board.sel.page;
+          const page = board.doc && board.doc.pages ? board.doc.pages[pageIdx] : null;
+          if (page && page.items) {
+            targetItem = page.items.find(x => board.sel.items.has(x.id));
+          }
+        }
+
+        if (!targetItem && typeof board.pageAt === 'function' && typeof board.toPage === 'function') {
+          try {
+            let docPt = { x: e.clientX, y: e.clientY };
+            if (typeof board.eventPoint === 'function' && typeof board.toDoc === 'function') {
+              const ep = board.eventPoint(e);
+              docPt = board.toDoc(ep.sx, ep.sy);
+            }
+            pageIdx = board.pageAt(docPt.y);
+            if (pageIdx >= 0 && board.doc && board.doc.pages && board.doc.pages[pageIdx]) {
+              const pPt = board.toPage(docPt, pageIdx);
+              const page = board.doc.pages[pageIdx];
+              targetItem = [...page.items].reverse().find(it => {
+                return pPt.x >= it.x && pPt.x <= it.x + it.w &&
+                       pPt.y >= it.y && pPt.y <= it.y + it.h;
+              });
+            }
+          } catch (_) {}
+        }
+
+        if (!targetItem && e.target) {
+          try {
+            const imgEl = e.target.closest('img');
+            if (imgEl && board.doc && board.doc.pages) {
+              const src = imgEl.getAttribute('src');
+              for (let p = 0; p < board.doc.pages.length; p++) {
+                const pg = board.doc.pages[p];
+                if (pg && pg.items) {
+                  const match = pg.items.find(it => it.src === src || (src && it.src && (it.src.startsWith(src.slice(0, 40)) || src.startsWith(it.src.slice(0, 40)))));
+                  if (match) {
+                    targetItem = match;
+                    pageIdx = p;
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (targetItem && (targetItem.meaMindmap || (targetItem.type === 'image' && window.__lastInsertedMindmapTree))) {
+          e.preventDefault();
+          e.stopPropagation();
+          const tree = targetItem.meaMindmap || window.__lastInsertedMindmapTree;
+          if (window.openMindMapStudioWithTree) {
+            window.openMindMapStudioWithTree(tree, { id: targetItem.id, page: pageIdx });
+          }
+        }
+      }, true);
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'F5') {
+          e.preventDefault();
+          if (window.startFullHtmlPresentation) window.startFullHtmlPresentation();
+          else if (window.startExamPresentation) window.startExamPresentation();
+        } else if (e.key === 'F11' || (e.key === 'Escape' && document.body.classList.contains('fullscreen-mode'))) {
+          e.preventDefault();
+          handleToggleFullScreen();
+        } else if (e.ctrlKey && e.key === 'F1') {
+          e.preventDefault();
+          if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage({ type: 'TOGGLE_RIBBON', timestamp: Date.now() });
+          }
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
+          e.preventDefault();
+          if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
+          e.preventDefault();
+          if (typeof window.toggleQuestionBankModal === 'function') window.toggleQuestionBankModal();
+        }
+      });
+
+      function ensureExtraToolbarButtons() {
+        const toolbar = document.querySelector('.toolbar');
+        if (!toolbar) return;
+        const groups = toolbar.querySelectorAll('.tb-group');
+        const targetGroup = (groups && groups.length > 0) ? groups[groups.length - 1] : toolbar;
+
+        // 1. Nút Kho Đề & Bài Giảng HTML (Ctrl + Q)
+        if (!document.getElementById('tb-btn-questionbank')) {
+          const btnQ = document.createElement('button');
+          btnQ.id = 'tb-btn-questionbank';
+          btnQ.className = 'tb';
+          btnQ.title = 'Kho Đề & Bài Giảng HTML (Ctrl + Q)';
+          btnQ.setAttribute('aria-label', 'Kho Đề');
+          btnQ.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          `;
+          btnQ.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.toggleQuestionBankModal === 'function') window.toggleQuestionBankModal();
+          };
+          targetGroup.appendChild(btnQ);
+        }
+
+        // 2. Nút Sơ đồ tư duy Toán học (Ctrl + M)
+        if (!document.getElementById('tb-btn-mindmap')) {
+          const btnM = document.createElement('button');
+          btnM.id = 'tb-btn-mindmap';
+          btnM.className = 'tb';
+          btnM.title = 'Sơ đồ tư duy Toán học (Ctrl + M)';
+          btnM.setAttribute('aria-label', 'Sơ đồ tư duy');
+          btnM.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+          `;
+          btnM.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
+          };
+          targetGroup.appendChild(btnM);
+        }
+      }
+      setInterval(ensureExtraToolbarButtons, 800);
+    </script>
+  </body>
+</html>

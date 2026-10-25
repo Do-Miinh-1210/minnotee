@@ -1,0 +1,1975 @@
+/* ==========================================================================
+
+   MatrixExamAI Pro - Math Mindmap Studio CSS
+
+   Theme: Studio Teal, Emerald & Nordic Slate (Matching MEA Pro Standards)
+
+   Supports: Inline KaTeX Rendering, Split/Full Workspace, Responsive SVG Tree
+
+   ========================================================================== */
+
+
+
+#root {
+
+  width: 100% !important;
+
+  height: 100% !important;
+
+  overflow: hidden !important;
+
+}
+
+
+
+body.mindmap-split #root {
+
+  /* Giu nguyen 100% kick thuoc NoteRenderer de khong bao gio bi lech trang hoac co giat canvas */
+
+  width: 100% !important;
+
+  height: 100% !important;
+
+  overflow: hidden !important;
+
+}
+
+
+
+body.mindmap-full #root {
+
+  display: none !important;
+
+}
+
+
+
+body.mindmap-split .toolbar,
+
+body.mindmap-split .toolbar.two-rows {
+
+  /* allow the toolbar to grow when its tools wrap, instead of letting the buttons
+
+     overflow the fixed 40px bar and paint on top of the canvas */
+
+  height: auto !important;
+
+  min-height: 40px !important;
+
+  flex-wrap: wrap !important;
+
+  align-content: center !important;
+
+  padding: 4px 8px !important;
+
+  max-width: 100% !important;
+
+  overflow: visible !important;
+
+}
+
+
+
+body.mindmap-split .toolbar .tb-group.tools {
+
+  flex-wrap: wrap !important;
+
+  max-width: 100% !important;
+
+}
+
+
+
+
+
+/* MINDMAP STUDIO MAIN CONTAINER */
+
+#mea-mindmap-container {
+
+  display: flex;
+
+  flex-direction: column;
+
+  background: #f8fafc;
+
+  color: #0f172a;
+
+  border-left: 2px solid #cbd5e1;
+
+  position: fixed;
+
+  top: 0;
+
+  bottom: 0;
+
+  right: 0;
+
+  overflow: hidden;
+
+  user-select: none;
+
+  box-shadow: -8px 0 30px rgba(15, 23, 42, 0.25);
+
+  z-index: 1000;
+
+}
+
+
+
+body.fullscreen-mode #mea-mindmap-container {
+
+  top: 0 !important;
+
+}
+
+
+
+#mea-mindmap-container.mode-closed {
+
+  display: none !important;
+
+}
+
+
+
+#mea-mindmap-container.mode-split {
+
+  display: flex !important;
+
+  width: 50% !important;
+
+  min-width: 440px !important;
+
+  max-width: 70vw !important;
+
+  left: auto !important;
+
+  right: 0 !important;
+
+  border-left: 2px solid #cbd5e1 !important;
+
+}
+
+
+
+#mea-mindmap-container.mode-full {
+
+  display: flex !important;
+
+  width: 100% !important;
+
+  left: 0 !important;
+
+  right: 0 !important;
+
+  border-left: none !important;
+
+}
+
+
+
+/* DIALOG & SHEET POPOVER ELEVATION (Đảm bảo hộp thoại Sheet / Cài đặt luôn nổi trên cùng và căn giữa) */
+
+.dialog-backdrop {
+
+  position: fixed !important;
+
+  top: 0 !important;
+
+  right: 0 !important;
+
+  bottom: 0 !important;
+
+  left: 0 !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content: center !important;
+
+  background: rgba(15, 23, 42, 0.45) !important;
+
+  backdrop-filter: blur(2px) !important;
+
+  z-index: 99999 !important;
+
+}
+
+
+
+.dialog {
+
+  z-index: 100000 !important;
+
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+
+  margin: auto !important;
+
+}
+
+
+
+/* TOP TOOLBAR INSIDE MINDMAP (Structured 2-Row Responsive Layout) */
+
+.mindmap-toolbar {
+
+  display: flex;
+
+  flex-direction: column;
+
+  padding: 6px 12px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #e2e8f0;
+
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+
+  gap: 6px;
+
+  flex-shrink: 0;
+
+  z-index: 10;
+
+}
+
+
+
+.mindmap-toolbar-row-top {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  width: 100%;
+
+}
+
+
+
+.mindmap-toolbar-row-actions {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  flex-wrap: wrap;
+
+  width: 100%;
+
+}
+
+
+
+.mindmap-title-group {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+}
+
+
+
+.mindmap-title-badge {
+
+  font-size: 12.5px;
+
+  font-weight: 700;
+
+  color: #0f172a;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+}
+
+
+
+.mindmap-tag {
+
+  background: #f1f5f9;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  padding: 2px 6px;
+
+  border-radius: 4px;
+
+  border: 1px solid #e2e8f0;
+
+}
+
+
+
+.mindmap-btn-group {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  background: #f1f5f9;
+
+  border-radius: 8px;
+
+  padding: 2px;
+
+  gap: 2px;
+
+  flex-shrink: 0;
+
+  flex-wrap: nowrap;
+
+}
+
+
+
+.mindmap-btn-group.window-controls {
+
+  margin-left: auto;
+
+}
+
+
+
+.mm-btn {
+
+  background: transparent;
+
+  color: #334155;
+
+  border: none;
+
+  font-size: 11.5px;
+
+  font-weight: 600;
+
+  padding: 4px 8px;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  transition: all 0.15s ease;
+
+  line-height: 1.2;
+
+  white-space: nowrap !important;
+
+  flex-shrink: 0 !important;
+
+}
+
+
+
+.mm-btn:hover:not(:disabled) {
+
+  background: #ffffff;
+
+  color: #0f172a;
+
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+}
+
+
+
+.mm-btn:active {
+
+  transform: scale(0.97);
+
+}
+
+
+
+.mm-btn.btn-insert-board {
+
+  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+
+  color: #ffffff !important;
+
+  font-weight: 700 !important;
+
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35) !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+
+  white-space: nowrap !important;
+
+  flex-shrink: 0 !important;
+
+}
+
+
+
+.mm-btn.btn-insert-board:hover {
+
+  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%) !important;
+
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.5) !important;
+
+  transform: translateY(-1px) !important;
+
+}
+
+
+
+/* TOAST NOTIFICATIONS */
+
+.mea-toast-container {
+
+  position: fixed;
+
+  top: 48px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+
+  z-index: 9999;
+
+  pointer-events: none;
+
+}
+
+
+
+.mea-toast {
+
+  background: rgba(15, 23, 42, 0.92);
+
+  color: #ffffff;
+
+  padding: 8px 16px;
+
+  border-radius: 8px;
+
+  font-size: 12.5px;
+
+  font-weight: 600;
+
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+
+  backdrop-filter: blur(8px);
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  pointer-events: auto;
+
+  animation: meaToastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  transition: opacity 0.3s ease, transform 0.3s ease;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+}
+
+
+
+.mea-toast.success {
+
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+
+  border-color: #34d399;
+
+}
+
+
+
+.mea-toast.error {
+
+  background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
+
+  border-color: #f87171;
+
+}
+
+
+
+.mea-toast.warning {
+
+  background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+
+  border-color: #fbbf24;
+
+}
+
+
+
+.mea-toast.info {
+
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+
+  border-color: #38bdf8;
+
+}
+
+
+
+.mea-toast.hide {
+
+  opacity: 0;
+
+  transform: translateY(-10px);
+
+}
+
+
+
+@keyframes meaToastIn {
+
+  from { opacity: 0; transform: translateY(-12px); }
+
+  to { opacity: 1; transform: translateY(0); }
+
+}
+
+
+
+.mm-btn.primary {
+
+  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
+
+  color: #ffffff;
+
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+
+}
+
+
+
+.mm-btn.primary:hover {
+
+  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%);
+
+  color: #ffffff;
+
+}
+
+
+
+.mm-btn.accent-purple {
+
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+
+  color: #ffffff;
+
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+
+}
+
+
+
+.mm-btn.accent-purple:hover {
+
+  background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%);
+
+}
+
+
+
+.mm-btn.accent-amber {
+
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+
+  color: #ffffff;
+
+}
+
+
+
+.mm-btn.danger {
+
+  color: #dc2626;
+
+}
+
+
+
+.mm-btn.danger:hover {
+
+  background: #fee2e2;
+
+  color: #b91c1c;
+
+}
+
+
+
+.mm-btn-icon-only {
+
+  width: 26px;
+
+  height: 26px;
+
+  padding: 0;
+
+  justify-content: center;
+
+}
+
+
+
+/* MINDMAP WORKSPACE CANVAS */
+
+.mindmap-canvas-area {
+
+  flex: 1;
+
+  position: relative;
+
+  overflow: hidden;
+
+  background: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+
+  background-size: 24px 24px;
+
+  background-color: #f8fafc;
+
+  cursor: grab;
+
+}
+
+
+
+.mindmap-canvas-area.panning {
+
+  cursor: grabbing;
+
+}
+
+
+
+.mindmap-svg-viewport {
+
+  width: 100%;
+
+  height: 100%;
+
+  display: block;
+
+}
+
+
+
+/* FLOATING ZOOM CONTROLS */
+
+.mindmap-floating-controls {
+
+  position: absolute;
+
+  bottom: 16px;
+
+  right: 16px;
+
+  display: flex;
+
+  align-items: center;
+
+  background: rgba(255, 255, 255, 0.96);
+
+  backdrop-filter: blur(8px);
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 8px;
+
+  padding: 3px;
+
+  gap: 3px;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+
+  z-index: 20;
+
+}
+
+
+
+.mindmap-zoom-text {
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  color: #475569;
+
+  padding: 0 6px;
+
+  min-width: 40px;
+
+  text-align: center;
+
+}
+
+
+
+/* NODE VISUAL STYLING */
+
+.mm-node-card {
+
+  position: relative;
+
+  padding: 7px 14px;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  border: 1.5px solid var(--node-color, #0d9488);
+
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+
+  cursor: pointer;
+
+  display: inline-block;
+
+  max-width: 620px;
+
+  min-width: 90px;
+
+  box-sizing: border-box;
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+
+  user-select: text;
+
+  overflow: visible;
+
+}
+
+
+
+.mm-node-card:hover {
+
+  transform: translateY(-1.5px);
+
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+
+}
+
+
+
+.mm-node-card.selected {
+
+  outline: 2.5px solid #0d9488;
+
+  outline-offset: 2px;
+
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.25), 0 8px 20px rgba(15, 23, 42, 0.12);
+
+}
+
+
+
+.mm-node-card.level-0 {
+
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+
+  color: #ffffff;
+
+  border: 2px solid #2dd4bf;
+
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.35);
+
+  padding: 10px 18px;
+
+  border-radius: 12px;
+
+  font-size: 13.5px;
+
+  font-weight: 700;
+
+  text-align: center;
+
+}
+
+
+
+.mm-node-card.level-0 .katex {
+
+  color: #ffffff !important;
+
+}
+
+
+
+.mm-node-card.level-1 {
+
+  background: #ffffff;
+
+  border-width: 2px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+
+}
+
+
+
+.mm-node-card.level-2,
+
+.mm-node-card.level-3,
+
+.mm-node-card.level-4 {
+
+  background: #ffffff;
+
+  border-left-width: 3.5px;
+
+  font-size: 11.5px;
+
+  line-height: 1.45;
+
+  color: #1e293b;
+
+}
+
+
+
+/* NODE CONTENT & KATEX TYPOGRAPHY */
+
+.mm-node-text {
+
+  word-break: normal;
+
+  overflow-wrap: break-word;
+
+  white-space: normal;
+
+  line-height: 1.45;
+
+  color: inherit;
+
+  box-sizing: border-box;
+
+}
+
+
+
+.mm-node-text .katex {
+
+  font-size: 1.05em;
+
+  color: #0f172a;
+
+}
+
+
+
+.mm-node-text .katex-display {
+
+  margin: 4px 0 !important;
+
+}
+
+
+
+.math-err {
+
+  color: #dc2626;
+
+  background: #fee2e2;
+
+  padding: 1px 4px;
+
+  border-radius: 4px;
+
+  font-family: monospace;
+
+  font-size: 0.9em;
+
+}
+
+
+
+/* TOGGLE COLLAPSE BADGE */
+
+.mm-collapse-badge {
+
+  position: absolute;
+
+  right: -9px;
+
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  width: 18px;
+
+  height: 18px;
+
+  border-radius: 50%;
+
+  background: var(--node-color, #0d9488);
+
+  color: #ffffff;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+
+  transition: transform 0.15s ease;
+
+  z-index: 10;
+
+}
+
+
+
+.mm-collapse-badge:hover {
+
+  transform: translateY(-50%) scale(1.2);
+
+}
+
+
+
+/* FLOATING HOVER ACTION BAR ON NODE */
+
+.mm-node-actions {
+
+  position: absolute;
+
+  top: -26px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  display: none;
+
+  background: rgba(15, 23, 42, 0.95);
+
+  border-radius: 6px;
+
+  padding: 2px 4px;
+
+  gap: 3px;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  z-index: 30;
+
+  white-space: nowrap;
+
+}
+
+
+
+.mm-node-card:hover .mm-node-actions,
+
+.mm-node-card.selected .mm-node-actions {
+
+  display: inline-flex;
+
+}
+
+
+
+.mm-action-btn {
+
+  background: transparent;
+
+  color: #e2e8f0;
+
+  border: none;
+
+  padding: 2px 5px;
+
+  font-size: 10px;
+
+  font-weight: 600;
+
+  border-radius: 4px;
+
+  cursor: pointer;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 3px;
+
+}
+
+
+
+.mm-action-btn:hover {
+
+  background: rgba(255, 255, 255, 0.2);
+
+  color: #ffffff;
+
+}
+
+
+
+.mm-action-btn.btn-del:hover {
+
+  background: #dc2626;
+
+  color: #ffffff;
+
+}
+
+
+
+/* COLOR PALETTE POPUP */
+
+.mm-color-palette {
+
+  display: none;
+
+  position: absolute;
+
+  top: 100%;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  margin-top: 4px;
+
+  background: #ffffff;
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 8px;
+
+  padding: 5px;
+
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15);
+
+  gap: 4px;
+
+  z-index: 40;
+
+}
+
+
+
+.mm-color-palette.open {
+
+  display: flex;
+
+}
+
+
+
+.mm-color-dot {
+
+  width: 16px;
+
+  height: 16px;
+
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  border: 1px solid rgba(0, 0, 0, 0.1);
+
+  transition: transform 0.15s ease;
+
+}
+
+
+
+.mm-color-dot:hover {
+
+  transform: scale(1.25);
+
+}
+
+
+
+/* EDIT MODAL DIALOG */
+
+.mm-modal-overlay {
+
+  position: fixed;
+
+  top: 0;
+
+  left: 0;
+
+  right: 0;
+
+  bottom: 0;
+
+  background: rgba(15, 23, 42, 0.55);
+
+  backdrop-filter: blur(4px);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  z-index: 1000;
+
+}
+
+
+
+.mm-modal-card {
+
+  background: #ffffff;
+
+  border-radius: 14px;
+
+  width: 90%;
+
+  max-width: 680px;
+
+  max-height: 85vh;
+
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.25);
+
+  border: 1px solid #cbd5e1;
+
+  display: flex;
+
+  flex-direction: column;
+
+  overflow: hidden;
+
+  animation: mmModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+}
+
+
+
+@keyframes mmModalPop {
+
+  0% { opacity: 0; transform: scale(0.95); }
+
+  100% { opacity: 1; transform: scale(1); }
+
+}
+
+
+
+.mm-modal-header {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  padding: 12px 18px;
+
+  background: #f8fafc;
+
+  border-bottom: 1px solid #e2e8f0;
+
+}
+
+
+
+.mm-modal-title {
+
+  font-size: 13.5px;
+
+  font-weight: 700;
+
+  color: #0f172a;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+}
+
+
+
+.mm-modal-body {
+
+  padding: 16px 18px;
+
+  overflow-y: auto;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+
+}
+
+
+
+.mm-modal-footer {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: flex-end;
+
+  padding: 10px 18px;
+
+  background: #f8fafc;
+
+  border-top: 1px solid #e2e8f0;
+
+  gap: 8px;
+
+}
+
+
+
+/* QUICK MATH PALETTE INSIDE MODAL */
+
+.mm-quick-math-bar {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  background: #f8fafc;
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 8px;
+
+  padding: 8px 10px;
+
+}
+
+
+
+.mm-math-categories {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 4px;
+
+}
+
+
+
+.mm-math-btn {
+
+  background: #ffffff;
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 5px;
+
+  padding: 4px 8px;
+
+  font-size: 11.5px;
+
+  font-family: KaTeX_Main, "Times New Roman", serif;
+
+  color: #1e293b;
+
+  cursor: pointer;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 2px;
+
+  transition: all 0.15s ease;
+
+}
+
+
+
+.mm-math-btn:hover {
+
+  background: #f0fdfa;
+
+  border-color: #0d9488;
+
+  color: #0d9488;
+
+  transform: translateY(-1px);
+
+}
+
+
+
+.mm-textarea {
+
+  width: 100%;
+
+  min-height: 85px;
+
+  box-sizing: border-box;
+
+  padding: 10px 12px;
+
+  border: 1.5px solid #cbd5e1;
+
+  border-radius: 8px;
+
+  font-size: 13px;
+
+  font-family: inherit;
+
+  color: #0f172a;
+
+  resize: vertical;
+
+  line-height: 1.5;
+
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+}
+
+
+
+.mm-textarea:focus {
+
+  outline: none;
+
+  border-color: #0d9488;
+
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+
+}
+
+
+
+/* REALTIME PREVIEW BOX */
+
+.mm-preview-box {
+
+  background: #f1f5f9;
+
+  border: 1px dashed #94a3b8;
+
+  border-radius: 8px;
+
+  padding: 10px 14px;
+
+  min-height: 40px;
+
+  display: flex;
+
+  align-items: center;
+
+  font-size: 13px;
+
+  line-height: 1.5;
+
+  color: #0f172a;
+
+  overflow-x: auto;
+
+}
+
+
+
+.mm-preview-label {
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  color: #64748b;
+
+  margin-bottom: 2px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+}
+
+
+
+/* MARKDOWN VIEW WRAPPER */
+
+.mindmap-markdown-area {
+
+  flex: 1;
+
+  display: none;
+
+  flex-direction: column;
+
+  padding: 14px 18px;
+
+  background: #ffffff;
+
+  gap: 10px;
+
+  overflow: hidden;
+
+}
+
+
+
+.mindmap-markdown-area.active {
+
+  display: flex;
+
+}
+
+
+
+.mm-markdown-editor {
+
+  flex: 1;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  font-family: "Consolas", "Courier New", monospace;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 8px;
+
+  padding: 12px;
+
+  color: #0f172a;
+
+  background: #f8fafc;
+
+  resize: none;
+
+}
+
+
+
+.mm-markdown-editor:focus {
+
+  outline: none;
+
+  border-color: #0d9488;
+
+  background: #ffffff;
+
+}
+
+
+
+/* TEMPLATE GALLERY CARDS */
+
+.mm-template-grid {
+
+  display: grid;
+
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+
+  gap: 12px;
+
+  padding: 4px 0;
+
+}
+
+
+
+.mm-template-card {
+
+  background: #f8fafc;
+
+  border: 1.5px solid #e2e8f0;
+
+  border-radius: 10px;
+
+  padding: 12px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+}
+
+
+
+.mm-template-card:hover {
+
+  background: #f0fdfa;
+
+  border-color: #0d9488;
+
+  transform: translateY(-2px);
+
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.15);
+
+}
+
+
+
+.mm-template-title {
+
+  font-size: 12.5px;
+
+  font-weight: 700;
+
+  color: #0f172a;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+}
+
+
+
+.mm-template-desc {
+
+  font-size: 11px;
+
+  color: #64748b;
+
+  line-height: 1.4;
+
+}
+
+
+
+/* HEADER BADGE BUTTON ACCENT */
+
+#mea-header-badge .btn-mindmap-mea {
+
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+
+  color: #ffffff !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+
+  padding: 5px 12px !important;
+
+  border-radius: 6px !important;
+
+  font-size: 11.5px !important;
+
+  font-weight: 600 !important;
+
+  cursor: pointer !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  gap: 6px !important;
+
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35) !important;
+
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+}
+
+
+
+#mea-header-badge .btn-mindmap-mea:hover {
+
+  background: linear-gradient(135deg, #6d28d9 0%, #4338ca 100%) !important;
+
+  transform: translateY(-1px) !important;
+
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.5) !important;
+
+}
+
+
+
+#mea-header-badge .btn-mindmap-mea.active {
+
+  background: linear-gradient(135deg, #059669 0%, #0d9488 100%) !important;
+
+  border-color: #2dd4bf !important;
+
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.6) !important;
+
+}
+
+
+
+/* CLEAN EXPORT MODE (ZERO UI, ZERO SCREENSHOT ARTIFACTS, CLEAN TRANSPARENT BACKGROUND) */
+
+#mea-mindmap-container.mindmap-clean-export,
+
+#mea-mindmap-container.mindmap-clean-export.mode-split,
+
+#mea-mindmap-container.mindmap-clean-export.mode-full {
+
+  background: transparent !important;
+
+  background-color: transparent !important;
+
+  box-shadow: none !important;
+
+  border: none !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-canvas-area,
+
+#mea-mindmap-container.mindmap-clean-export #mindmap-canvas-area {
+
+  background: transparent !important;
+
+  background-image: none !important;
+
+  background-color: transparent !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-floating-controls,
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-toolbar,
+
+#mea-mindmap-container.mindmap-clean-export .mm-node-actions,
+
+#mea-mindmap-container.mindmap-clean-export .mm-color-palette,
+
+#mea-mindmap-container.mindmap-clean-export .mm-collapse-badge {
+
+  display: none !important;
+
+  visibility: hidden !important;
+
+  opacity: 0 !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-clean-export .mm-node-card.selected {
+
+  border-color: var(--node-color, #0d9488) !important;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08) !important;
+
+  outline: none !important;
+
+}
+
+
+
+/* HIGH-DPI CLEAN EXPORT STAGE (100% Transparent Fullscreen Overlay) */
+
+html.mindmap-capturing,
+
+body.mindmap-capturing {
+
+  background: transparent !important;
+
+  background-color: transparent !important;
+
+}
+
+
+
+body.mindmap-capturing #root,
+
+body.mindmap-capturing #mea-header-badge,
+
+body.mindmap-capturing .btn-edit-active-mm,
+
+body.mindmap-capturing .mea-toast-container {
+
+  display: none !important;
+
+  visibility: hidden !important;
+
+}
+
+
+
+body.mindmap-capturing *,
+
+#mea-mindmap-container.mindmap-capturing * {
+
+  transition: none !important;
+
+  animation: none !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-capturing,
+
+#mea-mindmap-container.mindmap-clean-export {
+
+  background: transparent !important;
+
+  background-color: transparent !important;
+
+  background-image: none !important;
+
+  border-color: transparent !important;
+
+  border: none !important;
+
+  box-shadow: none !important;
+
+  transition: none !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-canvas-area,
+
+#mea-mindmap-container.mindmap-capturing .mindmap-canvas-area,
+
+#mea-mindmap-container.mindmap-clean-export #mindmap-canvas-area,
+
+#mea-mindmap-container.mindmap-capturing #mindmap-canvas-area,
+
+#mea-mindmap-container.mindmap-capturing #mindmap-viewport,
+
+#mea-mindmap-container.mindmap-capturing .mindmap-svg-viewport {
+
+  background: transparent !important;
+
+  background-color: transparent !important;
+
+  background-image: none !important;
+
+  box-shadow: none !important;
+
+}
+
+
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-toolbar,
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-floating-controls,
+
+#mea-mindmap-container.mindmap-clean-export .mindmap-markdown-area,
+
+#mea-mindmap-container.mindmap-capturing .mindmap-toolbar,
+
+#mea-mindmap-container.mindmap-capturing .mindmap-floating-controls,
+
+#mea-mindmap-container.mindmap-capturing .mindmap-markdown-area,
+
+#mea-mindmap-container.mindmap-capturing .mm-node-actions,
+
+#mea-mindmap-container.mindmap-capturing .mm-color-palette,
+
+#mea-mindmap-container.mindmap-capturing .mm-collapse-badge {
+
+  display: none !important;
+
+  visibility: hidden !important;
+
+  opacity: 0 !important;
+
+}
+
+
+
+/* FLOATING EDIT MINDMAP BUTTON ON WHITEBOARD */
+
+.btn-edit-active-mm {
+
+  position: fixed;
+
+  bottom: 24px;
+
+  right: 24px;
+
+  z-index: 9999;
+
+  display: none;
+
+  align-items: center;
+
+  gap: 8px;
+
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+
+  color: #ffffff;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+
+  padding: 9px 18px;
+
+  border-radius: 9999px;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  box-shadow: 0 10px 25px -5px rgba(13, 148, 136, 0.5), 0 8px 10px -6px rgba(13, 148, 136, 0.3);
+
+  cursor: pointer;
+
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  animation: pulseMeaMm 2.5s infinite;
+
+}
+
+
+
+.btn-edit-active-mm:hover {
+
+  transform: translateY(-2px) scale(1.03);
+
+  box-shadow: 0 14px 28px -4px rgba(13, 148, 136, 0.65);
+
+}
+
+
+
+@keyframes pulseMeaMm {
+
+  0%, 100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.5); }
+
+  50% { box-shadow: 0 0 0 10px rgba(13, 148, 136, 0); }
+
+}
+
+
+
+
+/* ==========================================================================
+   NATIVE VECTOR MINDMAP CARD ON WHITEBOARD (ĐỖ MIINH MATH)
+   ========================================================================== */
+.mea-mm-board-card {
+  position: absolute;
+  box-sizing: border-box;
+  background: transparent !important;
+  border: 2px dashed transparent;
+  border-radius: 6px;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+
+.mea-mm-card-body {
+  position: relative;
+  background: transparent !important;
+}
+
+/* Nút xóa nhanh sơ đồ tư duy trên bảng viết */
+.mea-mm-delete-btn {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  background: #ef4444;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  display: none !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 101;
+}
+
+.mea-mm-delete-btn:hover {
+  transform: scale(1.15);
+  background: #dc2626;
+}
+
+/* Resize handle — bottom-right corner, like native board elements */
+.mea-mm-resize-handle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border: 2px solid #0d9488;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: nwse-resize;
+  display: none !important;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  z-index: 100;
+}
+
+.mea-mm-resize-handle:hover {
+  transform: scale(1.2);
+  background: #0d9488;
+}
+
+

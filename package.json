@@ -1,0 +1,27 @@
+{
+  "name": "noterenderer",
+  "version": "0.6.2",
+  "description": "Ink notebook with graphs, equations and dynamic geometry",
+  "author": "NoteRenderer",
+  "main": "electron/main.cjs",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/device": "^8.0.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/share": "^8.0.3",
+    "@mathjax/src": "^4.1.3",
+    "@noble/ed25519": "^3.2.0",
+    "@revenuecat/purchases-capacitor": "^13.7.3",
+    "bytenode": "^1.5.7",
+    "electron-updater": "^6.8.9",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true
+  }
+}

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:20128 http://localhost:20128 https: data:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <title>MatrixExamAI Pro • Sơ đồ tư duy Toán học</title>
+    <!-- KaTeX Math Engine (Local Offline) -->
+    <link rel="stylesheet" href="./katex.min.css">
+    <script src="./katex.min.js"></script>
+
+    <!-- Math Mindmap Studio Styles & Scripts -->
+    <link rel="stylesheet" href="./assets/mea-mindmap.css">
+    <script src="./assets/mea-mindmap.js" defer></script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      #mea-mindmap-container {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        border-left: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Math Mindmap Studio Standalone Workspace -->
+    <div id="mea-mindmap-container" class="mode-full">
+        <!-- Top Toolbar inside Mindmap -->
+        <div class="mindmap-toolbar">
+          <!-- Row 1: Title badge & Window mode controls -->
+          <div class="mindmap-toolbar-row-top">
+            <div class="mindmap-title-group">
+              <span class="mindmap-title-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+                  <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                Sơ đồ tư duy Toán học
+              </span>
+              <span class="mindmap-tag">LaTeX &amp; KaTeX • Phím tắt: Ctrl + M</span>
+            </div>
+
+            <div class="mindmap-btn-group window-controls">
+              <button class="mm-btn mm-btn-icon-only" onclick="handleToggleFullScreen()" title="Toàn màn hình (F11)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Row 2: Action commands (Add, Edit, AI, Templates, Insert) -->
+          <div class="mindmap-toolbar-row-actions">
+            <div class="mindmap-btn-group">
+              <button class="mm-btn primary" onclick="window.addChildNode()" title="Thêm nhánh con (Phím Tab)">+ Con (Tab)</button>
+              <button class="mm-btn" onclick="window.addSiblingNode()" title="Thêm nhánh cùng cấp (Phím Enter)">+ Cùng cấp</button>
+              <button class="mm-btn" onclick="window.openMathEditor()" title="Sửa nội dung &amp; công thức toán (F2)">✏ Sửa (F2)</button>
+              <button class="mm-btn danger" onclick="window.deleteNode()" title="Xóa nhánh được chọn (Delete)">🗑 Xóa</button>
+            </div>
+
+            <div class="mindmap-btn-group">
+              <button class="mm-btn accent-purple" onclick="window.openAiMindmapModal()" title="AI tự động phân tích và tạo sơ đồ tư duy có công thức LaTeX">
+                ✨ AI Tạo sơ đồ
+              </button>
+              <button class="mm-btn accent-amber" onclick="window.openTemplatesModal()" title="Kho sơ đồ tư duy Toán 10, 11, 12 chuẩn SGK">
+                📁 Mẫu SGK
+              </button>
+              <button class="mm-btn" id="btn-toggle-md" onclick="window.toggleMarkdownView()" title="Chuyển đổi qua lại giữa Đồ họa và Dàn ý Markdown">
+                📝 Dàn ý
+              </button>
+            </div>
+
+            <div class="mindmap-btn-group">
+              <button class="mm-btn btn-insert-board" onclick="window.insertMindmapToWhiteboard()" title="Chèn sơ đồ sang tab Bảng viết để giảng bài hoặc viết bài">
+                📋 Chèn Bảng vẽ
+              </button>
+              <button class="mm-btn" onclick="window.insertMindmapToWord()" title="Sao chép ảnh sơ đồ độ nét cao để dán vào file Word / đề thi MEA (Ctrl+V)">
+                Word
+              </button>
+              <button class="mm-btn" onclick="window.downloadMindmapPng()" title="Tải tệp ảnh sơ đồ PNG">
+                PNG
+              </button>
+              <button class="mm-btn" onclick="window.downloadMindmapSvg()" title="Tải vector SVG không vỡ nét">
+                SVG
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="mindmap-canvas-area" id="mindmap-canvas-area">
+          <div id="mindmap-svg-wrap" style="width:100%; height:100%; position:relative;"></div>
+
+          <!-- Floating Zoom & Fit Controls -->
+          <div class="mindmap-floating-controls">
+            <button class="mm-btn mm-btn-icon-only" onclick="window.zoomMindMap(0.1)" title="Phóng to (+)">+</button>
+            <span class="mindmap-zoom-text" id="mindmap-zoom-label">100%</span>
+            <button class="mm-btn mm-btn-icon-only" onclick="window.zoomMindMap(-0.1)" title="Thu nhỏ (-)">−</button>
+            <button class="mm-btn" onclick="window.fitMindMapView()" title="Căn giữa toàn bộ sơ đồ">Căn giữa</button>
+            <button class="mm-btn" onclick="window.resetMindMapZoom()" title="Về tỉ lệ 100%">1:1</button>
+          </div>
+        </div>
+
+        <!-- Markdown Outline Tab Area -->
+        <div class="mindmap-markdown-area" id="mindmap-markdown-area">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;font-weight:700;color:#0f172a;">Chỉnh sửa Dàn ý Markdown (Hỗ trợ công thức LaTeX $...$)</span>
+            <button class="mm-btn primary" onclick="window.applyMarkdownToTree()">Áp dụng vào Sơ đồ Đồ Họa</button>
+          </div>
+          <textarea class="mm-markdown-editor" id="mm-markdown-input" placeholder="# Chủ đề chính&#10;## Nhánh 1&#10;- Ý con kèm $x^2 + \sqrt{y}$"></textarea>
+        </div>
+    </div>
+
+<!-- MODAL 1: FORMULA & TEXT NODE EDITOR -->
+    <div class="mm-modal-overlay" id="mindmap-math-modal" style="display:none;" onclick="if(event.target===this)window.closeMathEditor();">
+      <div class="mm-modal-card">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            Chỉnh sửa nội dung &amp; Công thức Toán học
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeMathEditor()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <!-- Quick Math Formula Palette -->
+          <div class="mm-quick-math-bar">
+            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;">Bấm để chèn nhanh công thức toán học (LaTeX):</div>
+            <div class="mm-math-categories">
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\frac{a}{b}')" title="Phân số">\frac{a}{b}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sqrt{x}')" title="Căn bậc hai">\sqrt{x}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sqrt[n]{x}')" title="Căn bậc n">\sqrt[n]{x}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('x^2')" title="Số mũ">x^2</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('x_i')" title="Chỉ số dưới">x_i</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\lim_{x \\to x_0}')" title="Giới hạn">\lim_{x \to x_0}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\int_a^b f(x)dx')" title="Tích phân">\int_a^b</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sum_{i=1}^n')" title="Tổng">\sum</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\vec{u}')" title="Vectơ">\vec{u}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\widehat{ABC}')" title="Góc">\widehat{ABC}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\begin{cases} x+y=1 \\\\ x-y=0 \\end{cases}')" title="Hệ phương trình">\begin{cases}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\pm')" title="Cộng trừ">\pm</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\infty')" title="Vô cực">\infty</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\pi')" title="Số Pi">\pi</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\alpha')" title="Alpha">\alpha</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\beta')" title="Beta">\beta</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Delta')" title="Delta">\Delta</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\in')" title="Thuộc">\in</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\subset')" title="Tập con">\subset</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\mathbb{R}')" title="Tập số thực">\mathbb{R}</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\ge')" title="Lớn hơn hoặc bằng">\ge</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\le')" title="Nhỏ hơn hoặc bằng">\le</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\ne')" title="Khác">\ne</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\approx')" title="Xấp xỉ">\approx</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Rightarrow')" title="Suy ra">\Rightarrow</button>
+              <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\Leftrightarrow')" title="Tương đương">\Leftrightarrow</button>
+            </div>
+          </div>
+
+          <!-- Textarea for text + formulas -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px;">Nhập văn bản và công thức (kẹp công thức trong cặp dấu $...$):</div>
+            <textarea class="mm-textarea" id="mm-math-input" placeholder="Ví dụ: Định lý Cosin: $a^2 = b^2 + c^2 - 2bc \cos A$"></textarea>
+          </div>
+
+          <!-- Realtime Math Preview Box -->
+          <div>
+            <div class="mm-preview-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              Xem trước hiển thị tức thời (KaTeX Engine):
+            </div>
+            <div class="mm-preview-box" id="mm-math-preview-box"></div>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeMathEditor()">Hủy (Esc)</button>
+          <button class="mm-btn primary" onclick="window.saveMathEditor()">Lưu thay đổi (Ctrl+Enter)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: AI MINDMAP GENERATOR -->
+    <div class="mm-modal-overlay" id="mindmap-ai-modal" style="display:none;" onclick="if(event.target===this)window.closeAiMindmapModal();">
+      <div class="mm-modal-card" style="max-width:540px;">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            Trợ lý AI Sinh Sơ Đồ Tư Duy Toán Học
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeAiMindmapModal()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <div style="font-size:12px;color:#475569;line-height:1.5;">
+            Nhập tên bài học, chủ đề Toán học hoặc đề mục cần tổng hợp kiến thức. Trợ lý AI sẽ tự động phân nhánh và nạp công thức toán học LaTeX chuẩn xác:
+          </div>
+          <input type="text" id="mm-ai-topic-input" class="mm-textarea" style="min-height:42px;height:42px;" placeholder="Ví dụ: Khảo sát hàm số bậc 3, Tọa độ không gian Oxyz, Xác suất Bayes..." onkeydown="if(event.key==='Enter')window.generateAiMindmap();" />
+
+          <div id="mm-ai-provider-badge" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:6px;display:flex;align-items:center;gap:4px;">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;"></span>
+            <span id="mm-ai-provider-text">Được hỗ trợ bởi AI Engine (Google Gemini / 9Router / Claude)</span>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;color:#64748b;margin-top:8px;">Chủ đề gợi ý nhanh:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Đạo hàm và ứng dụng khảo sát hàm số'">Đạo hàm 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Nguyên hàm, tích phân và ứng dụng diện tích, thể tích'">Tích phân 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Phương pháp tọa độ trong không gian Oxyz'">Hình Oxyz 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Xác suất có điều kiện và công thức Bayes'">Xác suất Bayes 12</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Phương trình lượng giác cơ bản và công thức cộng'">Lượng giác 11</button>
+            <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Hàm số mũ và hàm số logarit'">Mũ &amp; Logarit 11</button>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeAiMindmapModal()">Đóng</button>
+          <button class="mm-btn accent-purple" id="btn-exec-ai-gen" onclick="window.generateAiMindmap()">✨ Tạo sơ đồ ngay</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: CURATED TEMPLATE GALLERY -->
+    <div class="mm-modal-overlay" id="mindmap-templates-modal" style="display:none;" onclick="if(event.target===this)window.closeTemplatesModal();">
+      <div class="mm-modal-card" style="max-width:760px;">
+        <div class="mm-modal-header">
+          <span class="mm-modal-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Kho Mẫu Sơ Đồ Tư Duy Toán THPT Chuẩn BGD
+          </span>
+          <button class="mm-btn mm-btn-icon-only" onclick="window.closeTemplatesModal()">✕</button>
+        </div>
+        <div class="mm-modal-body">
+          <div class="mm-template-grid">
+            <div class="mm-template-card" onclick="window.loadMathTemplate('dao_ham_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Đạo hàm &amp; Khảo sát</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Tính đơn điệu $f'(x) \ge 0$, cực trị đổi dấu, tiệm cận đứng, ngang, xiên.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('tich_phan_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Tích phân &amp; Nguyên hàm</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Định nghĩa, đổi biến số, tích phân từng phần $\int u \, dv$ và ứng dụng diện tích $S$.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('hinh_oxyz_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Tọa độ Oxyz</span>
+                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+              </div>
+              <div class="mm-template-desc">Vectơ, mặt cầu $(S)$, mặt phẳng $(\alpha)$ và phương trình đường thẳng.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('xac_suat_12')">
+              <div class="mm-template-title">
+                <span>Toán 12 • Xác suất &amp; Bayes</span>
+                <span class="mindmap-tag" style="background:#fef3c7;color:#b45309;">Mới 2025</span>
+              </div>
+              <div class="mm-template-desc">Xác suất có điều kiện $P(A|B)$, xác suất toàn phần và định lý Bayes.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('luong_giac_11')">
+              <div class="mm-template-title">
+                <span>Toán 11 • Lượng giác</span>
+                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+              </div>
+              <div class="mm-template-desc">Công thức cộng, nhân đôi, phương trình lượng giác cơ bản $\sin x = \sin \alpha$.</div>
+            </div>
+
+            <div class="mm-template-card" onclick="window.loadMathTemplate('mu_logarit_11')">
+              <div class="mm-template-title">
+                <span>Toán 11 • Mũ &amp; Logarit</span>
+                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+              </div>
+              <div class="mm-template-desc">Quy tắc lũy thừa, logarit cơ số $a$, đạo hàm $(a^x)'$ và $(\ln x)'$.</div>
+            </div>
+          </div>
+        </div>
+        <div class="mm-modal-footer">
+          <button class="mm-btn" onclick="window.closeTemplatesModal()">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    
+
+    <script>
+      function handleToggleFullScreen() {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({ type: 'TOGGLE_FULLSCREEN', timestamp: Date.now() });
+        } else {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
+      }
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+          e.preventDefault();
+          handleToggleFullScreen();
+        } else if (e.ctrlKey && e.key === 'F1') {
+          e.preventDefault();
+          if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage({ type: 'TOGGLE_RIBBON', timestamp: Date.now() });
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

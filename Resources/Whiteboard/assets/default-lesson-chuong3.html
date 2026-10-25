@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chương III: Các Số Đặc Trưng Đo Xu Thế Trung Tâm - Thầy Đỗ Minh Math</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- KaTeX CSS & JS (Local Offline First + CDN Fallback) -->
+  <link rel="stylesheet" href="./katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="./katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      scroll-behavior: smooth;
+    }
+
+    .katex {
+      font-size: 1.05em !important;
+    }
+
+    /* Thanh cuộn ngang thanh mảnh cho bảng số liệu */
+    .table-scroll::-webkit-scrollbar {
+      height: 7px;
+    }
+    .table-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 4px;
+    }
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-brand-600 selection:text-white">
+
+  <!-- HEADER TINH GỌN, TRANG TRỌNG -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand-700 text-white flex items-center justify-center font-bold text-xl shadow-xs">
+          ∑
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
+            Toán 11 • Chương III: Mẫu Số Liệu Ghép Nhóm
+          </h1>
+          <p class="text-xs text-slate-500 font-medium">Hệ thống bài học theo các bước hành động • Biên soạn: <span class="text-brand-700 font-bold">Thầy Đỗ Minh Math</span></p>
+        </div>
+      </div>
+
+      <!-- Điều hướng nhanh -->
+      <nav class="flex items-center gap-1.5 text-xs font-semibold">
+        <a href="#bai-8" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 transition">1. Kỹ Thuật Ghép Nhóm</a>
+        <a href="#bai-9-trung-binh" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 transition">2. Số Trung Bình</a>
+        <a href="#bai-9-trung-vi" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 transition">3. Trung Vị & Tứ Phân Vị</a>
+        <a href="#bai-9-mot" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-700 transition">4. Mốt</a>
+        <a href="#luyen-tap-sgk" class="px-3 py-1.5 rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition">Trắc Nghiệm SGK</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- NỘI DUNG CHÍNH -->
+  <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 space-y-10">
+
+    <!-- PHẦN 1: BÀI 8 - GHÉP NHÓM MẪU SỐ LIỆU -->
+    <section id="bai-8" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+      <div class="border-b border-slate-100 pb-3">
+        <span class="inline-block px-2.5 py-0.5 bg-sky-100 text-brand-800 text-xs font-bold rounded mb-1">BÀI 8</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Ghép Nhóm Mẫu Số Liệu & Kỹ Thuật Tránh Bẫy Đầu Mút</h2>
+      </div>
+
+      <!-- Mục tiêu & Cần làm gì -->
+      <div class="p-4 bg-sky-50/70 rounded-xl border border-sky-200 text-sm space-y-1.5">
+        <p class="font-bold text-brand-900 flex items-center gap-1.5 text-base">
+          🎯 Phần này học sinh cần làm gì?
+        </p>
+        <p class="text-slate-700 text-xs sm:text-sm leading-relaxed">
+          Khi có một dãy số liệu rời rạc có quá nhiều giá trị (ví dụ: điểm thi của hàng nghìn thí sinh, thời gian chạy của 30 VĐV...), học sinh cần biết cách <strong>gom các số liệu này vào từng nhóm (khoảng) bằng nhau</strong> để lập thành <strong>bảng thống kê dạng ngang</strong> giúp dễ theo dõi và tính toán.
+        </p>
+      </div>
+
+      <!-- 3 Bước thực hiện chuẩn -->
+      <div class="space-y-3">
+        <h3 class="font-bold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-brand-600"></span>
+          3 Bước Thực Hiện Khi Ghép Nhóm Số Liệu:
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs sm:text-sm">
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+            <span class="px-2 py-0.5 bg-brand-700 text-white font-bold rounded text-xs">Bước 1</span>
+            <p class="font-bold text-slate-900">Tính khoảng biến thiên:</p>
+            <p class="text-slate-600">$R = x_{\max} - x_{\min}$ (Lấy giá trị lớn nhất trừ giá trị nhỏ nhất trong mẫu).</p>
+          </div>
+
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+            <span class="px-2 py-0.5 bg-brand-700 text-white font-bold rounded text-xs">Bước 2</span>
+            <p class="font-bold text-slate-900">Chọn số nhóm $k$ và độ dài $h$:</p>
+            <p class="text-slate-600">Sao cho tổng độ dài các nhóm bao phủ toàn bộ số liệu: $k \times h > R$. Độ dài mỗi nhóm: $h = b - a$.</p>
+          </div>
+
+          <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+            <span class="px-2 py-0.5 bg-brand-700 text-white font-bold rounded text-xs">Bước 3</span>
+            <p class="font-bold text-slate-900">Xác định mút & Đếm tần số:</p>
+            <p class="text-slate-600">Mỗi nhóm $[a; b)$ lấy số liệu $a \le x < b$. Đếm số lượng rơi vào từng nhóm rồi điền vào bảng ngang.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ví dụ minh họa thực hiện theo 3 bước (Ví dụ 2 SGK trang 60) -->
+      <div class="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4">
+        <div class="flex items-center justify-between">
+          <h4 class="font-bold text-sm text-slate-900">
+            📌 Ví dụ mẫu (Ví dụ 2 SGK trang 60): Ghép nhóm thời gian chạy của 30 VĐV
+          </h4>
+          <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-medium">Cỡ mẫu $n = 30$</span>
+        </div>
+
+        <!-- Bảng số liệu rời rạc ban đầu dạng ngang -->
+        <div class="space-y-1.5">
+          <p class="text-xs font-semibold text-slate-600">Bảng số liệu gốc trong giải chạy marathon (phút):</p>
+          <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg bg-white">
+            <table class="w-full text-xs text-center border-collapse">
+              <tbody>
+                <tr class="bg-slate-100 font-semibold text-slate-700 border-b border-slate-200">
+                  <td class="p-2 text-left bg-slate-200/70 font-bold whitespace-nowrap">Thời gian</td>
+                  <td class="p-2 border-l border-slate-200">129</td>
+                  <td class="p-2 border-l border-slate-200">130</td>
+                  <td class="p-2 border-l border-slate-200">133</td>
+                  <td class="p-2 border-l border-slate-200">134</td>
+                  <td class="p-2 border-l border-slate-200">135</td>
+                  <td class="p-2 border-l border-slate-200">136</td>
+                  <td class="p-2 border-l border-slate-200">138</td>
+                  <td class="p-2 border-l border-slate-200">141</td>
+                  <td class="p-2 border-l border-slate-200">142</td>
+                  <td class="p-2 border-l border-slate-200">143</td>
+                  <td class="p-2 border-l border-slate-200">144</td>
+                  <td class="p-2 border-l border-slate-200">145</td>
+                </tr>
+                <tr>
+                  <td class="p-2 text-left bg-slate-50 font-semibold border-t border-slate-200">Số VĐV</td>
+                  <td class="p-2 border-l border-t border-slate-200">1</td>
+                  <td class="p-2 border-l border-t border-slate-200">2</td>
+                  <td class="p-2 border-l border-t border-slate-200">1</td>
+                  <td class="p-2 border-l border-t border-slate-200">1</td>
+                  <td class="p-2 border-l border-t border-slate-200">1</td>
+                  <td class="p-2 border-l border-t border-slate-200">2</td>
+                  <td class="p-2 border-l border-t border-slate-200">3</td>
+                  <td class="p-2 border-l border-slate-200">3</td>
+                  <td class="p-2 border-l border-slate-200">4</td>
+                  <td class="p-2 border-l border-slate-200">5</td>
+                  <td class="p-2 border-l border-slate-200">2</td>
+                  <td class="p-2 border-l border-slate-200">5</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Trình bày bài làm theo các bước -->
+        <div class="text-xs sm:text-sm text-slate-700 space-y-2 bg-white p-4 rounded-xl border border-slate-200">
+          <p>• <strong>Bước 1:</strong> $x_{\min} = 129$, $x_{\max} = 145 \implies R = 145 - 129 = 16$.</p>
+          <p>• <strong>Bước 2:</strong> Chia thành $k = 6$ nhóm có cùng độ dài $h = 3$. Tổng độ phủ: $6 \times 3 = 18 > 16$. Dư $18 - 16 = 2$ đơn vị.</p>
+          <p>• <strong>Bước 3 (Bí quyết của Thầy Đỗ Minh):</strong> Vì số liệu là số nguyên, ta lùi mút trái xuống $127{,}5$ và mút phải lên $145{,}5$ (chia đều phần dư sang hai bên). Khi đó không có số nào rơi trúng ranh giới, giúp việc đếm chính xác 100%!</p>
+          
+          <p class="font-bold text-slate-900 pt-2">Bảng tần số ghép nhóm dạng ngang thu được:</p>
+          <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg">
+            <table class="w-full text-xs text-center border-collapse">
+              <tbody>
+                <tr class="bg-slate-100 font-semibold text-slate-700 border-b border-slate-200">
+                  <td class="p-2.5 text-left bg-slate-200/70 font-bold whitespace-nowrap">Thời gian (phút)</td>
+                  <td class="p-2.5 border-l border-slate-200">[127,5; 130,5)</td>
+                  <td class="p-2.5 border-l border-slate-200">[130,5; 133,5)</td>
+                  <td class="p-2.5 border-l border-slate-200">[133,5; 136,5)</td>
+                  <td class="p-2.5 border-l border-slate-200">[136,5; 139,5)</td>
+                  <td class="p-2.5 border-l border-slate-200">[139,5; 142,5)</td>
+                  <td class="p-2.5 border-l border-slate-200">[142,5; 145,5]</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 text-left bg-slate-50 font-semibold border-t border-slate-200">Số VĐV ($m_i$)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">3 (129, 130)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">1 (133)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">4 (134,135,136)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">3 (138)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">7 (141, 142)</td>
+                  <td class="p-2.5 border-l border-t border-slate-200 font-bold text-brand-700">12 (143,144,145)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHẦN 2: BÀI 9 - SỐ TRUNG BÌNH -->
+    <section id="bai-9-trung-binh" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+      <div class="border-b border-slate-100 pb-3">
+        <span class="inline-block px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded mb-1">BÀI 9 • MỤC 1</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Cách Tính Số Trung Bình ($\overline{x}$) Của Mẫu Ghép Nhóm</h2>
+      </div>
+
+      <!-- Cần làm gì -->
+      <div class="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-sm space-y-1">
+        <p class="font-bold text-emerald-950 flex items-center gap-1.5 text-base">
+          🎯 Phần này học sinh cần làm gì?
+        </p>
+        <p class="text-slate-700 text-xs sm:text-sm leading-relaxed">
+          Tìm ra một con số đại diện xấp xỉ cho "trọng tâm" của toàn bộ mẫu số liệu. Thay vì tính từng số liệu gốc, ta thay thế mỗi nhóm bằng <strong>giá trị đại diện</strong> nằm ngay chính giữa của nhóm đó.
+        </p>
+      </div>
+
+      <!-- Công thức & Quy trình 3 bước -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        <div class="space-y-3">
+          <h3 class="font-bold text-sm text-slate-900 uppercase tracking-wide">3 Bước Thực Hiện:</h3>
+          <div class="space-y-2.5 text-xs sm:text-sm">
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <strong>Bước 1:</strong> Tính giá trị đại diện cho từng nhóm $[a_i; a_{i+1})$:
+              <div class="text-center py-1 font-mono text-brand-700 font-bold">$x_i = \dfrac{a_i + a_{i+1}}{2}$</div>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <strong>Bước 2:</strong> Nhân giá trị đại diện với tần số tương ứng: $m_i \times x_i$.
+            </div>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <strong>Bước 3:</strong> Cộng tất cả lại và chia cho cỡ mẫu $n$:
+              <div class="text-center py-1 font-bold text-brand-700">$\overline{x} = \dfrac{\sum m_i x_i}{n}$</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bẫy hiệu chỉnh rời rạc -->
+        <div class="p-4 bg-rose-50 rounded-xl border-l-4 border-rose-500 text-rose-950 space-y-2 text-xs sm:text-sm">
+          <p class="font-bold flex items-center gap-1.5 text-rose-900">
+            ⚠️ Bẫy Cần Nhớ: Hiệu chỉnh khoảng rời rạc $k_1 - k_2$
+          </p>
+          <p class="leading-relaxed">
+            Nếu đề bài cho nhóm dạng số nguyên rời rạc như $0-9$, $10-19$, $20-29\dots$, <strong>bắt buộc phải đổi về nhóm liên tục</strong> trước khi tính:
+          </p>
+          <div class="bg-white p-2.5 rounded-lg border border-rose-200 text-center font-mono">
+            Nhóm $k_1 - k_2 \;\longrightarrow\; [k_1 - 0{,}5;\; k_2 + 0{,}5)$
+          </div>
+          <p class="text-xs text-rose-800">Ví dụ: $10 - 19$ phải đổi thành $[9{,}5; 19{,}5)$ có độ dài $h = 10$, giá trị đại diện là $\frac{9{,}5 + 19{,}5}{2} = 14{,}5$.</p>
+        </div>
+      </div>
+
+      <!-- Ví dụ thực hành bảng ngang -->
+      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+        <p class="font-bold text-xs sm:text-sm text-slate-900">Ví dụ minh họa (Bảng điểm 42 học sinh):</p>
+        <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg bg-white">
+          <table class="w-full text-xs text-center border-collapse">
+            <tbody>
+              <tr class="bg-slate-100 font-semibold text-slate-700">
+                <td class="p-2.5 text-left bg-slate-200/70 font-bold whitespace-nowrap">Khoảng cân nặng (kg)</td>
+                <td class="p-2.5 border-l border-slate-200">[40,5; 45,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[45,5; 50,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[50,5; 55,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[55,5; 60,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[60,5; 65,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[65,5; 70,5]</td>
+              </tr>
+              <tr class="text-brand-700 font-bold bg-sky-50/50">
+                <td class="p-2.5 text-left bg-sky-100/70 font-bold text-slate-800 whitespace-nowrap">Giá trị đại diện ($x_i$)</td>
+                <td class="p-2.5 border-l border-slate-200">43</td>
+                <td class="p-2.5 border-l border-slate-200">48</td>
+                <td class="p-2.5 border-l border-slate-200">53</td>
+                <td class="p-2.5 border-l border-slate-200">58</td>
+                <td class="p-2.5 border-l border-slate-200">63</td>
+                <td class="p-2.5 border-l border-slate-200">68</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 text-left bg-slate-50 font-semibold border-t border-slate-200">Số học sinh ($m_i$)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">10</td>
+                <td class="p-2.5 border-l border-t border-slate-200">7</td>
+                <td class="p-2.5 border-l border-t border-slate-200">16</td>
+                <td class="p-2.5 border-l border-t border-slate-200">4</td>
+                <td class="p-2.5 border-l border-t border-slate-200">2</td>
+                <td class="p-2.5 border-l border-t border-slate-200">3</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-700 font-medium">
+          $$\overline{x} = \frac{10 \times 43 + 7 \times 48 + 16 \times 53 + 4 \times 58 + 2 \times 63 + 3 \times 68}{42} = \frac{2176}{42} \approx \mathbf{51{,}81\text{ (kg)}}$$
+        </div>
+      </div>
+    </section>
+
+    <!-- PHẦN 3: BÀI 9 - TRUNG VỊ & TỨ PHÂN VỊ -->
+    <section id="bai-9-trung-vi" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+      <div class="border-b border-slate-100 pb-3">
+        <span class="inline-block px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded mb-1">BÀI 9 • MỤC 2 & 3</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Quy Trình 4 Bước Tính Trung Vị ($M_e$) & Tứ Phân Vị ($Q_1, Q_3$)</h2>
+      </div>
+
+      <!-- Cần làm gì -->
+      <div class="p-4 bg-indigo-50/60 rounded-xl border border-indigo-200 text-sm space-y-1">
+        <p class="font-bold text-indigo-950 flex items-center gap-1.5 text-base">
+          🎯 Phần này học sinh cần làm gì?
+        </p>
+        <p class="text-slate-700 text-xs sm:text-sm leading-relaxed">
+          Tìm ra các vạch mốc chia đều mẫu số liệu:
+          <br>• <strong>Trung vị ($M_e = Q_2$):</strong> Vạch mốc chia đôi (50% nhỏ hơn, 50% lớn hơn).
+          <br>• <strong>Tứ phân vị thứ nhất ($Q_1$):</strong> Vạch mốc 25% đầu tiên (25% nhỏ hơn $Q_1$, 75% lớn hơn $Q_1$).
+          <br>• <strong>Tứ phân vị thứ ba ($Q_3$):</strong> Vạch mốc 75% (75% nhỏ hơn $Q_3$, 25% lớn hơn $Q_3$).
+        </p>
+      </div>
+
+      <!-- 4 Bước thực hành bất biến -->
+      <div class="space-y-3">
+        <h3 class="font-bold text-sm text-slate-900 uppercase tracking-wide">Quy Trình 4 Bước Chuẩn Cho Mọi Bài Toán Phân Vị:</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs sm:text-sm">
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-indigo-700 text-white font-bold rounded text-xs">Bước 1</span>
+            <p class="font-bold text-slate-900">Tính Tần số tích lũy:</p>
+            <p class="text-slate-600">Thêm một hàng tần số tích lũy ($cf_i$) bằng cách cộng dồn tần số từ trái sang phải.</p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-indigo-700 text-white font-bold rounded text-xs">Bước 2</span>
+            <p class="font-bold text-slate-900">Tìm vị trí & Nhóm chứa:</p>
+            <p class="text-slate-600">
+              • Với $M_e$: Xét $\frac{n}{2}$<br>
+              • Với $Q_1$: Xét $\frac{n}{4}$<br>
+              • Với $Q_3$: Xét $\frac{3n}{4}$<br>
+              Nhóm chứa là nhóm đầu tiên có $cf \ge \text{vị trí}$.
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-indigo-700 text-white font-bold rounded text-xs">Bước 3</span>
+            <p class="font-bold text-slate-900">Xác định 4 đại lượng:</p>
+            <p class="text-slate-600">
+              • $a_p$: mút trái của nhóm<br>
+              • $m_p$: tần số của chính nhóm đó<br>
+              • $C_{p-1}$: tích lũy của nhóm trước<br>
+              • $h$: độ dài nhóm ($b - a$).
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-indigo-700 text-white font-bold rounded text-xs">Bước 4</span>
+            <p class="font-bold text-slate-900">Áp dụng công thức:</p>
+            <p class="text-slate-600">Thế các số vừa tìm vào công thức KaTeX tương ứng và bấm máy tính ra kết quả.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bảng Công Thức KaTeX Trực Quan -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-center space-y-2">
+          <span class="font-bold text-xs uppercase text-slate-500 tracking-wider">Công thức tính Trung Vị ($M_e = Q_2$)</span>
+          <div class="p-2.5 bg-white rounded-lg border border-slate-200 text-sm overflow-x-auto">
+            $$M_e = a_p + \frac{\dfrac{n}{2} - C_{p-1}}{m_p} \cdot h$$
+          </div>
+        </div>
+
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 text-center space-y-2">
+          <span class="font-bold text-xs uppercase text-slate-500 tracking-wider">Công thức Tứ Phân Vị ($Q_1$ và $Q_3$)</span>
+          <div class="p-2.5 bg-white rounded-lg border border-slate-200 text-sm overflow-x-auto space-y-1">
+            <div>$$Q_1 = a_p + \frac{\dfrac{n}{4} - C_{p-1}}{m_p} \cdot h$$</div>
+            <div class="pt-1 border-t border-slate-100">$$Q_3 = a_q + \frac{\dfrac{3n}{4} - C_{q-1}}{m_q} \cdot h$$</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ví dụ mẫu giải theo đúng 4 bước (Ví dụ 2 SGK trang 64) -->
+      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+        <p class="font-bold text-xs sm:text-sm text-slate-900">
+          📌 Ví dụ mẫu: Thời gian truy cập Internet (phút) của 56 học sinh
+        </p>
+
+        <!-- Bảng ngang có hàng Tần số tích lũy -->
+        <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg bg-white">
+          <table class="w-full text-xs text-center border-collapse">
+            <tbody>
+              <tr class="bg-slate-100 font-semibold text-slate-700">
+                <td class="p-2.5 text-left bg-slate-200/70 font-bold whitespace-nowrap">Thời gian (phút)</td>
+                <td class="p-2.5 border-l border-slate-200">[9,5; 12,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[12,5; 15,5)</td>
+                <td class="p-2.5 border-l border-slate-200 bg-emerald-50 text-emerald-800">[15,5; 18,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[18,5; 21,5)</td>
+                <td class="p-2.5 border-l border-slate-200">[21,5; 24,5)</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 text-left bg-slate-50 font-semibold border-t border-slate-200">Số học sinh ($m_i$)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">3</td>
+                <td class="p-2.5 border-l border-t border-slate-200">12</td>
+                <td class="p-2.5 border-l border-t border-slate-200 font-bold text-emerald-700 bg-emerald-50">15</td>
+                <td class="p-2.5 border-l border-t border-slate-200">24</td>
+                <td class="p-2.5 border-l border-t border-slate-200">2</td>
+              </tr>
+              <tr class="bg-indigo-50/60 font-bold text-indigo-900">
+                <td class="p-2.5 text-left bg-indigo-100/70 font-bold text-slate-800 border-t border-slate-200 whitespace-nowrap">Tích lũy ($cf_i$) (Bước 1)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">3</td>
+                <td class="p-2.5 border-l border-t border-slate-200">15</td>
+                <td class="p-2.5 border-l border-t border-slate-200 bg-emerald-100 text-emerald-900">30 (Chứa $M_e$)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">54</td>
+                <td class="p-2.5 border-l border-t border-slate-200">56 (= $n$)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="text-xs sm:text-sm text-slate-700 space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+          <p>• <strong>Bước 2:</strong> Vị trí trung vị là $\dfrac{n}{2} = \dfrac{56}{2} = 28$. Ta dò trên hàng tích lũy thấy: $15 < 28 \le 30$. Do đó nhóm chứa trung vị là <strong>$[15{,}5; 18{,}5)$</strong>.</p>
+          <p>• <strong>Bước 3:</strong> Các đại lượng: Mút trái $a_p = 15{,}5$; Tần số nhóm $m_p = 15$; Tích lũy nhóm trước $C_{p-1} = 15$; Độ dài $h = 18{,}5 - 15{,}5 = 3$.</p>
+          <p>• <strong>Bước 4:</strong> Áp dụng công thức:</p>
+          <div class="text-center font-bold text-indigo-700">
+            $$M_e = 15{,}5 + \frac{28 - 15}{15} \cdot 3 = 15{,}5 + \frac{13}{15} \cdot 3 = \mathbf{18{,}1\text{ (phút)}}$$
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHẦN 4: BÀI 9 - MỐT CỦA MẪU SỐ LIỆU -->
+    <section id="bai-9-mot" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+      <div class="border-b border-slate-100 pb-3">
+        <span class="inline-block px-2.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-bold rounded mb-1">BÀI 9 • MỤC 4</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Cách Tìm Mốt ($M_o$) Của Mẫu Số Liệu Ghép Nhóm</h2>
+      </div>
+
+      <!-- Cần làm gì -->
+      <div class="p-4 bg-amber-50/70 rounded-xl border border-amber-200 text-sm space-y-1">
+        <p class="font-bold text-amber-950 flex items-center gap-1.5 text-base">
+          🎯 Phần này học sinh cần làm gì?
+        </p>
+        <p class="text-slate-700 text-xs sm:text-sm leading-relaxed">
+          Tìm giá trị xung quanh điểm có <strong>mật độ xuất hiện đông nhất</strong> (nhiều người đạt được nhất).
+          <br><em>Ví dụ thực tế: Cỡ áo bán chạy nhất, độ tuổi ong chết nhiều nhất, khoảng điểm nhiều học sinh đạt được nhất...</em>
+        </p>
+      </div>
+
+      <!-- Quy trình 3 bước -->
+      <div class="space-y-3">
+        <h3 class="font-bold text-sm text-slate-900 uppercase tracking-wide">3 Bước Tìm Mốt:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs sm:text-sm">
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-amber-600 text-white font-bold rounded text-xs">Bước 1</span>
+            <p class="font-bold text-slate-900">Tìm tần số lớn nhất:</p>
+            <p class="text-slate-600">Nhìn vào hàng tần số, nhóm nào có số lượng lớn nhất thì đó là nhóm chứa mốt $[a_j; a_{j+1})$.</p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-amber-600 text-white font-bold rounded text-xs">Bước 2</span>
+            <p class="font-bold text-slate-900">Xác định thông số liền kề:</p>
+            <p class="text-slate-600">Lấy tần số của nhóm chứa mốt ($m_j$), tần số nhóm liền trước ($m_{j-1}$), tần số nhóm liền sau ($m_{j+1}$) và độ dài $h$.</p>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+            <span class="px-2 py-0.5 bg-amber-600 text-white font-bold rounded text-xs">Bước 3</span>
+            <p class="font-bold text-slate-900">Thay vào công thức Mốt:</p>
+            <div class="text-xs pt-1 font-mono text-center">
+              $$M_o = a_j + \frac{m_j - m_{j-1}}{(m_j - m_{j-1}) + (m_j - m_{j+1})} \cdot h$$
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ví dụ mẫu tuổi thọ của 100 con ong (SGK) -->
+      <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+        <p class="font-bold text-xs sm:text-sm text-slate-900">📌 Ví dụ mẫu: Tuổi thọ của 100 con ong (Bài 3.14 SGK trang 69)</p>
+        <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg bg-white">
+          <table class="w-full text-xs text-center border-collapse">
+            <tbody>
+              <tr class="bg-slate-100 font-semibold text-slate-700">
+                <td class="p-2.5 text-left bg-slate-200/70 font-bold whitespace-nowrap">Tuổi thọ (ngày)</td>
+                <td class="p-2.5 border-l border-slate-200">[0; 20)</td>
+                <td class="p-2.5 border-l border-slate-200">[20; 40)</td>
+                <td class="p-2.5 border-l border-slate-200">[40; 60)</td>
+                <td class="p-2.5 border-l border-slate-200 bg-amber-100 text-amber-900 font-bold">[60; 80) (Chứa Mốt)</td>
+                <td class="p-2.5 border-l border-slate-200">[80; 100)</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 text-left bg-slate-50 font-semibold border-t border-slate-200">Số con ong ($m_i$)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">5</td>
+                <td class="p-2.5 border-l border-t border-slate-200">12</td>
+                <td class="p-2.5 border-l border-t border-slate-200 font-semibold">23 (liền trước)</td>
+                <td class="p-2.5 border-l border-t border-slate-200 font-extrabold text-amber-800 bg-amber-100 text-sm">31 (Lớn nhất)</td>
+                <td class="p-2.5 border-l border-t border-slate-200 font-semibold">29 (liền sau)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="text-xs sm:text-sm text-slate-700 space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+          <p>• <strong>Bước 1:</strong> Tần số lớn nhất là $31 \implies$ Nhóm chứa mốt là $[60; 80)$.</p>
+          <p>• <strong>Bước 2:</strong> Mút trái $a_j = 60$, độ dài $h = 80 - 60 = 20$. Tần số trước $m_{j-1} = 23$, tần số sau $m_{j+1} = 29$.</p>
+          <p>• <strong>Bước 3:</strong> Thế số:</p>
+          <div class="text-center font-bold text-amber-800">
+            $$M_o = 60 + \frac{31 - 23}{(31 - 23) + (31 - 29)} \cdot 20 = 60 + \frac{8}{8 + 2} \cdot 20 = \mathbf{76\text{ (ngày)}}$$
+          </div>
+          <p class="text-xs text-slate-500 italic text-center">Ý nghĩa: Số lượng con ong chết ở độ tuổi xấp xỉ 76 ngày là chiếm tỉ lệ nhiều nhất.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHẦN 5: BÀI TẬP TRẮC NGHIỆM CHUẨN ĐỀ SGK (BẢNG 3.6 TRANG 70) -->
+    <section id="luyen-tap-sgk" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+      <div class="flex flex-wrap justify-between items-center border-b border-slate-100 pb-3 gap-2">
+        <div>
+          <span class="inline-block px-2.5 py-0.5 bg-rose-100 text-rose-800 text-xs font-bold rounded mb-1">LUYỆN TẬP</span>
+          <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Bài Tập Trắc Nghiệm Trọng Tâm (Bảng 3.6 SGK Trang 70)</h2>
+        </div>
+        <div id="quizResultBadge" class="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-700 rounded-full border border-slate-200">
+          Chưa làm bài
+        </div>
+      </div>
+
+      <!-- Dữ liệu bảng 3.6 dạng ngang chuẩn SGK -->
+      <div class="space-y-2">
+        <p class="text-xs sm:text-sm font-bold text-slate-700">
+          Dữ liệu dùng chung (Bảng 3.6 SGK - Khảo sát thời gian tập thể dục trong ngày của 42 học sinh lớp 11):
+        </p>
+        <div class="overflow-x-auto table-scroll border border-slate-200 rounded-lg bg-white">
+          <table class="w-full text-xs text-center border-collapse">
+            <tbody>
+              <tr class="bg-slate-100 font-semibold text-slate-700">
+                <td class="p-2.5 text-left bg-slate-200/70 font-bold whitespace-nowrap">Thời gian (phút)</td>
+                <td class="p-2.5 border-l border-slate-200">[0; 20)</td>
+                <td class="p-2.5 border-l border-slate-200">[20; 40)</td>
+                <td class="p-2.5 border-l border-slate-200">[40; 60)</td>
+                <td class="p-2.5 border-l border-slate-200">[60; 80)</td>
+                <td class="p-2.5 border-l border-slate-200">[80; 100)</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 text-left bg-slate-50 font-semibold border-t border-slate-200">Số học sinh ($m_i$)</td>
+                <td class="p-2.5 border-l border-t border-slate-200">5</td>
+                <td class="p-2.5 border-l border-t border-slate-200">9</td>
+                <td class="p-2.5 border-l border-t border-slate-200">12</td>
+                <td class="p-2.5 border-l border-t border-slate-200">10</td>
+                <td class="p-2.5 border-l border-t border-slate-200">6</td>
+              </tr>
+              <tr class="bg-sky-50 text-brand-900 font-semibold">
+                <td class="p-2.5 text-left bg-sky-100/70 font-bold text-slate-800 border-t border-slate-200 whitespace-nowrap">Tích lũy ($cf_i$) gợi ý</td>
+                <td class="p-2.5 border-l border-t border-slate-200">5</td>
+                <td class="p-2.5 border-l border-t border-slate-200">14</td>
+                <td class="p-2.5 border-l border-t border-slate-200">26</td>
+                <td class="p-2.5 border-l border-slate-200">36</td>
+                <td class="p-2.5 border-l border-t border-slate-200">42 (= $n$)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Danh Sách 4 Câu Hỏi Trắc Nghiệm -->
+      <div class="space-y-4 pt-1">
+        <!-- Câu 1 -->
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 quiz-box" data-answered="false">
+          <p class="font-bold text-slate-900 text-sm mb-2.5">
+            Câu 1 (3.8 SGK): Giá trị đại diện của nhóm $[20; 40)$ là bao nhiêu?
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button onclick="checkQuiz(this, 1, 'A', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">A. $10$</button>
+            <button onclick="checkQuiz(this, 1, 'B', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">B. $20$</button>
+            <button onclick="checkQuiz(this, 1, 'C', true)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">C. $30$</button>
+            <button onclick="checkQuiz(this, 1, 'D', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">D. $40$</button>
+          </div>
+          <div class="quiz-feedback hidden mt-2.5 p-2.5 rounded-lg text-xs leading-relaxed"></div>
+        </div>
+
+        <!-- Câu 2 -->
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 quiz-box" data-answered="false">
+          <p class="font-bold text-slate-900 text-sm mb-2.5">
+            Câu 2 (3.10 SGK): Nhóm chứa mốt của mẫu số liệu trên là nhóm nào?
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button onclick="checkQuiz(this, 2, 'A', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">A. $[20; 40)$</button>
+            <button onclick="checkQuiz(this, 2, 'B', true)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">B. $[40; 60)$</button>
+            <button onclick="checkQuiz(this, 2, 'C', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">C. $[60; 80)$</button>
+            <button onclick="checkQuiz(this, 2, 'D', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">D. $[80; 100)$</button>
+          </div>
+          <div class="quiz-feedback hidden mt-2.5 p-2.5 rounded-lg text-xs leading-relaxed"></div>
+        </div>
+
+        <!-- Câu 3 -->
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 quiz-box" data-answered="false">
+          <p class="font-bold text-slate-900 text-sm mb-2.5">
+            Câu 3 (3.11 SGK): Nhóm chứa tứ phân vị thứ nhất $Q_1$ là nhóm nào?
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button onclick="checkQuiz(this, 3, 'A', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">A. $[0; 20)$</button>
+            <button onclick="checkQuiz(this, 3, 'B', true)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">B. $[20; 40)$</button>
+            <button onclick="checkQuiz(this, 3, 'C', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">C. $[40; 60)$</button>
+            <button onclick="checkQuiz(this, 3, 'D', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">D. $[60; 80)$</button>
+          </div>
+          <div class="quiz-feedback hidden mt-2.5 p-2.5 rounded-lg text-xs leading-relaxed"></div>
+        </div>
+
+        <!-- Câu 4 -->
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 quiz-box" data-answered="false">
+          <p class="font-bold text-slate-900 text-sm mb-2.5">
+            Câu 4 (3.12 SGK): Nhóm chứa trung vị $M_e$ là nhóm nào?
+          </p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button onclick="checkQuiz(this, 4, 'A', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">A. $[0; 20)$</button>
+            <button onclick="checkQuiz(this, 4, 'B', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">B. $[20; 40)$</button>
+            <button onclick="checkQuiz(this, 4, 'C', true)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">C. $[40; 60)$</button>
+            <button onclick="checkQuiz(this, 4, 'D', false)" class="p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-left font-medium transition">D. $[60; 80)$</button>
+          </div>
+          <div class="quiz-feedback hidden mt-2.5 p-2.5 rounded-lg text-xs leading-relaxed"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CHÂN TRANG ĐƠN GIẢN -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4">
+      <p class="font-bold text-slate-700">Tài Liệu Học Tập & Hướng Dẫn Tự Học Môn Toán 11 • Thầy Đỗ Minh Math</p>
+      <p class="mt-1">Biên soạn theo cấu trúc hành động chuẩn Sách giáo khoa Toán 11 Kết nối tri thức với cuộc sống</p>
+    </div>
+  </footer>
+
+  <!-- SCRIPT HỖ TRỢ KATEX VÀ TỰ CHẤM ĐIỂM -->
+  <script>
+    function walkAndRenderTextNodes(el) {
+      if (!window.katex) return;
+      if (el.nodeType === 3) {
+        const text = el.nodeValue;
+        if (!text.includes('$')) return;
+        let html = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, tex) => {
+          try { return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }); } catch (_) { return '$$' + tex + '$$'; }
+        });
+        html = html.replace(/\$([\s\S]*?)\$/g, (_, tex) => {
+          try { return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }); } catch (_) { return '$' + tex + '$'; }
+        });
+        if (html !== text) {
+          const span = document.createElement('span');
+          span.innerHTML = html;
+          if (el.parentNode) el.parentNode.replaceChild(span, el);
+        }
+      } else if (el.nodeType === 1 && !['SCRIPT', 'STYLE', 'TEXTAREA'].includes(el.tagName)) {
+        Array.from(el.childNodes).forEach(walkAndRenderTextNodes);
+      }
+    }
+
+    function renderKaTeX() {
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        });
+      } else if (window.katex) {
+        walkAndRenderTextNodes(document.body);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', renderKaTeX);
+    } else {
+      renderKaTeX();
+    }
+    window.addEventListener('load', renderKaTeX);
+    setTimeout(renderKaTeX, 200);
+    setTimeout(renderKaTeX, 800);
+
+    // Logic kiểm tra câu hỏi trắc nghiệm
+    let correctCount = 0;
+    let answeredCount = 0;
+
+    function checkQuiz(button, qIndex, selectedChoice, isCorrect) {
+      const parent = button.closest('.quiz-box');
+      if (parent.getAttribute('data-answered') === 'true') return;
+
+      parent.setAttribute('data-answered', 'true');
+      answeredCount++;
+
+      // Làm mờ các lựa chọn còn lại
+      const allButtons = parent.querySelectorAll('button');
+      allButtons.forEach(b => b.classList.add('opacity-50', 'cursor-not-allowed'));
+
+      const feedback = parent.querySelector('.quiz-feedback');
+      feedback.classList.remove('hidden');
+
+      if (isCorrect) {
+        correctCount++;
+        button.classList.remove('opacity-50');
+        button.classList.add('bg-emerald-600', 'text-white', 'border-emerald-700');
+        feedback.className = 'quiz-feedback mt-2.5 p-2.5 rounded-lg text-xs bg-emerald-50 text-emerald-900 border border-emerald-200';
+        feedback.innerHTML = '<strong>Chính xác!</strong> Phương án <strong>' + selectedChoice + '</strong> là đáp án đúng.';
+      } else {
+        button.classList.remove('opacity-50');
+        button.classList.add('bg-rose-600', 'text-white', 'border-rose-700');
+        feedback.className = 'quiz-feedback mt-2.5 p-2.5 rounded-lg text-xs bg-rose-50 text-rose-900 border border-rose-200';
+        
+        let guide = "";
+        if (qIndex === 1) guide = "Giá trị đại diện của $[20; 40)$ là trung bình cộng hai mút: $\\dfrac{20 + 40}{2} = 30$ (Chọn C).";
+        if (qIndex === 2) guide = "Nhóm chứa mốt là nhóm có tần số lớn nhất: nhóm $[40; 60)$ có tần số $12$ lớn nhất (Chọn B).";
+        if (qIndex === 3) guide = "Cỡ mẫu $n = 42 \\implies \\dfrac{n}{4} = 10{,}5$. Tần số tích lũy: $cf_1 = 5 < 10{,}5 \\le cf_2 = 14$. Do đó nhóm chứa $Q_1$ là $[20; 40)$ (Chọn B).";
+        if (qIndex === 4) guide = "Cỡ mẫu $n = 42 \\implies \\dfrac{n}{2} = 21$. Tần số tích lũy: $cf_2 = 14 < 21 \\le cf_3 = 26$. Do đó nhóm chứa $M_e$ là $[40; 60)$ (Chọn C).";
+
+        feedback.innerHTML = '<strong>Chưa đúng!</strong> Hướng dẫn giải: ' + guide;
+      }
+
+      document.getElementById('quizResultBadge').innerText = 'Đúng: ' + correctCount + '/' + answeredCount + ' câu';
+      renderKaTeX();
+    }
+  </script>
+</body>
+</html>

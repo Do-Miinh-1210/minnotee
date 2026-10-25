@@ -1,0 +1,31 @@
+# Build results
+bin/
+obj/
+publish/
+dist/
+*.exe
+*.dll
+!mea_stroke_core.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+*.lnk
+*.xml
+
+# Log files
+*.log
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# WebView2 user data
+WebView2/
+WebView2_alt/
+
+# OS generated files
+.DS_Store
+Thumbs.db
