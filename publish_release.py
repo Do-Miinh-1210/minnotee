@@ -7,7 +7,13 @@ import urllib.request
 import urllib.parse
 from pathlib import Path
 
-REPO = "Do-Miinh-1210/Minnote"
+if sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+REPO = "Do-Miinh-1210/minnotee"
 TAG = "v1.0.1"
 TITLE = "MinNote v1.0.1 — Bảng Viết Kỹ Thuật Số & Sơ Đồ Tư Duy"
 BODY = """## MinNote v1.0.1

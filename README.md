@@ -1,0 +1,2 @@
+# MinNote
+B?ng vi?t k? thu?t s? & So d? tu duy Toán h?c - Ð? Miinh Math

@@ -2,7 +2,7 @@
 #define MyAppName "MinNote"
 #define MyAppVersion "1.0.1"
 #define MyAppPublisher "Do Minh Math"
-#define MyAppURL "https://github.com/Do-Miinh-1210/Minnote"
+#define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
 #define MyAppId "{{B5A9D214-7E3C-4F9A-81D2-9F1C5E3B8D44}}"
 
