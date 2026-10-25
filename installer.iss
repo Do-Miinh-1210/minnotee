@@ -49,7 +49,7 @@ Name: "cleanold"; Description: "Tự động gỡ bỏ phiên bản cũ trước
 Name: "desktopicon"; Description: "Tạo biểu tượng MinNote trên Màn hình chính (Desktop)"; GroupDescription: "Biểu tượng lối tắt:"
 
 [Files]
-Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace
+Source: "publish_selfcontained\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"
