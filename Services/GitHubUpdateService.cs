@@ -35,6 +35,33 @@ public class GitHubUpdateService
 
     public async Task<UpdateInfo?> CheckForUpdatesAsync()
     {
+        // 1. Kiểm tra qua GitHub Web Redirect (vĩnh viễn không bị chặn giới hạn Rate Limit 60 req/giờ)
+        try
+        {
+            string webUrl = $"https://github.com/{GitHubRepo}/releases/latest";
+            using var webReq = new HttpRequestMessage(HttpMethod.Get, webUrl);
+            var webResp = await _httpClient.SendAsync(webReq);
+            string finalUrl = webResp.RequestMessage?.RequestUri?.ToString() ?? "";
+            int tagIdx = finalUrl.IndexOf("/releases/tag/", StringComparison.OrdinalIgnoreCase);
+            if (tagIdx >= 0)
+            {
+                string tagName = finalUrl.Substring(tagIdx + "/releases/tag/".Length).Trim('/');
+                string cleanVersion = tagName.TrimStart('v', 'V');
+                if (!IsNewer(cleanVersion, CurrentVersion))
+                {
+                    return null;
+                }
+
+                string downloadUrl = $"https://github.com/{GitHubRepo}/releases/download/{tagName}/MinNote_Setup.exe";
+                return new UpdateInfo(cleanVersion, tagName, "Bản cập nhật MinNote chính thức từ GitHub Releases.", downloadUrl, 0, "MinNote_Setup.exe");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WebCheck] Fallback to API: {ex.Message}");
+        }
+
+        // 2. Dự phòng qua GitHub API
         try
         {
             string url = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
@@ -46,7 +73,7 @@ public class GitHubUpdateService
             }
             if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
-                throw new InvalidOperationException("Giới hạn lượt truy vấn GitHub API tạm thời bị đầy. Thử lại sau ít phút hoặc cài trực tiếp file MinNote_Setup.exe.");
+                throw new InvalidOperationException("Giới hạn lượt truy vấn GitHub API tạm thời bị đầy. Thử lại sau ít phút hoặc tải trực tiếp file MinNote_Setup.exe.");
             }
             if (!resp.IsSuccessStatusCode)
             {
