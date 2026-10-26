@@ -14,11 +14,12 @@ if sys.stdout.encoding.lower() != 'utf-8':
         pass
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.0.2"
-TITLE = "MinNote v0.0.0.2 — Đưa máy tính Casio lên lớp trên cùng"
-BODY = """## MinNote v0.0.0.2
+TAG = "v0.0.0.3"
+TITLE = "MinNote v0.0.0.3 — Nâng cấp cơ chế cập nhật tự động & Casio Top Layer"
+BODY = """## MinNote v0.0.0.3
 
 ### Cải tiến & Sửa lỗi:
+- **Tự động cập nhật không giới hạn (Zero-Rate-Limit):** Chuyển sang cơ chế Web Redirect trực tiếp từ GitHub Releases, loại bỏ hoàn toàn lỗi giới hạn 60 req/giờ của GitHub API.
 - **Máy tính Casio lên lớp trên cùng:** Nâng z-index của máy tính Casio và màn hình phụ LCD lên trên thanh công cụ và canvas để không bị che khuất.
 - **Tương tác chạm/click:** Tự động đẩy cửa sổ máy tính lên z-index cao nhất khi thao tác hoặc di chuyển.
 """
