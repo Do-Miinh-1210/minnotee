@@ -628,6 +628,15 @@
         }
       }
       setInterval(ensureExtraToolbarButtons, 800);
+
+      // Đưa máy tính Casio & màn hình LCD lên trên cùng tuyệt đối khi click hoặc kéo
+      document.addEventListener('pointerdown', function(e) {
+        var c = e.target.closest('.calc, .calc-screen');
+        if (c) {
+          document.querySelectorAll('.calc, .calc-screen').forEach(function(el) { el.style.zIndex = '10005'; });
+          c.style.zIndex = '10020';
+        }
+      }, true);
     </script>
   </body>
 </html>

@@ -14,15 +14,13 @@ if sys.stdout.encoding.lower() != 'utf-8':
         pass
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.0.1"
-TITLE = "MinNote v0.0.0.1 — Bảng Viết Kỹ Thuật Số & Sơ Đồ Tư Duy"
-BODY = """## MinNote v0.0.0.1
+TAG = "v0.0.0.2"
+TITLE = "MinNote v0.0.0.2 — Đưa máy tính Casio lên lớp trên cùng"
+BODY = """## MinNote v0.0.0.2
 
-### Tính năng mới & Cải tiến:
-- **Đồng bộ bảng giá Admin:** Chuẩn hóa gói MinNote 299k/năm, MatrixExamAI Pro 899k, BASIC 399k, ULTRA 1.499k.
-- **Mã VietQR tinh giản:** Cắt gọt chi tiết thừa, hiển thị mã QR thuần túy (qr_only) rõ ràng, quét tự động kèm Mã máy.
-- **Quy chuẩn phiên bản:** Bản vá nhỏ tăng +0.0.0.1, tính năng mới tăng +0.0.1.0.
-- **Trình cài đặt tự động ổ C:** Đóng gói Inno Setup tự gỡ phiên bản cũ và cài vào C:\\Program Files\\MinNote.
+### Cải tiến & Sửa lỗi:
+- **Máy tính Casio lên lớp trên cùng:** Nâng z-index của máy tính Casio và màn hình phụ LCD lên trên thanh công cụ và canvas để không bị che khuất.
+- **Tương tác chạm/click:** Tự động đẩy cửa sổ máy tính lên z-index cao nhất khi thao tác hoặc di chuyển.
 """
 
 def get_github_token():
