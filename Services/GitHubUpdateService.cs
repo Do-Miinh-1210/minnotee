@@ -40,7 +40,18 @@ public class GitHubUpdateService
             string url = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
             var req = new HttpRequestMessage(HttpMethod.Get, url);
             var resp = await _httpClient.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return null;
+            if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                throw new InvalidOperationException($"Chưa tìm thấy repo hoặc bản phát hành trên GitHub ({GitHubRepo}). Vui lòng tạo Release trên GitHub trước.");
+            }
+            if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new InvalidOperationException("Giới hạn lượt truy vấn GitHub API tạm thời bị đầy. Thử lại sau ít phút hoặc cài trực tiếp file MinNote_Setup.exe.");
+            }
+            if (!resp.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"GitHub API lỗi: {(int)resp.StatusCode} ({resp.ReasonPhrase}).");
+            }
 
             string json = await resp.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
@@ -81,7 +92,7 @@ public class GitHubUpdateService
         catch (Exception ex)
         {
             Debug.WriteLine($"[UpdateCheck] Error: {ex.Message}");
-            return null;
+            throw;
         }
     }
 
