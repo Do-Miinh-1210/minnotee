@@ -46,6 +46,11 @@ namespace MinNote
             InitializeComponent();
             Log("InitializeComponent completed");
 
+            string currentVer = GitHubUpdateService.Instance.CurrentVersion;
+            TxtAppVersion.Text = $"v{currentVer}";
+            Title = $"MinNote v{currentVer} • Bảng Viết & Vẽ Hình Toán Học - Đỗ Miinh Math";
+            BtnUpdateTop.ToolTip = $"MinNote v{currentVer} • Bấm để kiểm tra bản cập nhật mới";
+
             // Kích hoạt & đồng bộ bản quyền Cloud; bảng viết chỉ mở khi license đã ký có quyền "whiteboard"
             RunLockedMid.Text = HardwareInfoService.GetMachineId();
             OnLicense(SupabaseLicenseService.Instance.GetCurrentLicense());
@@ -801,7 +806,7 @@ namespace MinNote
                 }
                 else
                 {
-                    MessageBox.Show(this, "MinNote đang ở phiên bản mới nhất!", "Kiểm tra cập nhật", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, $"MinNote đang ở phiên bản mới nhất: v{GitHubUpdateService.Instance.CurrentVersion}!", "Kiểm tra cập nhật", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
