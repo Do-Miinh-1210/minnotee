@@ -14,14 +14,15 @@ if sys.stdout.encoding.lower() != 'utf-8':
         pass
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.0.3"
-TITLE = "MinNote v0.0.0.3 — Nâng cấp cơ chế cập nhật tự động & Casio Top Layer"
-BODY = """## MinNote v0.0.0.3
+TAG = "v0.0.1.0"
+TITLE = "MinNote v0.0.1.0 — Nâng cấp lõi NoteRenderer 0.6.3 chính thức"
+BODY = """## MinNote v0.0.1.0
 
-### Cải tiến & Sửa lỗi:
-- **Tự động cập nhật không giới hạn (Zero-Rate-Limit):** Chuyển sang cơ chế Web Redirect trực tiếp từ GitHub Releases, loại bỏ hoàn toàn lỗi giới hạn 60 req/giờ của GitHub API.
-- **Máy tính Casio lên lớp trên cùng:** Nâng z-index của máy tính Casio và màn hình phụ LCD lên trên thanh công cụ và canvas để không bị che khuất.
-- **Tương tác chạm/click:** Tự động đẩy cửa sổ máy tính lên z-index cao nhất khi thao tác hoặc di chuyển.
+### Tính năng mới & Cải tiến:
+- **Nâng cấp lõi NoteRenderer 0.6.3:** Tích hợp bộ dựng bảng viết mới nhất từ NoteRenderer v0.6.3 (cải tiến hiệu năng vẽ, tối ưu bộ nhớ, nâng cấp parser toán học ex_test).
+- **Cập nhật NoteRenderer độc lập:** Cập nhật ứng dụng NoteRenderer tại AppData lên phiên bản 0.6.3.
+- **Tự động cập nhật không giới hạn:** Kiểm tra bản phát hành siêu tốc không bị Rate Limit qua Web Redirect.
+- **Máy tính Casio lớp trên cùng:** Giữ vững cửa sổ máy tính Casio và màn hình LCD luôn nổi trên mọi layer.
 """
 
 def get_github_token():
