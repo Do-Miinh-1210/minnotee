@@ -1175,3 +1175,198 @@ body.fullscreen-mode #mea-header-badge {
 .calc-screen:active {
   z-index: 10009 !important;
 }
+
+
+/* ==========================================================================
+   10. NOTEBOARD 2.5.21 ADVANCED RENDERING & MATH TYPOGRAPHY ENGINE
+   ========================================================================== */
+
+/* Chống nhảy dòng khối Word / Câu hỏi trắc nghiệm & công thức chuẩn size */
+.blk.qs, .blk.lv, .blk.sec, .blk.ans, .blk.hint, .blk.nb-word-blk {
+  white-space: normal !important;
+}
+
+.blk .eq-img,
+.blk img.eq-img,
+.blk span.eq-wrap img,
+.blk img[src*="data:image/png;base64,iVBORw0KGgo"] {
+  height: 1.22em !important;
+  width: auto !important;
+  max-width: 100% !important;
+  vertical-align: -0.22em !important;
+  display: inline-block !important;
+  margin: 0 0.15em !important;
+}
+
+.blk .katex {
+  font-size: 1.08em !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+/* Lưới trắc nghiệm 4 cột, 2 cột, 1 cột chuẩn NoteBoard 2.5.21 */
+.nb-opt-grid {
+  display: grid !important;
+  gap: 0.5em 1.2em !important;
+  margin: 0.5em 0 !important;
+}
+
+.nb-opt-grid.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-1 {
+  grid-template-columns: 1fr !important;
+}
+
+@media (max-width: 680px) {
+  .nb-opt-grid.cols-4,
+  .nb-opt-grid.cols-3,
+  .nb-opt-grid.cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.nb-opt-col {
+  min-width: 0 !important;
+  word-break: break-word !important;
+  display: flex !important;
+  align-items: baseline !important;
+}
+
+/* Huy hiệu lựa chọn trắc nghiệm hình tròn A, B, C, D */
+.nb-opt-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.5em !important;
+  height: 1.5em !important;
+  min-width: 1.5em !important;
+  border-radius: 50% !important;
+  margin: 0 0.35em 0 0.1em !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  font-size: 0.92em !important;
+  line-height: 1 !important;
+  color: #0d9488 !important;
+  border: 1.8px solid #0d9488 !important;
+  background: rgba(13, 148, 136, 0.1) !important;
+  vertical-align: middle !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+}
+
+:root[data-theme="bang"] .nb-opt-badge,
+:root[data-theme="dem"] .nb-opt-badge {
+  color: #5eead4 !important;
+  border-color: #2dd4bf !important;
+  background: rgba(45, 212, 191, 0.15) !important;
+}
+
+/* Huy hiệu câu hỏi .nb-qs-badge */
+.nb-qs-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.16em 0.65em !important;
+  margin-right: 0.45em !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  font-size: 0.9em !important;
+  line-height: 1.25 !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
+  vertical-align: 0.06em !important;
+  letter-spacing: 0.02em !important;
+  user-select: none !important;
+}
+
+/* Huy hiệu đáp án đúng/sai & hướng dẫn */
+.nb-ans-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.18em 0.7em !important;
+  font-weight: 700 !important;
+  font-size: 0.95em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3) !important;
+  margin: 0.2em 0.3em 0.2em 0 !important;
+  user-select: none !important;
+}
+
+.nb-ans-choice {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.15em 0.6em !important;
+  font-weight: 600 !important;
+  font-size: 0.92em !important;
+  border-radius: 6px !important;
+  background: rgba(13, 148, 136, 0.12) !important;
+  color: #0d9488 !important;
+  border: 1.5px solid #0d9488 !important;
+  margin-right: 0.4em !important;
+  user-select: none !important;
+}
+
+.nb-true-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.12em 0.55em !important;
+  font-weight: 800 !important;
+  font-size: 0.85em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 5px !important;
+  background: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.35) !important;
+  margin: 0 0.25em !important;
+  user-select: none !important;
+}
+
+.nb-false-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.12em 0.55em !important;
+  font-weight: 800 !important;
+  font-size: 0.85em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 5px !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.35) !important;
+  margin: 0 0.25em !important;
+  user-select: none !important;
+}
+
+/* Modals cho NoteBoard Integration */
+.nb-modal-dialog {
+  width: min(920px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  border: 1px solid #0d9488;
+  border-radius: 16px;
+  padding: 24px;
+  color: #0f172a;
+  background: #ffffff;
+  font: 14px/1.5 'Segoe UI', system-ui, sans-serif;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  box-sizing: border-box;
+}
+
+.nb-modal-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+}

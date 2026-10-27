@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NoteBoard Ink · Nộp Bài Hoạt Động Nhóm</title>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .portal-wrap {
+      max-width: 540px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Header */
+    .portal-header {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .portal-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .portal-title h1 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .portal-title p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Thanh đếm ngược & khóa nộp bài thời gian thực */
+    .timer-sync-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease;
+    }
+    .timer-sync-bar.urgent {
+      background: #fef2f2;
+      border-color: #f87171;
+      animation: pulseUrgent 1.2s infinite;
+    }
+    @keyframes pulseUrgent {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.15); }
+    }
+    .timer-sync-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .timer-digits {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 18px;
+      font-weight: 800;
+      color: #0284c7;
+    }
+    .timer-sync-bar.urgent .timer-digits { color: #dc2626; }
+    .timer-status-hint {
+      font-size: 11.5px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .timer-sync-lock {
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 99px;
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      user-select: none;
+    }
+    .timer-sync-lock.locked {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+
+    /* Banner cảnh báo khóa */
+    .locked-alert-box {
+      background: #fef2f2;
+      border: 1.5px solid #f87171;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Khung nhiệm vụ giáo viên giao */
+    .mission-card {
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      border-left: 5px solid #0284c7;
+      border-radius: var(--radius);
+      padding: 12px 15px;
+      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.05);
+    }
+    .mission-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: #0369a1;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    .mission-body {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #1e3a8a;
+      line-height: 1.5;
+    }
+
+    /* Form container */
+    .form-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .step-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: #fff;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    /* Lưới chọn nhóm */
+    .group-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    @media (max-width: 400px) {
+      .group-selector-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .group-pill-btn {
+      border: 2px solid transparent;
+      border-radius: 10px;
+      padding: 10px 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .group-pill-btn:hover { transform: translateY(-1px); }
+    .group-pill-btn.selected {
+      border-color: currentColor;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: scale(1.02);
+    }
+
+    /* Ô nhập */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .field-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .field-input, .field-textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 13.5px;
+      color: var(--text);
+      background: #f8fafc;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    .field-input:focus, .field-textarea:focus {
+      background: #fff;
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+    }
+
+    /* Chọn kiểu nộp bài: Ảnh vs Link */
+    .tab-bar {
+      display: flex;
+      border-radius: 10px;
+      background: #f1f5f9;
+      padding: 3px;
+      gap: 3px;
+    }
+    .tab-btn {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: #fff;
+      color: #0f172a;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Vùng nộp ảnh giấy */
+    .photo-action-buttons {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .camera-primary-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(2, 132, 199, 0.25);
+      transition: all 0.15s;
+    }
+    .camera-primary-btn:hover {
+      background: linear-gradient(135deg, #0f766e, #0369a1);
+      transform: translateY(-1px);
+    }
+    .gallery-secondary-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #f1f5f9;
+      color: #334155;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 12px 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .gallery-secondary-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .photo-dropzone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 20px 14px;
+      text-align: center;
+      cursor: pointer;
+      background: #f8fafc;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .photo-dropzone:hover { border-color: #0284c7; background: #f0f9ff; }
+
+    .photo-preview-wrap {
+      display: none;
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      max-height: 280px;
+      background: #0f172a;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .photo-preview-img {
+      max-width: 100%;
+      max-height: 280px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+    .photo-preview-actions {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .photo-action-pill {
+      background: rgba(15, 23, 42, 0.88);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 99px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .photo-action-pill.danger {
+      background: rgba(220, 38, 38, 0.88);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Nút nộp bài */
+    .submit-btn {
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(13, 148, 136, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+    .submit-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(13, 148, 136, 0.4);
+    }
+    .submit-btn.disabled, .submit-btn:disabled {
+      background: #cbd5e1 !important;
+      color: #64748b !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Màn hình thành công */
+    .success-card {
+      display: none;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+    .success-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      animation: pop 0.4s ease;
+    }
+    @keyframes pop {
+      0% { transform: scale(0.6); opacity: 0; }
+      80% { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .success-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #059669;
+      margin-bottom: 6px;
+    }
+    .success-desc {
+      font-size: 13.5px;
+      color: #475569;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-wrap">
+    <!-- Header -->
+    <div class="portal-header">
+      <div class="portal-logo">👥</div>
+      <div class="portal-title">
+        <h1>NoteBoard Ink · GroupHub</h1>
+        <p>Cổng nộp sản phẩm học tập &amp; bài làm trên giấy</p>
+      </div>
+    </div>
+
+    <!-- Thanh đếm ngược & trạng thái khóa đồng bộ thời gian thực từ giáo viên -->
+    <div class="timer-sync-bar" id="portalTimerBar">
+      <div class="timer-sync-left">
+        <span style="font-size:18px;">⏱️</span>
+        <span class="timer-digits" id="portalTimerDigits">10:00</span>
+        <span class="timer-status-hint" id="timerStatusHint">Thời gian làm việc nhóm</span>
+      </div>
+      <div class="timer-sync-lock" id="portalLockBadge">
+        <span>🔓</span>
+        <span id="lockStatusText">Đang nhận bài</span>
+      </div>
+    </div>
+
+    <!-- Banner cảnh báo khi bị khóa -->
+    <div class="locked-alert-box" id="lockedAlertBox" style="display:none;">
+      <span style="font-size:24px;">🔒</span>
+      <div>
+        <div style="font-weight:700;font-size:14px;color:#991b1b;">Cổng nộp bài đã tạm khóa!</div>
+        <div style="font-size:12px;color:#b91c1c;margin-top:2px;">Thời gian làm việc nhóm đã kết thúc hoặc thầy cô đã khóa để nhận xét bài.</div>
+      </div>
+    </div>
+
+    <!-- Khung Nhiệm vụ Giáo viên giao -->
+    <div class="mission-card" id="missionCard">
+      <div class="mission-head">
+        <span>🎯</span>
+        <span>Nhiệm vụ của nhóm:</span>
+      </div>
+      <div class="mission-body" id="missionBody">
+        Thảo luận nhóm và nộp bài làm trên giấy (bảng nhóm, vở) hoặc liên kết Canva, Slides...
+      </div>
+    </div>
+
+    <!-- Form nộp bài -->
+    <div class="form-card" id="formCard">
+      <!-- Bước 1: Chọn nhóm -->
+      <div class="step-title">
+        <span class="step-badge">1</span>
+        <span>Chọn nhóm của bạn:</span>
+      </div>
+      <div class="group-selector-grid" id="groupGrid"></div>
+
+      <!-- Bước 2: Tên nhóm & Thành viên -->
+      <div class="step-title" style="margin-top:4px;">
+        <span class="step-badge">2</span>
+        <span>Thông tin nhóm:</span>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Tên nhóm (có thể đổi tên riêng):</label>
+        <input type="text" class="field-input" id="groupNameInput" placeholder="Ví dụ: Nhóm 1 - Tia Chớp, Nhóm Vật Lí 12A...">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Danh sách thành viên trong nhóm:</label>
+        <textarea class="field-textarea" id="membersInput" rows="2" placeholder="Ví dụ: Minh (Nhóm trưởng), An, Lan, Hùng, Vy..."></textarea>
+      </div>
+
+      <!-- Bước 3: Nộp sản phẩm (ưu tiên ảnh giấy) -->
+      <div class="step-title" style="margin-top:4px;">
+        <span class="step-badge">3</span>
+        <span>Nộp bài làm (Chụp ảnh giấy hoặc dán Link):</span>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tabPhotoBtn" type="button">📷 Chụp ảnh bài giấy / bảng nhóm</button>
+        <button class="tab-btn" id="tabLinkBtn" type="button">🔗 Dán link (Canva, Slides...)</button>
+      </div>
+
+      <!-- Vùng nộp ảnh giấy -->
+      <div id="photoPanel">
+        <div class="photo-action-buttons">
+          <button class="camera-primary-btn" id="openCameraBtn" type="button">
+            <span>📸 Mở Camera Chụp Ngay</span>
+          </button>
+          <button class="gallery-secondary-btn" id="openGalleryBtn" type="button">
+            <span>🖼️ Chọn ảnh có sẵn</span>
+          </button>
+        </div>
+
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
+        <input type="file" id="galleryInput" accept="image/*" style="display:none;">
+
+        <div class="photo-dropzone" id="dropzone">
+          <span style="font-size:28px;">📝</span>
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a;">Chụp hoặc chọn ảnh bài làm trên giấy A0, vở ghi</div>
+          <div style="font-size:11.5px;color:#64748b;">Hệ thống tự động xoay và tối ưu độ nét chữ viết tay khi chiếu</div>
+        </div>
+
+        <div class="photo-preview-wrap" id="previewWrap">
+          <img class="photo-preview-img" id="previewImg" alt="Xem trước bài làm">
+          <div class="photo-preview-actions">
+            <button class="photo-action-pill" id="rotatePhotoBtn" type="button" title="Xoay ảnh 90 độ nếu bị ngược chiều">
+              🔄 Xoay 90°
+            </button>
+            <button class="photo-action-pill danger" id="removePhotoBtn" type="button">
+              ✕ Đổi ảnh khác
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vùng nộp link -->
+      <div id="linkPanel" style="display:none;">
+        <div class="field-group">
+          <label class="field-label">Đường dẫn sản phẩm trực tuyến:</label>
+          <input type="url" class="field-input" id="urlInput" placeholder="https://www.canva.com/design/... hoặc Google Slides...">
+          <div style="font-size:11.5px;color:#64748b;margin-top:2px;">
+            Hỗ trợ: Canva, Google Slides, Google Docs, Padlet, GeoGebra, YouTube.
+          </div>
+        </div>
+      </div>
+
+      <!-- Nút Nộp bài -->
+      <button class="submit-btn" id="submitBtn" type="button">
+        <span>🚀 NỘP BÀI LÊN MÀN HÌNH GIÁO VIÊN</span>
+      </button>
+    </div>
+
+    <!-- Màn hình thành công -->
+    <div class="success-card" id="successCard">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">ĐÃ NỘP BÀI THÀNH CÔNG!</div>
+      <div class="success-desc" id="successDesc">
+        Sản phẩm của nhóm bạn đã được gửi trực tiếp lên bảng NoteBoard Ink của thầy cô.
+      </div>
+      <button class="submit-btn" id="newSubmitBtn" style="background:#0284c7;" type="button">
+        + Nộp thêm bài làm khác
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Bảng màu 10 nhóm đồng bộ chuẩn NoteBoard Ink GroupHub
+    const GROUP_PALETTE = [
+      { color: '#10b981', accent: '#059669', bgLight: '#ecfdf5', borderLight: '#a7f3d0' },
+      { color: '#0284c7', accent: '#0369a1', bgLight: '#f0f9ff', borderLight: '#bae6fd' },
+      { color: '#f59e0b', accent: '#d97706', bgLight: '#fffbeb', borderLight: '#fde68a' },
+      { color: '#8b5cf6', accent: '#7c3aed', bgLight: '#f5f3ff', borderLight: '#ddd6fe' },
+      { color: '#f43f5e', accent: '#e11d48', bgLight: '#fff1f2', borderLight: '#fecdd3' },
+      { color: '#65a30d', accent: '#4d7c0f', bgLight: '#f7fee7', borderLight: '#d9f99d' },
+      { color: '#3b82f6', accent: '#2563eb', bgLight: '#eff6ff', borderLight: '#bfdbfe' },
+      { color: '#d946ef', accent: '#c026d3', bgLight: '#fdf4ff', borderLight: '#f5d0fe' },
+      { color: '#ea580c', accent: '#c2410c', bgLight: '#fff7ed', borderLight: '#fed7aa' },
+      { color: '#0d9488', accent: '#0f766e', bgLight: '#f0fdfa', borderLight: '#99f6e4' }
+    ];
+
+    function getGroupColor(index) {
+      return GROUP_PALETTE[(index - 1) % GROUP_PALETTE.length] || GROUP_PALETTE[0];
+    }
+
+    const params = new URLSearchParams(location.search);
+    const initialTask = params.get('task');
+    if (initialTask) {
+      document.getElementById('missionBody').textContent = initialTask;
+    }
+    const initialGroupId = Number(params.get('group')) || 1;
+    const totalGroups = Number(params.get('total')) || 6;
+
+    let selectedGroupId = initialGroupId;
+    let currentPhotoData = null;
+    let rawPhotoImg = null;
+    let currentPhotoRotation = 0;
+    let activeTab = 'photo'; // 'photo' | 'link'
+    let isPortalLocked = false;
+
+    // Render nút chọn nhóm
+    const grid = document.getElementById('groupGrid');
+    for (let i = 1; i <= totalGroups; i++) {
+      const pal = getGroupColor(i);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `group-pill-btn ${i === selectedGroupId ? 'selected' : ''}`;
+      btn.dataset.groupId = i;
+      btn.style.background = i === selectedGroupId ? pal.bgLight : '#f8fafc';
+      btn.style.color = pal.accent;
+      btn.style.borderColor = i === selectedGroupId ? pal.color : '#e2e8f0';
+      btn.innerHTML = `
+        <span style="font-size:15px;">Nhóm ${i}</span>
+        <span style="font-size:10px;opacity:0.8;">Màu nhóm</span>
+      `;
+      btn.onclick = () => selectGroup(i);
+      grid.appendChild(btn);
+    }
+
+    function selectGroup(id) {
+      selectedGroupId = id;
+      document.querySelectorAll('.group-pill-btn').forEach(btn => {
+        const gid = Number(btn.dataset.groupId);
+        const pal = getGroupColor(gid);
+        if (gid === id) {
+          btn.classList.add('selected');
+          btn.style.background = pal.bgLight;
+          btn.style.borderColor = pal.color;
+        } else {
+          btn.classList.remove('selected');
+          btn.style.background = '#f8fafc';
+          btn.style.borderColor = '#e2e8f0';
+        }
+      });
+
+      const nameInput = document.getElementById('groupNameInput');
+      if (!nameInput.value || /^Nhóm \d+$/.test(nameInput.value)) {
+        nameInput.value = `Nhóm ${id}`;
+      }
+    }
+
+    selectGroup(selectedGroupId);
+
+    // Chuyển Tab Ảnh vs Link
+    const tabPhotoBtn = document.getElementById('tabPhotoBtn');
+    const tabLinkBtn = document.getElementById('tabLinkBtn');
+    const photoPanel = document.getElementById('photoPanel');
+    const linkPanel = document.getElementById('linkPanel');
+
+    tabPhotoBtn.onclick = () => {
+      activeTab = 'photo';
+      tabPhotoBtn.classList.add('active');
+      tabLinkBtn.classList.remove('active');
+      photoPanel.style.display = 'block';
+      linkPanel.style.display = 'none';
+    };
+
+    tabLinkBtn.onclick = () => {
+      activeTab = 'link';
+      tabLinkBtn.classList.add('active');
+      tabPhotoBtn.classList.remove('active');
+      photoPanel.style.display = 'none';
+      linkPanel.style.display = 'block';
+    };
+
+    // Xử lý nạp ảnh giấy & xoay ảnh trực tiếp
+    const dropzone = document.getElementById('dropzone');
+    const cameraInput = document.getElementById('cameraInput');
+    const galleryInput = document.getElementById('galleryInput');
+    const previewWrap = document.getElementById('previewWrap');
+    const previewImg = document.getElementById('previewImg');
+    const rotatePhotoBtn = document.getElementById('rotatePhotoBtn');
+    const removePhotoBtn = document.getElementById('removePhotoBtn');
+
+    document.getElementById('openCameraBtn').onclick = () => cameraInput.click();
+    document.getElementById('openGalleryBtn').onclick = () => galleryInput.click();
+    dropzone.onclick = () => galleryInput.click();
+
+    function processSelectedFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const tempImg = new Image();
+        tempImg.onload = () => {
+          rawPhotoImg = tempImg;
+          currentPhotoRotation = 0;
+          renderRotatedPhoto();
+        };
+        tempImg.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    cameraInput.onchange = (e) => processSelectedFile(e.target.files?.[0]);
+    galleryInput.onchange = (e) => processSelectedFile(e.target.files?.[0]);
+
+    function renderRotatedPhoto() {
+      if (!rawPhotoImg) return;
+      const maxDim = 1600;
+      let w = rawPhotoImg.width;
+      let h = rawPhotoImg.height;
+      const is90 = (currentPhotoRotation % 180 !== 0);
+
+      const maxW = is90 ? h : w;
+      const maxH = is90 ? w : h;
+      let scale = 1;
+      if (maxW > maxDim || maxH > maxDim) {
+        scale = Math.min(maxDim / maxW, maxDim / maxH);
+      }
+
+      const targetW = Math.round(w * scale);
+      const targetH = Math.round(h * scale);
+
+      const canvas = document.createElement('canvas');
+      if (is90) {
+        canvas.width = targetH;
+        canvas.height = targetW;
+      } else {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((currentPhotoRotation * Math.PI) / 180);
+      ctx.drawImage(rawPhotoImg, -targetW / 2, -targetH / 2, targetW, targetH);
+
+      currentPhotoData = canvas.toDataURL('image/jpeg', 0.88);
+      previewImg.src = currentPhotoData;
+      previewWrap.style.display = 'block';
+      dropzone.style.display = 'none';
+    }
+
+    rotatePhotoBtn.onclick = () => {
+      currentPhotoRotation = (currentPhotoRotation + 90) % 360;
+      renderRotatedPhoto();
+    };
+
+    removePhotoBtn.onclick = () => {
+      currentPhotoData = null;
+      rawPhotoImg = null;
+      currentPhotoRotation = 0;
+      cameraInput.value = '';
+      galleryInput.value = '';
+      previewWrap.style.display = 'none';
+      dropzone.style.display = 'flex';
+    };
+
+    // Đồng bộ đồng hồ đếm ngược và trạng thái khóa
+    function applyTimerSync(data) {
+      if (!data) return;
+      const min = String(data.timerMinutes ?? 10).padStart(2, '0');
+      const sec = String(data.timerSeconds ?? 0).padStart(2, '0');
+      const digitsEl = document.getElementById('portalTimerDigits');
+      const barEl = document.getElementById('portalTimerBar');
+      const hintEl = document.getElementById('timerStatusHint');
+      const lockBadge = document.getElementById('portalLockBadge');
+      const lockAlert = document.getElementById('lockedAlertBox');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (digitsEl) digitsEl.textContent = `${min}:${sec}`;
+
+      const totalSec = (data.timerMinutes || 0) * 60 + (data.timerSeconds || 0);
+      if (barEl) {
+        if (totalSec <= 60 && totalSec > 0 && data.timerRunning) {
+          barEl.classList.add('urgent');
+          if (hintEl) hintEl.textContent = '⚠️ Sắp hết giờ! Nhanh chóng nộp bài';
+        } else {
+          barEl.classList.remove('urgent');
+          if (hintEl) hintEl.textContent = data.timerRunning ? 'Đang đếm ngược' : 'Thời gian làm việc nhóm';
+        }
+      }
+
+      isPortalLocked = !!data.isLocked;
+      if (isPortalLocked) {
+        if (lockAlert) lockAlert.style.display = 'flex';
+        if (lockBadge) {
+          lockBadge.classList.add('locked');
+          lockBadge.innerHTML = '<span>🔒</span><span>Đã khóa nộp</span>';
+        }
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.classList.add('disabled');
+          submitBtn.innerHTML = '<span>🔒 ĐÃ KHÓA NỘP BÀI (HẾT GIỜ)</span>';
+        }
+      } else {
+        if (lockAlert) lockAlert.style.display = 'none';
+        if (lockBadge) {
+          lockBadge.classList.remove('locked');
+          lockBadge.innerHTML = '<span>🔓</span><span>Đang nhận bài</span>';
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('disabled');
+          submitBtn.innerHTML = '<span>🚀 NỘP BÀI LÊN MÀN HÌNH GIÁO VIÊN</span>';
+        }
+      }
+
+      if (data.task) {
+        const mb = document.getElementById('missionBody');
+        if (mb) mb.textContent = data.task;
+      }
+    }
+
+    // Lắng nghe Timer Sync
+    try {
+      const syncCh = new BroadcastChannel('noteboard_grouphub_sync');
+      syncCh.onmessage = (evt) => {
+        if (evt.data && evt.data.type === 'TIMER_STATE_SYNC') {
+          applyTimerSync(evt.data);
+        }
+      };
+    } catch (_) {}
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'noteboard_grouphub_timer_sync' && e.newValue) {
+        try {
+          applyTimerSync(JSON.parse(e.newValue));
+        } catch (_) {}
+      }
+    });
+
+    try {
+      const savedTimer = localStorage.getItem('noteboard_grouphub_timer_sync');
+      if (savedTimer) applyTimerSync(JSON.parse(savedTimer));
+    } catch (_) {}
+
+    // Smart Parser cho link ngoài
+    function parseProduct(url) {
+      if (!url) return null;
+      let s = url.trim();
+      if (!/^https?:\/\//i.test(s) && /^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(s)) s = 'https://' + s;
+      try {
+        const u = new URL(s);
+        const host = u.hostname.toLowerCase();
+        const path = u.pathname;
+
+        if (host.includes('canva.com') && path.includes('/design/')) {
+          let cleanPath = path.replace(/\/(edit|watch)(\/.*)?$/, '/view');
+          if (!cleanPath.endsWith('/view') && !cleanPath.endsWith('/embed')) cleanPath = cleanPath.replace(/\/+$/, '') + '/view';
+          let embed = 'https://www.canva.com' + cleanPath;
+          if (!embed.includes('embed')) embed += embed.includes('?') ? '&embed' : '?embed';
+          return { type: 'canva', title: 'Canva Thiết kế', badge: '🎨 Canva', color: '#00c4cc', url: s, embedUrl: embed, canEmbed: true };
+        }
+        if (host.includes('docs.google.com') && path.includes('/presentation')) {
+          const m = path.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+          const id = m ? m[1] : '';
+          const embed = id ? `https://docs.google.com/presentation/d/${id}/embed?start=false&loop=false&delayms=3000` : s;
+          return { type: 'googleslides', title: 'Google Slides', badge: '📊 GG Slides', color: '#f59e0b', url: s, embedUrl: embed, canEmbed: true };
+        }
+        if (host.includes('docs.google.com') && path.includes('/document')) {
+          const m = path.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+          const id = m ? m[1] : '';
+          return { type: 'googledocs', title: 'Google Docs', badge: '📝 GG Docs', color: '#2563eb', url: s, embedUrl: `https://docs.google.com/document/d/${id}/preview`, canEmbed: true };
+        }
+        if (host.includes('padlet.com')) {
+          let embed = s.includes('/embed/') ? s : s.replace('padlet.com/', 'padlet.com/embed/');
+          return { type: 'padlet', title: 'Padlet Bảng nhóm', badge: '📋 Padlet', color: '#e11d48', url: s, embedUrl: embed, canEmbed: true };
+        }
+        return { type: 'web', title: host.replace(/^www\./, ''), badge: '🌐 Web Link', color: '#64748b', url: s, embedUrl: s, canEmbed: false };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // Nộp bài
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.onclick = async () => {
+      if (isPortalLocked) {
+        alert('Cổng nộp bài hiện đang bị khóa. Bạn không thể gửi thêm bài.');
+        return;
+      }
+
+      const groupName = document.getElementById('groupNameInput').value.trim() || `Nhóm ${selectedGroupId}`;
+      const members = document.getElementById('membersInput').value.trim();
+
+      let item = null;
+      if (activeTab === 'photo') {
+        if (!currentPhotoData) {
+          alert('Vui lòng chụp ảnh bài làm của nhóm trước khi bấm nộp.');
+          return;
+        }
+        item = {
+          id: 'img_' + Date.now(),
+          type: 'image',
+          title: 'Ảnh bài làm giấy ' + new Date().toLocaleTimeString(),
+          badge: '📷 Ảnh bài làm',
+          color: '#8b5cf6',
+          url: '',
+          embedUrl: '',
+          imageData: currentPhotoData,
+          canEmbed: true,
+          submittedAt: new Date().toLocaleTimeString()
+        };
+      } else {
+        const url = document.getElementById('urlInput').value.trim();
+        if (!url) {
+          alert('Vui lòng dán liên kết sản phẩm (Canva, Slides...).');
+          return;
+        }
+        const parsed = parseProduct(url);
+        if (!parsed) {
+          alert('Đường dẫn không hợp lệ. Vui lòng nhập link đầy đủ (bắt đầu bằng https://).');
+          return;
+        }
+        item = {
+          id: 'link_' + Date.now(),
+          type: parsed.type,
+          title: parsed.title,
+          badge: parsed.badge,
+          color: parsed.color,
+          url: parsed.url,
+          embedUrl: parsed.embedUrl,
+          canEmbed: parsed.canEmbed,
+          submittedAt: new Date().toLocaleTimeString()
+        };
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '⏳ Đang gửi lên bảng...';
+
+      const payload = {
+        type: 'STUDENT_SUBMISSION',
+        groupId: selectedGroupId,
+        groupName: groupName,
+        members: members,
+        item: item,
+        timestamp: Date.now()
+      };
+
+      // 1. Gửi qua BroadcastChannel
+      try {
+        const ch = new BroadcastChannel('noteboard_grouphub_sync');
+        ch.postMessage(payload);
+        ch.close();
+      } catch (_) {}
+
+      // 2. Gửi qua localStorage
+      try {
+        const raw = localStorage.getItem('noteboard_grouphub_v1');
+        if (raw) {
+          const state = JSON.parse(raw);
+          const g = state.groups.find(x => x.id === selectedGroupId);
+          if (g) {
+            g.name = groupName;
+            g.members = members;
+            g.items.push(item);
+            g.status = 'submitted';
+            localStorage.setItem('noteboard_grouphub_v1', JSON.stringify(state));
+          }
+        }
+      } catch (_) {}
+
+      // 3. Gửi lên server API nếu có
+      try {
+        let apiOrigin = '';
+        if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+          apiOrigin = 'https://app.noteboardink.com';
+        }
+        await fetch(apiOrigin + '/api/live/group/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (_) {}
+
+      // Hiện thông báo thành công
+      document.getElementById('formCard').style.display = 'none';
+      document.getElementById('successDesc').innerHTML = `
+        Bài làm của <b>${groupName}</b> đã được gửi thành công lên bảng trình chiếu của thầy cô!
+      `;
+      document.getElementById('successCard').style.display = 'block';
+    };
+
+    document.getElementById('newSubmitBtn').onclick = () => {
+      currentPhotoData = null;
+      rawPhotoImg = null;
+      currentPhotoRotation = 0;
+      cameraInput.value = '';
+      galleryInput.value = '';
+      previewWrap.style.display = 'none';
+      dropzone.style.display = 'flex';
+      document.getElementById('urlInput').value = '';
+      submitBtn.disabled = isPortalLocked;
+      submitBtn.innerHTML = isPortalLocked ? '<span>🔒 ĐÃ KHÓA NỘP BÀI</span>' : '<span>🚀 NỘP BÀI LÊN MÀN HÌNH GIÁO VIÊN</span>';
+      document.getElementById('successCard').style.display = 'none';
+      document.getElementById('formCard').style.display = 'flex';
+    };
+  
+    // Polling trạng thái Khóa bài & Nhiệm vụ từ máy chủ Cloud
+    setInterval(async () => {
+      try {
+        let apiOrigin = '';
+        if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+          apiOrigin = 'https://app.noteboardink.com';
+        }
+        const res = await fetch(apiOrigin + '/api/live/group/status');
+        if (!res.ok) return;
+        const st = await res.json();
+        if (st && typeof st.isLocked === 'boolean') {
+          if (st.isLocked !== isPortalLocked) {
+            updateLockState(st.isLocked);
+          }
+        }
+        if (st && st.task && missionDisplay && missionDisplay.textContent !== st.task) {
+          missionDisplay.textContent = st.task;
+        }
+      } catch (_) {}
+    }, 2500);
+  </script>
+</body>
+</html>

@@ -79,6 +79,21 @@
     <!-- Question Bank & Card Styles & Scripts -->
     <link rel="stylesheet" href="./assets/mea-question-card.css">
     <script src="./assets/mea-question-card.js" defer></script>
+
+    <!-- NoteBoard 2.5.21 Advanced Math & Science Engine -->
+    <script src="./assets/noteboard/math/notation.js" defer></script>
+    <script src="./assets/noteboard/math/variation.js" defer></script>
+    <script src="./assets/noteboard/math/spatial.js" defer></script>
+    <script src="./assets/noteboard/math/graph-frame.js" defer></script>
+    <script src="./assets/noteboard/math/smart-render.js" defer></script>
+    <script src="./assets/noteboard/math/chem-units.js" defer></script>
+    <script src="./assets/noteboard/math/shape-assist.js" defer></script>
+    <script src="./assets/noteboard/math/wmf.js" defer></script>
+    <script src="./assets/noteboard/math/emf.js" defer></script>
+    <script src="./assets/noteboard/math/word-core.js" defer></script>
+    <script src="./assets/noteboard/math/word-import.js" defer></script>
+    <script src="./assets/noteboard/math/quick-word-terminal.js" defer></script>
+    <script src="./assets/minnote-noteboard-bridge.js" defer></script>
   </head>
   <body>
     <!-- TOP TITLE & INTEGRATION BADGE -->
@@ -573,6 +588,18 @@
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
           e.preventDefault();
           if (typeof window.toggleQuestionBankModal === 'function') window.toggleQuestionBankModal();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+          e.preventDefault();
+          if (typeof window.openNBVariationModal === 'function') window.openNBVariationModal();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === '3') {
+          e.preventDefault();
+          if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H')) {
+          e.preventDefault();
+          if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W') && e.shiftKey) {
+          e.preventDefault();
+          if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
         }
       });
 
@@ -625,6 +652,94 @@
             if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
           };
           targetGroup.appendChild(btnM);
+        }
+
+        // 3. Nút Bảng biến thiên Toán học (Ctrl + B)
+        if (!document.getElementById('tb-btn-variation')) {
+          const btnV = document.createElement('button');
+          btnV.id = 'tb-btn-variation';
+          btnV.className = 'tb';
+          btnV.title = 'Bảng biến thiên Toán học (Ctrl + B)';
+          btnV.setAttribute('aria-label', 'Bảng biến thiên');
+          btnV.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path>
+              <path d="M7 16l4-8 4 6 5-10"></path>
+            </svg>
+          `;
+          btnV.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openNBVariationModal === 'function') window.openNBVariationModal();
+          };
+          targetGroup.appendChild(btnV);
+        }
+
+        // 4. Nút Hình học không gian 3D Native (Ctrl + 3)
+        if (!document.getElementById('tb-btn-spatial')) {
+          const btnS = document.createElement('button');
+          btnS.id = 'tb-btn-spatial';
+          btnS.className = 'tb';
+          btnS.title = 'Hình học không gian 3D Native (Ctrl + 3)';
+          btnS.setAttribute('aria-label', 'Hình 3D');
+          btnS.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          `;
+          btnS.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
+          };
+          targetGroup.appendChild(btnS);
+        }
+
+        // 5. Nút Cân bằng Hóa học (Ctrl + H)
+        if (!document.getElementById('tb-btn-chem')) {
+          const btnC = document.createElement('button');
+          btnC.id = 'tb-btn-chem';
+          btnC.className = 'tb';
+          btnC.title = 'Cân bằng phản ứng Hóa học (Ctrl + H)';
+          btnC.setAttribute('aria-label', 'Hóa học');
+          btnC.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"></path>
+              <path d="M8.5 2h7"></path>
+              <path d="M7 16h10"></path>
+            </svg>
+          `;
+          btnC.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
+          };
+          targetGroup.appendChild(btnC);
+        }
+
+        // 6. Nút Dán Word / MathType không lỗi font (Ctrl + Shift + W)
+        if (!document.getElementById('tb-btn-word')) {
+          const btnW = document.createElement('button');
+          btnW.id = 'tb-btn-word';
+          btnW.className = 'tb';
+          btnW.title = 'Dán Word & MathType không nhảy dòng (Ctrl + Shift + W)';
+          btnW.setAttribute('aria-label', 'Word Terminal');
+          btnW.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="9" y1="13" x2="15" y2="13"></line>
+              <line x1="9" y1="17" x2="15" y2="17"></line>
+            </svg>
+          `;
+          btnW.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
+          };
+          targetGroup.appendChild(btnW);
         }
       }
       setInterval(ensureExtraToolbarButtons, 800);

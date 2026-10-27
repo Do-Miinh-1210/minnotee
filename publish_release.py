@@ -1,132 +1,90 @@
-import json
 import os
 import sys
-import shutil
-import subprocess
-import urllib.request
-import urllib.parse
-from pathlib import Path
+import requests
 
-if sys.stdout.encoding.lower() != 'utf-8':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+if not GITHUB_TOKEN:
+    print("GITHUB_TOKEN environment variable not set. Please set it before running this script.")
+    sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.1.0"
-TITLE = "MinNote v0.0.1.0 — Nâng cấp lõi NoteRenderer 0.6.3 chính thức"
-BODY = """## MinNote v0.0.1.0 — Bản Cập Nhật Lớn
+TAG = "v0.0.2.0"
+TITLE = "MinNote v0.0.2.0 - Tích hợp toàn diện NoteBoard 2.5.21 (Bảng biến thiên, 3D, Hóa học & MathType)"
+BODY = """## MinNote v0.0.2.0 - Bản Nâng Cấp Đột Phá NoteBoard 2.5.21
 
-### 1. Nâng cấp lõi NoteRenderer v0.6.3 chính thức:
-- **Tối ưu tốc độ vẽ:** Cải tiến hiệu năng render vector trên canvas lớn, loại bỏ hoàn toàn hiện tượng giật lag khi quét màn hình.
-- **Hỗ trợ công thức nâng cao:** Bổ sung font extension MathJax MhChem hỗ trợ biểu diễn phương trình Hóa học và Toán học mở rộng.
-- **Phân tích gói đề Toán (ex_test):** Nhận diện tự động câu hỏi trắc nghiệm 4 lựa chọn (\\choice), đúng/sai (\\choiceTF), câu hỏi trả lời ngắn (\\shortans), đáp án đúng (\\True, \\dung), tách lời giải (\\loigiai), vẽ hình TikZ và bảng số liệu.
-- **Tăng tốc xử lý tài liệu PDF:** Cập nhật engine PDF worker mới cho phép tải và import tài liệu mượt mà hơn.
+Bản phát hành chính thức tích hợp toàn diện các động cơ tính toán và dựng hình chuyên sâu của NoteBoard 2.5.21:
 
-### 2. Tính năng mới & Tiện ích MinNote:
-- **Hiển thị huy hiệu phiên bản:** Gắn badge phiên bản trực quan (v0.0.1.0) trên thanh tiêu đề góc trái, tiêu đề cửa sổ và tooltip nút Cập nhật.
-- **Máy tính Casio lớp trên cùng:** Đưa máy tính Casio fx-580VN X và màn hình LCD phụ lên lớp z-index cao nhất (10005 - 10020), không còn bị thanh công cụ hay nét vẽ che khuất.
-- **Tự động cập nhật không giới hạn:** Chuyển sang cơ chế Web Redirect trực tiếp từ GitHub Releases, xóa bỏ triệt để lỗi giới hạn 60 lượt/giờ của GitHub API.
-- **Đồng bộ Sơ đồ tư duy & Kho đề thi:** Bố trí kho đề thi và bài giảng ở thanh dưới, bổ sung nút chỉnh sửa trực tiếp khi chọn sơ đồ tư duy.
+### 🌟 Tính Năng Mới
+1. **Bảng Biến Thiên Toán Học Tự Động (Ctrl + B):**
+   - Động cơ giải tích đại số ký hiệu chuẩn SGK Việt Nam (đa thức, phân thức hữu tỉ, căn thức, hàm lượng giác).
+   - Tự động xác định tập xác định, nghiệm đạo hàm f'(x)=0, dấu đạo hàm, tiệm cận đứng, tiệm cận ngang và mũi tên biến thiên.
+   - Xuất SVG vector siêu nét chèn trực tiếp lên bảng viết MinNote.
+
+2. **Hình Học Không Gian 3D Native (Ctrl + 3):**
+   - Hỗ trợ đầy đủ 9 khối hình học: Lập phương, Hộp chữ nhật, Chóp tứ giác, Chóp tam giác, Lăng trụ tam giác, Lăng trụ lục giác, Hình nón, Hình trụ, Mặt cầu.
+   - Tự động nhận diện và vẽ nét khuất (nét đứt) chính xác theo góc nhìn.
+   - Xoay 3D trực quan kéo thả chuột tự do góc Yaw/Pitch.
+   - Chèn ảnh chất lượng cao vào bảng với 1 click.
+
+3. **Cân Bằng Phản Ứng Hóa Học & Khối Lượng Mol (Ctrl + H):**
+   - Tự động cân bằng hệ số tối giản cho mọi phương trình hóa học phức tạp.
+   - Tính khối lượng mol phân tử (M) theo chuẩn quốc tế IUPAC.
+
+4. **Quick Word Terminal & Chống Lỗi Font MathType (Ctrl + Shift + W):**
+   - Khắc phục triệt để lỗi nhảy dòng lung tung khi copy-paste từ Microsoft Word.
+   - Chuẩn hóa kích thước công thức MathType (.eq-img) và KaTeX (.katex).
+   - Tự động nhận diện đáp án trắc nghiệm A, B, C, D và dàn trang lưới 4 cột / 2 cột.
+
+5. **Bộ Cài Đặt Tự Động Gỡ Bản Cũ:**
+   - Cài đặt đè hoặc nâng cấp mượt mà, giữ nguyên dữ liệu bảng viết cá nhân.
 """
 
-def get_github_token():
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if token:
-        return token
-    try:
-        proc = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", capture_output=True, text=True)
-        for line in proc.stdout.splitlines():
-            if line.startswith("password="):
-                return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-    return ""
+SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
 
-def main():
-    token = get_github_token()
-    if not token:
-        print("[!] Không tìm thấy GitHub Token qua git credential helper.")
-        return
+headers = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
 
-    headers = {
-        "User-Agent": "MinNote-Release-Script",
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+# 1. Check if release already exists
+r = requests.get(f"https://api.github.com/repos/{REPO}/releases/tags/{TAG}", headers=headers)
+if r.status_code == 200:
+    print(f"Release {TAG} already exists, deleting it to recreate...")
+    release_id = r.json()["id"]
+    requests.delete(f"https://api.github.com/repos/{REPO}/releases/{release_id}", headers=headers)
 
-    # 1. Kiểm tra Repo
-    check_url = f"https://api.github.com/repos/{REPO}"
-    req = urllib.request.Request(check_url, headers=headers)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            repo_info = json.loads(resp.read().decode())
-            print(f"[+] Tìm thấy repository: {repo_info.get('full_name')}")
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            print(f"[!] Repository '{REPO}' chưa tồn tại trên GitHub!")
-            print(f"    Vui lòng truy cập https://github.com/new và tạo repo với tên 'Minnote'.")
-            print(f"    Sau đó chạy lại lệnh: python publish_release.py")
-            return
-        else:
-            print(f"[!] Lỗi kiểm tra repo: {e}")
-            return
+# 2. Create Release
+payload = {
+    "tag_name": TAG,
+    "target_commitish": "main",
+    "name": TITLE,
+    "body": BODY,
+    "draft": False,
+    "prerelease": False
+}
+r = requests.post(f"https://api.github.com/repos/{REPO}/releases", headers=headers, json=payload)
+if r.status_code not in (200, 201):
+    print("Failed to create release:", r.status_code, r.text)
+    sys.exit(1)
 
-    # 2. Tạo Release
-    release_url = f"https://api.github.com/repos/{REPO}/releases"
-    payload = json.dumps({
-        "tag_name": TAG,
-        "name": TITLE,
-        "body": BODY,
-        "draft": False,
-        "prerelease": False
-    }).encode("utf-8")
+release_data = r.json()
+upload_url = release_data["upload_url"].split("{")[0]
+print(f"Created release: {release_data['html_url']}")
 
-    req_rel = urllib.request.Request(release_url, data=payload, headers={**headers, "Content-Type": "application/json"})
-    upload_url_tpl = None
-    try:
-        with urllib.request.urlopen(req_rel) as resp:
-            rel = json.loads(resp.read().decode())
-            upload_url_tpl = rel.get("upload_url")
-            print(f"[+] Đã tạo Release: {rel.get('html_url')}")
-    except urllib.error.HTTPError as e:
-        if e.code == 422: # Release or tag already exists
-            print(f"[*] Release {TAG} đã tồn tại, lấy thông tin...")
-            get_tag_url = f"https://api.github.com/repos/{REPO}/releases/tags/{TAG}"
-            req_tag = urllib.request.Request(get_tag_url, headers=headers)
-            with urllib.request.urlopen(req_tag) as resp:
-                rel = json.loads(resp.read().decode())
-                upload_url_tpl = rel.get("upload_url")
-        else:
-            print(f"[!] Lỗi tạo Release: {e}")
-            return
-
-    if not upload_url_tpl:
-        print("[!] Không tìm thấy upload_url.")
-        return
-
-    upload_url_base = upload_url_tpl.split("{")[0]
-
-    # 3. Upload file Setup
-    setup_file = Path("M:/IT/Minnote/dist/installer/MinNote_Setup.exe")
-    if setup_file.exists():
-        print(f"[+] Đang tải lên {setup_file.name} ({setup_file.stat().st_size / (1024*1024):.1f} MB)...")
-        upload_url = f"{upload_url_base}?name={setup_file.name}"
-        with open(setup_file, "rb") as f:
-            data = f.read()
-        req_up = urllib.request.Request(upload_url, data=data, headers={
-            **headers,
-            "Content-Type": "application/octet-stream",
-            "Content-Length": str(len(data))
-        })
-        try:
-            with urllib.request.urlopen(req_up) as resp:
-                print(f"[+] Tải lên thành công: {setup_file.name}")
-        except Exception as ex:
-            print(f"[!] Lỗi upload asset: {ex}")
+# 3. Upload Setup Asset
+if os.path.exists(SETUP_EXE):
+    size_mb = os.path.getsize(SETUP_EXE) / (1024 * 1024)
+    print(f"Uploading {SETUP_EXE} ({size_mb:.2f} MB)...")
+    headers["Content-Type"] = "application/octet-stream"
+    with open(SETUP_EXE, "rb") as f:
+        r = requests.post(
+            f"{upload_url}?name=MinNote_Setup.exe",
+            headers=headers,
+            data=f
+        )
+    if r.status_code in (200, 201):
+        print(f"Uploaded MinNote_Setup.exe successfully! Download URL: {r.json()['browser_download_url']}")
     else:
-        print(f"[!] Không tìm thấy file bộ cài: {setup_file}")
-
-if __name__ == "__main__":
-    main()
+        print("Failed to upload asset:", r.status_code, r.text)
+else:
+    print(f"Asset file not found at {SETUP_EXE}")
