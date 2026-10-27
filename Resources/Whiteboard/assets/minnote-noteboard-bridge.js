@@ -45,104 +45,75 @@
   // 1. Helper: Insert item into MinNote Whiteboard Canvas
 
   window.insertSvgOrImageToBoard = async function(dataUri, w = 480, h = 320) {
-
     try {
-
       const board = getBoard();
-
-      if (!board || !board.doc || !board.doc.pages) {
-
+      if (!board) {
         alert('Bảng viết MinNote chưa sẵn sàng! Vui lòng chờ vài giây để bảng tải xong.');
-
         return false;
-
       }
 
+      const pw = (board.doc && board.doc.landscape) ? 1754 : 1240;
+      const targetW = Math.max(100, Math.min(pw - 60, Math.round(w)));
+      const targetH = Math.max(60, Math.round(h));
 
+      // 1. Native NoteRenderer Item insertion (auto-centers in viewport, commits, and selects)
+      if (typeof board.insertItem === 'function') {
+        const id = 'nb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        board.insertItem({
+          id,
+          type: 'image',
+          x: 0,
+          y: 0,
+          w: targetW,
+          h: targetH,
+          src: dataUri
+        });
+        if (typeof board.redraw === 'function') board.redraw();
+        notify('✨ Đã chèn đối tượng vào bảng viết thành công!');
+        return true;
+      }
 
+      // 2. Native NoteRenderer Image insertion
+      if (typeof board.insertImage === 'function') {
+        await board.insertImage(dataUri, { w: targetW, h: targetH });
+        if (typeof board.redraw === 'function') board.redraw();
+        notify('✨ Đã chèn đối tượng vào bảng viết thành công!');
+        return true;
+      }
+
+      // 3. Fallback direct page commit
       const pageIdx = (board.sel && board.sel.page >= 0) ? board.sel.page : 
-
                       (typeof board.currentPage === 'function' ? board.currentPage() : 0);
-
-
-
-      const pw = board.doc.landscape ? 1754 : 1240;
-
       const ph = typeof board.phOf === 'function' ? board.phOf(pageIdx) : 1754;
-
-
-
-      const targetW = Math.max(100, Math.min(pw - 60, w));
-
-      const targetH = Math.max(60, Math.min(ph - 60, h));
-
-
-
       const newX = Math.round(Math.max(30, (pw - targetW) / 2));
-
       const newY = Math.round(Math.max(30, (ph - targetH) / 2));
 
-
-
       const newItem = {
-
         id: 'nb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-
         type: 'image',
-
         src: dataUri,
-
         x: newX,
-
         y: newY,
-
         w: targetW,
-
         h: targetH
-
       };
 
-
-
-      if (board.doc.pages[pageIdx]) {
-
+      if (board.doc && board.doc.pages && board.doc.pages[pageIdx]) {
         board.commit(board.updatePage(pageIdx, p => ({
-
           ...p,
-
           items: [...(p.items || []), newItem]
-
         })));
-
         if (typeof board.redraw === 'function') board.redraw();
-
         notify('✨ Đã chèn đối tượng vào bảng viết thành công!');
-
         return true;
-
       }
-
       return false;
-
     } catch (err) {
-
       console.error('[MinNote NoteBoard Bridge] Error inserting item to board:', err);
-
       alert('Lỗi khi chèn vào bảng: ' + err.message);
-
       return false;
-
     }
-
   };
-
-
-
-  /* ==========================================================================
-
-   * 2. BẢNG BIẾN THIÊN TOÁN HỌC (VARIATION TABLE MODAL)
-
-   * ========================================================================== */
 
   let varDialog = null;
 
@@ -1003,108 +974,83 @@
 
 
     function doBalance() {
-
       const text = input.value.trim();
-
       if (!text) return;
-
       try {
-
         const balanced = window.NBChemUnits.balance(text);
-
         if (balanced && balanced.text) {
-
           lastResultText = balanced.text;
-
+          const massList = (balanced.masses || []).map(m => `M(${m.formula}) = ${m.M}`).join(' • ');
           resultBox.innerHTML = `
-
             <div style="font-size:20px;font-weight:700;color:#0d9488;margin-bottom:6px;">
-
               ${balanced.text}
-
             </div>
-
-            <div style="font-size:13px;color:#64748b;">
-
+            ${massList ? `<div style="font-size:13px;color:#0f766e;font-weight:600;margin-bottom:4px;">${massList} (g/mol)</div>` : ''}
+            <div style="font-size:12px;color:#64748b;">
               Phương trình đã được cân bằng chính xác với hệ số nguyên tối giản.
-
             </div>
-
           `;
-
           insertBtn.disabled = false;
-
         } else {
-
+          // If single molecule entered, do molar mass
+          const mass = window.NBChemUnits.molarMass(text);
+          if (mass) {
+            doMolarMass();
+            return;
+          }
           resultBox.innerHTML = '<span style="color:#ef4444;">Không thể cân bằng phương trình này. Hãy kiểm tra các chất tham gia và sản phẩm.</span>';
-
           insertBtn.disabled = true;
-
         }
-
       } catch (err) {
-
         resultBox.innerHTML = '<span style="color:#ef4444;">Lỗi: ' + (err.message || String(err)) + '</span>';
-
         insertBtn.disabled = true;
-
       }
-
     }
-
-
 
     function doMolarMass() {
-
       const text = input.value.trim();
-
       if (!text) return;
-
       try {
-
-        const mass = window.NBChemUnits.molarMass(text);
-
-        if (mass) {
-
-          lastResultText = 'M(' + text + ') = ' + mass + ' g/mol';
-
-          resultBox.innerHTML = `
-
-            <div style="font-size:20px;font-weight:700;color:#0d9488;margin-bottom:6px;">
-
-              M(${text}) = ${mass} g/mol
-
-            </div>
-
-            <div style="font-size:13px;color:#64748b;">
-
-              Khối lượng phân tử / mol nguyên tử theo chuẩn quốc tế IUPAC.
-
-            </div>
-
-          `;
-
-          insertBtn.disabled = false;
-
-        } else {
-
-          resultBox.innerHTML = '<span style="color:#ef4444;">Không tìm thấy công thức phân tử hợp lệ.</span>';
-
-          insertBtn.disabled = true;
-
+        if (/->|<=>|=|\+/.test(text)) {
+          const formulas = text.split(/->|<=>|=|\+/).map(s => s.trim().replace(/^\d+/, '').trim()).filter(Boolean);
+          const results = [];
+          for (const f of formulas) {
+            const m = window.NBChemUnits.molarMass(f);
+            if (m) results.push({ f, m });
+          }
+          if (results.length > 0) {
+            lastResultText = results.map(r => `M(${r.f}) = ${r.m} g/mol`).join('   ');
+            resultBox.innerHTML = `
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+                ${results.map(r => `<span style="display:inline-block;background:#ccfbf1;color:#0f766e;padding:4px 10px;border-radius:6px;font-weight:700;font-size:15px;">M(${r.f}) = ${r.m} g/mol</span>`).join('')}
+              </div>
+              <div style="font-size:12px;color:#64748b;">Khối lượng mol của các chất theo IUPAC.</div>
+            `;
+            insertBtn.disabled = false;
+            return;
+          }
         }
-
+        const mass = window.NBChemUnits.molarMass(text);
+        if (mass) {
+          lastResultText = `M(${text}) = ${mass} g/mol`;
+          resultBox.innerHTML = `
+            <div style="font-size:20px;font-weight:700;color:#0d9488;margin-bottom:6px;">
+              M(${text}) = ${mass} g/mol
+            </div>
+            <div style="font-size:13px;color:#64748b;">
+              Khối lượng phân tử / mol nguyên tử theo chuẩn quốc tế IUPAC.
+            </div>
+          `;
+          insertBtn.disabled = false;
+        } else {
+          resultBox.innerHTML = '<span style="color:#ef4444;">Không tìm thấy công thức phân tử hợp lệ. Ví dụ: Al, HCl, AlCl3, Fe2(SO4)3...</span>';
+          insertBtn.disabled = true;
+        }
       } catch (err) {
-
         resultBox.innerHTML = '<span style="color:#ef4444;">Lỗi: ' + (err.message || String(err)) + '</span>';
-
         insertBtn.disabled = true;
-
       }
-
     }
-
-
 
     balanceBtn.onclick = doBalance;
 
@@ -1499,3 +1445,10 @@
 
 })();
 
+
+
+  // Ẩn tab Word Terminal nổi
+  setInterval(() => {
+    const qwt = document.getElementById('qwtTab');
+    if (qwt) qwt.style.display = 'none';
+  }, 800);

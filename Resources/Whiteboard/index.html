@@ -674,28 +674,9 @@
           targetGroup.appendChild(btnM);
         }
 
-        // 3. Nút Bảng biến thiên Toán học (Ctrl + B)
-        if (!document.getElementById('tb-btn-variation')) {
-          const btnV = document.createElement('button');
-          btnV.id = 'tb-btn-variation';
-          btnV.className = 'tb';
-          btnV.title = 'Bảng biến thiên Toán học (Ctrl + B)';
-          btnV.setAttribute('aria-label', 'Bảng biến thiên');
-          btnV.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
-          btnV.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18"></path>
-              <path d="M7 16l4-8 4 6 5-10"></path>
-            </svg>
-            <span>BBT</span>
-          `;
-          btnV.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.openNBVariationModal === 'function') window.openNBVariationModal();
-          };
-          targetGroup.appendChild(btnV);
-        }
+        // 3. Giữ nguyên 100% Bảng biến thiên gốc của app, bỏ nút BBT thêm vào
+        const oldV = document.getElementById('tb-btn-variation');
+        if (oldV) oldV.remove();
 
         // 4. Nút Hình học không gian 3D Native (Ctrl + 3)
         if (!document.getElementById('tb-btn-spatial')) {
