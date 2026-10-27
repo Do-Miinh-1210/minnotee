@@ -16,13 +16,19 @@ if sys.stdout.encoding.lower() != 'utf-8':
 REPO = "Do-Miinh-1210/minnotee"
 TAG = "v0.0.1.0"
 TITLE = "MinNote v0.0.1.0 — Nâng cấp lõi NoteRenderer 0.6.3 chính thức"
-BODY = """## MinNote v0.0.1.0
+BODY = """## MinNote v0.0.1.0 — Bản Cập Nhật Lớn
 
-### Tính năng mới & Cải tiến:
-- **Nâng cấp lõi NoteRenderer 0.6.3:** Tích hợp bộ dựng bảng viết mới nhất từ NoteRenderer v0.6.3 (cải tiến hiệu năng vẽ, tối ưu bộ nhớ, nâng cấp parser toán học ex_test).
-- **Cập nhật NoteRenderer độc lập:** Cập nhật ứng dụng NoteRenderer tại AppData lên phiên bản 0.6.3.
-- **Tự động cập nhật không giới hạn:** Kiểm tra bản phát hành siêu tốc không bị Rate Limit qua Web Redirect.
-- **Máy tính Casio lớp trên cùng:** Giữ vững cửa sổ máy tính Casio và màn hình LCD luôn nổi trên mọi layer.
+### 1. Nâng cấp lõi NoteRenderer v0.6.3 chính thức:
+- **Tối ưu tốc độ vẽ:** Cải tiến hiệu năng render vector trên canvas lớn, loại bỏ hoàn toàn hiện tượng giật lag khi quét màn hình.
+- **Hỗ trợ công thức nâng cao:** Bổ sung font extension MathJax MhChem hỗ trợ biểu diễn phương trình Hóa học và Toán học mở rộng.
+- **Phân tích gói đề Toán (ex_test):** Nhận diện tự động câu hỏi trắc nghiệm 4 lựa chọn (\\choice), đúng/sai (\\choiceTF), câu hỏi trả lời ngắn (\\shortans), đáp án đúng (\\True, \\dung), tách lời giải (\\loigiai), vẽ hình TikZ và bảng số liệu.
+- **Tăng tốc xử lý tài liệu PDF:** Cập nhật engine PDF worker mới cho phép tải và import tài liệu mượt mà hơn.
+
+### 2. Tính năng mới & Tiện ích MinNote:
+- **Hiển thị huy hiệu phiên bản:** Gắn badge phiên bản trực quan (v0.0.1.0) trên thanh tiêu đề góc trái, tiêu đề cửa sổ và tooltip nút Cập nhật.
+- **Máy tính Casio lớp trên cùng:** Đưa máy tính Casio fx-580VN X và màn hình LCD phụ lên lớp z-index cao nhất (10005 - 10020), không còn bị thanh công cụ hay nét vẽ che khuất.
+- **Tự động cập nhật không giới hạn:** Chuyển sang cơ chế Web Redirect trực tiếp từ GitHub Releases, xóa bỏ triệt để lỗi giới hạn 60 lượt/giờ của GitHub API.
+- **Đồng bộ Sơ đồ tư duy & Kho đề thi:** Bố trí kho đề thi và bài giảng ở thanh dưới, bổ sung nút chỉnh sửa trực tiếp khi chọn sơ đồ tư duy.
 """
 
 def get_github_token():
