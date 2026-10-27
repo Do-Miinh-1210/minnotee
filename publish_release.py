@@ -2,9 +2,24 @@ import os
 import sys
 import requests
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+import subprocess
+
+def get_github_token():
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        return token
+    try:
+        proc = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", capture_output=True, text=True)
+        for line in proc.stdout.splitlines():
+            if line.startswith("password="):
+                return line.split("=", 1)[1]
+    except Exception:
+        pass
+    return None
+
+GITHUB_TOKEN = get_github_token()
 if not GITHUB_TOKEN:
-    print("GITHUB_TOKEN environment variable not set. Please set it before running this script.")
+    print("GITHUB_TOKEN could not be found.")
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
