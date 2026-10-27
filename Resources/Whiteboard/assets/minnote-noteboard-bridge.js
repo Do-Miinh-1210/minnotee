@@ -706,5 +706,19 @@
     handleWordBlocksImport(blocks, true);
   };
 
+  // Nâng cao z-index và container cho MathLive Virtual Keyboard
+  const setupMathVirtualKeyboard = () => {
+    if (window.mathVirtualKeyboard) {
+      try {
+        window.mathVirtualKeyboard.container = document.body;
+      } catch (e) {}
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupMathVirtualKeyboard);
+  } else {
+    setupMathVirtualKeyboard();
+  }
+
   console.log('[MinNote] NoteBoard 2.5.21 Math, 3D Spatial & Science Bridge initialized.');
 })();

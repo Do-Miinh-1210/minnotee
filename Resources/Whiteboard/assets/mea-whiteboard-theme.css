@@ -1417,3 +1417,30 @@ body.fullscreen-mode #mea-header-badge {
   flex-shrink: 0 !important;
   stroke: currentColor !important;
 }
+
+/* ==========================================================================
+   MATHLIVE VIRTUAL KEYBOARD ELEVATION FIX (Bàn phím ảo toán học nổi trên Dialog)
+   ========================================================================== */
+:root {
+  --keyboard-zindex: 2000000 !important;
+}
+
+body > .ML__keyboard,
+.ML__keyboard {
+  z-index: 2000000 !important;
+  pointer-events: none !important;
+}
+
+.MLK__backdrop {
+  z-index: 2000001 !important;
+  pointer-events: all !important;
+}
+
+.MLK__plate,
+.MLK__plate * {
+  pointer-events: all !important;
+}
+
+.MLK__layer {
+  pointer-events: all !important;
+}

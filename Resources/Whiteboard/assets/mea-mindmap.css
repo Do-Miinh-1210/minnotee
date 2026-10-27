@@ -169,43 +169,53 @@ body.fullscreen-mode #mea-mindmap-container {
 
 
 /* DIALOG & SHEET POPOVER ELEVATION (Đảm bảo hộp thoại Sheet / Cài đặt luôn nổi trên cùng và căn giữa) */
-
 .dialog-backdrop {
-
   position: fixed !important;
-
   top: 0 !important;
-
   right: 0 !important;
-
   bottom: 0 !important;
-
   left: 0 !important;
-
   display: flex !important;
-
   align-items: center !important;
-
   justify-content: center !important;
-
   background: rgba(15, 23, 42, 0.45) !important;
-
   backdrop-filter: blur(2px) !important;
-
   z-index: 99999 !important;
-
+  padding-bottom: var(--math-keys, 0px) !important;
+  box-sizing: border-box !important;
+  transition: padding-bottom 0.2s cubic-bezier(0, 0, 0.2, 1) !important;
 }
 
-
-
 .dialog {
-
   z-index: 100000 !important;
-
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
-
   margin: auto !important;
+  max-height: calc(100vh - 40px - var(--math-keys, 0px)) !important;
+}
 
+/* MathLive Virtual Keyboard Elevation Fix (Luôn nổi trên mọi Dialog Backdrop) */
+:root {
+  --keyboard-zindex: 2000000 !important;
+}
+
+body > .ML__keyboard,
+.ML__keyboard {
+  z-index: 2000000 !important;
+  pointer-events: none !important;
+}
+
+.MLK__backdrop {
+  z-index: 2000001 !important;
+  pointer-events: all !important;
+}
+
+.MLK__plate,
+.MLK__plate * {
+  pointer-events: all !important;
+}
+
+.MLK__layer {
+  pointer-events: all !important;
 }
 
 

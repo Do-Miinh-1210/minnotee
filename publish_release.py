@@ -23,9 +23,9 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.2.1"
-TITLE = "MinNote v0.0.2.1 - Tích hợp toàn diện NoteBoard 2.5.21 (Bảng biến thiên, 3D, Hóa học & MathType)"
-BODY = """## MinNote v0.0.2.1 - Bản Nâng Cấp Đột Phá NoteBoard 2.5.21
+TAG = "v0.0.2.2"
+TITLE = "MinNote v0.0.2.2 - Tích hợp toàn diện NoteBoard 2.5.21 (Bảng biến thiên, 3D, Hóa học & MathType)"
+BODY = """## MinNote v0.0.2.2 - Bản Nâng Cấp Đột Phá NoteBoard 2.5.21
 
 Bản phát hành chính thức tích hợp toàn diện các động cơ tính toán và dựng hình chuyên sâu của NoteBoard 2.5.21:
 
@@ -50,7 +50,11 @@ Bản phát hành chính thức tích hợp toàn diện các động cơ tính 
    - Chuẩn hóa kích thước công thức MathType (.eq-img) và KaTeX (.katex).
    - Tự động nhận diện đáp án trắc nghiệm A, B, C, D và dàn trang lưới 4 cột / 2 cột.
 
-5. **Bộ Cài Đặt Tự Động Gỡ Bản Cũ:**
+5. **Sửa Triệt Để Lỗi Bàn Phím Ảo Toán Học (MathLive Keyboard):**
+   - Nâng cấp z-index bàn phím ảo lên mức cao nhất (2.000.000), không bị che phủ dưới lớp màn mờ backdrop của bảng Chèn công thức.
+   - Tự động đẩy hộp thoại lên cao khi bàn phím mở ra, các phím số và công thức toán học bấm nhạy 100%.
+
+6. **Bộ Cài Đặt Tự Động Gỡ Bản Cũ:**
    - Cài đặt đè hoặc nâng cấp mượt mà, giữ nguyên dữ liệu bảng viết cá nhân.
 """
 
