@@ -1,1446 +1,1474 @@
-/* ==========================================================================
-
-   MatrixExamAI Pro - Studio Whiteboard Theme (V2 Redesign)
-
-   Architecture: Floating Island Dock • Modern Fluent/Lucide Aesthetics
-
-   Color Scheme: Emerald Teal & Nordic Slate (Strictly Zero Red Tones)
-
-   ========================================================================== */
-
-
-
-:root {
-
-  --ink: #0f172a !important;
-
-  --muted: #64748b !important;
-
-  --accent: #0d9488 !important;         /* MatrixExamAI Primary Emerald Teal */
-
-  --accent-dark: #0f766e !important;    /* Deep Teal */
-
-  --accent-hover: #14b8a6 !important;   /* Vibrant Cyan-Teal */
-
-  --accent-soft: #f0fdfa !important;    /* Soft Teal Hover Tint */
-
-  --accent-ring: rgba(13, 148, 136, 0.35) !important;
-
-  --line: #e2e8f0 !important;           /* Clean Modern Border */
-
-  --surface: #ffffff !important;
-
-  --surface-subtle: #f8fafc !important;
-
-  --dock-bg: rgba(255, 255, 255, 0.94) !important;
-
-  --dock-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04) !important;
-
-}
-
-
-
-/* 1. APP ROOT & VIEWPORT LAYOUT */
-
-html, body {
-
-  margin: 0 !important;
-
-  padding: 0 !important;
-
-  height: 100vh !important;
-
-  overflow: hidden !important;
-
-  background: #f1f5f9 !important;
-
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-
-}
-
-
-
-body {
-
-  display: flex !important;
-
-  flex-direction: column !important;
-
-}
-
-
-
-#root {
-
-  flex: 1 !important;
-
-  height: auto !important;
-
-  min-height: 0 !important;
-
-  overflow: hidden !important;
-
-  display: flex !important;
-
-  flex-direction: column !important;
-
-}
-
-
-
-/* 2. TOP BRAND BANNER (MatrixExamAI Pro Studio) */
-
-#mea-header-badge {
-
-  display: flex;
-
-  align-items: center;
-
-  gap: 10px;
-
-  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
-
-  color: #f8fafc;
-
-  padding: 6px 18px;
-
-  font-size: 12.5px;
-
-  font-weight: 600;
-
-  border-bottom: 1px solid #334155;
-
-  user-select: none;
-
-  z-index: 20;
-
-  flex-shrink: 0;
-
-}
-
-
-
-#mea-header-badge .badge-tag {
-
-  background: linear-gradient(135deg, #0d9488, #0284c7);
-
-  color: #ffffff;
-
-  font-size: 10px;
-
-  padding: 2px 7px;
-
-  border-radius: 4px;
-
-  font-weight: 700;
-
-  letter-spacing: 0.04em;
-
-}
-
-
-
-#mea-header-badge .btn-insert-mea {
-
-  margin-left: auto;
-
-  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
-
-  color: #ffffff;
-
-  border: 1px solid rgba(255, 255, 255, 0.15);
-
-  padding: 5px 14px;
-
-  border-radius: 6px;
-
-  font-size: 11.5px;
-
-  font-weight: 600;
-
-  cursor: pointer;
-
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 6px;
-
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.4);
-
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-
-}
-
-
-
-#mea-header-badge .btn-insert-mea:hover {
-
-  transform: translateY(-1px);
-
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.55);
-
-  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%);
-
-}
-
-
-
-/* 3. COMPACT SINGLE-ROW STUDIO TOOLBAR (Thanh công cụ đỉnh thu gọn một dòng) */
-
-.toolbar {
-  position: relative !important;
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  margin: 4px 10px 4px 10px !important;
-  height: 40px !important;
-  min-height: 40px !important;
-  padding: 0 8px !important;
-  background: #ffffff !important;
-  border: 1px solid rgba(203, 213, 225, 0.9) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04) !important;
-  gap: 4px !important;
-  flex-shrink: 0 !important;
-  z-index: 100 !important;
-  overflow: visible !important;
-}
-
-.toolbar.two-rows {
-  height: auto !important;
-  min-height: 76px !important;
-  flex-wrap: wrap !important;
-  padding: 4px 8px 6px !important;
-  row-gap: 4px !important;
-}
-
-
-
-/* 4. SEGMENTED PILL GROUPS & TOOLS DOCK (Giữ trên cùng một hàng ngang) */
-
-.tb-group {
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  gap: 1.5px !important;
-
-  background: #f8fafc !important;
-
-  border: 1px solid #e2e8f0 !important;
-
-  border-radius: 10px !important;
-
-  padding: 1px 3px !important;
-
-  flex-shrink: 0 !important;
-
-  overflow: visible !important;
-
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
-
-}
-
-
-
-.toolbar:not(.two-rows) .tb-group.tools,
-.tb-group.tools {
-  order: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-  margin-left: auto !important;
-  border-top: none !important;
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
-  border-radius: 10px !important;
-  padding: 1px 4px !important;
-  gap: 1.5px !important;
-  display: inline-flex !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  flex-shrink: 0 !important;
-  overflow: visible !important;
-}
-
-.toolbar.two-rows .tb-group.tools {
-  order: 3 !important;
-  width: 100% !important;
-  margin-left: 0 !important;
-  border-top: 1px solid #e2e8f0 !important;
-  background: #f8fafc !important;
-  border-radius: 10px !important;
-  padding: 3px 6px !important;
-  gap: 3px !important;
-  display: flex !important;
-  flex-wrap: wrap !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  overflow: visible !important;
-}
-
-@media (max-width: 1550px) {
-  .toolbar {
-    height: auto !important;
-    min-height: 76px !important;
-    flex-wrap: wrap !important;
-    padding: 4px 8px 6px !important;
-    row-gap: 4px !important;
-  }
-  .toolbar .tb-group.tools {
-    order: 3 !important;
-    width: 100% !important;
-    margin-left: 0 !important;
-    border-top: 1px solid #e2e8f0 !important;
-    background: #f8fafc !important;
-    border-radius: 10px !important;
-    padding: 3px 6px !important;
-    gap: 3px !important;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    overflow: visible !important;
-  }
-}
-
-
-
-/* 5. COMPACT BUTTONS & MODERN ICONS (Làm nhỏ nút công cụ) */
-
-.tb {
-
-  min-width: 28px !important;
-
-  width: 28px !important;
-
-  height: 28px !important;
-
-  padding: 0 !important;
-
-  border-radius: 7px !important;
-
-  font-size: 11px !important;
-
-  color: #334155 !important;
-
-  background: transparent !important;
-
-  border: none !important;
-
-  cursor: pointer !important;
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  justify-content: center !important;
-
-  gap: 0 !important;
-
-  flex-shrink: 0 !important;
-
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
-
-}
-
-
-
-.tb:hover:not(:disabled) {
-
-  background: #e2e8f0 !important;
-
-  color: #0f172a !important;
-
-  transform: translateY(-1px) !important;
-
-  z-index: 50 !important;
-
-}
-
-
-
-.tb:disabled {
-
-  color: #cbd5e1 !important;
-
-  cursor: not-allowed !important;
-
-}
-
-
-
-/* ACTIVE STATE (Gradient Teal-Cyan) */
-
-.tb.on {
-
-  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
-
-  color: #ffffff !important;
-
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35) !important;
-
-  transform: translateY(-1px) !important;
-
-}
-
-
-
-.tb.on:hover {
-
-  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%) !important;
-
-  color: #ffffff !important;
-
-}
-
-
-
-/* Sharp Compact Icon Stroke Tuning */
-
-.tb svg {
-
-  width: 14.5px !important;
-
-  height: 14.5px !important;
-
-  stroke-width: 1.8px !important;
-
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-
-  transform-origin: center center !important;
-
-}
-
-
-
-/* Hover Zoom 2x Icon Enhancement (Đỗ Miinh Math UX) */
-
-.tb:hover:not(:disabled) svg:first-child {
-
-  transform: scale(3.0) !important;
-
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.25)) !important;
-
-}
-
-
-
-/* Hide chevron dropdown arrows to match exact clean old icon sample */
-
-.tb svg:not(:first-child),
-
-.tb .chevron,
-
-.tb svg.chevron {
-
-  display: none !important;
-
-}
-
-
-
-/* 6. COMPACT CENTER NAVIGATION CHIP (Trang & Zoom) */
-
-.tb-title {
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  height: 28px !important;
-
-  gap: 3px !important;
-
-  background: #f1f5f9 !important;
-
-  border: 1px solid #cbd5e1 !important;
-
-  border-radius: 8px !important;
-
-  padding: 0 6px !important;
-
-  flex-shrink: 0 !important;
-
-  overflow: visible !important;
-
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
-
-}
-
-
-
-.zoom-button {
-
-  color: #0f172a !important;
-
-  font-weight: 600 !important;
-
-  font-size: 11px !important;
-
-  border-radius: 5px !important;
-
-  padding: 1px 4px !important;
-
-  border: none !important;
-
-  background: transparent !important;
-
-  cursor: pointer !important;
-
-  transition: background 0.15s ease !important;
-
-}
-
-
-
-.zoom-button:hover {
-
-  background: #e2e8f0 !important;
-
-  color: #0d9488 !important;
-
-}
-
-
-
-.tb-title .dot {
-
-  color: #94a3b8 !important;
-
-  font-weight: bold !important;
-
-  font-size: 11px !important;
-
-}
-
-
-
-/* 7. COMPACT ARTIST COLOR PALETTE DOCK (Khay màu tròn nhỏ gọn) */
-
-.tb-palette {
-
-  height: 28px !important;
-
-  border-radius: 14px !important;
-
-  background: #f1f5f9 !important;
-
-  border: 1px solid #cbd5e1 !important;
-
-  padding: 0 2px !important;
-
-  margin: 0 1.5px !important;
-
-  gap: 1.5px !important;
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  flex-shrink: 0 !important;
-
-  overflow: visible !important;
-
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
-
-}
-
-
-
-.swatch {
-
-  width: 17px !important;
-
-  height: 22px !important;
-
-  border-radius: 8px !important;
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  justify-content: center !important;
-
-  padding: 0 !important;
-
-  margin: 0 !important;
-
-  flex-shrink: 0 !important;
-
-  transition: all 0.15s ease !important;
-
-}
-
-
-
-.swatch:hover {
-
-  background: #e2e8f0 !important;
-
-}
-
-
-
-.swatch span {
-
-  width: 8px !important;
-
-  height: 8px !important;
-
-  border-radius: 50% !important;
-
-  display: inline-block !important;
-
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-
-  transform-origin: center center !important;
-
-}
-
-
-
-.swatch:hover span {
-
-  transform: scale(3.0) !important;
-
-  box-shadow: 0 0 0 2px #ffffff, 0 3px 8px rgba(0, 0, 0, 0.35) !important;
-
-  z-index: 50 !important;
-
-}
-
-
-
-.swatch.on:after {
-
-  content: "" !important;
-
-  position: absolute !important;
-
-  left: 2px !important;
-
-  right: 2px !important;
-
-  bottom: 1px !important;
-
-  height: 2px !important;
-
-  border-radius: 1px !important;
-
-  background: #0d9488 !important;
-
-  box-shadow: 0 0 4px rgba(13, 148, 136, 0.8) !important;
-
-}
-
-
-
-.sep {
-
-  width: 1px !important;
-
-  height: 14px !important;
-
-  background: #cbd5e1 !important;
-
-  margin: 0 2px !important;
-
-  display: inline-block !important;
-
-  flex-shrink: 0 !important;
-
-}
-
-
-
-/* 8. POPUP MENUS & PANELS (Bo góc lớn, bóng mờ Fluent, z-index cao tuyệt đối) */
-
-.dropdown {
-
-  position: relative !important;
-
-  overflow: visible !important;
-
-}
-
-
-
-.dropdown-menu,
-
-.menu,
-
-.popover,
-
-[role="menu"] {
-
-  position: fixed !important;
-
-  z-index: 99999 !important;
-
-  border-radius: 12px !important;
-
-  border: 1px solid #cbd5e1 !important;
-
-  box-shadow: 0 14px 36px -4px rgba(15, 23, 42, 0.18), 0 4px 12px -2px rgba(15, 23, 42, 0.08) !important;
-
-  background: rgba(255, 255, 255, 0.98) !important;
-
-  backdrop-filter: blur(16px) !important;
-
-  padding: 8px !important;
-
-  overflow-y: auto !important;
-
-  max-height: calc(100vh - 60px) !important;
-
-}
-
-
-
-.zoom-input {
-
-  display: flex !important;
-
-  align-items: center !important;
-
-  gap: 8px !important;
-
-  white-space: nowrap !important;
-
-  padding: 4px 6px !important;
-
-}
-
-
-
-.zoom-input label {
-
-  display: flex !important;
-
-  align-items: center !important;
-
-  gap: 6px !important;
-
-  font-size: 13px !important;
-
-  color: #1e293b !important;
-
-}
-
-
-
-.zoom-input input {
-
-  width: 46px !important;
-
-  padding: 3px 6px !important;
-
-  border: 1px solid #cbd5e1 !important;
-
-  border-radius: 6px !important;
-
-  font-size: 12px !important;
-
-  text-align: center !important;
-
-}
-
-
-
-.zoom-apply {
-
-  background: #0d9488 !important;
-
-  color: #ffffff !important;
-
-  border: none !important;
-
-  border-radius: 6px !important;
-
-  padding: 4px 10px !important;
-
-  font-size: 12px !important;
-
-  font-weight: 600 !important;
-
-  cursor: pointer !important;
-
-  transition: background 0.15s ease !important;
-
-}
-
-
-
-.zoom-apply:hover {
-
-  background: #0f766e !important;
-
-}
-
-
-
-.menu button, .menu-item {
-
-  border-radius: 10px !important;
-
-  font-size: 13px !important;
-
-  color: #1e293b !important;
-
-  padding: 8px 12px !important;
-
-  transition: all 0.12s ease !important;
-
-}
-
-
-
-.menu button:hover {
-
-  background: #f0fdfa !important;
-
-  color: #0d9488 !important;
-
-}
-
-
-
-.menu button.checked {
-
-  background: #ccfbf1 !important;
-
-  color: #0f766e !important;
-
-  font-weight: 600 !important;
-
-}
-
-
-
-/* 9. THUMBNAIL PAGES SIDEBAR (Danh sách trang bên trái) */
-
-.pages-panel {
-
-  border-right: 1px solid #cbd5e1 !important;
-
-  background: #f8fafc !important;
-
-  box-shadow: inset -2px 0 6px rgba(0, 0, 0, 0.02) !important;
-
-}
-
-
-
-.pages-panel .page-item {
-
-  border-radius: 12px !important;
-
-  transition: all 0.15s ease !important;
-
-  border: 2px solid transparent !important;
-
-}
-
-
-
-.pages-panel .page-item:hover {
-
-  border-color: #94a3b8 !important;
-
-}
-
-
-
-.pages-panel .page-item.current {
-
-  border-color: #0d9488 !important;
-
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.3), 0 4px 12px rgba(13, 148, 136, 0.15) !important;
-
-}
-
-
-
-.pages-panel .page-badge {
-
-  background: #0d9488 !important;
-
-  color: #ffffff !important;
-
-  border-radius: 6px !important;
-
-  font-weight: 600 !important;
-
-}
-
-
-
-/* 10. BOTTOM SHEET BAR (Thanh sheet đáy) */
-
-.sheet-bar, .sheets-bar {
-
-  border-top: 1px solid #cbd5e1 !important;
-
-  background: #ffffff !important;
-
-  height: 38px !important;
-
-  padding: 0 12px !important;
-
-}
-
-
-
-.sheet-tab, .sheet-item {
-
-  border-radius: 8px 8px 0 0 !important;
-
-  font-size: 12.5px !important;
-
-  transition: all 0.12s ease !important;
-
-}
-
-
-
-.sheet-tab.active, .sheet-item.active {
-
-  background: #f0fdfa !important;
-
-  border-bottom: 2px solid #0d9488 !important;
-
-  color: #0d9488 !important;
-
-  font-weight: 600 !important;
-
-}
-
-
-
-
-
-
-
-#mea-header-badge .btn-vectorize-mea {
-
-  background: rgba(13, 148, 136, 0.25) !important;
-
-  color: #2dd4bf !important;
-
-  border: 1px solid rgba(45, 212, 191, 0.4) !important;
-
-  padding: 5px 12px !important;
-
-  border-radius: 6px !important;
-
-  font-size: 11.5px !important;
-
-  font-weight: 600 !important;
-
-  cursor: pointer !important;
-
-  display: inline-flex !important;
-
-  align-items: center !important;
-
-  gap: 6px !important;
-
-  transition: all 0.2s ease !important;
-
-}
-
-
-
-#mea-header-badge .btn-vectorize-mea:hover {
-
-  background: rgba(13, 148, 136, 0.45) !important;
-
-  color: #ffffff !important;
-
-  border-color: #2dd4bf !important;
-
-  transform: translateY(-1px) !important;
-
-}
-
-
-
-/* 11. FULLSCREEN MODE DOCK OVERRIDES (Ẩn thanh tiêu đề trên cùng khi phóng toàn màn hình) */
-
-body.fullscreen-mode #mea-header-badge {
-
-  display: none !important;
-
-}
-
-
-
-
-
-/* ==========================================================================
-   ENHANCED HOVER ZOOM X3 FOR WHITEBOARD BUTTONS & ICONS (ĐỖ MIINH MATH)
-   ========================================================================== */
-.toolbar, .tb-group, .tb-group.tools, .tb-palette, .floating-bar {
-  overflow: visible !important;
-}
-
-.tb {
-  position: relative !important;
-  overflow: visible !important;
-}
-
-.tb:hover:not(:disabled) {
-  z-index: 999 !important;
-  overflow: visible !important;
-}
-
-.tb:hover:not(:disabled) svg:first-child {
-  transform: scale(3.0) !important;
-  transform-origin: center center !important;
-  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.4)) !important;
-  z-index: 1000 !important;
-  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-}
-
-.swatch {
-  position: relative !important;
-  overflow: visible !important;
-}
-
-.swatch:hover {
-  z-index: 999 !important;
-  overflow: visible !important;
-}
-
-.swatch:hover span {
-  transform: scale(3.0) !important;
-  transform-origin: center center !important;
-  box-shadow: 0 0 0 2px #ffffff, 0 4px 10px rgba(0, 0, 0, 0.45) !important;
-  z-index: 1000 !important;
-  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-}
-
-
-/* ==========================================================================
-   WINDOW CONTROL BUTTONS IN WHITEBOARD HEADER (ĐỖ MIINH MATH)
-   ========================================================================== */
-.mea-window-controls {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  margin-left: 10px !important;
-  padding-left: 10px !important;
-  border-left: 1px solid #334155 !important;
-}
-
-.mea-window-controls .win-btn {
-  width: 28px !important;
-  height: 24px !important;
-  border-radius: 5px !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #cbd5e1 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  padding: 0 !important;
-  transition: all 0.15s ease !important;
-}
-
-.mea-window-controls .win-btn:hover {
-  background: #334155 !important;
-  color: #f8fafc !important;
-  border-color: #64748b !important;
-  transform: translateY(-1px) !important;
-}
-
-.mea-window-controls .win-btn.win-close:hover {
-  background: #ef4444 !important;
-  color: #ffffff !important;
-  border-color: #f87171 !important;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45) !important;
-}
-
-
-/* HIDE REDUNDANT WHITEBOARD HEADER BADGE */
-#mea-header-badge {
-  display: none !important;
-}
-
-
-/* Vertical Toolbar Support (Giao diện đứng không mất công cụ) */
-.app.toolbar-left .toolbar,
-.app.toolbar-right .toolbar,
-.toolbar.toolbar-left,
-.toolbar.toolbar-right {
-  display: flex !important;
-  flex-direction: column !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  width: 58px !important;
-  min-width: 58px !important;
-  max-width: 58px !important;
-  height: 100% !important;
-  min-height: 100% !important;
-  margin: 0 !important;
-  padding: 6px 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  scrollbar-width: none !important;
-  gap: 4px !important;
-}
-
-.app.toolbar-left .toolbar::-webkit-scrollbar,
-.app.toolbar-right .toolbar::-webkit-scrollbar,
-.toolbar.toolbar-left::-webkit-scrollbar,
-.toolbar.toolbar-right::-webkit-scrollbar {
-  display: none !important;
-}
-
-.app.toolbar-left .toolbar .tb-group,
-.app.toolbar-right .toolbar .tb-group,
-.toolbar.toolbar-left .tb-group,
-.toolbar.toolbar-right .tb-group {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 0 !important;
-  padding: 2px 0 !important;
-  gap: 3px !important;
-}
-
-.app.toolbar-left .toolbar .tb-group.tools,
-.app.toolbar-right .toolbar .tb-group.tools,
-.toolbar.toolbar-left .tb-group.tools,
-.toolbar.toolbar-right .tb-group.tools {
-  order: 2 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  margin: 4px 0 0 0 !important;
-  margin-left: 0 !important;
-  border-top: 1px solid #e2e8f0 !important;
-  padding: 4px 0 !important;
-  gap: 3px !important;
-  overflow: visible !important;
-  flex-shrink: 0 !important;
-}
-
-.app.toolbar-left .toolbar .tb-group.tools .tb,
-.app.toolbar-right .toolbar .tb-group.tools .tb,
-.toolbar.toolbar-left .tb-group.tools .tb,
-.toolbar.toolbar-right .tb-group.tools .tb {
-  min-width: 28px !important;
-  width: 28px !important;
-  height: 28px !important;
-  flex-shrink: 0 !important;
-}
-
-.app.toolbar-left .toolbar .tb-palette,
-.app.toolbar-right .toolbar .tb-palette,
-.toolbar.toolbar-left .tb-palette,
-.toolbar.toolbar-right .tb-palette {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 44px !important;
-  height: auto !important;
-  padding: 4px 0 !important;
-  gap: 4px !important;
-}
-
-/* 9. MÁY TÍNH CASIO FX-580 & MÀN HÌNH LCD PHÓNG TO (Luôn nổi lên trên cùng tuyệt đối, không bị che bởi Toolbar hay nền) */
-.calc,
-.calc-screen {
-  z-index: 10005 !important;
-}
-
-.calc:focus-within,
-.calc:active {
-  z-index: 10010 !important;
-}
-
-.calc-screen:focus-within,
-.calc-screen:active {
-  z-index: 10009 !important;
-}
-
-
-/* ==========================================================================
-   10. NOTEBOARD 2.5.21 ADVANCED RENDERING & MATH TYPOGRAPHY ENGINE
-   ========================================================================== */
-
-/* Chống nhảy dòng khối Word / Câu hỏi trắc nghiệm & công thức chuẩn size */
-.blk.qs, .blk.lv, .blk.sec, .blk.ans, .blk.hint, .blk.nb-word-blk {
-  white-space: normal !important;
-}
-
-.blk .eq-img,
-.blk img.eq-img,
-.blk span.eq-wrap img,
-.blk img[src*="data:image/png;base64,iVBORw0KGgo"] {
-  height: 1.22em !important;
-  width: auto !important;
-  max-width: 100% !important;
-  vertical-align: -0.22em !important;
-  display: inline-block !important;
-  margin: 0 0.15em !important;
-}
-
-.blk .katex {
-  font-size: 1.08em !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-/* Lưới trắc nghiệm 4 cột, 2 cột, 1 cột chuẩn NoteBoard 2.5.21 */
-.nb-opt-grid {
-  display: grid !important;
-  gap: 0.5em 1.2em !important;
-  margin: 0.5em 0 !important;
-}
-
-.nb-opt-grid.cols-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-}
-
-.nb-opt-grid.cols-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-}
-
-.nb-opt-grid.cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-}
-
-.nb-opt-grid.cols-1 {
-  grid-template-columns: 1fr !important;
-}
-
-@media (max-width: 680px) {
-  .nb-opt-grid.cols-4,
-  .nb-opt-grid.cols-3,
-  .nb-opt-grid.cols-2 {
-    grid-template-columns: 1fr !important;
-  }
-}
-
-.nb-opt-col {
-  min-width: 0 !important;
-  word-break: break-word !important;
-  display: flex !important;
-  align-items: baseline !important;
-}
-
-/* Huy hiệu lựa chọn trắc nghiệm hình tròn A, B, C, D */
-.nb-opt-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 1.5em !important;
-  height: 1.5em !important;
-  min-width: 1.5em !important;
-  border-radius: 50% !important;
-  margin: 0 0.35em 0 0.1em !important;
-  font-family: inherit !important;
-  font-weight: 700 !important;
-  font-size: 0.92em !important;
-  line-height: 1 !important;
-  color: #0d9488 !important;
-  border: 1.8px solid #0d9488 !important;
-  background: rgba(13, 148, 136, 0.1) !important;
-  vertical-align: middle !important;
-  user-select: none !important;
-  box-sizing: border-box !important;
-}
-
-:root[data-theme="bang"] .nb-opt-badge,
-:root[data-theme="dem"] .nb-opt-badge {
-  color: #5eead4 !important;
-  border-color: #2dd4bf !important;
-  background: rgba(45, 212, 191, 0.15) !important;
-}
-
-/* Huy hiệu câu hỏi .nb-qs-badge */
-.nb-qs-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0.16em 0.65em !important;
-  margin-right: 0.45em !important;
-  font-family: inherit !important;
-  font-weight: 700 !important;
-  font-size: 0.9em !important;
-  line-height: 1.25 !important;
-  color: #ffffff !important;
-  background: linear-gradient(135deg, #0d9488, #0f766e) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
-  vertical-align: 0.06em !important;
-  letter-spacing: 0.02em !important;
-  user-select: none !important;
-}
-
-/* Huy hiệu đáp án đúng/sai & hướng dẫn */
-.nb-ans-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0.18em 0.7em !important;
-  font-weight: 700 !important;
-  font-size: 0.95em !important;
-  letter-spacing: 0.03em !important;
-  border-radius: 6px !important;
-  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3) !important;
-  margin: 0.2em 0.3em 0.2em 0 !important;
-  user-select: none !important;
-}
-
-.nb-ans-choice {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0.15em 0.6em !important;
-  font-weight: 600 !important;
-  font-size: 0.92em !important;
-  border-radius: 6px !important;
-  background: rgba(13, 148, 136, 0.12) !important;
-  color: #0d9488 !important;
-  border: 1.5px solid #0d9488 !important;
-  margin-right: 0.4em !important;
-  user-select: none !important;
-}
-
-.nb-true-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0.12em 0.55em !important;
-  font-weight: 800 !important;
-  font-size: 0.85em !important;
-  letter-spacing: 0.03em !important;
-  border-radius: 5px !important;
-  background: #10b981 !important;
-  color: #ffffff !important;
-  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.35) !important;
-  margin: 0 0.25em !important;
-  user-select: none !important;
-}
-
-.nb-false-badge {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0.12em 0.55em !important;
-  font-weight: 800 !important;
-  font-size: 0.85em !important;
-  letter-spacing: 0.03em !important;
-  border-radius: 5px !important;
-  background: #ef4444 !important;
-  color: #ffffff !important;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.35) !important;
-  margin: 0 0.25em !important;
-  user-select: none !important;
-}
-
-/* Modals cho NoteBoard Integration */
-.nb-modal-dialog {
-  width: min(920px, 94vw);
-  max-height: 88vh;
-  overflow: auto;
-  border: 1px solid #0d9488;
-  border-radius: 16px;
-  padding: 24px;
-  color: #0f172a;
-  background: #ffffff;
-  font: 14px/1.5 'Segoe UI', system-ui, sans-serif;
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
-  box-sizing: border-box;
-}
-
-.nb-modal-dialog::backdrop {
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
-}
-
-
-/* ==========================================================================
-   11. DEDICATED NOTEBOARD & MINNOTE PRO TOOLS DOCK
-   ========================================================================== */
-.nb-tools-dock {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 3px !important;
-  background: rgba(13, 148, 136, 0.08) !important;
-  border: 1.5px solid #0d9488 !important;
-  border-radius: 9px !important;
-  padding: 2px 4px !important;
-  margin: 0 4px !important;
-  box-shadow: 0 1px 4px rgba(13, 148, 136, 0.15) !important;
-}
-
-.nb-tools-dock .tb {
-  width: auto !important;
-  min-width: 32px !important;
-  height: 28px !important;
-  padding: 0 6px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 3px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: #0f766e !important;
-  background: #ffffff !important;
-  border: 1px solid #ccfbf1 !important;
-  border-radius: 6px !important;
-  cursor: pointer !important;
-  transition: all 0.15s ease !important;
-}
-
-.nb-tools-dock .tb:hover {
-  background: #0d9488 !important;
-  color: #ffffff !important;
-  border-color: #0d9488 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3) !important;
-}
-
-.nb-tools-dock .tb svg {
-  flex-shrink: 0 !important;
-  stroke: currentColor !important;
-}
-
-/* ==========================================================================
-   MATHLIVE VIRTUAL KEYBOARD ELEVATION FIX (Bàn phím ảo toán học nổi trên Dialog)
-   ========================================================================== */
-:root {
-  --keyboard-zindex: 2000000 !important;
-}
-
-body > .ML__keyboard,
-.ML__keyboard {
-  z-index: 2000000 !important;
-  pointer-events: none !important;
-}
-
-.MLK__backdrop {
-  z-index: 2000001 !important;
-  pointer-events: all !important;
-}
-
-.MLK__plate,
-.MLK__plate * {
-  pointer-events: all !important;
-}
-
-.MLK__layer {
-  pointer-events: all !important;
-}
+/* ==========================================================================
+
+   MatrixExamAI Pro - Studio Whiteboard Theme (V2 Redesign)
+
+   Architecture: Floating Island Dock • Modern Fluent/Lucide Aesthetics
+
+   Color Scheme: Emerald Teal & Nordic Slate (Strictly Zero Red Tones)
+
+   ========================================================================== */
+
+
+
+:root {
+
+  --ink: #0f172a !important;
+
+  --muted: #64748b !important;
+
+  --accent: #0d9488 !important;         /* MatrixExamAI Primary Emerald Teal */
+
+  --accent-dark: #0f766e !important;    /* Deep Teal */
+
+  --accent-hover: #14b8a6 !important;   /* Vibrant Cyan-Teal */
+
+  --accent-soft: #f0fdfa !important;    /* Soft Teal Hover Tint */
+
+  --accent-ring: rgba(13, 148, 136, 0.35) !important;
+
+  --line: #e2e8f0 !important;           /* Clean Modern Border */
+
+  --surface: #ffffff !important;
+
+  --surface-subtle: #f8fafc !important;
+
+  --dock-bg: rgba(255, 255, 255, 0.94) !important;
+
+  --dock-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04) !important;
+
+}
+
+
+
+/* 1. APP ROOT & VIEWPORT LAYOUT */
+
+html, body {
+
+  margin: 0 !important;
+
+  padding: 0 !important;
+
+  height: 100vh !important;
+
+  overflow: hidden !important;
+
+  background: #f1f5f9 !important;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+
+}
+
+
+
+body {
+
+  display: flex !important;
+
+  flex-direction: column !important;
+
+}
+
+
+
+#root {
+
+  flex: 1 !important;
+
+  height: auto !important;
+
+  min-height: 0 !important;
+
+  overflow: hidden !important;
+
+  display: flex !important;
+
+  flex-direction: column !important;
+
+}
+
+
+
+/* 2. TOP BRAND BANNER (MatrixExamAI Pro Studio) */
+
+#mea-header-badge {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+
+  color: #f8fafc;
+
+  padding: 6px 18px;
+
+  font-size: 12.5px;
+
+  font-weight: 600;
+
+  border-bottom: 1px solid #334155;
+
+  user-select: none;
+
+  z-index: 20;
+
+  flex-shrink: 0;
+
+}
+
+
+
+#mea-header-badge .badge-tag {
+
+  background: linear-gradient(135deg, #0d9488, #0284c7);
+
+  color: #ffffff;
+
+  font-size: 10px;
+
+  padding: 2px 7px;
+
+  border-radius: 4px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+
+}
+
+
+
+#mea-header-badge .btn-insert-mea {
+
+  margin-left: auto;
+
+  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
+
+  color: #ffffff;
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  padding: 5px 14px;
+
+  border-radius: 6px;
+
+  font-size: 11.5px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.4);
+
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+}
+
+
+
+#mea-header-badge .btn-insert-mea:hover {
+
+  transform: translateY(-1px);
+
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.55);
+
+  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%);
+
+}
+
+
+
+/* 3. COMPACT SINGLE-ROW STUDIO TOOLBAR (Thanh công cụ đỉnh thu gọn một dòng) */
+
+.toolbar {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  margin: 4px 10px 4px 10px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 8px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.9) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04) !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+  z-index: 100 !important;
+  overflow: visible !important;
+}
+
+.toolbar.two-rows {
+  height: auto !important;
+  min-height: 76px !important;
+  flex-wrap: wrap !important;
+  padding: 4px 8px 6px !important;
+  row-gap: 4px !important;
+}
+
+
+
+/* 4. SEGMENTED PILL GROUPS & TOOLS DOCK (Giữ trên cùng một hàng ngang) */
+
+.tb-group {
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  gap: 1.5px !important;
+
+  background: #f8fafc !important;
+
+  border: 1px solid #e2e8f0 !important;
+
+  border-radius: 10px !important;
+
+  padding: 1px 3px !important;
+
+  flex-shrink: 0 !important;
+
+  overflow: visible !important;
+
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+
+}
+
+
+
+.toolbar:not(.two-rows) .tb-group.tools,
+.tb-group.tools {
+  order: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  border-top: none !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  padding: 1px 4px !important;
+  gap: 1.5px !important;
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+}
+
+.toolbar.two-rows .tb-group.tools {
+  order: 3 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  border-top: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  border-radius: 10px !important;
+  padding: 3px 6px !important;
+  gap: 3px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 1550px) {
+  .toolbar {
+    height: auto !important;
+    min-height: 76px !important;
+    flex-wrap: wrap !important;
+    padding: 4px 8px 6px !important;
+    row-gap: 4px !important;
+  }
+  .toolbar .tb-group.tools {
+    order: 3 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    border-top: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    border-radius: 10px !important;
+    padding: 3px 6px !important;
+    gap: 3px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    overflow: visible !important;
+  }
+}
+
+
+
+/* 5. COMPACT BUTTONS & MODERN ICONS (Làm nhỏ nút công cụ) */
+
+.tb {
+
+  min-width: 28px !important;
+
+  width: 28px !important;
+
+  height: 28px !important;
+
+  padding: 0 !important;
+
+  border-radius: 7px !important;
+
+  font-size: 11px !important;
+
+  color: #334155 !important;
+
+  background: transparent !important;
+
+  border: none !important;
+
+  cursor: pointer !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  justify-content: center !important;
+
+  gap: 0 !important;
+
+  flex-shrink: 0 !important;
+
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+}
+
+
+
+.tb:hover:not(:disabled) {
+
+  background: #e2e8f0 !important;
+
+  color: #0f172a !important;
+
+  transform: translateY(-1px) !important;
+
+  z-index: 50 !important;
+
+}
+
+
+
+.tb:disabled {
+
+  color: #cbd5e1 !important;
+
+  cursor: not-allowed !important;
+
+}
+
+
+
+/* ACTIVE STATE (Gradient Teal-Cyan) */
+
+.tb.on {
+
+  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+
+  color: #ffffff !important;
+
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35) !important;
+
+  transform: translateY(-1px) !important;
+
+}
+
+
+
+.tb.on:hover {
+
+  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%) !important;
+
+  color: #ffffff !important;
+
+}
+
+
+
+/* Sharp Compact Icon Stroke Tuning */
+
+.tb svg {
+
+  width: 14.5px !important;
+
+  height: 14.5px !important;
+
+  stroke-width: 1.8px !important;
+
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+
+  transform-origin: center center !important;
+
+}
+
+
+
+/* Hover Zoom 2x Icon Enhancement (Đỗ Miinh Math UX) */
+
+.tb:hover:not(:disabled) svg:first-child {
+
+  transform: scale(3.0) !important;
+
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.25)) !important;
+
+}
+
+
+
+/* Hide chevron dropdown arrows to match exact clean old icon sample */
+
+.tb svg:not(:first-child),
+
+.tb .chevron,
+
+.tb svg.chevron {
+
+  display: none !important;
+
+}
+
+
+
+/* 6. COMPACT CENTER NAVIGATION CHIP (Trang & Zoom) - THU GỌN THEO YÊU CẦU */
+.toolbar .tb-title,
+.tb-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 28px !important;
+  gap: 3px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 0 8px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: fit-content !important;
+  min-width: unset !important;
+  margin: 0 6px !important;
+  overflow: visible !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* TOP-ROW COLOR PALETTE ELEVATION (ĐƯA CÔNG CỤ MÀU LÊN HÀNG TRÊN) */
+.toolbar > .tb-palette {
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 28px !important;
+  padding: 0 6px !important;
+  margin: 0 4px !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  flex-shrink: 0 !important;
+}
+
+.toolbar > .tb-palette .swatch {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  margin: 0 2px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  border: 1.5px solid transparent !important;
+  transition: transform 0.1s ease, border-color 0.1s ease !important;
+}
+
+.toolbar > .tb-palette .swatch:hover {
+  transform: scale(1.15) !important;
+}
+
+.toolbar > .tb-palette .swatch.on {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25) !important;
+}
+
+
+
+.zoom-button {
+
+  color: #0f172a !important;
+
+  font-weight: 600 !important;
+
+  font-size: 11px !important;
+
+  border-radius: 5px !important;
+
+  padding: 1px 4px !important;
+
+  border: none !important;
+
+  background: transparent !important;
+
+  cursor: pointer !important;
+
+  transition: background 0.15s ease !important;
+
+}
+
+
+
+.zoom-button:hover {
+
+  background: #e2e8f0 !important;
+
+  color: #0d9488 !important;
+
+}
+
+
+
+.tb-title .dot {
+
+  color: #94a3b8 !important;
+
+  font-weight: bold !important;
+
+  font-size: 11px !important;
+
+}
+
+
+
+/* 7. COMPACT ARTIST COLOR PALETTE DOCK (Khay màu tròn nhỏ gọn) */
+
+.tb-palette {
+
+  height: 28px !important;
+
+  border-radius: 14px !important;
+
+  background: #f1f5f9 !important;
+
+  border: 1px solid #cbd5e1 !important;
+
+  padding: 0 2px !important;
+
+  margin: 0 1.5px !important;
+
+  gap: 1.5px !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  flex-shrink: 0 !important;
+
+  overflow: visible !important;
+
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+
+}
+
+
+
+.swatch {
+
+  width: 17px !important;
+
+  height: 22px !important;
+
+  border-radius: 8px !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  justify-content: center !important;
+
+  padding: 0 !important;
+
+  margin: 0 !important;
+
+  flex-shrink: 0 !important;
+
+  transition: all 0.15s ease !important;
+
+}
+
+
+
+.swatch:hover {
+
+  background: #e2e8f0 !important;
+
+}
+
+
+
+.swatch span {
+
+  width: 8px !important;
+
+  height: 8px !important;
+
+  border-radius: 50% !important;
+
+  display: inline-block !important;
+
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+
+  transform-origin: center center !important;
+
+}
+
+
+
+.swatch:hover span {
+
+  transform: scale(3.0) !important;
+
+  box-shadow: 0 0 0 2px #ffffff, 0 3px 8px rgba(0, 0, 0, 0.35) !important;
+
+  z-index: 50 !important;
+
+}
+
+
+
+.swatch.on:after {
+
+  content: "" !important;
+
+  position: absolute !important;
+
+  left: 2px !important;
+
+  right: 2px !important;
+
+  bottom: 1px !important;
+
+  height: 2px !important;
+
+  border-radius: 1px !important;
+
+  background: #0d9488 !important;
+
+  box-shadow: 0 0 4px rgba(13, 148, 136, 0.8) !important;
+
+}
+
+
+
+.sep {
+
+  width: 1px !important;
+
+  height: 14px !important;
+
+  background: #cbd5e1 !important;
+
+  margin: 0 2px !important;
+
+  display: inline-block !important;
+
+  flex-shrink: 0 !important;
+
+}
+
+
+
+/* 8. POPUP MENUS & PANELS (Bo góc lớn, bóng mờ Fluent, z-index cao tuyệt đối) */
+
+.dropdown {
+
+  position: relative !important;
+
+  overflow: visible !important;
+
+}
+
+
+
+.dropdown-menu,
+
+.menu,
+
+.popover,
+
+[role="menu"] {
+
+  position: fixed !important;
+
+  z-index: 99999 !important;
+
+  border-radius: 12px !important;
+
+  border: 1px solid #cbd5e1 !important;
+
+  box-shadow: 0 14px 36px -4px rgba(15, 23, 42, 0.18), 0 4px 12px -2px rgba(15, 23, 42, 0.08) !important;
+
+  background: rgba(255, 255, 255, 0.98) !important;
+
+  backdrop-filter: blur(16px) !important;
+
+  padding: 8px !important;
+
+  overflow-y: auto !important;
+
+  max-height: calc(100vh - 60px) !important;
+
+}
+
+
+
+.zoom-input {
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  gap: 8px !important;
+
+  white-space: nowrap !important;
+
+  padding: 4px 6px !important;
+
+}
+
+
+
+.zoom-input label {
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  gap: 6px !important;
+
+  font-size: 13px !important;
+
+  color: #1e293b !important;
+
+}
+
+
+
+.zoom-input input {
+
+  width: 46px !important;
+
+  padding: 3px 6px !important;
+
+  border: 1px solid #cbd5e1 !important;
+
+  border-radius: 6px !important;
+
+  font-size: 12px !important;
+
+  text-align: center !important;
+
+}
+
+
+
+.zoom-apply {
+
+  background: #0d9488 !important;
+
+  color: #ffffff !important;
+
+  border: none !important;
+
+  border-radius: 6px !important;
+
+  padding: 4px 10px !important;
+
+  font-size: 12px !important;
+
+  font-weight: 600 !important;
+
+  cursor: pointer !important;
+
+  transition: background 0.15s ease !important;
+
+}
+
+
+
+.zoom-apply:hover {
+
+  background: #0f766e !important;
+
+}
+
+
+
+.menu button, .menu-item {
+
+  border-radius: 10px !important;
+
+  font-size: 13px !important;
+
+  color: #1e293b !important;
+
+  padding: 8px 12px !important;
+
+  transition: all 0.12s ease !important;
+
+}
+
+
+
+.menu button:hover {
+
+  background: #f0fdfa !important;
+
+  color: #0d9488 !important;
+
+}
+
+
+
+.menu button.checked {
+
+  background: #ccfbf1 !important;
+
+  color: #0f766e !important;
+
+  font-weight: 600 !important;
+
+}
+
+
+
+/* 9. THUMBNAIL PAGES SIDEBAR (Danh sách trang bên trái) */
+
+.pages-panel {
+
+  border-right: 1px solid #cbd5e1 !important;
+
+  background: #f8fafc !important;
+
+  box-shadow: inset -2px 0 6px rgba(0, 0, 0, 0.02) !important;
+
+}
+
+
+
+.pages-panel .page-item {
+
+  border-radius: 12px !important;
+
+  transition: all 0.15s ease !important;
+
+  border: 2px solid transparent !important;
+
+}
+
+
+
+.pages-panel .page-item:hover {
+
+  border-color: #94a3b8 !important;
+
+}
+
+
+
+.pages-panel .page-item.current {
+
+  border-color: #0d9488 !important;
+
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.3), 0 4px 12px rgba(13, 148, 136, 0.15) !important;
+
+}
+
+
+
+.pages-panel .page-badge {
+
+  background: #0d9488 !important;
+
+  color: #ffffff !important;
+
+  border-radius: 6px !important;
+
+  font-weight: 600 !important;
+
+}
+
+
+
+/* 10. BOTTOM SHEET BAR (Thanh sheet đáy) */
+
+.sheet-bar, .sheets-bar {
+
+  border-top: 1px solid #cbd5e1 !important;
+
+  background: #ffffff !important;
+
+  height: 38px !important;
+
+  padding: 0 12px !important;
+
+}
+
+
+
+.sheet-tab, .sheet-item {
+
+  border-radius: 8px 8px 0 0 !important;
+
+  font-size: 12.5px !important;
+
+  transition: all 0.12s ease !important;
+
+}
+
+
+
+.sheet-tab.active, .sheet-item.active {
+
+  background: #f0fdfa !important;
+
+  border-bottom: 2px solid #0d9488 !important;
+
+  color: #0d9488 !important;
+
+  font-weight: 600 !important;
+
+}
+
+
+
+
+
+
+
+#mea-header-badge .btn-vectorize-mea {
+
+  background: rgba(13, 148, 136, 0.25) !important;
+
+  color: #2dd4bf !important;
+
+  border: 1px solid rgba(45, 212, 191, 0.4) !important;
+
+  padding: 5px 12px !important;
+
+  border-radius: 6px !important;
+
+  font-size: 11.5px !important;
+
+  font-weight: 600 !important;
+
+  cursor: pointer !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  gap: 6px !important;
+
+  transition: all 0.2s ease !important;
+
+}
+
+
+
+#mea-header-badge .btn-vectorize-mea:hover {
+
+  background: rgba(13, 148, 136, 0.45) !important;
+
+  color: #ffffff !important;
+
+  border-color: #2dd4bf !important;
+
+  transform: translateY(-1px) !important;
+
+}
+
+
+
+/* 11. FULLSCREEN MODE DOCK OVERRIDES (Ẩn thanh tiêu đề trên cùng khi phóng toàn màn hình) */
+
+body.fullscreen-mode #mea-header-badge {
+
+  display: none !important;
+
+}
+
+
+
+
+
+/* ==========================================================================
+   ENHANCED HOVER ZOOM X3 FOR WHITEBOARD BUTTONS & ICONS (ĐỖ MIINH MATH)
+   ========================================================================== */
+.toolbar, .tb-group, .tb-group.tools, .tb-palette, .floating-bar {
+  overflow: visible !important;
+}
+
+.tb {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.tb:hover:not(:disabled) {
+  z-index: 999 !important;
+  overflow: visible !important;
+}
+
+.tb:hover:not(:disabled) svg:first-child {
+  transform: scale(3.0) !important;
+  transform-origin: center center !important;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.4)) !important;
+  z-index: 1000 !important;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.swatch {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.swatch:hover {
+  z-index: 999 !important;
+  overflow: visible !important;
+}
+
+.swatch:hover span {
+  transform: scale(3.0) !important;
+  transform-origin: center center !important;
+  box-shadow: 0 0 0 2px #ffffff, 0 4px 10px rgba(0, 0, 0, 0.45) !important;
+  z-index: 1000 !important;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+
+/* ==========================================================================
+   WINDOW CONTROL BUTTONS IN WHITEBOARD HEADER (ĐỖ MIINH MATH)
+   ========================================================================== */
+.mea-window-controls {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-left: 10px !important;
+  padding-left: 10px !important;
+  border-left: 1px solid #334155 !important;
+}
+
+.mea-window-controls .win-btn {
+  width: 28px !important;
+  height: 24px !important;
+  border-radius: 5px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #cbd5e1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.mea-window-controls .win-btn:hover {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  border-color: #64748b !important;
+  transform: translateY(-1px) !important;
+}
+
+.mea-window-controls .win-btn.win-close:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #f87171 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45) !important;
+}
+
+
+/* HIDE REDUNDANT WHITEBOARD HEADER BADGE */
+#mea-header-badge {
+  display: none !important;
+}
+
+
+/* Vertical Toolbar Support (Giao diện đứng không mất công cụ) */
+.app.toolbar-left .toolbar,
+.app.toolbar-right .toolbar,
+.toolbar.toolbar-left,
+.toolbar.toolbar-right {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 58px !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  margin: 0 !important;
+  padding: 6px 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+  gap: 4px !important;
+}
+
+.app.toolbar-left .toolbar::-webkit-scrollbar,
+.app.toolbar-right .toolbar::-webkit-scrollbar,
+.toolbar.toolbar-left::-webkit-scrollbar,
+.toolbar.toolbar-right::-webkit-scrollbar {
+  display: none !important;
+}
+
+.app.toolbar-left .toolbar .tb-group,
+.app.toolbar-right .toolbar .tb-group,
+.toolbar.toolbar-left .tb-group,
+.toolbar.toolbar-right .tb-group {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 2px 0 !important;
+  gap: 3px !important;
+}
+
+.app.toolbar-left .toolbar .tb-group.tools,
+.app.toolbar-right .toolbar .tb-group.tools,
+.toolbar.toolbar-left .tb-group.tools,
+.toolbar.toolbar-right .tb-group.tools {
+  order: 2 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 4px 0 0 0 !important;
+  margin-left: 0 !important;
+  border-top: 1px solid #e2e8f0 !important;
+  padding: 4px 0 !important;
+  gap: 3px !important;
+  overflow: visible !important;
+  flex-shrink: 0 !important;
+}
+
+.app.toolbar-left .toolbar .tb-group.tools .tb,
+.app.toolbar-right .toolbar .tb-group.tools .tb,
+.toolbar.toolbar-left .tb-group.tools .tb,
+.toolbar.toolbar-right .tb-group.tools .tb {
+  min-width: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  flex-shrink: 0 !important;
+}
+
+.app.toolbar-left .toolbar .tb-palette,
+.app.toolbar-right .toolbar .tb-palette,
+.toolbar.toolbar-left .tb-palette,
+.toolbar.toolbar-right .tb-palette {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 44px !important;
+  height: auto !important;
+  padding: 4px 0 !important;
+  gap: 4px !important;
+}
+
+/* 9. MÁY TÍNH CASIO FX-580 & MÀN HÌNH LCD PHÓNG TO (Luôn nổi lên trên cùng tuyệt đối, không bị che bởi Toolbar hay nền) */
+.calc,
+.calc-screen {
+  z-index: 10005 !important;
+}
+
+.calc:focus-within,
+.calc:active {
+  z-index: 10010 !important;
+}
+
+.calc-screen:focus-within,
+.calc-screen:active {
+  z-index: 10009 !important;
+}
+
+
+/* ==========================================================================
+   10. NOTEBOARD 2.5.21 ADVANCED RENDERING & MATH TYPOGRAPHY ENGINE
+   ========================================================================== */
+
+/* Chống nhảy dòng khối Word / Câu hỏi trắc nghiệm & công thức chuẩn size */
+.blk.qs, .blk.lv, .blk.sec, .blk.ans, .blk.hint, .blk.nb-word-blk {
+  white-space: normal !important;
+}
+
+.blk .eq-img,
+.blk img.eq-img,
+.blk span.eq-wrap img,
+.blk img[src*="data:image/png;base64,iVBORw0KGgo"] {
+  height: 1.22em !important;
+  width: auto !important;
+  max-width: 100% !important;
+  vertical-align: -0.22em !important;
+  display: inline-block !important;
+  margin: 0 0.15em !important;
+}
+
+.blk .katex {
+  font-size: 1.08em !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+/* Lưới trắc nghiệm 4 cột, 2 cột, 1 cột chuẩn NoteBoard 2.5.21 */
+.nb-opt-grid {
+  display: grid !important;
+  gap: 0.5em 1.2em !important;
+  margin: 0.5em 0 !important;
+}
+
+.nb-opt-grid.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.nb-opt-grid.cols-1 {
+  grid-template-columns: 1fr !important;
+}
+
+@media (max-width: 680px) {
+  .nb-opt-grid.cols-4,
+  .nb-opt-grid.cols-3,
+  .nb-opt-grid.cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.nb-opt-col {
+  min-width: 0 !important;
+  word-break: break-word !important;
+  display: flex !important;
+  align-items: baseline !important;
+}
+
+/* Huy hiệu lựa chọn trắc nghiệm hình tròn A, B, C, D */
+.nb-opt-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.5em !important;
+  height: 1.5em !important;
+  min-width: 1.5em !important;
+  border-radius: 50% !important;
+  margin: 0 0.35em 0 0.1em !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  font-size: 0.92em !important;
+  line-height: 1 !important;
+  color: #0d9488 !important;
+  border: 1.8px solid #0d9488 !important;
+  background: rgba(13, 148, 136, 0.1) !important;
+  vertical-align: middle !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+}
+
+:root[data-theme="bang"] .nb-opt-badge,
+:root[data-theme="dem"] .nb-opt-badge {
+  color: #5eead4 !important;
+  border-color: #2dd4bf !important;
+  background: rgba(45, 212, 191, 0.15) !important;
+}
+
+/* Huy hiệu câu hỏi .nb-qs-badge */
+.nb-qs-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.16em 0.65em !important;
+  margin-right: 0.45em !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  font-size: 0.9em !important;
+  line-height: 1.25 !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
+  vertical-align: 0.06em !important;
+  letter-spacing: 0.02em !important;
+  user-select: none !important;
+}
+
+/* Huy hiệu đáp án đúng/sai & hướng dẫn */
+.nb-ans-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.18em 0.7em !important;
+  font-weight: 700 !important;
+  font-size: 0.95em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3) !important;
+  margin: 0.2em 0.3em 0.2em 0 !important;
+  user-select: none !important;
+}
+
+.nb-ans-choice {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.15em 0.6em !important;
+  font-weight: 600 !important;
+  font-size: 0.92em !important;
+  border-radius: 6px !important;
+  background: rgba(13, 148, 136, 0.12) !important;
+  color: #0d9488 !important;
+  border: 1.5px solid #0d9488 !important;
+  margin-right: 0.4em !important;
+  user-select: none !important;
+}
+
+.nb-true-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.12em 0.55em !important;
+  font-weight: 800 !important;
+  font-size: 0.85em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 5px !important;
+  background: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.35) !important;
+  margin: 0 0.25em !important;
+  user-select: none !important;
+}
+
+.nb-false-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.12em 0.55em !important;
+  font-weight: 800 !important;
+  font-size: 0.85em !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 5px !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.35) !important;
+  margin: 0 0.25em !important;
+  user-select: none !important;
+}
+
+/* Modals cho NoteBoard Integration */
+.nb-modal-dialog {
+  width: min(920px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  border: 1px solid #0d9488;
+  border-radius: 16px;
+  padding: 24px;
+  color: #0f172a;
+  background: #ffffff;
+  font: 14px/1.5 'Segoe UI', system-ui, sans-serif;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  box-sizing: border-box;
+}
+
+.nb-modal-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+
+/* ==========================================================================
+   11. DEDICATED NOTEBOARD & MINNOTE PRO TOOLS DOCK
+   ========================================================================== */
+.nb-tools-dock {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  background: rgba(13, 148, 136, 0.08) !important;
+  border: 1.5px solid #0d9488 !important;
+  border-radius: 9px !important;
+  padding: 2px 4px !important;
+  margin: 0 4px !important;
+  box-shadow: 0 1px 4px rgba(13, 148, 136, 0.15) !important;
+}
+
+.nb-tools-dock .tb {
+  width: auto !important;
+  min-width: 32px !important;
+  height: 28px !important;
+  padding: 0 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #0f766e !important;
+  background: #ffffff !important;
+  border: 1px solid #ccfbf1 !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.nb-tools-dock .tb:hover {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+  border-color: #0d9488 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3) !important;
+}
+
+.nb-tools-dock .tb svg {
+  flex-shrink: 0 !important;
+  stroke: currentColor !important;
+}
+
+/* ==========================================================================
+   MATHLIVE VIRTUAL KEYBOARD ELEVATION FIX (Bàn phím ảo toán học nổi trên Dialog)
+   ========================================================================== */
+:root {
+  --keyboard-zindex: 2000000 !important;
+}
+
+body > .ML__keyboard,
+.ML__keyboard {
+  z-index: 2000000 !important;
+  pointer-events: none !important;
+}
+
+.MLK__backdrop {
+  z-index: 2000001 !important;
+  pointer-events: all !important;
+}
+
+.MLK__plate,
+.MLK__plate * {
+  pointer-events: all !important;
+}
+
+.MLK__layer {
+  pointer-events: all !important;
+}
