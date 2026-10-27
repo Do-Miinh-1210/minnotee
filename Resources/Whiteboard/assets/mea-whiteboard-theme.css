@@ -1370,3 +1370,50 @@ body.fullscreen-mode #mea-header-badge {
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
 }
+
+
+/* ==========================================================================
+   11. DEDICATED NOTEBOARD & MINNOTE PRO TOOLS DOCK
+   ========================================================================== */
+.nb-tools-dock {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  background: rgba(13, 148, 136, 0.08) !important;
+  border: 1.5px solid #0d9488 !important;
+  border-radius: 9px !important;
+  padding: 2px 4px !important;
+  margin: 0 4px !important;
+  box-shadow: 0 1px 4px rgba(13, 148, 136, 0.15) !important;
+}
+
+.nb-tools-dock .tb {
+  width: auto !important;
+  min-width: 32px !important;
+  height: 28px !important;
+  padding: 0 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #0f766e !important;
+  background: #ffffff !important;
+  border: 1px solid #ccfbf1 !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.nb-tools-dock .tb:hover {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+  border-color: #0d9488 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3) !important;
+}
+
+.nb-tools-dock .tb svg {
+  flex-shrink: 0 !important;
+  stroke: currentColor !important;
+}

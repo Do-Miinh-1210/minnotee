@@ -23,9 +23,9 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.2.0"
-TITLE = "MinNote v0.0.2.0 - Tích hợp toàn diện NoteBoard 2.5.21 (Bảng biến thiên, 3D, Hóa học & MathType)"
-BODY = """## MinNote v0.0.2.0 - Bản Nâng Cấp Đột Phá NoteBoard 2.5.21
+TAG = "v0.0.2.1"
+TITLE = "MinNote v0.0.2.1 - Tích hợp toàn diện NoteBoard 2.5.21 (Bảng biến thiên, 3D, Hóa học & MathType)"
+BODY = """## MinNote v0.0.2.1 - Bản Nâng Cấp Đột Phá NoteBoard 2.5.21
 
 Bản phát hành chính thức tích hợp toàn diện các động cơ tính toán và dựng hình chuyên sâu của NoteBoard 2.5.21:
 

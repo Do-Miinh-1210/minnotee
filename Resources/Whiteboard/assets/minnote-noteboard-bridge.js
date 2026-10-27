@@ -6,54 +6,64 @@
 (() => {
   'use strict';
 
-  // 1. Helper: Insert item into MinNote Whiteboard
+  function getBoard() {
+    return window.__meaBoard || 
+           (window.__meaBoardRef && window.__meaBoardRef.current) || 
+           (typeof window.getBoard === 'function' ? window.getBoard() : null);
+  }
+
+  function notify(msg) {
+    if (typeof window.showToast === 'function') {
+      window.showToast(msg);
+    } else {
+      console.log('[MinNote Toast]', msg);
+    }
+  }
+
+  // 1. Helper: Insert item into MinNote Whiteboard Canvas
   window.insertSvgOrImageToBoard = async function(dataUri, w = 480, h = 320) {
     try {
-      const editor = window.__noteRendererEditor || 
-                     (window.noteRenderer && window.noteRenderer.editor) || 
-                     (typeof window.getEditor === 'function' ? window.getEditor() : null);
-
-      const targetW = Math.max(120, Math.min(1200, w));
-      const targetH = Math.max(80, Math.min(900, h));
-
-      // Calculate center position or default coordinates
-      let cx = 200, cy = 180;
-      if (editor && editor.camera) {
-        cx = (window.innerWidth / 2 - (editor.camera.x || 0)) / (editor.camera.scale || 1) - targetW / 2;
-        cy = (window.innerHeight / 2 - (editor.camera.y || 0)) / (editor.camera.scale || 1) - targetH / 2;
+      const board = getBoard();
+      if (!board || !board.doc || !board.doc.pages) {
+        alert('Bảng viết MinNote chưa sẵn sàng! Vui lòng chờ vài giây để bảng tải xong.');
+        return false;
       }
 
-      const item = {
+      const pageIdx = (board.sel && board.sel.page >= 0) ? board.sel.page : 
+                      (typeof board.currentPage === 'function' ? board.currentPage() : 0);
+
+      const pw = board.doc.landscape ? 1754 : 1240;
+      const ph = typeof board.phOf === 'function' ? board.phOf(pageIdx) : 1754;
+
+      const targetW = Math.max(100, Math.min(pw - 60, w));
+      const targetH = Math.max(60, Math.min(ph - 60, h));
+
+      const newX = Math.round(Math.max(30, (pw - targetW) / 2));
+      const newY = Math.round(Math.max(30, (ph - targetH) / 2));
+
+      const newItem = {
         id: 'nb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         type: 'image',
-        x: Math.round(cx),
-        y: Math.round(cy),
-        w: Math.round(targetW),
-        h: Math.round(targetH),
-        src: dataUri
+        src: dataUri,
+        x: newX,
+        y: newY,
+        w: targetW,
+        h: targetH
       };
 
-      if (editor && typeof editor.insertItem === 'function') {
-        editor.insertItem(item);
-        if (typeof editor.redraw === 'function') editor.redraw();
-        if (typeof editor.commit === 'function') editor.commit();
-        return true;
-      } else if (editor && typeof editor.insertImage === 'function') {
-        await editor.insertImage(dataUri, { w: targetW, h: targetH });
-        return true;
-      } else {
-        // Fallback: Copy to clipboard or alert
-        const img = new Image();
-        img.src = dataUri;
-        const win = window.open('', '_blank');
-        if (win) {
-          win.document.write('<title>Ảnh Xuất MinNote</title><img src="' + dataUri + '" style="max-width:100%">');
-        }
+      if (board.doc.pages[pageIdx]) {
+        board.commit(board.updatePage(pageIdx, p => ({
+          ...p,
+          items: [...(p.items || []), newItem]
+        })));
+        if (typeof board.redraw === 'function') board.redraw();
+        notify('✨ Đã chèn đối tượng vào bảng viết thành công!');
         return true;
       }
+      return false;
     } catch (err) {
       console.error('[MinNote NoteBoard Bridge] Error inserting item to board:', err);
-      alert('Không thể chèn vào bảng: ' + err.message);
+      alert('Lỗi khi chèn vào bảng: ' + err.message);
       return false;
     }
   };
@@ -213,7 +223,6 @@
       a.click();
     };
 
-    // Tự động render lần đầu
     setTimeout(renderVariation, 60);
   };
 
@@ -408,7 +417,6 @@
     canvas.addEventListener('pointercancel', endDrag);
 
     insertBtn.onclick = () => {
-      // Export canvas to PNG data uri
       const dataUri = canvas.toDataURL('image/png');
       window.insertSvgOrImageToBoard(dataUri, 520, 390);
       d.close();
@@ -417,7 +425,6 @@
     closeX.onclick = () => d.close();
     d.addEventListener('close', () => d.remove());
 
-    // Render initially
     setTimeout(render3D, 60);
   };
 
@@ -491,7 +498,6 @@
 
     input.value = 'Al + HCl -> AlCl3 + H2';
 
-    let lastResultHtml = '';
     let lastResultText = '';
 
     function doBalance() {
@@ -499,18 +505,16 @@
       if (!text) return;
       try {
         const balanced = window.NBChemUnits.balance(text);
-        if (balanced) {
-          lastResultText = balanced;
-          const prettyHtml = window.NBChemUnits.pretty ? window.NBChemUnits.pretty(balanced) : balanced;
-          lastResultHtml = `
-            <div style="font-size:18px;font-weight:700;color:#0d9488;margin-bottom:6px;">
-              ${prettyHtml}
+        if (balanced && balanced.text) {
+          lastResultText = balanced.text;
+          resultBox.innerHTML = `
+            <div style="font-size:20px;font-weight:700;color:#0d9488;margin-bottom:6px;">
+              ${balanced.text}
             </div>
             <div style="font-size:13px;color:#64748b;">
               Phương trình đã được cân bằng chính xác với hệ số nguyên tối giản.
             </div>
           `;
-          resultBox.innerHTML = lastResultHtml;
           insertBtn.disabled = false;
         } else {
           resultBox.innerHTML = '<span style="color:#ef4444;">Không thể cân bằng phương trình này. Hãy kiểm tra các chất tham gia và sản phẩm.</span>';
@@ -528,17 +532,15 @@
       try {
         const mass = window.NBChemUnits.molarMass(text);
         if (mass) {
-          const prettyF = window.NBChemUnits.pretty ? window.NBChemUnits.pretty(text) : text;
           lastResultText = 'M(' + text + ') = ' + mass + ' g/mol';
-          lastResultHtml = `
-            <div style="font-size:18px;font-weight:700;color:#0d9488;margin-bottom:6px;">
-              M(${prettyF}) = ${mass} g/mol
+          resultBox.innerHTML = `
+            <div style="font-size:20px;font-weight:700;color:#0d9488;margin-bottom:6px;">
+              M(${text}) = ${mass} g/mol
             </div>
             <div style="font-size:13px;color:#64748b;">
-              Khối lượng phân tử / mol nguyên tử theo chuẩn IUPAC.
+              Khối lượng phân tử / mol nguyên tử theo chuẩn quốc tế IUPAC.
             </div>
           `;
-          resultBox.innerHTML = lastResultHtml;
           insertBtn.disabled = false;
         } else {
           resultBox.innerHTML = '<span style="color:#ef4444;">Không tìm thấy công thức phân tử hợp lệ.</span>';
@@ -561,17 +563,16 @@
 
     insertBtn.onclick = () => {
       if (!lastResultText) return;
-      // Chèn dạng công thức hoặc thẻ SVG
       const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="600" height="120" viewBox="0 0 600 120">
-          <rect width="100%" height="100%" fill="#ffffff" rx="12" stroke="#0d9488" stroke-width="2"/>
-          <text x="30" y="65" font-family="'Segoe UI', sans-serif" font-size="22" font-weight="bold" fill="#0d9488">
+        <svg xmlns="http://www.w3.org/2000/svg" width="600" height="100" viewBox="0 0 600 100">
+          <rect width="100%" height="100%" fill="#ffffff" rx="10" stroke="#0d9488" stroke-width="2"/>
+          <text x="30" y="58" font-family="'Segoe UI', sans-serif" font-size="22" font-weight="bold" fill="#0d9488">
             ${lastResultText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
           </text>
         </svg>
       `;
       const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-      window.insertSvgOrImageToBoard(dataUri, 460, 100);
+      window.insertSvgOrImageToBoard(dataUri, 480, 90);
       d.close();
     };
 
@@ -582,14 +583,127 @@
   };
 
   /* ==========================================================================
-   * 5. QUICK WORD & MATHTYPE TERMINAL MODAL
+   * 5. QUICK WORD TERMINAL BRIDGE & SMART QUESTION PARSER
    * ========================================================================== */
   window.openNBWordTerminalModal = function() {
     if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.open === 'function') {
       window.NBQuickWordTerminal.open();
+    } else {
+      alert('Đang nạp Quick Word Terminal...');
+    }
+  };
+
+  window.addWritingPage = function() {
+    const board = getBoard();
+    if (board && typeof board.addPage === 'function') {
+      board.addPage();
+    }
+  };
+
+  // Hàm xử lý chung khi biên dịch nội dung Word vào MinNote
+  function handleWordBlocksImport(blocks, isNewPage = false) {
+    if (!blocks || !blocks.length) return;
+    const board = getBoard();
+    if (!board) {
+      alert('Bảng viết MinNote chưa sẵn sàng!');
       return;
     }
-    alert('Quick Word Terminal đã sẵn sàng tích hợp trực tiếp.');
+
+    let targetPage = (board.sel && board.sel.page >= 0) ? board.sel.page : 
+                     (typeof board.currentPage === 'function' ? board.currentPage() : 0);
+
+    if (isNewPage && typeof board.addPage === 'function') {
+      board.addPage();
+      targetPage = board.doc ? (board.doc.pages.length - 1) : (targetPage + 1);
+    }
+
+    // Ghép toàn bộ nội dung text thuần và HTML của các khối
+    let rawText = '';
+    blocks.forEach(b => {
+      const temp = document.createElement('div');
+      temp.innerHTML = b.html || '';
+      rawText += (temp.innerText || temp.textContent || '') + '\n';
+    });
+    rawText = rawText.trim();
+
+    // 1. Phân tích xem có phương án trắc nghiệm A, B, C, D không
+    const optMatches = Array.from(rawText.matchAll(/(?:^|\s)([A-D])\.\s*([\s\S]*?)(?=(?:\s+[A-D]\.\s*|Lời giải|Hướng dẫn giải|Giải|$))/g));
+    const opts = {};
+    optMatches.forEach(m => {
+      opts[m[1].toUpperCase()] = m[2].trim();
+    });
+
+    const hasOptions = Object.keys(opts).length >= 2;
+
+    // 2. Tìm lời giải / hướng dẫn
+    let solution = '';
+    const solMatch = rawText.match(/(?:Lời giải|Hướng dẫn giải|Giải):?([\s\S]*)/i);
+    if (solMatch) {
+      solution = solMatch[1].trim();
+    }
+
+    // 3. Tìm đáp án đúng (ví dụ: Chọn A, Đáp án A)
+    let correct = '';
+    const corMatch = rawText.match(/(?:Chọn|Đáp án|Phương án đúng:?)\s*([A-D])\b/i);
+    if (corMatch) {
+      correct = corMatch[1].toUpperCase();
+    }
+
+    // 4. Trích xuất nội dung câu hỏi
+    let content = rawText;
+    const firstOptIdx = rawText.search(/(?:^|\s)[A-D]\.\s*/);
+    if (firstOptIdx >= 0) {
+      content = rawText.substring(0, firstOptIdx).trim();
+    } else if (solMatch) {
+      content = rawText.substring(0, solMatch.index).trim();
+    }
+
+    if (!content && hasOptions) {
+      content = 'Chọn một phương án đúng trong các phương án sau:';
+    }
+
+    // Nếu là câu hỏi trắc nghiệm hoặc có phương án: Đưa vào Thẻ Câu Hỏi MinNote
+    if (hasOptions && typeof window.insertQuestionToPage === 'function') {
+      const q = {
+        code: 'Câu hỏi Word',
+        level: 'Thông hiểu',
+        topic: 'Bài tập',
+        content: content,
+        options: opts,
+        solution: solution,
+        correctAnswer: correct
+      };
+      window.insertQuestionToPage(q, targetPage, false);
+      notify('✨ Đã biên dịch câu hỏi trắc nghiệm Word vào thẻ câu hỏi MinNote!');
+    } else {
+      // Nếu là văn bản lý thuyết / bài tập tự luận thông thường: Tạo thẻ ghi chú hoặc câu hỏi tự luận
+      if (typeof window.insertQuestionToPage === 'function') {
+        const q = {
+          code: 'Bài tập Word',
+          level: 'Văn bản Word',
+          topic: 'Tài liệu',
+          content: content || rawText,
+          options: null,
+          solution: solution
+        };
+        window.insertQuestionToPage(q, targetPage, false);
+        notify('✨ Đã đưa nội dung Word vào thẻ bài giảng MinNote!');
+      }
+    }
+
+    // Đóng Quick Word Terminal sau khi chèn xong
+    if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.close === 'function') {
+      window.NBQuickWordTerminal.close();
+    }
+  }
+
+  // Hook các API để Quick Word Terminal gọi trực tiếp
+  window.appendDocBlocks = function(blocks) {
+    handleWordBlocksImport(blocks, false);
+  };
+
+  window.start = function(blocks) {
+    handleWordBlocksImport(blocks, true);
   };
 
   console.log('[MinNote] NoteBoard 2.5.21 Math, 3D Spatial & Science Bridge initialized.');

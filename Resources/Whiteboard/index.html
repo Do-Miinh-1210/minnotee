@@ -606,8 +606,24 @@
       function ensureExtraToolbarButtons() {
         const toolbar = document.querySelector('.toolbar');
         if (!toolbar) return;
-        const groups = toolbar.querySelectorAll('.tb-group');
-        const targetGroup = (groups && groups.length > 0) ? groups[groups.length - 1] : toolbar;
+
+        let dock = document.getElementById('nb-tools-dock');
+        if (!dock) {
+          dock = document.createElement('div');
+          dock.id = 'nb-tools-dock';
+          dock.className = 'tb-group nb-tools-dock';
+          dock.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:rgba(13,148,136,0.08);border:1.5px solid #0d9488;border-radius:9px;padding:2px 4px;margin:0 4px;box-shadow:0 1px 4px rgba(13,148,136,0.15);';
+
+          const toolsGroup = toolbar.querySelector('.tb-group.tools');
+          if (toolsGroup && toolsGroup.nextSibling) {
+            toolbar.insertBefore(dock, toolsGroup.nextSibling);
+          } else if (toolsGroup) {
+            toolbar.appendChild(dock);
+          } else {
+            toolbar.appendChild(dock);
+          }
+        }
+        const targetGroup = dock;
 
         // 1. Nút Kho Đề & Bài Giảng HTML (Ctrl + Q)
         if (!document.getElementById('tb-btn-questionbank')) {
@@ -616,11 +632,13 @@
           btnQ.className = 'tb';
           btnQ.title = 'Kho Đề & Bài Giảng HTML (Ctrl + Q)';
           btnQ.setAttribute('aria-label', 'Kho Đề');
+          btnQ.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnQ.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
             </svg>
+            <span>Kho Đề</span>
           `;
           btnQ.onclick = function(e) {
             e.preventDefault();
@@ -637,14 +655,16 @@
           btnM.className = 'tb';
           btnM.title = 'Sơ đồ tư duy Toán học (Ctrl + M)';
           btnM.setAttribute('aria-label', 'Sơ đồ tư duy');
+          btnM.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnM.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3"></circle>
               <circle cx="6" cy="12" r="3"></circle>
               <circle cx="18" cy="19" r="3"></circle>
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
+            <span>Sơ Đồ</span>
           `;
           btnM.onclick = function(e) {
             e.preventDefault();
@@ -661,11 +681,13 @@
           btnV.className = 'tb';
           btnV.title = 'Bảng biến thiên Toán học (Ctrl + B)';
           btnV.setAttribute('aria-label', 'Bảng biến thiên');
+          btnV.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnV.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 3v18h18"></path>
               <path d="M7 16l4-8 4 6 5-10"></path>
             </svg>
+            <span>BBT</span>
           `;
           btnV.onclick = function(e) {
             e.preventDefault();
@@ -682,12 +704,14 @@
           btnS.className = 'tb';
           btnS.title = 'Hình học không gian 3D Native (Ctrl + 3)';
           btnS.setAttribute('aria-label', 'Hình 3D');
+          btnS.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnS.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
+            <span>3D</span>
           `;
           btnS.onclick = function(e) {
             e.preventDefault();
@@ -704,12 +728,14 @@
           btnC.className = 'tb';
           btnC.title = 'Cân bằng phản ứng Hóa học (Ctrl + H)';
           btnC.setAttribute('aria-label', 'Hóa học');
+          btnC.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnC.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"></path>
               <path d="M8.5 2h7"></path>
               <path d="M7 16h10"></path>
             </svg>
+            <span>Hóa</span>
           `;
           btnC.onclick = function(e) {
             e.preventDefault();
@@ -726,13 +752,15 @@
           btnW.className = 'tb';
           btnW.title = 'Dán Word & MathType không nhảy dòng (Ctrl + Shift + W)';
           btnW.setAttribute('aria-label', 'Word Terminal');
+          btnW.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnW.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
               <line x1="9" y1="13" x2="15" y2="13"></line>
               <line x1="9" y1="17" x2="15" y2="17"></line>
             </svg>
+            <span>Dán Word</span>
           `;
           btnW.onclick = function(e) {
             e.preventDefault();
