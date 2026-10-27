@@ -1,22 +1,19 @@
-import os, sys, requests, glob
+import os
+import sys
+import requests
+import subprocess
 
 def get_github_token():
-    token = os.environ.get("GITHUB_TOKEN")
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token:
         return token
-    # Try git config
     try:
-        import subprocess
-        res = subprocess.run(["git", "config", "--get", "github.token"], capture_output=True, text=True)
-        token = res.stdout.strip()
-        if token:
-            return token
+        proc = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n", capture_output=True, text=True)
+        for line in proc.stdout.splitlines():
+            if line.startswith("password="):
+                return line.split("=", 1)[1]
     except Exception:
         pass
-    token_file = os.path.expanduser("~/.github_token")
-    if os.path.exists(token_file):
-        with open(token_file, "r") as f:
-            return f.read().strip()
     return None
 
 GITHUB_TOKEN = get_github_token()
@@ -54,55 +51,52 @@ Bản cập nhật v0.0.2.4 tập trung xử lý toàn diện các vấn đề n
    - Hỗ trợ tính khối lượng mol cho từng chất riêng lẻ (ví dụ: `Fe2(SO4)3`, `KMnO4`...).
 """
 
+SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
+
 headers = {
     "Authorization": f"token {GITHUB_TOKEN}",
     "Accept": "application/vnd.github.v3+json"
 }
 
-def create_or_get_release():
-    url = f"https://api.github.com/repos/{REPO}/releases/tags/{TAG}"
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        print(f"Release {TAG} already exists. Deleting it to re-create clean release...")
-        rel_id = r.json()["id"]
-        requests.delete(f"https://api.github.com/repos/{REPO}/releases/{rel_id}", headers=headers)
+# 1. Check if release already exists
+r = requests.get(f"https://api.github.com/repos/{REPO}/releases/tags/{TAG}", headers=headers)
+if r.status_code == 200:
+    print(f"Release {TAG} already exists, deleting it to recreate...")
+    release_id = r.json()["id"]
+    requests.delete(f"https://api.github.com/repos/{REPO}/releases/{release_id}", headers=headers)
 
-    create_url = f"https://api.github.com/repos/{REPO}/releases"
-    payload = {
-        "tag_name": TAG,
-        "target_commitish": "main",
-        "name": TITLE,
-        "body": BODY,
-        "draft": False,
-        "prerelease": False
-    }
-    r = requests.post(create_url, headers=headers, json=payload)
-    if r.status_code not in (200, 201):
-        print(f"Failed to create release: {r.status_code} {r.text}")
-        sys.exit(1)
-    print(f"Release {TAG} created successfully.")
-    return r.json()
+# 2. Create Release
+payload = {
+    "tag_name": TAG,
+    "target_commitish": "main",
+    "name": TITLE,
+    "body": BODY,
+    "draft": False,
+    "prerelease": False
+}
+r = requests.post(f"https://api.github.com/repos/{REPO}/releases", headers=headers, json=payload)
+if r.status_code not in (200, 201):
+    print("Failed to create release:", r.status_code, r.text)
+    sys.exit(1)
 
-def upload_asset(upload_url_template, file_path):
-    filename = os.path.basename(file_path)
-    upload_url = upload_url_template.split("{")[0] + f"?name={filename}"
-    print(f"Uploading {filename} ({os.path.getsize(file_path) / 1024 / 1024:.2f} MB)...")
-    with open(file_path, "rb") as f:
-        headers_upload = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Content-Type": "application/octet-stream"
-        }
-        r = requests.post(upload_url, headers=headers_upload, data=f)
-        if r.status_code in (200, 201):
-            print(f"Uploaded {filename} successfully.")
-        else:
-            print(f"Failed to upload {filename}: {r.status_code} {r.text}")
+release_data = r.json()
+upload_url = release_data["upload_url"].split("{")[0]
+print(f"Created release: {release_data['html_url']}")
 
-if __name__ == "__main__":
-    rel = create_or_get_release()
-    upload_url = rel.get("upload_url")
-    installer = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
-    if os.path.exists(installer):
-        upload_asset(upload_url, installer)
+# 3. Upload Setup Asset
+if os.path.exists(SETUP_EXE):
+    size_mb = os.path.getsize(SETUP_EXE) / (1024 * 1024)
+    print(f"Uploading {SETUP_EXE} ({size_mb:.2f} MB)...")
+    headers["Content-Type"] = "application/octet-stream"
+    with open(SETUP_EXE, "rb") as f:
+        r = requests.post(
+            f"{upload_url}?name=MinNote_Setup.exe",
+            headers=headers,
+            data=f
+        )
+    if r.status_code in (200, 201):
+        print(f"Uploaded MinNote_Setup.exe successfully! Download URL: {r.json()['browser_download_url']}")
     else:
-        print(f"Installer not found at {installer}")
+        print("Failed to upload asset:", r.status_code, r.text)
+else:
+    print(f"Asset file not found at {SETUP_EXE}")
