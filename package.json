@@ -1,6 +1,6 @@
 {
   "name": "noterenderer",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Ink notebook with graphs, equations and dynamic geometry",
   "author": "NoteRenderer",
   "main": "electron/main.cjs",
