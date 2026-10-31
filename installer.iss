@@ -1,6 +1,6 @@
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.2.4"
+#define MyAppVersion "0.0.2.5"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
