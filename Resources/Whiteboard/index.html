@@ -615,10 +615,8 @@
           dock.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:rgba(13,148,136,0.08);border:1.5px solid #0d9488;border-radius:9px;padding:2px 4px;margin:0 4px;box-shadow:0 1px 4px rgba(13,148,136,0.15);';
 
           const toolsGroup = toolbar.querySelector('.tb-group.tools');
-          if (toolsGroup && toolsGroup.nextSibling) {
-            toolbar.insertBefore(dock, toolsGroup.nextSibling);
-          } else if (toolsGroup) {
-            toolbar.appendChild(dock);
+          if (toolsGroup) {
+            toolbar.insertBefore(dock, toolsGroup);
           } else {
             toolbar.appendChild(dock);
           }

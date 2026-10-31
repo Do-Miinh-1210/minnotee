@@ -186,26 +186,30 @@ body {
 
 
 
-/* 3. COMPACT SINGLE-ROW STUDIO TOOLBAR (Thanh công cụ đỉnh thu gọn một dòng) */
+/* 3. BALANCED MULTI-ROW STUDIO TOOLBAR (Thanh cong cu chia 2-3 hang can xung) */
 
 .toolbar {
   position: relative !important;
   display: flex !important;
   flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
   align-items: center !important;
+  align-content: flex-start !important;
   margin: 4px 10px 4px 10px !important;
-  height: 40px !important;
+  height: auto !important;
   min-height: 40px !important;
-  padding: 0 8px !important;
+  padding: 4px 8px !important;
   background: #ffffff !important;
   border: 1px solid rgba(203, 213, 225, 0.9) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04) !important;
-  gap: 4px !important;
+  row-gap: 4px !important;
+  column-gap: 3px !important;
   flex-shrink: 0 !important;
   z-index: 100 !important;
   overflow: visible !important;
+  width: fit-content !important;
+  max-width: calc(100vw - 20px) !important;
 }
 
 .toolbar.two-rows {
@@ -218,67 +222,80 @@ body {
 
 
 
-/* 4. SEGMENTED PILL GROUPS & TOOLS DOCK (Giữ trên cùng một hàng ngang) */
+/* 4. SEGMENTED PILL GROUPS & TOOLS DOCK (Can xung cac hang) */
 
 .tb-group {
-
   display: inline-flex !important;
-
   align-items: center !important;
-
   gap: 1.5px !important;
-
   background: #f8fafc !important;
-
   border: 1px solid #e2e8f0 !important;
-
   border-radius: 10px !important;
-
   padding: 1px 3px !important;
-
   flex-shrink: 0 !important;
-
   overflow: visible !important;
-
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
-
 }
 
+/* Row 1 items */
+.toolbar > .tb-group:not(.tools):not(.nb-tools-dock) {
+  order: 1 !important;
+}
 
+.toolbar > .tb-title {
+  order: 2 !important;
+  margin: 0 4px !important;
+}
 
-.toolbar:not(.two-rows) .tb-group.tools,
+.toolbar > .tb-palette {
+  order: 3 !important;
+  margin: 0 4px !important;
+}
+
+.toolbar > #nb-tools-dock,
+.toolbar > .nb-tools-dock {
+  order: 4 !important;
+  margin: 0 2px !important;
+}
+
+/* Row 2 & Row 3 Container */
+.toolbar .tb-group.tools,
 .tb-group.tools {
-  order: 0 !important;
-  width: auto !important;
-  max-width: none !important;
-  margin-left: auto !important;
-  border-top: none !important;
+  order: 10 !important;
+  width: 100% !important;
+  flex-basis: 100% !important;
+  margin-left: 0 !important;
   background: #f8fafc !important;
   border: 1px solid #e2e8f0 !important;
-  border-radius: 10px !important;
-  padding: 1px 4px !important;
-  gap: 1.5px !important;
-  display: inline-flex !important;
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  flex-shrink: 0 !important;
-  overflow: visible !important;
-}
-
-.toolbar.two-rows .tb-group.tools {
-  order: 3 !important;
-  width: 100% !important;
-  margin-left: 0 !important;
-  border-top: 1px solid #e2e8f0 !important;
-  background: #f8fafc !important;
   border-radius: 10px !important;
   padding: 3px 6px !important;
-  gap: 3px !important;
+  gap: 2px !important;
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
   justify-content: flex-start !important;
   overflow: visible !important;
+}
+
+/* Row 2: Basic Writing & Math Tools */
+.toolbar .tool-math-draw {
+  order: 1 !important;
+}
+
+/* Row 3 Divider: Line Break between Math and Science */
+.toolbar .tb-row-break {
+  order: 5 !important;
+  flex-basis: 100% !important;
+  width: 100% !important;
+  height: 1px !important;
+  background: #e2e8f0 !important;
+  margin: 2px 0 !important;
+  display: block !important;
+}
+
+/* Row 3: Science Tools (Li - Hoa - Sinh) */
+.toolbar .tool-science {
+  order: 10 !important;
 }
 
 @media (max-width: 1550px) {
@@ -289,24 +306,7 @@ body {
     padding: 4px 8px 6px !important;
     row-gap: 4px !important;
   }
-  .toolbar .tb-group.tools {
-    order: 3 !important;
-    width: 100% !important;
-    margin-left: 0 !important;
-    border-top: 1px solid #e2e8f0 !important;
-    background: #f8fafc !important;
-    border-radius: 10px !important;
-    padding: 3px 6px !important;
-    gap: 3px !important;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    overflow: visible !important;
-  }
 }
-
-
 
 /* 5. COMPACT BUTTONS & MODERN ICONS (Làm nhỏ nút công cụ) */
 

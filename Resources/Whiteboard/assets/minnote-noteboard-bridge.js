@@ -1360,58 +1360,85 @@
 
 
 
-  // Thu gọn tb-title và đưa công cụ màu lên hàng trên theo yêu cầu
-
-  function relocateColorPalette() {
-
+  // Cân bằng các hàng công cụ (Row 1: Quản trị + Màu + Dock; Row 2: Viết & Toán; Row 3: Lí - Hóa - Sinh)
+  function balanceToolbarRows() {
     const tb = document.querySelector('header.toolbar');
-
     if (!tb) return;
 
     const tbTitle = tb.querySelector('.tb-title');
-
     if (!tbTitle) return;
 
-
-
+    // 1. Đưa bảng màu lên Hàng 1 cạnh tb-title
     const colorPal = tb.querySelector('.tb-group.tools .tb-palette[aria-label*="Màu"], .tb-group.tools .tb-palette[aria-label*="Color" i]');
-
     if (colorPal && colorPal.parentNode !== tb) {
-
       tbTitle.parentNode.insertBefore(colorPal, tbTitle.nextSibling);
-
     }
 
+    // 2. Đưa MinNote Quick Dock lên Hàng 1 ngay sau bảng màu
+    const dock = document.getElementById('nb-tools-dock');
+    const toolsGroup = tb.querySelector('.tb-group.tools');
+    if (dock && toolsGroup && dock.nextSibling !== toolsGroup) {
+      tb.insertBefore(dock, toolsGroup);
+    }
+
+    // 3. Phân loại các công cụ bên trong toolsGroup thành Hàng 2 (Toán & Viết) và Hàng 3 (Khoa học Lí - Hóa - Sinh)
+    if (toolsGroup) {
+      const scienceKeywords = [
+        'hóa học', 'tuần hoàn', 'thí nghiệm', 'mạch điện', 'sơ đồ lực', 'quang hình',
+        'vật lí', 'sinh học', 'sóng', 'đường sức', 'hằng số', 'công thức lí', 'cấu tạo',
+        'thức ăn', 'dna', 'phân', 'phả hệ', 'sơ đồ lai', 'nguyên tử', 'lab', 'cốc',
+        'dụng cụ thí nghiệm', 'sơ đồ hóa học'
+      ];
+
+      let hasScience = false;
+      const children = Array.from(toolsGroup.children);
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (child.classList.contains('tb-row-break')) continue;
+        const title = (child.getAttribute('title') || (child.querySelector('button') && child.querySelector('button').getAttribute('title')) || '').toLowerCase();
+        const isScience = scienceKeywords.some(kw => title.includes(kw));
+        if (isScience) {
+          if (!child.classList.contains('tool-science')) {
+            child.classList.add('tool-science');
+            child.classList.remove('tool-math-draw');
+          }
+          hasScience = true;
+        } else {
+          if (!child.classList.contains('tool-math-draw')) {
+            child.classList.add('tool-math-draw');
+            child.classList.remove('tool-science');
+          }
+        }
+      }
+
+      let br = toolsGroup.querySelector('.tb-row-break');
+      if (hasScience) {
+        if (!br) {
+          br = document.createElement('div');
+          br.className = 'tb-row-break';
+          toolsGroup.appendChild(br);
+        }
+        br.style.display = 'block';
+      } else if (br) {
+        br.style.display = 'none';
+      }
+    }
   }
 
-
-
   const tbObserver = new MutationObserver(() => {
-
-    relocateColorPalette();
-
+    balanceToolbarRows();
   });
 
-
-
   const setupToolbarLayout = () => {
-    relocateColorPalette();
+    balanceToolbarRows();
     tbObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   };
 
-
-
   if (document.readyState === 'loading') {
-
     document.addEventListener('DOMContentLoaded', setupToolbarLayout);
-
   } else {
-
     setupToolbarLayout();
-
   }
-
-
 
   // Nâng cao z-index và container cho MathLive Virtual Keyboard
 
