@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -22,7 +22,7 @@ public class GitHubUpdateService
 {
     public static GitHubUpdateService Instance { get; } = new();
 
-    public string CurrentVersion { get; set; } = "0.0.2.6";
+    public string CurrentVersion { get; set; } = "0.0.2.7";
     public string GitHubRepo { get; set; } = "Do-Miinh-1210/minnotee";
 
     private readonly HttpClient _httpClient;

@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 import sys
 
@@ -46,14 +46,14 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.2.6"
+TAG = "v0.0.2.7"
 
-TITLE = "MinNote v0.0.2.6 - Nâng cấp lõi NoteRenderer v0.7.2 (Bộ công thức Lí/Hóa/Sinh & tối ưu vẽ)"
-BODY = """## MinNote v0.0.2.6 - Tối Ưu Bố Cục Thanh Công Cụ & Lõi NoteRenderer v0.7.2
+TITLE = "MinNote v0.0.2.7 - Nâng cấp lõi NoteRenderer v0.8.0 (Bộ công thức Lí/Hóa/Sinh & tối ưu vẽ)"
+BODY = """## MinNote v0.0.2.7 - Tối Ưu Bố Cục Thanh Công Cụ & Lõi NoteRenderer v0.8.0
 
 Bản phát hành cập nhật tối ưu thanh công cụ thông minh, chia thành 2 - 3 hàng cân xứng:
 
-### 🌟 Điểm Nổi Bật v0.0.2.6:
+### 🌟 Điểm Nổi Bật v0.0.2.7:
 1. **Phân Bổ Thanh Công Cụ Cân Xứng (2 - 3 Hàng):**
    - **Hàng 1**: Quản trị tài liệu, thu phóng trang, khay 5 màu và bộ nút độc quyền MinNote (`Kho Đề`, `Sơ Đồ`, `3D`, `Hóa`, `Dán Word`).
    - **Hàng 2**: Toàn bộ công cụ Viết vẽ & Toán học (Bút, Tẩy, Nét, Dạ quang, Hình học, Đồ thị, Bảng biến thiên, Oxyz, Công thức, LaTeX, Máy tính Casio, Thước kẻ).
