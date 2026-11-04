@@ -46,14 +46,14 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.2.9"
+TAG = "v0.0.3.0"
 
-TITLE = "MinNote v0.0.2.9 - Tích hợp toàn diện NoteRenderer v0.8.0 & khôi phục máy tính Casio"
-BODY = """## MinNote v0.0.2.9 - Kết Hợp Đột Phá: Lõi NoteRenderer v0.8.0 & Khôi Phục Máy Tính Casio
+TITLE = "MinNote v0.0.3.0 - Tích hợp toàn diện NoteRenderer v0.8.0 & khôi phục máy tính Casio"
+BODY = """## MinNote v0.0.3.0 - Kết Hợp Đột Phá: Lõi NoteRenderer v0.8.0 & Khôi Phục Máy Tính Casio
 
 Bản cập nhật chính thức tích hợp 100% tính năng mới nhất từ NoteRenderer v0.8.0 mà không làm mất đi bất kỳ tính năng giảng dạy quen thuộc nào:
 
-### 🌟 Điểm Nổi Bật v0.0.2.9:
+### 🌟 Điểm Nổi Bật v0.0.3.0:
 1. **Tính Năng Mới Từ Lõi NoteRenderer v0.8.0:**
    - **Đồng hồ đếm ngược (Countdown Timer)**: Hỗ trợ thuyết trình lớp học, toàn màn hình máy chiếu, âm thanh báo hết giờ.
    - **Gọi tên ngẫu nhiên (Random Student Picker)**: Quản lý danh sách lớp, dán trực tiếp từ Excel/Word, quay số chọn học sinh trả lời bài.

@@ -37,3 +37,13 @@ window.initCasioEngine = function() {
 window.CasioCalc = { Dee, Bee, Machine: _ne, D2, PS, $ee };
 
 };
+
+(function autoInitCasio() {
+    if (window.CasioCalc) return;
+    if (typeof window.initCasioEngine === 'function') {
+        window.initCasioEngine();
+    }
+    if (!window.CasioCalc) {
+        setTimeout(autoInitCasio, 100);
+    }
+})();

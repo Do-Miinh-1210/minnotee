@@ -24,6 +24,39 @@
         }
     } catch (_) {}
 
+    function getAutoFitScale() {
+        if (window.innerHeight < 680) {
+            return Math.max(0.68, Number(((window.innerHeight - 60) / 610).toFixed(2)));
+        }
+        return 1;
+    }
+
+    function clampPlace(p) {
+        const curScale = scale || getAutoFitScale();
+        const calcW = Math.round(314 * curScale);
+        const calcH = Math.round(590 * curScale);
+        const maxX = Math.max(16, window.innerWidth - calcW - 16);
+        const maxY = Math.max(30, window.innerHeight - calcH - 16);
+        if (!p || typeof p.x !== 'number' || typeof p.y !== 'number' || p.x > maxX || p.y > maxY || p.x < 10 || p.y < 30) {
+            const btn = document.getElementById('tb-btn-casio-calc');
+            if (btn) {
+                const r = btn.getBoundingClientRect();
+                return {
+                    x: Math.max(16, Math.min(maxX, r.left)),
+                    y: Math.max(30, Math.min(maxY, r.bottom + 6))
+                };
+            }
+            return {
+                x: Math.max(16, Math.min(maxX, window.innerWidth - calcW - 20)),
+                y: Math.max(30, Math.min(maxY, 65))
+            };
+        }
+        return {
+            x: Math.max(16, Math.min(maxX, p.x)),
+            y: Math.max(30, Math.min(maxY, p.y))
+        };
+    }
+
     function savePrefs(patch) {
         try {
             const p = JSON.parse(localStorage.getItem("prefs") || "{}");
@@ -42,7 +75,7 @@
         if (!hostEl) {
             hostEl = document.createElement('div');
             hostEl.id = 'casio-calc-host';
-            hostEl.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:99999;pointer-events:none;';
+            hostEl.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483647;pointer-events:none;overflow:visible;';
             document.body.appendChild(hostEl);
         }
         if (!root && window.__NR_ReactDOM) {
@@ -64,8 +97,20 @@
 
     function renderCalc() {
         ensureEngine();
+        if (!window.__NR_React || !window.__NR_ReactDOM || !window.CasioCalc) {
+            setTimeout(renderCalc, 100);
+            return;
+        }
+
         const r = ensureHost();
-        if (!r) return;
+        if (!r) {
+            setTimeout(renderCalc, 100);
+            return;
+        }
+
+        if (isOpen) {
+            place = clampPlace(place);
+        }
 
         if (!calcMachine && window.CasioCalc) {
             calcMachine = new window.CasioCalc.Machine();
@@ -98,7 +143,7 @@
                     u.jsx(Dee, {
                         machine: calcMachine,
                         place: place,
-                        onPlace: p => { place = p; savePrefs(p); forceUpdate(n => n + 1); },
+                        onPlace: p => { place = clampPlace(p); savePrefs(place); forceUpdate(n => n + 1); },
                         scale: scale,
                         onScale: s => { scale = s; savePrefs({ scale: s }); forceUpdate(n => n + 1); },
                         screen: isScreenOpen,
@@ -133,7 +178,12 @@
 
     window.openCasioCalculator = function() {
         isOpen = true;
+        if (scale === 1 && window.innerHeight < 680) {
+            scale = getAutoFitScale();
+        }
+        place = clampPlace(place);
         renderCalc();
+        if (typeof window.showToast === 'function') window.showToast('Đã mở Máy tính khoa học Casio FX 580', 'info');
     };
 
     window.closeCasioCalculator = function() {
@@ -143,6 +193,13 @@
 
     window.toggleCasioCalculator = function() {
         isOpen = !isOpen;
+        if (isOpen) {
+            if (scale === 1 && window.innerHeight < 680) {
+                scale = getAutoFitScale();
+            }
+            place = clampPlace(place);
+            if (typeof window.showToast === 'function') window.showToast('Đã mở Máy tính khoa học Casio FX 580', 'info');
+        }
         renderCalc();
     };
 
