@@ -46,10 +46,10 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.3.0"
+TAG = "v0.0.3.1"
 
-TITLE = "MinNote v0.0.3.0 - Tích hợp toàn diện NoteRenderer v0.8.0 & khôi phục máy tính Casio"
-BODY = """## MinNote v0.0.3.0 - Kết Hợp Đột Phá: Lõi NoteRenderer v0.8.0 & Khôi Phục Máy Tính Casio
+TITLE = "MinNote v0.0.3.1 - Tích hợp Native React Máy tính Casio FX 580 vào lõi NoteRenderer 0.8.0"
+BODY = """## MinNote v0.0.3.1 - Tích Hợp Native React Máy Tính Casio FX 580 Lõi 0.8.0
 
 Bản cập nhật chính thức tích hợp 100% tính năng mới nhất từ NoteRenderer v0.8.0 mà không làm mất đi bất kỳ tính năng giảng dạy quen thuộc nào:
 
