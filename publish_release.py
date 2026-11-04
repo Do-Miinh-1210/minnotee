@@ -46,28 +46,28 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.2.8"
+TAG = "v0.0.2.9"
 
-TITLE = "MinNote v0.0.2.8 - Nâng cấp lõi NoteRenderer v0.8.0 (Bộ công thức Lí/Hóa/Sinh & tối ưu vẽ)"
-BODY = """## MinNote v0.0.2.8 - Khôi Phục Máy Tính Khoa Học Casio & Tối Ưu Bố Cục Cân Xứng
+TITLE = "MinNote v0.0.2.9 - Tích hợp toàn diện NoteRenderer v0.8.0 & khôi phục máy tính Casio"
+BODY = """## MinNote v0.0.2.9 - Kết Hợp Đột Phá: Lõi NoteRenderer v0.8.0 & Khôi Phục Máy Tính Casio
 
-Bản phát hành chính thức khắc phục tình trạng mất máy tính khoa học từ bản nâng cấp thượng nguồn và hoàn thiện bố cục thanh công cụ cân xứng:
+Bản cập nhật chính thức tích hợp 100% tính năng mới nhất từ NoteRenderer v0.8.0 mà không làm mất đi bất kỳ tính năng giảng dạy quen thuộc nào:
 
-### 🌟 Điểm Nổi Bật v0.0.2.8:
-1. **Khôi Phục Toàn Diện Máy Tính Khoa Học (Casio / Scientific Calculator):**
-   - Đưa máy tính khoa học trở lại thanh công cụ chính với đầy đủ phím tính toán (lượng giác, logarit, phân số, hằng số).
-   - Hỗ trợ màn hình LCD lớn tách rời và kéo thả tự do trên mặt bảng viết.
-   - Luôn nổi lên trên cùng (z-index ưu tiên) khi tương tác.
+### 🌟 Điểm Nổi Bật v0.0.2.9:
+1. **Tính Năng Mới Từ Lõi NoteRenderer v0.8.0:**
+   - **Đồng hồ đếm ngược (Countdown Timer)**: Hỗ trợ thuyết trình lớp học, toàn màn hình máy chiếu, âm thanh báo hết giờ.
+   - **Gọi tên ngẫu nhiên (Random Student Picker)**: Quản lý danh sách lớp, dán trực tiếp từ Excel/Word, quay số chọn học sinh trả lời bài.
+   - **Thanh công cụ nhanh (Favorites)**: Ghim các công cụ hay dùng lên thanh trên cùng.
+   - Nâng cấp độ mượt nét vẽ, chống trễ bút (low-latency ink trail).
 
-2. **Phân Bổ Thanh Công Cụ Cân Xứng 2 - 3 Hàng:**
-   - **Hàng 1**: Quản trị tài liệu, thu phóng trang, khay 5 màu và bộ nút độc quyền MinNote (`Kho Đề`, `Sơ Đồ`, `3D`, `Hóa`, `Dán Word`).
-   - **Hàng 2**: Toàn bộ công cụ Viết vẽ & Toán học (Bút, Tẩy, Nét, Dạ quang, Hình học, Đồ thị, Bảng biến thiên, Oxyz, Công thức, LaTeX, Máy tính Casio, Thước kẻ).
-   - **Hàng 3**: Toàn bộ công cụ Khoa học chuyên ngành Lí - Hóa - Sinh (Mạch điện, Quang hình, Sơ đồ lực, Phản ứng hóa học, Thí nghiệm ảo, Sơ đồ lai, DNA...). Tự động ẩn khi chỉ bật môn Toán để giữ trọn 2 hàng tối giản.
+2. **Khôi Phục Trọn Vẹn Máy Tính Khoa Học Casio:**
+   - Tích hợp máy tính khoa học Casio FX 580 tự do nổi trên bảng vẽ.
+   - Đầy đủ hàm lượng giác, vi tích phân, logarit, phân số, ma trận, phương trình, số phức.
+   - Hỗ trợ màn hình LCD phụ tách rời phục vụ chiếu đề và bài giải.
 
-3. **Lõi NoteRenderer Ổn Định Đầy Đủ Tính Năng:**
-   - Bộ công thức FormulaSheet SGK Kết nối tri thức.
-   - Bàn phím ảo MathLive nổi ưu tiên (z-index 2.000.000) không che khuất hộp thoại.
-   - Chèn trực tiếp hình 3D, cân bằng Hóa học lên bảng vẽ.
+3. **Bố Cục Thanh Công Cụ Cân Xứng 2 - 3 Hàng:**
+   - Phân loại trực quan: Hàng 1 (Hệ thống & MinNote Tools), Hàng 2 (Toán & Viết vẽ), Hàng 3 (Khoa học Lí - Hóa - Sinh).
+   - Tự động co gọn 2 hàng khi chỉ chọn môn Toán.
 """
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
 
