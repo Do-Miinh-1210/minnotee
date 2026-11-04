@@ -46,20 +46,25 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.2.7"
+TAG = "v0.0.2.8"
 
-TITLE = "MinNote v0.0.2.7 - Nâng cấp lõi NoteRenderer v0.8.0 (Bộ công thức Lí/Hóa/Sinh & tối ưu vẽ)"
-BODY = """## MinNote v0.0.2.7 - Tối Ưu Bố Cục Thanh Công Cụ & Lõi NoteRenderer v0.8.0
+TITLE = "MinNote v0.0.2.8 - Nâng cấp lõi NoteRenderer v0.8.0 (Bộ công thức Lí/Hóa/Sinh & tối ưu vẽ)"
+BODY = """## MinNote v0.0.2.8 - Khôi Phục Máy Tính Khoa Học Casio & Tối Ưu Bố Cục Cân Xứng
 
-Bản phát hành cập nhật tối ưu thanh công cụ thông minh, chia thành 2 - 3 hàng cân xứng:
+Bản phát hành chính thức khắc phục tình trạng mất máy tính khoa học từ bản nâng cấp thượng nguồn và hoàn thiện bố cục thanh công cụ cân xứng:
 
-### 🌟 Điểm Nổi Bật v0.0.2.7:
-1. **Phân Bổ Thanh Công Cụ Cân Xứng (2 - 3 Hàng):**
+### 🌟 Điểm Nổi Bật v0.0.2.8:
+1. **Khôi Phục Toàn Diện Máy Tính Khoa Học (Casio / Scientific Calculator):**
+   - Đưa máy tính khoa học trở lại thanh công cụ chính với đầy đủ phím tính toán (lượng giác, logarit, phân số, hằng số).
+   - Hỗ trợ màn hình LCD lớn tách rời và kéo thả tự do trên mặt bảng viết.
+   - Luôn nổi lên trên cùng (z-index ưu tiên) khi tương tác.
+
+2. **Phân Bổ Thanh Công Cụ Cân Xứng 2 - 3 Hàng:**
    - **Hàng 1**: Quản trị tài liệu, thu phóng trang, khay 5 màu và bộ nút độc quyền MinNote (`Kho Đề`, `Sơ Đồ`, `3D`, `Hóa`, `Dán Word`).
    - **Hàng 2**: Toàn bộ công cụ Viết vẽ & Toán học (Bút, Tẩy, Nét, Dạ quang, Hình học, Đồ thị, Bảng biến thiên, Oxyz, Công thức, LaTeX, Máy tính Casio, Thước kẻ).
    - **Hàng 3**: Toàn bộ công cụ Khoa học chuyên ngành Lí - Hóa - Sinh (Mạch điện, Quang hình, Sơ đồ lực, Phản ứng hóa học, Thí nghiệm ảo, Sơ đồ lai, DNA...). Tự động ẩn khi chỉ bật môn Toán để giữ trọn 2 hàng tối giản.
 
-2. **Kế Thừa Toàn Bộ Tính Năng Lõi v0.7.2:**
+3. **Lõi NoteRenderer Ổn Định Đầy Đủ Tính Năng:**
    - Bộ công thức FormulaSheet SGK Kết nối tri thức.
    - Bàn phím ảo MathLive nổi ưu tiên (z-index 2.000.000) không che khuất hộp thoại.
    - Chèn trực tiếp hình 3D, cân bằng Hóa học lên bảng vẽ.
