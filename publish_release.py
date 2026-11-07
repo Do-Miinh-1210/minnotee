@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 import sys
 
@@ -46,7 +46,7 @@ if not GITHUB_TOKEN:
 
 REPO = "Do-Miinh-1210/minnotee"
 
-TAG = "v0.0.3.1"
+TAG = "v0.0.3.2"
 
 TITLE = "MinNote v0.0.3.1 - Tích hợp Native React Máy tính Casio FX 580 vào lõi NoteRenderer 0.8.0"
 BODY = """## MinNote v0.0.3.1 - Tích Hợp Native React Máy Tính Casio FX 580 Lõi 0.8.0
