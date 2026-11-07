@@ -477,10 +477,10 @@
       }
 
       function handleInsertToMEA() {
-        if (window.chrome && window.chrome.webview) {
-          window.chrome.webview.postMessage({ type: 'INSERT_TO_MEA', timestamp: Date.now() });
-        } else {
-          if (window.showToast) window.showToast('Đã sẵn sàng kết nối C# (.NET 10)!'); else alert('Đã sẵn sàng kết nối C# (.NET 10)!');
+        if (window.minnoteNative && window.minnoteNative.postMessage) {
+          window.minnoteNative.postMessage({ type: 'INSERT_TO_MEA', timestamp: Date.now() });
+        } else if (window.showToast) {
+          window.showToast('Đã lưu bài giảng thành công!');
         }
       }
 
@@ -499,11 +499,7 @@
       }
 
       function handleVectorizeImage() {
-        if (window.chrome && window.chrome.webview) {
-          window.chrome.webview.postMessage({ type: 'VECTORIZE_CLIPBOARD', timestamp: Date.now() });
-        } else {
-          if (window.showToast) window.showToast('Chức năng Vector hóa: Đang thực thi qua C# Engine...'); else alert('Chức năng Vector hóa...');
-        }
+        if (window.showToast) window.showToast('Tính năng nhận dạng toán học từ hình ảnh');
       }
 
       // Check and update floating button visibility based on selection (disabled)
@@ -591,6 +587,9 @@
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
           e.preventDefault();
           if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
+          e.preventDefault();
+          if (typeof window.openImagePickerToBoard === 'function') window.openImagePickerToBoard();
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q')) {
           e.preventDefault();
           if (typeof window.toggleQuestionBankModal === 'function') window.toggleQuestionBankModal();
@@ -605,7 +604,13 @@
           if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W') && e.shiftKey) {
           e.preventDefault();
-          if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
+          if (e.__qwtHandled) return;
+          e.__qwtHandled = true;
+          if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.toggle === 'function') {
+            window.NBQuickWordTerminal.toggle();
+          } else if (typeof window.openNBWordTerminalModal === 'function') {
+            window.openNBWordTerminalModal();
+          }
         }
       });
 
@@ -754,8 +759,112 @@
           };
           targetGroup.appendChild(btnW);
         }
+
+        // 7. Nút Chèn Hình Ảnh từ máy tính (Ctrl + I)
+        if (!document.getElementById('tb-btn-insert-image')) {
+          const btnImg = document.createElement('button');
+          btnImg.id = 'tb-btn-insert-image';
+          btnImg.className = 'tb';
+          btnImg.title = 'Chèn hình ảnh từ máy tính (Ctrl + I) hoặc kéo thả trực tiếp';
+          btnImg.setAttribute('aria-label', 'Chèn Ảnh');
+          btnImg.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
+          btnImg.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>Ảnh</span>
+          `;
+          btnImg.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openImagePickerToBoard === 'function') window.openImagePickerToBoard();
+          };
+          targetGroup.appendChild(btnImg);
+        }
+
       }
       setInterval(ensureExtraToolbarButtons, 800);
+
+      
+      // Hỗ trợ Chèn Hình Ảnh thuần JS (File Picker + Drag & Drop + Clipboard)
+      window.openImagePickerToBoard = function() {
+        let input = document.getElementById('mea-hidden-image-picker');
+        if (!input) {
+          input = document.createElement('input');
+          input.id = 'mea-hidden-image-picker';
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.multiple = true;
+          input.style.display = 'none';
+          input.onchange = function(e) {
+            const files = e.target.files;
+            if (!files || !files.length) return;
+            for (let i = 0; i < files.length; i++) {
+              window.insertImageFileToBoard(files[i]);
+            }
+            input.value = '';
+          };
+          document.body.appendChild(input);
+        }
+        input.click();
+      };
+
+      window.insertImageFileToBoard = function(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          const dataUrl = evt.target.result;
+          const board = window.__meaBoard || (window.__meaBoardRef && window.__meaBoardRef.current) || (typeof window.getBoard === 'function' ? window.getBoard() : null);
+          if (board && typeof board.insertImage === 'function') {
+            board.insertImage(dataUrl).catch(function(err) {
+              console.error('Lỗi chèn ảnh:', err);
+            });
+            if (typeof window.showToast === 'function') {
+              window.showToast('Đã chèn ảnh vào bảng thành công!');
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Kéo & Thả (Drag & Drop) ảnh trực tiếp vào bảng viết
+      window.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      }, false);
+
+      window.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          for (let i = 0; i < e.dataTransfer.files.length; i++) {
+            const file = e.dataTransfer.files[i];
+            if (file && file.type.startsWith('image/')) {
+              window.insertImageFileToBoard(file);
+            }
+          }
+        }
+      }, false);
+
+      // Dán ảnh từ Clipboard (Ctrl + V)
+      window.addEventListener('paste', function(e) {
+        if (e.clipboardData && e.clipboardData.items) {
+          for (let i = 0; i < e.clipboardData.items.length; i++) {
+            const item = e.clipboardData.items[i];
+            if (item.type.indexOf('image') !== -1) {
+              const blob = item.getAsFile();
+              if (blob) {
+                window.insertImageFileToBoard(blob);
+                e.preventDefault();
+                break;
+              }
+            }
+          }
+        }
+      }, false);
 
       // Đưa máy tính Casio & màn hình LCD lên trên cùng tuyệt đối khi click hoặc kéo
       document.addEventListener('pointerdown', function(e) {

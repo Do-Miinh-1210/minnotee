@@ -1,10 +1,17 @@
 {
-  "name": "noterenderer",
-  "version": "0.6.3",
-  "description": "Ink notebook with graphs, equations and dynamic geometry",
-  "author": "NoteRenderer",
-  "main": "electron/main.cjs",
+  "name": "minnote",
+  "version": "0.8.0",
+  "description": "MinNote - Bang Viet & Ve Hinh Toan Hoc (Pure JS Standalone)",
+  "author": "MinNote",
+  "main": "MinNote_App/resources/app/main.js",
   "private": true,
+  "scripts": {
+    "start": "node serve.js",
+    "web": "node serve.js",
+    "app": ".\\MinNote_App\\MinNote.exe",
+    "sync": "node scripts/sync_dist.js",
+    "pack": "node scripts/sync_dist.js && node scripts/pack_zip.js"
+  },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",

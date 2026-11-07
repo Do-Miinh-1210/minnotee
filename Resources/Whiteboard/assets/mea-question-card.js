@@ -800,11 +800,15 @@
 
     renderQuestionBankModalContent(overlay);
     overlay.style.display = 'flex';
+    overlay.style.pointerEvents = 'auto';
   };
 
   window.closeQuestionBankModal = function () {
     const overlay = document.getElementById('mea-qb-modal-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (overlay) {
+      overlay.style.display = 'none';
+      overlay.style.pointerEvents = 'none';
+    }
   };
 
   window.toggleQuestionBankModal = function () {
@@ -1298,6 +1302,7 @@
       editOverlay.className = 'mea-qc-edit-overlay';
       document.body.appendChild(editOverlay);
     }
+    editOverlay.style.display = 'flex';
 
     const opts = q.options || { A: '', B: '', C: '', D: '' };
     const correctVal = (q.correctAnswer || 'A').toUpperCase();
@@ -1528,13 +1533,7 @@
     scheduleUpdateAllCards();
   }
 
-  // Phím tắt bàn phím Ctrl + Q mở nhanh Kho Đề
-  window.addEventListener('keydown', function (e) {
-    if (e.ctrlKey && (e.key === 'q' || e.key === 'Q')) {
-      e.preventDefault();
-      window.toggleQuestionBankModal();
-    }
-  });
+  // Phím tắt bàn phím Ctrl + Q mở nhanh Kho Đề (được điều phối tập trung tại index.html)
 
   // 21. BỘ DỮ LIỆU ĐỀ THI MẪU TOÁN HỌC CHẤT LƯỢNG CAO (LOCAL QUESTION BANK)
   window.__meaDefaultExamsList = [

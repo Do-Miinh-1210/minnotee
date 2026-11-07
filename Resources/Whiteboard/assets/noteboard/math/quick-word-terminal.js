@@ -997,15 +997,21 @@
     }
   });
 
-  // Phím tắt toàn cục: Ctrl+Shift+V mở Quick Word Terminal
+  function toggleTerminal() {
+    if (drawerEl.classList.contains('is-open')) {
+      closeTerminal();
+    } else {
+      openTerminal();
+    }
+  }
+
+  // Phím tắt toàn cục: Ctrl+Shift+W mở/đóng Quick Word Terminal (đồng bộ với Top Dock, tránh xung đột Ctrl+Shift+V)
   window.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'W' || e.key === 'w')) {
+      if (e.__qwtHandled) return;
+      e.__qwtHandled = true;
       e.preventDefault();
-      if (drawerEl.classList.contains('is-open')) {
-        closeTerminal();
-      } else {
-        openTerminal();
-      }
+      toggleTerminal();
     }
   });
 
@@ -1155,6 +1161,7 @@
   window.NBQuickWordTerminal = {
     open: openTerminal,
     close: closeTerminal,
+    toggle: toggleTerminal,
     compile: executeCompile,
     mathml2tex,
     compileWordHtmlToBlocks

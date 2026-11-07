@@ -4578,7 +4578,7 @@
 
 
 
-  window.generateMindmapSvg = function () {
+  window.generateMindmapSvg = function (forCanvas = false) {
 
 
 
@@ -4771,158 +4771,69 @@
 
 
     // Native vector fallback for SVG viewers / Office converters that ignore <foreignObject>
-
-
-
     const cards = viewport.querySelectorAll('.mm-node-card');
-
-
-
     const nativeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-
-
     nativeGroup.setAttribute('class', 'mm-native-fallback');
 
-
-
     cards.forEach(c => {
-
-
-
       const curLeft = parseFloat(c.style.left || '0');
-
-
-
       const curTop = parseFloat(c.style.top || '0');
-
-
-
       const curW = c.offsetWidth || 140;
-
-
-
       const curH = c.offsetHeight || 42;
-
-
-
-      const isRoot = c.classList.contains('root-node');
-
-
-
-      const textElem = c.querySelector('.mm-node-title') || c.querySelector('.mm-node-content') || c;
-
-
-
-      const rawText = (textElem.innerText || textElem.textContent || '').trim();
-
-
-
-
-
-
+      const isRoot = c.classList.contains('root-node') || c.classList.contains('level-0');
+      const nodeColor = c.style.getPropertyValue('--node-color') || (isRoot ? '#0d9488' : '#0d9488');
+      const cardFill = isRoot ? '#0d9488' : '#ffffff';
+      const cardStroke = isRoot ? '#0f766e' : (nodeColor || '#cbd5e1');
+      const textFill = isRoot ? '#ffffff' : '#1e293b';
 
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-
-
-
       rect.setAttribute('x', curLeft);
-
-
-
       rect.setAttribute('y', curTop);
-
-
-
       rect.setAttribute('width', curW);
-
-
-
       rect.setAttribute('height', curH);
-
-
-
-      rect.setAttribute('rx', isRoot ? '12' : '8');
-
-
-
-      rect.setAttribute('ry', isRoot ? '12' : '8');
-
-
-
-      rect.setAttribute('fill', isRoot ? '#0d9488' : '#ffffff');
-
-
-
-      rect.setAttribute('stroke', isRoot ? '#0f766e' : '#cbd5e1');
-
-
-
-      rect.setAttribute('stroke-width', isRoot ? '2.5' : '1.5');
-
-
-
+      rect.setAttribute('rx', isRoot ? '14' : '10');
+      rect.setAttribute('ry', isRoot ? '14' : '10');
+      rect.setAttribute('fill', cardFill);
+      rect.setAttribute('stroke', cardStroke);
+      rect.setAttribute('stroke-width', isRoot ? '2.5' : '1.8');
       nativeGroup.appendChild(rect);
 
+      // Clean KaTeX text extraction without katex-mathml duplicate text
+      const textElem = c.querySelector('.mm-node-text') || c.querySelector('.mm-node-title') || c.querySelector('.mm-node-content') || c;
+      const clone = textElem.cloneNode(true);
+      clone.querySelectorAll('.katex-mathml').forEach(m => m.remove());
+      const rawText = (clone.innerText || clone.textContent || '').trim();
+      const lines = rawText.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('+') && !s.startsWith('✏') && !s.startsWith('🎨') && !s.startsWith('🗑') && !s.startsWith('−'));
 
-
-
-
-
-
-      if (rawText) {
-
-
-
+      if (lines.length > 0) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-
-
-
         text.setAttribute('x', curLeft + curW / 2);
-
-
-
-        text.setAttribute('y', curTop + curH / 2 + 5);
-
-
-
+        const fontSize = isRoot ? 15 : 13;
+        const lineHeight = fontSize + 4;
+        const startY = curTop + (curH - (lines.length - 1) * lineHeight) / 2 + (fontSize * 0.35);
+        text.setAttribute('y', startY);
         text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', textFill);
+        text.setAttribute('font-size', fontSize);
+        text.setAttribute('font-weight', isRoot ? 'bold' : '600');
+        text.setAttribute('font-family', 'Segoe UI, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
 
-
-
-        text.setAttribute('fill', isRoot ? '#ffffff' : '#1e293b');
-
-
-
-        text.setAttribute('font-size', isRoot ? '14' : '12');
-
-
-
-        text.setAttribute('font-weight', isRoot ? 'bold' : 'normal');
-
-
-
-        text.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
-
-
-
-        text.textContent = rawText.length > 40 ? rawText.substring(0, 37) + '...' : rawText;
-
-
-
+        lines.forEach((line, idx) => {
+          const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+          tspan.setAttribute('x', curLeft + curW / 2);
+          if (idx > 0) tspan.setAttribute('dy', lineHeight);
+          tspan.textContent = line;
+          text.appendChild(tspan);
+        });
         nativeGroup.appendChild(text);
-
-
-
       }
-
-
-
     });
 
-
-
     svgClone.appendChild(nativeGroup);
+
+    if (forCanvas) {
+      return new XMLSerializer().serializeToString(svgClone);
+    }
 
 
 
@@ -5146,94 +5057,49 @@
 
 
 
-  window.exportMindmapAsPng = async function (callback) {
-
-    const svgString = window.generateMindmapSvg();
-
+  window.exportMindmapAsPng = async function (callback, scale = 3) {
+    const svgString = window.generateMindmapSvg(true);
     if (!svgString) {
-
       if (callback) callback(null, null);
-
       return;
-
     }
 
-
-
     const parser = new DOMParser();
-
     const doc = parser.parseFromString(svgString, 'image/svg+xml');
-
     const svgEl = doc.querySelector('svg');
-
     const svgW = parseInt(svgEl ? svgEl.getAttribute('width') : '800', 10) || 800;
-
     const svgH = parseInt(svgEl ? svgEl.getAttribute('height') : '600', 10) || 600;
 
-
-
-    const scale = 2;
-
     const canvas = document.createElement('canvas');
-
     canvas.width = Math.round(svgW * scale);
-
     canvas.height = Math.round(svgH * scale);
 
-
-
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-
     const URL = window.URL || window.webkitURL || window;
-
     const blobURL = URL.createObjectURL(svgBlob);
 
-
-
     const img = new Image();
-
     img.onload = function () {
-
       try {
-
         const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#ffffff';
-
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+        // Transparent background (no white fill)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
         URL.revokeObjectURL(blobURL);
-
         const pngData = canvas.toDataURL('image/png');
-
         if (callback) callback(pngData, svgString);
-
       } catch (e) {
-
         console.warn('[Mindmap] Canvas export error:', e);
-
         URL.revokeObjectURL(blobURL);
-
         if (callback) callback(null, svgString);
-
       }
-
     };
-
     img.onerror = function (err) {
-
       console.warn('[Mindmap] SVG image render error:', err);
-
       URL.revokeObjectURL(blobURL);
-
       if (callback) callback(null, svgString);
-
     };
-
     img.src = blobURL;
-
   };
 
 
@@ -5605,66 +5471,61 @@
     state.selectedId = null;
     renderMindMap();
 
-    const container = document.getElementById('mea-mindmap-container');
-    if (container) {
-      container.classList.add('mindmap-clean-export', 'mindmap-capturing');
-    }
-    document.documentElement.classList.add('mindmap-capturing');
-    document.body.classList.add('mindmap-capturing');
-
-    setTimeout(() => {
-      const rectData = getMindmapScreenRect();
-      let captured = false;
-      window.__onMindmapCapturedSuccess = function() {
-        captured = true;
-      };
-
-      if (window.chrome && window.chrome.webview) {
-        window.chrome.webview.postMessage({
-          type: 'CAPTURE_MINDMAP',
-          action: action,
-          rect: {
-            x: rectData.x,
-            y: rectData.y,
-            width: rectData.width,
-            height: rectData.height
-          },
-          treeData: JSON.stringify(state.tree),
-          viewWidth: rectData.viewWidth,
-          viewHeight: rectData.viewHeight
-        });
-
-        setTimeout(() => {
-          if (!captured && document.documentElement.classList.contains('mindmap-capturing')) {
-            window.exportMindmapAsPng(async (pngData) => {
-              window.restoreAfterMindmapCapture();
-              if (!pngData) {
-                window.showToast('Không thể kết xuất ảnh sơ đồ tư duy!', 'error');
-                return;
-              }
-              if (action === 'insert_board' || !action) {
-                await window.finishInsertMindmapToBoard(pngData);
-              } else if (action === 'copy_word') {
-                window.copyImageToClipboard(pngData);
-              }
-            });
-          }
-        }, 400);
-      } else {
-        window.exportMindmapAsPng(async (pngData) => {
-          window.restoreAfterMindmapCapture();
-          if (!pngData) {
-            window.showToast('Không thể kết xuất ảnh sơ đồ tư duy!', 'error');
-            return;
-          }
-          if (action === 'insert_board' || !action) {
-            await window.finishInsertMindmapToBoard(pngData);
-          } else if (action === 'copy_word') {
-            window.copyImageToClipboard(pngData);
-          }
-        });
+    // 1. Prioritize pure HiDPI vector export (scale 3x, 100% transparent, zero black background)
+    window.exportMindmapAsPng(async (pngData) => {
+      if (pngData) {
+        window.restoreAfterMindmapCapture();
+        if (action === 'insert_board' || !action) {
+          await window.finishInsertMindmapToBoard(pngData);
+        } else if (action === 'copy_word') {
+          window.copyImageToClipboard(pngData);
+        } else if (action === 'save_png') {
+          const a = document.createElement('a');
+          a.href = pngData;
+          a.download = `mindmap_${Date.now()}.png`;
+          a.click();
+        }
+        return;
       }
-    }, 80);
+
+      // 2. Fallback to native capture if needed
+      const container = document.getElementById('mea-mindmap-container');
+      if (container) {
+        container.classList.add('mindmap-clean-export', 'mindmap-capturing');
+      }
+      document.documentElement.classList.add('mindmap-capturing');
+      document.body.classList.add('mindmap-capturing');
+
+      setTimeout(() => {
+        const rectData = getMindmapScreenRect();
+        let captured = false;
+        window.__onMindmapCapturedSuccess = function() {
+          captured = true;
+        };
+
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage({
+            type: 'CAPTURE_MINDMAP',
+            action: action,
+            rect: {
+              x: rectData.x,
+              y: rectData.y,
+              width: rectData.width,
+              height: rectData.height
+            },
+            treeData: JSON.stringify(state.tree),
+            viewWidth: rectData.viewWidth,
+            viewHeight: rectData.viewHeight
+          });
+
+          setTimeout(() => {
+            if (!captured && document.documentElement.classList.contains('mindmap-capturing')) {
+              window.restoreAfterMindmapCapture();
+            }
+          }, 400);
+        }
+      }, 50);
+    }, 3);
   };
 
   window.setMindmapTree = function (treeData, editingContext = null) {
@@ -5979,7 +5840,97 @@
 
 
 
-      const onCapturedMessage = function (e) {
+      
+  // =========================================================================
+  // TÁCH NỀN SƠ ĐỒ TƯ DUY THÔNG MINH (TRANSPARENT BACKGROUND REMOVAL)
+  // =========================================================================
+  window.removeMindmapBackground = function (dataUrl) {
+    return new Promise((resolve) => {
+      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+        return resolve(dataUrl);
+      }
+      const img = new Image();
+      img.onload = function () {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imgData.data;
+          const w = canvas.width;
+          const h = canvas.height;
+
+          // Lấy mẫu màu nền từ toàn bộ 4 cạnh biên (loại trừ outlier bằng median)
+          const borderSamples = [];
+          for (let x = 0; x < w; x += 4) {
+            borderSamples.push([d[x * 4], d[x * 4 + 1], d[x * 4 + 2]]);
+            const bIdx = ((h - 1) * w + x) * 4;
+            borderSamples.push([d[bIdx], d[bIdx + 1], d[bIdx + 2]]);
+          }
+          for (let y = 0; y < h; y += 4) {
+            const lIdx = (y * w) * 4;
+            borderSamples.push([d[lIdx], d[lIdx + 1], d[lIdx + 2]]);
+            const rIdx = (y * w + (w - 1)) * 4;
+            borderSamples.push([d[rIdx], d[rIdx + 1], d[rIdx + 2]]);
+          }
+
+          borderSamples.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
+          const mid = Math.floor(borderSamples.length / 2);
+          const bgR = borderSamples.length ? borderSamples[mid][0] : 24;
+          const bgG = borderSamples.length ? borderSamples[mid][1] : 24;
+          const bgB = borderSamples.length ? borderSamples[mid][2] : 27;
+
+          // Ngưỡng dung sai nhận diện màu nền và vùng khử răng cưa
+          const tol = 36;
+          const feather = 16;
+
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2];
+            const dist = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+            if (dist <= tol || (r < 35 && g < 35 && b < 40)) {
+              d[i + 3] = 0; // Trong suốt tuyệt đối
+            } else if (dist < tol + feather) {
+              // Khử răng cưa viền mượt mà (anti-aliasing)
+              d[i + 3] = Math.round(d[i + 3] * ((dist - tol) / feather));
+            }
+          }
+
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (err) {
+          console.warn('[Mindmap] removeMindmapBackground error:', err);
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = function () {
+        resolve(dataUrl);
+      };
+      img.src = dataUrl;
+    });
+  };
+
+  window.copyImageToClipboard = async function (dataUrl) {
+    try {
+      if (typeof window.removeMindmapBackground === 'function') {
+        dataUrl = await window.removeMindmapBackground(dataUrl);
+      }
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      if (navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        if (typeof window.showToast === 'function') {
+          window.showToast('Đã sao chép ảnh sơ đồ (nền trong suốt) vào Clipboard!', 'success');
+        }
+      }
+    } catch (err) {
+      console.warn('[Mindmap] copyImageToClipboard error:', err);
+    }
+  };
+
+  const onCapturedMessage = async function (e) {
     try {
       const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       if (data && data.type === 'MINDMAP_CAPTURED' && data.dataUri) {
@@ -5988,7 +5939,8 @@
         }
         window.restoreAfterMindmapCapture();
         if (data.action === 'insert_board' || !data.action) {
-          window.finishInsertMindmapToBoard(data.dataUri);
+          const cleanUri = typeof window.removeMindmapBackground === 'function' ? await window.removeMindmapBackground(data.dataUri) : data.dataUri;
+        window.finishInsertMindmapToBoard(cleanUri);
         } else if (data.action === 'copy_word') {
           window.copyImageToClipboard(data.dataUri);
         }
@@ -6001,6 +5953,9 @@
   window.addEventListener('message', onCapturedMessage);
 
   window.finishInsertMindmapToBoard = async function (dataUri) {
+    if (dataUri && typeof window.removeMindmapBackground === 'function') {
+      try { dataUri = await window.removeMindmapBackground(dataUri); } catch (_) {}
+    }
 
 
 

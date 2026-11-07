@@ -1,5 +1,5 @@
 @echo off
-title MinNote - Do Miinh Math
-cd /d "%~dp0publish"
+title MinNote - Bang Viet & Ve Hinh Toan Hoc (Pure JS)
+cd /d "%~dp0MinNote_App"
 start "" "MinNote.exe"
 exit
