@@ -1480,3 +1480,7 @@ body > .ML__keyboard,
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+/* Floating Web Browser Iframe Support */
+.web-panel.moving .web-page iframe { pointer-events: none; }
+.web-panel .web-page iframe { width: 100%; height: 100%; border: none; background: #ffffff; }

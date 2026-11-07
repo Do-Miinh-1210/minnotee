@@ -1,6 +1,6 @@
 {
   "name": "minnote",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "MinNote - Bang Viet & Ve Hinh Toan Hoc (Pure JS Standalone)",
   "author": "MinNote",
   "main": "MinNote_App/resources/app/main.js",
