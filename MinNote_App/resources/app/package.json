@@ -1,6 +1,6 @@
 {
     "name":  "minnote",
-    "version":  "0.8.1",
+    "version":  "0.8.8",
     "description":  "MinNote • Bảng Viết \u0026 Vẽ Hình Toán Học",
     "main":  "main.js"
 }
