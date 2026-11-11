@@ -1191,17 +1191,18 @@ body.fullscreen-mode #mea-header-badge {
 /* 9. MÁY TÍNH CASIO FX-580 & MÀN HÌNH LCD PHÓNG TO (Luôn nổi lên trên cùng tuyệt đối, không bị che bởi Toolbar hay nền) */
 .calc,
 .calc-screen {
-  z-index: 10005 !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
 }
 
 .calc:focus-within,
 .calc:active {
-  z-index: 10010 !important;
+  z-index: 2147483647 !important;
 }
 
 .calc-screen:focus-within,
 .calc-screen:active {
-  z-index: 10009 !important;
+  z-index: 2147483646 !important;
 }
 
 
