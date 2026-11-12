@@ -722,7 +722,7 @@ body {
 
   overflow-y: auto !important;
 
-  max-height: calc(100vh - 60px) !important;
+  max-height: calc(100vh - 80px);
 
 }
 
@@ -810,17 +810,25 @@ body {
 
 
 
-.menu button, .menu-item {
+.menu button, .menu-item, .dropdown-menu button {
 
-  border-radius: 10px !important;
+  border-radius: 8px !important;
 
   font-size: 13px !important;
 
   color: #1e293b !important;
 
-  padding: 8px 12px !important;
+  padding: 4px 10px !important;
+
+  min-height: 28px !important;
 
   transition: all 0.12s ease !important;
+
+}
+
+.dropdown-menu .menu-heading {
+
+  padding: 5px 10px 2px !important;
 
 }
 
