@@ -7,7 +7,7 @@ if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir, { recursive: true });
 }
 
-const zipPath = path.join(distDir, 'MinNote_v0.0.3.9_Desktop.zip');
+const zipPath = path.join(distDir, 'MinNote_v0.0.4.0_Desktop.zip');
 if (fs.existsSync(zipPath)) {
   fs.unlinkSync(zipPath);
 }
