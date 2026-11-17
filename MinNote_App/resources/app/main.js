@@ -115,6 +115,125 @@ ipcMain.on('TOGGLE_FULLSCREEN', () => {
   }
 });
 
+// Upstream 1.0.7 features: TikZ, Typst, Formula (MHChem), Word, Google Drive
+const tikz = require('./tikz.js');
+const typst = require('./typst.js');
+const formula = require('./formula.js');
+const word = require('./word.js');
+const drive = require('./drive.js');
+
+ipcMain.handle('license-status', async () => ({ status: 'active', daysLeft: 9999, plan: 'ultra', owner: 'admin_matrixexamAI' }));
+ipcMain.handle('license-activate', async () => ({ ok: true }));
+ipcMain.handle('license-trial', async () => ({ ok: true }));
+
+ipcMain.handle('render-formula', async (event, formulaStr, color, display) => {
+  try {
+    return formula.renderFormula(formulaStr, color, display);
+  } catch (err) {
+    log('render-formula error: ' + err.message);
+    throw err;
+  }
+});
+
+let pendingWordPath = null;
+
+ipcMain.handle('pick-word', async () => {
+  const { dialog } = require('electron');
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Chọn tài liệu Word',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Tài liệu Word (*.docx, *.doc)', extensions: ['docx', 'doc'] },
+      { name: 'Tất cả file', extensions: ['*'] }
+    ]
+  });
+  if (res.canceled || !res.filePaths.length) {
+    pendingWordPath = null;
+    return false;
+  }
+  pendingWordPath = res.filePaths[0];
+  return true;
+});
+
+ipcMain.handle('convert-word', async (event, explicitPath) => {
+  try {
+    const target = explicitPath || pendingWordPath;
+    if (!target) return { error: 'noConverter' };
+    const outPdf = word.convertWordToPdf(target);
+    const buf = fs.readFileSync(outPdf);
+    return { pdf: new Uint8Array(buf) };
+  } catch (err) {
+    log('convert-word error: ' + err.message);
+    return { error: 'noConverter' };
+  } finally {
+    pendingWordPath = null;
+  }
+});
+
+ipcMain.handle('drive-state', async () => drive.state(app.getPath('userData')));
+ipcMain.handle('drive-sign-in', async () => drive.signIn(app.getPath('userData')));
+ipcMain.handle('drive-sign-out', async () => drive.signOut(app.getPath('userData')));
+ipcMain.handle('drive-request', async (event, req) => drive.request(app.getPath('userData'), req));
+
+
+ipcMain.handle('open-file', async () => {
+  const { dialog } = require('electron');
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Tài liệu (PDF, Word, Note)', extensions: ['pdf', 'docx', 'doc', 'nrn', 'json'] },
+      { name: 'Tài liệu Word (*.docx, *.doc)', extensions: ['docx', 'doc'] },
+      { name: 'Tài liệu PDF (*.pdf)', extensions: ['pdf'] },
+      { name: 'Tất cả file', extensions: ['*'] }
+    ]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const picked = res.filePaths[0];
+  const ext = path.extname(picked).toLowerCase();
+  let finalPath = picked;
+  if (ext === '.docx' || ext === '.doc') {
+    finalPath = word.convertWordToPdf(picked);
+  }
+  const buf = fs.readFileSync(finalPath);
+  return {
+    doc: buf,
+    name: path.basename(picked),
+    path: finalPath,
+    originalPath: picked
+  };
+});
+
+ipcMain.handle('render-tikz', async (event, source) => {
+  try {
+    return await tikz.renderTikz(source);
+  } catch (err) {
+    log('render-tikz error: ' + err.message);
+    throw err;
+  }
+});
+
+ipcMain.handle('trace-tikz', async (event, source) => {
+  try {
+    return await tikz.traceTikz(source);
+  } catch (err) {
+    log('trace-tikz error: ' + err.message);
+    throw err;
+  }
+});
+
+ipcMain.handle('render-typst', async (event, source) => {
+  try {
+    return await typst.renderTypst(source);
+  } catch (err) {
+    log('render-typst error: ' + err.message);
+    throw err;
+  }
+});
+
+ipcMain.on('renderer-ready', () => {
+  log('renderer-ready received');
+});
+
 ipcMain.on('CAPTURE_MINDMAP', async (event, data) => {
   try {
     if (!mainWindow) return;

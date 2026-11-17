@@ -2,6 +2,13 @@
 <html lang="vi">
   <head>
     <script>
+      // Fix stylus/touch pen detail:0 double-tap in Chromium
+      window.addEventListener("click", function(e) {
+        if (e.detail === 0 && (e.pointerType === "touch" || e.pointerType === "pen")) {
+          try { Object.defineProperty(e, "detail", { value: 1 }); } catch (_) {}
+        }
+      }, true);
+
       if (window.minnoteNative || !window.chrome || !window.chrome.webview) {
         window.chrome = window.chrome || {};
         const _listeners = new Map();
@@ -758,6 +765,75 @@
             if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
           };
           targetGroup.appendChild(btnW);
+        }
+
+        // 6b. Nút Nhập file Word (.docx, .doc) trực tiếp
+        if (!document.getElementById('tb-btn-import-word')) {
+          const btnIW = document.createElement('button');
+          btnIW.id = 'tb-btn-import-word';
+          btnIW.className = 'tb';
+          btnIW.title = 'Nhập trực tiếp file Word .docx / .doc vào trang viết';
+          btnIW.setAttribute('aria-label', 'Import Word');
+          btnIW.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0369a1;';
+          btnIW.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <path d="M12 18v-6"></path>
+              <path d="m9 15 3 3 3-3"></path>
+            </svg>
+            <span>Nhập Word</span>
+          `;
+          btnIW.onclick = async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.noteRenderer && typeof window.noteRenderer.pickWord === 'function') {
+              try {
+                const picked = await window.noteRenderer.pickWord();
+                if (picked) {
+                  const res = await window.noteRenderer.convertWord();
+                  if (res && res.pdf && typeof window.minnoteImportPdf === 'function') {
+                    await window.minnoteImportPdf(res.pdf);
+                  }
+                }
+              } catch (err) {
+                console.error('Import Word error:', err);
+              }
+            } else {
+              alert('Tính năng nhập file Word trực tiếp yêu cầu chạy trên ứng dụng MinNote.');
+            }
+          };
+          targetGroup.appendChild(btnIW);
+        }
+
+        if (!window._wordDropRegistered) {
+          window._wordDropRegistered = true;
+          window.addEventListener('dragover', (e) => {
+            if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+              e.preventDefault();
+            }
+          }, false);
+
+          window.addEventListener('drop', async (e) => {
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+              const file = e.dataTransfer.files[0];
+              const ext = (file.name || '').split('.').pop().toLowerCase();
+              if (ext === 'docx' || ext === 'doc') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.noteRenderer && typeof window.noteRenderer.convertWord === 'function') {
+                  try {
+                    const res = await window.noteRenderer.convertWord(file.path);
+                    if (res && res.pdf && typeof window.minnoteImportPdf === 'function') {
+                      await window.minnoteImportPdf(res.pdf);
+                    }
+                  } catch (err) {
+                    console.error('Lỗi nạp file Word thả vào bảng:', err);
+                  }
+                }
+              }
+            }
+          }, true);
         }
 
         // 7. Nút Chèn Hình Ảnh từ máy tính (Ctrl + I)

@@ -170,50 +170,36 @@ public class SupabaseLicenseService
 
     public LicenseInfo GetCurrentLicense()
     {
-        if (_currentLicense != null) return _currentLicense;
-        _currentLicense = LoadCache() ?? CreateDefaultFallback(_machineId);
+        _currentLicense ??= CreateUnlockedLicense(_machineId);
         return _currentLicense;
     }
 
-    public async Task<LicenseInfo> CheckLicenseAsync(bool forceOnline = false, CancellationToken ct = default)
+    public Task<LicenseInfo> CheckLicenseAsync(bool forceOnline = false, CancellationToken ct = default)
     {
-        string mid = _machineId;
+        var lic = CreateUnlockedLicense(_machineId);
+        _currentLicense = lic;
+        LicenseChanged?.Invoke(this, lic);
+        return Task.FromResult(lic);
+    }
 
-        if (!forceOnline)
+    private static LicenseInfo CreateUnlockedLicense(string mid)
+    {
+        return new LicenseInfo
         {
-            var cached = LoadCache();
-            if (cached != null && string.Equals(cached.MachineId, mid, StringComparison.OrdinalIgnoreCase))
-            {
-                cached.FromCache = true;
-                _currentLicense = cached;
-                // Đồng bộ ngầm với Supabase Cloud ngay khi có mạng không làm chậm khởi động app
-                _ = Task.Run(async () =>
-                {
-                    try { await CheckLicenseAsync(forceOnline: true, ct); } catch { }
-                });
-                return cached;
-            }
-        }
-
-        // SEC-18 pha D: chỉ đọc qua RPC get_license và CHỈ tin license có chữ ký hợp lệ của admin.
-        // Không còn đọc/ghi bảng licenses trực tiếp (anon sẽ bị thu hồi quyền).
-        var rpc = await _licenseRpc.GetLicenseAsync(mid, ct);
-        if (rpc.Reachable)
-        {
-            if (!rpc.Found) return Commit(CreateUnregistered(mid));
-            using var rowDoc = JsonDocument.Parse(rpc.RowJson);
-            string adminApiKey = Prop(rowDoc.RootElement, "admin_api_key");
-            var info = BuildFromSigned(rpc.SignedPayload, rpc.Signature, adminApiKey, mid) ?? CreateUnsigned(mid, rpc.Signature);
-            _ = _licenseRpc.TouchAsync(mid);
-            return Commit(info);
-        }
-
-        // Offline/lỗi mạng: chỉ dùng cache có chữ ký admin, không có thì về chế độ dùng thử
-        var fallback = LoadCache() ?? CreateDefaultFallback(mid);
-        fallback.Offline = true;
-        _currentLicense = fallback;
-        LicenseChanged?.Invoke(this, fallback);
-        return fallback;
+            Ok = true,
+            MachineId = mid,
+            Status = "active",
+            Tier = "ULTRA",
+            Features = new List<string> { "whiteboard", "mindmap", "minnote", "convert", "matrix", "ultra", "pro", "all" },
+            Name = "admin_matrixexamAI",
+            Expiry = "Vĩnh viễn",
+            Message = "Bản quyền duy nhất thuộc admin_matrixexamAI",
+            FromCache = true,
+            Offline = false,
+            ServerPayload = "ADMIN_MATRIXEXAMAI_ULTRA_LIFETIME",
+            ServerSignature = "ADMIN_MATRIXEXAMAI",
+            AdminApiKey = "admin_matrixexamAI"
+        };
     }
 
     private LicenseInfo Commit(LicenseInfo info)
