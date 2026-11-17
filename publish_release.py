@@ -40,7 +40,10 @@ Bản cập nhật chính thức nâng cấp lõi NoteRenderer v1.0.7 với đ�
    - Hiển thị công thức phản ứng hóa học `\\ce{...}` chuẩn xác, độ nét cao.
 4. **Đồ họa TikZ / TikZ-3D & Typst / CeTZ**:
    - Tích hợp trình biên dịch TeX Live và Typst vẽ hình học 2D/3D chuyên nghiệp.
-5. **Sửa lỗi phím bấm Casio FX 580**:
+5. **Chuyển đổi 2 máy tính & Chụp màn hình LCD vào bảng**:
+   - Nút ⇄ chuyển đổi tức thì giữa Casio fx-580VN X và Máy tính khoa học phẳng hiện đại.
+   - Nút 📷 chụp ảnh chất lượng cao toàn bộ màn hình LCD (biểu thức & kết quả) chèn thẳng vào trang bảng.
+6. **Sửa lỗi phím bấm Casio FX 580**:
    - Khắc phục lỗi phím điều hướng mũi tên và bàn phím bấm bị nhận diện 2 lần.
 """
 

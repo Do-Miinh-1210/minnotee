@@ -15,3 +15,123 @@
   pointer-events: auto !important;
   cursor: pointer;
 }
+
+/* Calc Header Action Buttons (Switch & Camera) */
+.calc-switch-btn, .calc-camera-btn {
+  width: 28px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #ddd;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.calc-switch-btn:hover, .calc-camera-btn:hover {
+  background: #ffffff1f;
+  color: #38bdf8;
+}
+.calc-camera-btn:hover {
+  color: #4ade80;
+}
+.calc-switch-btn svg, .calc-camera-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Flat Scientific Calculator Mode */
+.calc.calc-flat {
+  width: 350px !important;
+  background: linear-gradient(#1e293b, #0f172a) !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 0 0 2px #38bdf8, 0 0 24px rgba(56,189,248,0.25) !important;
+  padding: 6px 10px 12px;
+}
+.calc.calc-flat .calc-name {
+  color: #38bdf8 !important;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+.calc-flat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 4px;
+}
+.calc-flat-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.cfk {
+  height: 32px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: manipulation;
+  transition: all 0.08s ease;
+  box-shadow: 0 2px #000, inset 0 1px rgba(255,255,255,0.12);
+}
+.cfk:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px #000;
+}
+.cfk-fn {
+  background: linear-gradient(#334155, #1e293b);
+  color: #94a3b8;
+  font-size: 12px;
+}
+.cfk-fn:hover {
+  background: #475569;
+  color: #f1f5f9;
+}
+.cfk-num {
+  background: linear-gradient(#f8fafc, #e2e8f0);
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 2px #64748b;
+}
+.cfk-num:hover {
+  background: #ffffff;
+}
+.cfk-op {
+  background: linear-gradient(#0f766e, #115e59);
+  color: #f0fdfa;
+  font-size: 16px;
+  font-weight: 700;
+}
+.cfk-op:hover {
+  background: #14b8a6;
+}
+.cfk-action {
+  background: linear-gradient(#881337, #4c0519);
+  color: #ffe4e6;
+  font-size: 13px;
+  font-weight: 700;
+}
+.cfk-action:hover {
+  background: #be123c;
+}
+.cfk-exe {
+  background: linear-gradient(#0284c7, #0369a1);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+}
+.cfk-exe:hover {
+  background: #38bdf8;
+}
