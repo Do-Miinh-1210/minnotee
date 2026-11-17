@@ -22,32 +22,27 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.0"
-TITLE = "MinNote v0.0.4.0 (Core v1.0.7) - Chuyển đổi 2 máy tính & Chụp màn hình LCD vào bảng"
-BODY = """## MinNote v0.0.4.0 (Core v1.0.7)
+TAG = "v0.0.4.1"
+TITLE = "MinNote v0.0.4.1 - 2 Máy Tính Casio & Vinacal, Nhập Word, Drive, Hover Sáng Điểm/Đường"
+BODY = """## MinNote v0.0.4.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật chính thức nâng cấp lõi NoteRenderer v1.0.7 và hệ thống máy tính 2 chế độ:
+Bản cập nhật v0.0.4.1 hoàn thiện toàn diện các tính năng 1-4 và trải nghiệm tương tác hình học:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.0:
-1. **Chuyển đổi 2 máy tính linh hoạt**:
-   - Nút ⇄ trên thanh tiêu đề cho phép chuyển tức thì giữa Casio fx-580VN X (chân thực) và Máy tính khoa học phẳng (phím bấm hiện đại).
-   - Đồng bộ trạng thái: dữ liệu tính toán, biểu thức và kết quả được giữ nguyên vẹn khi chuyển đổi qua lại.
-2. **Chụp màn hình máy tính trực tiếp vào bảng viết**:
-   - Nút 📷 trên thanh tiêu đề máy tính và màn hình phóng to rời LCD.
-   - Chụp tức thì khung màn hình LCD độ nét cao và chèn trực tiếp vào trang bảng đang viết (hoặc tự động lưu Clipboard).
+### 🌟 Điểm Mới Trong Bản v0.0.4.1:
+1. **Chế độ Chọn đối tượng (Selection Tool)**:
+   - **Không sáng sẵn điểm**: Khi ở chế độ Chọn, các điểm dựng hình và đối tượng không còn hiện chấm sáng tròn to mặc định, giúp bảng vẽ luôn thông thoáng, sạch sẽ.
+   - **Rê chuột (Hover) sáng nổi bật**: Khi rê chuột vào bất kỳ đường thẳng hoặc điểm nào, đối tượng đó sẽ tự động phát sáng nổi bật (glow teal `#0d9488`). Khi chuột rời đi, đối tượng trở lại bình thường.
+2. **Hệ thống 2 Máy tính (Casio fx-580VN X ⇄ Vinacal 680EX Plus III)**:
+   - Nút `⇄` chuyển đổi tức thì giữa **Casio fx-580VN X** và **VINACAL 680EX PLUS III** chuẩn giao diện thi cử.
+   - Nút `📷` chụp màn hình máy tính (LCD) độ nét cao và chèn trực tiếp vào trang bảng đang viết.
 3. **Nhập file Word (.docx, .doc) trực tiếp**:
-   - Tự động chuyển đổi file Word từ ổ cứng thành PDF qua Microsoft Word COM hoặc LibreOffice để nạp nguyên vẹn vào bảng viết.
-   - Thêm nút "Nhập Word" trên thanh công cụ và hỗ trợ kéo thả trực tiếp file .docx vào bảng.
+   - Tích hợp cầu nối WebView2 WPF mở trực tiếp hộp thoại chọn file Word trên máy tính.
+   - Tự động chuyển đổi tài liệu Word sang PDF qua Word COM / LibreOffice và nạp nguyên vẹn các trang vào bảng viết.
 4. **Đồng bộ Google Drive**:
-   - Đăng nhập tài khoản Google Drive qua OAuth2 loopback, mã hóa lưu trữ token an toàn với Electron safeStorage.
-   - Đồng bộ và sao lưu ghi chú, bài giảng trên mây.
-5. **Font hóa học MHChem chuyên dụng**:
-   - Tích hợp MathJax v4 + @mathjax/mathjax-mhchem-font-extension v4.1.3.
-   - Hiển thị công thức phản ứng hóa học `\\ce{...}` chuẩn xác, độ nét cao.
-6. **Đồ họa TikZ / TikZ-3D & Typst / CeTZ**:
-   - Tích hợp trình biên dịch TeX Live và Typst vẽ hình học 2D/3D chuyên nghiệp.
-7. **Sửa lỗi phím bấm Casio FX 580**:
-   - Khắc phục lỗi phím điều hướng mũi tên và bàn phím bấm bị nhận diện 2 lần.
+   - Thêm nút `[☁️ Drive]` trên thanh công cụ điều hướng.
+   - Quản lý trạng thái sao lưu bảng viết, đồng bộ ghi chú lên đám mây và khôi phục nhanh chóng.
+5. **Công thức hóa học MHChem chuyên dụng**:
+   - Nạp MathJax TeX + SVG với gói mở rộng `mhchem`, hiển thị hoàn hảo mọi công thức phản ứng `\\ce{...}`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

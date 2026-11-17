@@ -135,3 +135,42 @@
 .cfk-exe:hover {
   background: #38bdf8;
 }
+
+/* Calc switcher & camera buttons */
+.calc-switch-btn, .calc-camera-btn, .calc-screen-btn {
+  width: 28px !important;
+  height: 26px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #e2e8f0 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 2px !important;
+  padding: 0 !important;
+  transition: all 0.15s ease !important;
+}
+.calc-switch-btn:hover, .calc-camera-btn:hover, .calc-screen-btn:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #38bdf8 !important;
+}
+.calc-switch-btn svg, .calc-camera-btn svg, .calc-screen-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  display: block !important;
+  vertical-align: middle !important;
+}
+.calc-vinacal-iframe {
+  width: 100%;
+  height: 540px;
+  border: none;
+  border-radius: 0 0 16px 16px;
+  background: #2b2f3a;
+}

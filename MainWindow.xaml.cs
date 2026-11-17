@@ -27,6 +27,7 @@ namespace MinNote
         private bool _isTogglingFullScreen = false;
         private bool _onlineCheckDone;
         private DateTime _lastAutoRecover = DateTime.MinValue;
+        private string? _pendingWordPath;
         private readonly System.Windows.Threading.DispatcherTimer _licenseTimer = new() { Interval = TimeSpan.FromMinutes(10) };
         private WindowState _previousWindowState = WindowState.Normal;
         private WindowStyle _previousWindowStyle = WindowStyle.SingleBorderWindow;
@@ -369,7 +370,76 @@ namespace MinNote
             }
         }
 
-        private async void CoreWebView2_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+        private string ConvertWordToPdf(string inputPath)
+        {
+            string tmpDir = Path.Combine(Path.GetTempPath(), "minnote_word_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tmpDir);
+            string outPdf = Path.Combine(tmpDir, "document.pdf");
+            string absIn = Path.GetFullPath(inputPath);
+
+            // Method 1: Microsoft Word COM via PowerShell
+            string psScript = $"$w = New-Object -ComObject Word.Application; try {{ $w.Visible = $false; $d = $w.Documents.Open('{absIn.Replace("'", "''")}', $false, $true, $false); $d.ExportAsFixedFormat('{outPdf.Replace("'", "''")}', 17); $d.Close(0) }} finally {{ $w.Quit() }}";
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -NonInteractive -Command \"{psScript}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                proc?.WaitForExit(35000);
+            }
+            catch (Exception ex)
+            {
+                Log($"PowerShell Word COM conversion failed: {ex.Message}");
+            }
+
+            if (File.Exists(outPdf))
+            {
+                return outPdf;
+            }
+
+            // Method 2: LibreOffice fallback
+            string[] libreCandidates = new[]
+            {
+                @"C:\Program Files\LibreOffice\program\soffice.exe",
+                @"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+            };
+            foreach (var soffice in libreCandidates)
+            {
+                if (File.Exists(soffice))
+                {
+                    try
+                    {
+                        var lpsi = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = soffice,
+                            Arguments = $"--headless --convert-to pdf \"{absIn}\" --outdir \"{tmpDir}\"",
+                            CreateNoWindow = true,
+                            UseShellExecute = false,
+                            WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                        };
+                        using var lproc = System.Diagnostics.Process.Start(lpsi);
+                        lproc?.WaitForExit(35000);
+
+                        string baseName = Path.GetFileNameWithoutExtension(absIn);
+                        string candPdf = Path.Combine(tmpDir, baseName + ".pdf");
+                        if (File.Exists(candPdf)) return candPdf;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"LibreOffice conversion failed: {ex.Message}");
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Không thể chuyển đổi Word sang PDF. Vui lòng cài đặt Microsoft Word hoặc LibreOffice.");
+        }
+
+        async void CoreWebView2_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             try
             {
@@ -549,6 +619,67 @@ namespace MinNote
                             Log($"CAPTURE_MINDMAP error: {ex.Message}");
                             await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Lỗi chụp sơ đồ tư duy: {ex.Message.Replace("'", "\\'")}', 'error');");
                         }
+                    }
+                    else if (msgType == "PICK_WORD")
+                    {
+                        var dlg = new Microsoft.Win32.OpenFileDialog
+                        {
+                            Title = "Chọn tài liệu Word (.docx, .doc)",
+                            Filter = "Tài liệu Word (*.docx;*.doc)|*.docx;*.doc|Tất cả tệp (*.*)|*.*"
+                        };
+                        bool? res = dlg.ShowDialog(this);
+                        if (res == true && !string.IsNullOrEmpty(dlg.FileName))
+                        {
+                            _pendingWordPath = dlg.FileName;
+                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordPickCallback) window.__wordPickCallback(true);");
+                        }
+                        else
+                        {
+                            _pendingWordPath = null;
+                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordPickCallback) window.__wordPickCallback(false);");
+                        }
+                    }
+                    else if (msgType == "CONVERT_WORD")
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            string? target = _pendingWordPath;
+                            if (root.TryGetProperty("path", out var pElem) && !string.IsNullOrEmpty(pElem.GetString()))
+                            {
+                                target = pElem.GetString();
+                            }
+                            if (string.IsNullOrEmpty(target) || !File.Exists(target))
+                            {
+                                await Dispatcher.InvokeAsync(async () =>
+                                {
+                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'not_found'});");
+                                });
+                                return;
+                            }
+
+                            try
+                            {
+                                string outPdf = ConvertWordToPdf(target);
+                                byte[] bytes = File.ReadAllBytes(outPdf);
+                                string base64 = Convert.ToBase64String(bytes);
+                                try { File.Delete(outPdf); } catch { }
+
+                                await Dispatcher.InvokeAsync(async () =>
+                                {
+                                    string s = $"if(window.__wordConvertCallback) window.__wordConvertCallback({{pdf: Uint8Array.from(atob('{base64}'), c => c.charCodeAt(0))}});";
+                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(s);
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                Log($"CONVERT_WORD error: {ex.Message}");
+                                await Dispatcher.InvokeAsync(async () =>
+                                {
+                                    string errEsc = ex.Message.Replace("'", "\\'").Replace("\n", " ");
+                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"alert('Lỗi chuyển đổi Word: {errEsc}'); if(window.__wordConvertCallback) window.__wordConvertCallback({{error:'failed'}});");
+                                });
+                            }
+                        });
                     }
                     else if (msgType == "DOWNLOAD_MINDMAP_SVG")
                     {
