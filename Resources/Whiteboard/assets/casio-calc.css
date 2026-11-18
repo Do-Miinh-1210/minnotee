@@ -167,10 +167,23 @@
   display: block !important;
   vertical-align: middle !important;
 }
+.calc.calc-vinacal-model {
+  padding: 6px 0 0 0 !important;
+  gap: 0 !important;
+  width: 312px !important;
+  background: linear-gradient(#3b3b3f,#2a2a2d) !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+}
+.calc.calc-vinacal-model .calc-title {
+  padding: 0 10px 4px 10px !important;
+}
 .calc-vinacal-iframe {
-  width: 100%;
-  height: 540px;
-  border: none;
-  border-radius: 0 0 16px 16px;
-  background: #2b2f3a;
+  width: 100% !important;
+  height: 632px !important;
+  border: none !important;
+  border-radius: 0 0 18px 18px !important;
+  display: block !important;
+  background: transparent !important;
+  overflow: hidden !important;
 }

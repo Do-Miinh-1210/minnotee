@@ -22,24 +22,23 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.5"
-TITLE = "MinNote v0.0.4.5 - Bắt Điểm Phát Sáng Khi Tô Miền Đa Giác & Miền Kín"
-BODY = """## MinNote v0.0.4.5 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.6"
+TITLE = "MinNote v0.0.4.6 - Máy Tính Vinacal 680EX Tràn Viền Liền Khối & Màn Hình Sát Viền"
+BODY = """## MinNote v0.0.4.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.5 bổ sung cơ chế phản hồi thị giác thông minh khi sử dụng công cụ Tô miền:
+Bản cập nhật v0.0.4.6 tinh chỉnh toàn diện giao diện máy tính VINACAL 680EX PLUS III:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.5:
-1. **Phát Sáng Điểm Khi Rê Chuột Trong Công Cụ Tô Miền (Fill Tool Point Glow)**:
-   - Khi chọn công cụ **Tô miền** (đặc biệt là chế độ **Tô miền đa giác** và **Tô miền kín**), khi rê chuột vào các đỉnh/điểm của hình (A, B, C, D, S, giao điểm...):
-     - Điểm tự động **phát sáng viền kép xanh ngọc `#0d9488`**.
-     - Con trỏ chuột chuyển ngay sang dạng **bàn tay (pointer)**.
-     - Giúp người dùng nhận biết tức thì chuột đã đặt trúng đỉnh/điểm chính xác tuyệt đối trước khi click chọn mặt đa giác cần tô màu.
-2. **Kế thừa toàn diện các tính năng v0.0.4.4**:
+### 🌟 Điểm Mới Trong Bản v0.0.4.6:
+1. **Màn Hình Máy Tính VINACAL Sát Viền & Thân Máy Tràn Viền (Edge-to-Edge)**:
+   - **Màn hình LCD sát viền**: Màn hình LCD của Vinacal được mở rộng tối đa ra hai bên (căn lề chỉ ~7.6px tương đương Casio fx-580VN X), loại bỏ khoảng thụt vào sâu gây hẹp màn hình.
+   - **Thân máy tràn viền không khoảng hở**: Xóa bỏ hoàn toàn khoảng viền xám đen thụt vào xung quanh thân máy, thân máy trắng mở rộng 100% liền khối với khung cửa sổ MinNote.
+   - **Tỷ lệ hiển thị tối ưu**: Chiều cao cửa sổ máy tính tự động mở rộng bao quát toàn bộ cụm phím số và phím chức năng mà không bị cắt khuất hay cuộn trang.
+2. **Kế thừa toàn diện các tính năng v0.0.4.5**:
+   - Tô miền (Fill tool) bắt điểm phát sáng xanh ngọc `#0d9488` và con trỏ pointer khi hover đỉnh đa giác.
    - Bắt điểm & bắt đường phát sáng khi vẽ/dựng hình học.
-   - Tùy chọn ẩn đối tượng độc lập (Ẩn đường / Ẩn điểm / Ẩn mặt / Ẩn tất cả) không lo ẩn dây chuyền.
+   - Tùy chọn ẩn đối tượng độc lập (Ẩn đường / Ẩn điểm / Ẩn mặt / Ẩn tất cả).
    - Chọn nhiều đối tượng (Multi-select) bằng Shift/Ctrl + Click hoặc quét vùng.
    - 2 Máy tính Casio fx-580VN X & VINACAL 680EX PLUS III offline, chụp LCD vào bảng.
-   - Thanh công cụ liền khối tràn viền tinh tế, loại bỏ viền đen.
 3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
