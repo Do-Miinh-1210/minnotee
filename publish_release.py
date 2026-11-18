@@ -22,27 +22,25 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.4"
-TITLE = "MinNote v0.0.4.4 - Bắt Điểm/Đường Phát Sáng Khi Dựng Hình & Tùy Chọn Ẩn Độc Lập"
-BODY = """## MinNote v0.0.4.4 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.5"
+TITLE = "MinNote v0.0.4.5 - Bắt Điểm Phát Sáng Khi Tô Miền Đa Giác & Miền Kín"
+BODY = """## MinNote v0.0.4.5 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.4 mang đến trải nghiệm vẽ hình và quản lý đối tượng hình học trực quan, chính xác:
+Bản cập nhật v0.0.4.5 bổ sung cơ chế phản hồi thị giác thông minh khi sử dụng công cụ Tô miền:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.4:
-1. **Bắt Điểm & Bắt Đường Khi Vẽ/Dựng Hình (Glow Highlight Feedback)**:
-   - Khi chọn bất kỳ tính năng vẽ/dựng hình nào trong menu Hình học (Điểm, Đoạn thẳng, Đường thẳng, Giao điểm, Trung điểm, Song song, Vuông góc, Tiếp tuyến...), khi rê chuột vào điểm hoặc đoạn thẳng/đường thẳng có sẵn:
-     - **Điểm phát sáng nhẹ** viền kép xanh ngọc `#0d9488` báo hiệu trúng điểm.
-     - **Đoạn thẳng / Đường thẳng phát sáng nhẹ** viền glow xanh ngọc `#0d9488` (alpha 60%, độ dày +4px) và con trỏ chuột đổi sang pointer, giúp người dùng nhận biết ngay lập tức chuột đã đặt trúng đối tượng cần tương tác.
-2. **Ẩn Đối Tượng Tùy Chọn Độc Lập (Không Bị Ẩn Theo Dây Chuyền)**:
-   - Sửa lỗi khi ẩn đường thẳng làm ẩn luôn các điểm đầu mút của đường.
-   - Bổ sung các tùy chọn phân loại ẩn trực tiếp trên thanh công cụ:
-     - **Ẩn đường**: Chỉ ẩn đoạn thẳng/đường thẳng đã chọn, toàn bộ điểm và tên đỉnh giữ nguyên vẹn trên bảng.
-     - **Ẩn điểm**: Chỉ ẩn các điểm được chọn, giữ nguyên đường.
-     - **Ẩn mặt**: Chỉ ẩn các mặt/mặt phẳng/đa giác được chọn.
-     - **Ẩn tất cả**: Ẩn đồng loạt toàn bộ đối tượng chọn.
-3. **Chọn Nhiều Đối Tượng (Multi-Select)**:
-   - Hỗ trợ giữ phím `Shift` hoặc `Ctrl` khi click để chọn nhiều đường, điểm, mặt cùng lúc hoặc dùng khoanh vùng chọn để ẩn hàng loạt một cách nhanh chóng.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.4.5:
+1. **Phát Sáng Điểm Khi Rê Chuột Trong Công Cụ Tô Miền (Fill Tool Point Glow)**:
+   - Khi chọn công cụ **Tô miền** (đặc biệt là chế độ **Tô miền đa giác** và **Tô miền kín**), khi rê chuột vào các đỉnh/điểm của hình (A, B, C, D, S, giao điểm...):
+     - Điểm tự động **phát sáng viền kép xanh ngọc `#0d9488`**.
+     - Con trỏ chuột chuyển ngay sang dạng **bàn tay (pointer)**.
+     - Giúp người dùng nhận biết tức thì chuột đã đặt trúng đỉnh/điểm chính xác tuyệt đối trước khi click chọn mặt đa giác cần tô màu.
+2. **Kế thừa toàn diện các tính năng v0.0.4.4**:
+   - Bắt điểm & bắt đường phát sáng khi vẽ/dựng hình học.
+   - Tùy chọn ẩn đối tượng độc lập (Ẩn đường / Ẩn điểm / Ẩn mặt / Ẩn tất cả) không lo ẩn dây chuyền.
+   - Chọn nhiều đối tượng (Multi-select) bằng Shift/Ctrl + Click hoặc quét vùng.
+   - 2 Máy tính Casio fx-580VN X & VINACAL 680EX PLUS III offline, chụp LCD vào bảng.
+   - Thanh công cụ liền khối tràn viền tinh tế, loại bỏ viền đen.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
