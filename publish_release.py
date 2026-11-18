@@ -22,19 +22,19 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.2"
-TITLE = "MinNote v0.0.4.2 - Thiết Kế Thanh Công Cụ Liền Mạch, Tinh Tế & Đồng Bộ Hệ Thống"
-BODY = """## MinNote v0.0.4.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.3"
+TITLE = "MinNote v0.0.4.3 - Loại Bỏ Viền Đen, Thanh Công Cụ Liền Khối Tràn Viền Tinh Tế"
+BODY = """## MinNote v0.0.4.3 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.2 tập trung hoàn thiện thẩm mỹ giao diện và độ liền mạch của thanh công cụ:
+Bản cập nhật v0.0.4.3 khắc phục triệt để viền đen xung quanh thanh công cụ:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.2:
-1. **Thiết kế Thanh công cụ Đồng nhất & Liền khối**:
-   - **Loại bỏ hoàn toàn khung viền xanh nổi cộm**: Nhóm công cụ mở rộng `[Kho Đề, Sơ Đồ, 3D, Hóa | Dán Word, Nhập Word, Drive, Ảnh]` được tích hợp đồng nhất vào hệ thống `.tb-group` chuẩn của MinNote (nền `#f8fafc`, viền mềm `#e2e8f0`, đổ bóng lõm tinh tế).
-   - **Chuẩn hóa nút phẳng (Flat Toolbar Button)**: Bỏ viền trắng riêng của từng nút, chữ màu slate trung tính `#334155` trọng lượng 500 thanh lịch, icon 15px thanh thoát.
-   - **Hiệu ứng Hover mượt mà**: Nút chuyển nền xám sáng mềm `#e2e8f0` khi rê chuột, icon giữ nguyên tỉ lệ chuẩn không bị phóng to lệch lạc.
-   - **Vạch phân cách tinh tế**: Bổ sung đường chia hairline giữa nhóm công cụ học tập (Kho Đề, Sơ Đồ, 3D, Hóa) và nhóm dữ liệu/tài liệu (Dán Word, Nhập Word, Drive, Ảnh) tạo nhịp điệu thị giác hài hòa như hàng công cụ vẽ.
-2. **Kế thừa đầy đủ các tính năng bản v0.0.4.1**:
+### 🌟 Điểm Mới Trong Bản v0.0.4.3:
+1. **Loại bỏ hoàn toàn viền đen xung quanh thanh công cụ**:
+   - **Xóa bỏ các dải viền đen (Black Frame/Margins)**: Loại bỏ các khoảng hở màu đen thô ở mép trái, mép phải và đường viền đen nằm giữa thanh công cụ với giấy kẻ bảng viết.
+   - **Thanh công cụ tràn viền (Edge-to-Edge Ribbon)**: Thanh công cụ trải rộng 100% chiều ngang cửa sổ với nền kính mờ nhẹ (`rgba(255, 255, 255, 0.98)` + `backdrop-filter: blur(12px)`), kết nối liền mạch trực tiếp với không gian bảng vẽ qua đường chỉ hairline mảnh `#cbd5e1`.
+   - **Nền WebView2 & WPF đồng nhất**: Thiết lập nền `#FFFFFF` / `Transparent` cho khung chứa WebView2, không còn hiện tượng khoảng đen lộ ra ngoài.
+2. **Kế thừa toàn diện các tính năng v0.0.4.2**:
+   - Nhóm nút công cụ mở rộng phẳng, thanh lịch, chuẩn hệ thống MinNote.
    - 2 Máy tính chuyển đổi Casio fx-580VN X ⇄ VINACAL 680EX PLUS III offline & chụp LCD vào bảng.
    - Tương tác chọn đối tượng: Chỉ phát sáng khi rê chuột (hover), không hiện chấm sáng rảnh.
    - Nhập file Word (.docx, .doc) trực tiếp qua hộp thoại file & chuyển đổi nạp trang.

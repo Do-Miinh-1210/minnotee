@@ -214,7 +214,7 @@ namespace MinNote
                     }
                 }
 
-                WvWhiteboard.DefaultBackgroundColor = System.Drawing.Color.FromArgb(15, 23, 42);
+                WvWhiteboard.DefaultBackgroundColor = System.Drawing.Color.Transparent;
 
                 WvWhiteboard.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "minnote.app",
