@@ -22,23 +22,27 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.3"
-TITLE = "MinNote v0.0.4.3 - Loại Bỏ Viền Đen, Thanh Công Cụ Liền Khối Tràn Viền Tinh Tế"
-BODY = """## MinNote v0.0.4.3 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.4"
+TITLE = "MinNote v0.0.4.4 - Bắt Điểm/Đường Phát Sáng Khi Dựng Hình & Tùy Chọn Ẩn Độc Lập"
+BODY = """## MinNote v0.0.4.4 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.3 khắc phục triệt để viền đen xung quanh thanh công cụ:
+Bản cập nhật v0.0.4.4 mang đến trải nghiệm vẽ hình và quản lý đối tượng hình học trực quan, chính xác:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.3:
-1. **Loại bỏ hoàn toàn viền đen xung quanh thanh công cụ**:
-   - **Xóa bỏ các dải viền đen (Black Frame/Margins)**: Loại bỏ các khoảng hở màu đen thô ở mép trái, mép phải và đường viền đen nằm giữa thanh công cụ với giấy kẻ bảng viết.
-   - **Thanh công cụ tràn viền (Edge-to-Edge Ribbon)**: Thanh công cụ trải rộng 100% chiều ngang cửa sổ với nền kính mờ nhẹ (`rgba(255, 255, 255, 0.98)` + `backdrop-filter: blur(12px)`), kết nối liền mạch trực tiếp với không gian bảng vẽ qua đường chỉ hairline mảnh `#cbd5e1`.
-   - **Nền WebView2 & WPF đồng nhất**: Thiết lập nền `#FFFFFF` / `Transparent` cho khung chứa WebView2, không còn hiện tượng khoảng đen lộ ra ngoài.
-2. **Kế thừa toàn diện các tính năng v0.0.4.2**:
-   - Nhóm nút công cụ mở rộng phẳng, thanh lịch, chuẩn hệ thống MinNote.
-   - 2 Máy tính chuyển đổi Casio fx-580VN X ⇄ VINACAL 680EX PLUS III offline & chụp LCD vào bảng.
-   - Tương tác chọn đối tượng: Chỉ phát sáng khi rê chuột (hover), không hiện chấm sáng rảnh.
-   - Nhập file Word (.docx, .doc) trực tiếp qua hộp thoại file & chuyển đổi nạp trang.
-   - Đồng bộ Google Drive & Font chuẩn Hóa học MHChem.
+### 🌟 Điểm Mới Trong Bản v0.0.4.4:
+1. **Bắt Điểm & Bắt Đường Khi Vẽ/Dựng Hình (Glow Highlight Feedback)**:
+   - Khi chọn bất kỳ tính năng vẽ/dựng hình nào trong menu Hình học (Điểm, Đoạn thẳng, Đường thẳng, Giao điểm, Trung điểm, Song song, Vuông góc, Tiếp tuyến...), khi rê chuột vào điểm hoặc đoạn thẳng/đường thẳng có sẵn:
+     - **Điểm phát sáng nhẹ** viền kép xanh ngọc `#0d9488` báo hiệu trúng điểm.
+     - **Đoạn thẳng / Đường thẳng phát sáng nhẹ** viền glow xanh ngọc `#0d9488` (alpha 60%, độ dày +4px) và con trỏ chuột đổi sang pointer, giúp người dùng nhận biết ngay lập tức chuột đã đặt trúng đối tượng cần tương tác.
+2. **Ẩn Đối Tượng Tùy Chọn Độc Lập (Không Bị Ẩn Theo Dây Chuyền)**:
+   - Sửa lỗi khi ẩn đường thẳng làm ẩn luôn các điểm đầu mút của đường.
+   - Bổ sung các tùy chọn phân loại ẩn trực tiếp trên thanh công cụ:
+     - **Ẩn đường**: Chỉ ẩn đoạn thẳng/đường thẳng đã chọn, toàn bộ điểm và tên đỉnh giữ nguyên vẹn trên bảng.
+     - **Ẩn điểm**: Chỉ ẩn các điểm được chọn, giữ nguyên đường.
+     - **Ẩn mặt**: Chỉ ẩn các mặt/mặt phẳng/đa giác được chọn.
+     - **Ẩn tất cả**: Ẩn đồng loạt toàn bộ đối tượng chọn.
+3. **Chọn Nhiều Đối Tượng (Multi-Select)**:
+   - Hỗ trợ giữ phím `Shift` hoặc `Ctrl` khi click để chọn nhiều đường, điểm, mặt cùng lúc hoặc dùng khoanh vùng chọn để ẩn hàng loạt một cách nhanh chóng.
+4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
