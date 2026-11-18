@@ -735,7 +735,6 @@
           dock = document.createElement('div');
           dock.id = 'nb-tools-dock';
           dock.className = 'tb-group nb-tools-dock';
-          dock.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:rgba(13,148,136,0.08);border:1.5px solid #0d9488;border-radius:9px;padding:2px 4px;margin:0 4px;box-shadow:0 1px 4px rgba(13,148,136,0.15);';
 
           const toolsGroup = toolbar.querySelector('.tb-group.tools');
           if (toolsGroup) {
@@ -743,6 +742,9 @@
           } else {
             toolbar.appendChild(dock);
           }
+        }
+        if (dock.getAttribute('style')) {
+          dock.removeAttribute('style');
         }
         const targetGroup = dock;
 
@@ -753,9 +755,8 @@
           btnQ.className = 'tb';
           btnQ.title = 'Kho Đề & Bài Giảng HTML (Ctrl + Q)';
           btnQ.setAttribute('aria-label', 'Kho Đề');
-          btnQ.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnQ.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
             </svg>
@@ -767,6 +768,8 @@
             if (typeof window.toggleQuestionBankModal === 'function') window.toggleQuestionBankModal();
           };
           targetGroup.appendChild(btnQ);
+        } else {
+          document.getElementById('tb-btn-questionbank').removeAttribute('style');
         }
 
         // 2. Nút Sơ đồ tư duy Toán học (Ctrl + M)
@@ -776,9 +779,8 @@
           btnM.className = 'tb';
           btnM.title = 'Sơ đồ tư duy Toán học (Ctrl + M)';
           btnM.setAttribute('aria-label', 'Sơ đồ tư duy');
-          btnM.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnM.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3"></circle>
               <circle cx="6" cy="12" r="3"></circle>
               <circle cx="18" cy="19" r="3"></circle>
@@ -793,6 +795,8 @@
             if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
           };
           targetGroup.appendChild(btnM);
+        } else {
+          document.getElementById('tb-btn-mindmap').removeAttribute('style');
         }
 
         // 3. Giữ nguyên 100% Bảng biến thiên gốc của app, bỏ nút BBT thêm vào
@@ -806,9 +810,8 @@
           btnS.className = 'tb';
           btnS.title = 'Hình học không gian 3D Native (Ctrl + 3)';
           btnS.setAttribute('aria-label', 'Hình 3D');
-          btnS.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnS.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
@@ -821,6 +824,8 @@
             if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
           };
           targetGroup.appendChild(btnS);
+        } else {
+          document.getElementById('tb-btn-spatial').removeAttribute('style');
         }
 
         // 5. Nút Cân bằng Hóa học (Ctrl + H)
@@ -830,9 +835,8 @@
           btnC.className = 'tb';
           btnC.title = 'Cân bằng phản ứng Hóa học (Ctrl + H)';
           btnC.setAttribute('aria-label', 'Hóa học');
-          btnC.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnC.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"></path>
               <path d="M8.5 2h7"></path>
               <path d="M7 16h10"></path>
@@ -845,6 +849,16 @@
             if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
           };
           targetGroup.appendChild(btnC);
+        } else {
+          document.getElementById('tb-btn-chem').removeAttribute('style');
+        }
+
+        // Vạch phân cách tinh tế giữa nhóm công cụ học tập và nhóm dữ liệu/tài liệu
+        if (!document.getElementById('tb-sep-extra-1')) {
+          const sep = document.createElement('div');
+          sep.id = 'tb-sep-extra-1';
+          sep.className = 'tb-sep';
+          targetGroup.appendChild(sep);
         }
 
         // 6. Nút Dán Word / MathType không lỗi font (Ctrl + Shift + W)
@@ -854,9 +868,8 @@
           btnW.className = 'tb';
           btnW.title = 'Dán Word & MathType không nhảy dòng (Ctrl + Shift + W)';
           btnW.setAttribute('aria-label', 'Word Terminal');
-          btnW.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnW.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
               <line x1="9" y1="13" x2="15" y2="13"></line>
@@ -870,6 +883,8 @@
             if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
           };
           targetGroup.appendChild(btnW);
+        } else {
+          document.getElementById('tb-btn-word').removeAttribute('style');
         }
 
         // 6b. Nút Nhập file Word (.docx, .doc) trực tiếp
@@ -879,9 +894,8 @@
           btnIW.className = 'tb';
           btnIW.title = 'Nhập trực tiếp file Word .docx / .doc vào trang viết';
           btnIW.setAttribute('aria-label', 'Import Word');
-          btnIW.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0369a1;';
           btnIW.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
               <path d="M12 18v-6"></path>
@@ -927,6 +941,10 @@
             }
           };
           targetGroup.appendChild(btnIW);
+        } else {
+          document.getElementById('tb-btn-import-word').removeAttribute('style');
+        }
+
         // 6c. Nút Google Drive
         if (!document.getElementById('tb-btn-google-drive')) {
           const btnDrive = document.createElement('button');
@@ -934,9 +952,8 @@
           btnDrive.className = 'tb';
           btnDrive.title = 'Đồng bộ & Sao lưu Google Drive';
           btnDrive.setAttribute('aria-label', 'Google Drive');
-          btnDrive.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#2563eb;';
           btnDrive.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
             </svg>
             <span>Drive</span>
@@ -949,8 +966,8 @@
             }
           };
           targetGroup.appendChild(btnDrive);
-        }
-
+        } else {
+          document.getElementById('tb-btn-google-drive').removeAttribute('style');
         }
 
         if (!window._wordDropRegistered) {
@@ -990,9 +1007,8 @@
           btnImg.className = 'tb';
           btnImg.title = 'Chèn hình ảnh từ máy tính (Ctrl + I) hoặc kéo thả trực tiếp';
           btnImg.setAttribute('aria-label', 'Chèn Ảnh');
-          btnImg.style.cssText = 'width:auto;min-width:32px;height:28px;padding:0 6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#0f766e;';
           btnImg.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
@@ -1005,6 +1021,8 @@
             if (typeof window.openImagePickerToBoard === 'function') window.openImagePickerToBoard();
           };
           targetGroup.appendChild(btnImg);
+        } else {
+          document.getElementById('tb-btn-insert-image').removeAttribute('style');
         }
 
       }

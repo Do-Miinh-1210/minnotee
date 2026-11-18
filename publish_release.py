@@ -22,27 +22,23 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.1"
-TITLE = "MinNote v0.0.4.1 - 2 Máy Tính Casio & Vinacal, Nhập Word, Drive, Hover Sáng Điểm/Đường"
-BODY = """## MinNote v0.0.4.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.2"
+TITLE = "MinNote v0.0.4.2 - Thiết Kế Thanh Công Cụ Liền Mạch, Tinh Tế & Đồng Bộ Hệ Thống"
+BODY = """## MinNote v0.0.4.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.1 hoàn thiện toàn diện các tính năng 1-4 và trải nghiệm tương tác hình học:
+Bản cập nhật v0.0.4.2 tập trung hoàn thiện thẩm mỹ giao diện và độ liền mạch của thanh công cụ:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.1:
-1. **Chế độ Chọn đối tượng (Selection Tool)**:
-   - **Không sáng sẵn điểm**: Khi ở chế độ Chọn, các điểm dựng hình và đối tượng không còn hiện chấm sáng tròn to mặc định, giúp bảng vẽ luôn thông thoáng, sạch sẽ.
-   - **Rê chuột (Hover) sáng nổi bật**: Khi rê chuột vào bất kỳ đường thẳng hoặc điểm nào, đối tượng đó sẽ tự động phát sáng nổi bật (glow teal `#0d9488`). Khi chuột rời đi, đối tượng trở lại bình thường.
-2. **Hệ thống 2 Máy tính (Casio fx-580VN X ⇄ Vinacal 680EX Plus III)**:
-   - Nút `⇄` chuyển đổi tức thì giữa **Casio fx-580VN X** và **VINACAL 680EX PLUS III** chuẩn giao diện thi cử.
-   - Nút `📷` chụp màn hình máy tính (LCD) độ nét cao và chèn trực tiếp vào trang bảng đang viết.
-3. **Nhập file Word (.docx, .doc) trực tiếp**:
-   - Tích hợp cầu nối WebView2 WPF mở trực tiếp hộp thoại chọn file Word trên máy tính.
-   - Tự động chuyển đổi tài liệu Word sang PDF qua Word COM / LibreOffice và nạp nguyên vẹn các trang vào bảng viết.
-4. **Đồng bộ Google Drive**:
-   - Thêm nút `[☁️ Drive]` trên thanh công cụ điều hướng.
-   - Quản lý trạng thái sao lưu bảng viết, đồng bộ ghi chú lên đám mây và khôi phục nhanh chóng.
-5. **Công thức hóa học MHChem chuyên dụng**:
-   - Nạp MathJax TeX + SVG với gói mở rộng `mhchem`, hiển thị hoàn hảo mọi công thức phản ứng `\\ce{...}`.
+### 🌟 Điểm Mới Trong Bản v0.0.4.2:
+1. **Thiết kế Thanh công cụ Đồng nhất & Liền khối**:
+   - **Loại bỏ hoàn toàn khung viền xanh nổi cộm**: Nhóm công cụ mở rộng `[Kho Đề, Sơ Đồ, 3D, Hóa | Dán Word, Nhập Word, Drive, Ảnh]` được tích hợp đồng nhất vào hệ thống `.tb-group` chuẩn của MinNote (nền `#f8fafc`, viền mềm `#e2e8f0`, đổ bóng lõm tinh tế).
+   - **Chuẩn hóa nút phẳng (Flat Toolbar Button)**: Bỏ viền trắng riêng của từng nút, chữ màu slate trung tính `#334155` trọng lượng 500 thanh lịch, icon 15px thanh thoát.
+   - **Hiệu ứng Hover mượt mà**: Nút chuyển nền xám sáng mềm `#e2e8f0` khi rê chuột, icon giữ nguyên tỉ lệ chuẩn không bị phóng to lệch lạc.
+   - **Vạch phân cách tinh tế**: Bổ sung đường chia hairline giữa nhóm công cụ học tập (Kho Đề, Sơ Đồ, 3D, Hóa) và nhóm dữ liệu/tài liệu (Dán Word, Nhập Word, Drive, Ảnh) tạo nhịp điệu thị giác hài hòa như hàng công cụ vẽ.
+2. **Kế thừa đầy đủ các tính năng bản v0.0.4.1**:
+   - 2 Máy tính chuyển đổi Casio fx-580VN X ⇄ VINACAL 680EX PLUS III offline & chụp LCD vào bảng.
+   - Tương tác chọn đối tượng: Chỉ phát sáng khi rê chuột (hover), không hiện chấm sáng rảnh.
+   - Nhập file Word (.docx, .doc) trực tiếp qua hộp thoại file & chuyển đổi nạp trang.
+   - Đồng bộ Google Drive & Font chuẩn Hóa học MHChem.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
