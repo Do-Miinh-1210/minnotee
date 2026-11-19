@@ -22,22 +22,20 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.6"
-TITLE = "MinNote v0.0.4.6 - Máy Tính Vinacal 680EX Tràn Viền Liền Khối & Màn Hình Sát Viền"
-BODY = """## MinNote v0.0.4.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.7"
+TITLE = "MinNote v0.0.4.7 - Hỗ Trợ Phóng To / Thu Nhỏ Bằng Bàn Di Chuột (Touchpad Pinch-to-Zoom)"
+BODY = """## MinNote v0.0.4.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.6 tinh chỉnh toàn diện giao diện máy tính VINACAL 680EX PLUS III:
+Bản cập nhật v0.0.4.7 khôi phục hoàn toàn tính năng phóng to / thu nhỏ mượt mà bằng 2 ngón trên bàn di chuột (Touchpad):
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.6:
-1. **Màn Hình Máy Tính VINACAL Sát Viền & Thân Máy Tràn Viền (Edge-to-Edge)**:
-   - **Màn hình LCD sát viền**: Màn hình LCD của Vinacal được mở rộng tối đa ra hai bên (căn lề chỉ ~7.6px tương đương Casio fx-580VN X), loại bỏ khoảng thụt vào sâu gây hẹp màn hình.
-   - **Thân máy tràn viền không khoảng hở**: Xóa bỏ hoàn toàn khoảng viền xám đen thụt vào xung quanh thân máy, thân máy trắng mở rộng 100% liền khối với khung cửa sổ MinNote.
-   - **Tỷ lệ hiển thị tối ưu**: Chiều cao cửa sổ máy tính tự động mở rộng bao quát toàn bộ cụm phím số và phím chức năng mà không bị cắt khuất hay cuộn trang.
-2. **Kế thừa toàn diện các tính năng v0.0.4.5**:
-   - Tô miền (Fill tool) bắt điểm phát sáng xanh ngọc `#0d9488` và con trỏ pointer khi hover đỉnh đa giác.
-   - Bắt điểm & bắt đường phát sáng khi vẽ/dựng hình học.
-   - Tùy chọn ẩn đối tượng độc lập (Ẩn đường / Ẩn điểm / Ẩn mặt / Ẩn tất cả).
-   - Chọn nhiều đối tượng (Multi-select) bằng Shift/Ctrl + Click hoặc quét vùng.
+### 🌟 Điểm Mới Trong Bản v0.0.4.7:
+1. **Phóng To / Thu Nhỏ Bằng Bàn Di Chuột (Touchpad Pinch-to-Zoom)**:
+   - Gỡ bỏ cờ `--disable-pinch` / `PinchToZoom` và bật `IsPinchZoomEnabled = true` trong WebView2 để Windows Precision Touchpad truyền cử chỉ chụm/mở 2 ngón (`ctrl + wheel`) trực tiếp vào bảng viết.
+   - Chặn zoom trình duyệt ngoài vùng canvas (`e.preventDefault()` ở cấp `window` & `touch-action: pan-x pan-y`), đảm bảo chỉ phóng to/thu nhỏ trang viết mượt mà tại vị trí con trỏ mà không làm méo thanh công cụ.
+2. **Kế thừa toàn diện các tính năng v0.0.4.6**:
+   - Máy tính VINACAL 680EX PLUS III tràn viền liền khối & màn hình LCD sát viền.
+   - Tô miền (Fill tool) bắt điểm phát sáng xanh ngọc `#0d9488` khi hover đỉnh đa giác.
+   - Bắt điểm & bắt đường phát sáng khi vẽ/dựng hình học; tùy chọn ẩn độc lập (đường / điểm / mặt / tất cả) & chọn nhiều đối tượng.
    - 2 Máy tính Casio fx-580VN X & VINACAL 680EX PLUS III offline, chụp LCD vào bảng.
 3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """

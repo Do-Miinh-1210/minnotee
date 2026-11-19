@@ -9,6 +9,13 @@
         }
       }, true);
 
+      // Chặn zoom trình duyệt khi pinch bàn di chuột ngoài canvas, giữ nguyên zoom canvas trên .board-scroller
+      window.addEventListener("wheel", function(e) {
+        if (e.ctrlKey && !e.defaultPrevented) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
       if (window.minnoteNative || !window.chrome || !window.chrome.webview) {
         window.chrome = window.chrome || {};
         const _listeners = new Map();
@@ -67,6 +74,7 @@
         height: 100%;
         background-color: transparent;
         overflow: hidden;
+        touch-action: pan-x pan-y;
       }
     </style>
     <!-- KaTeX Math Engine (Local Offline) -->

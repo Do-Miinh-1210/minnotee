@@ -152,7 +152,8 @@ namespace MinNote
         }
 
         // Không mở cổng remote debugging: bất kỳ chương trình nào trên máy cũng có thể điều khiển trang qua cổng đó
-        private const string BrowserArgs = "--disable-pinch --disable-features=PinchToZoom,Translate,OptimizationHints,MediaRouter --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --disable-client-side-phishing-detection --disable-default-apps --no-default-browser-check --enable-gpu-rasterization --enable-zero-copy --disable-hang-monitor";
+        // Cho phép pinch touchpad (DirectManipulation -> wheel ctrlKey) để phóng to/thu nhỏ trực tiếp trên canvas bảng viết
+        private const string BrowserArgs = "--disable-features=Translate,OptimizationHints,MediaRouter --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --disable-client-side-phishing-detection --disable-default-apps --no-default-browser-check --enable-gpu-rasterization --enable-zero-copy --disable-hang-monitor";
 
         public static async Task<CoreWebView2Environment> CreateEnvironmentWithFallbackAsync()
         {
@@ -240,7 +241,7 @@ namespace MinNote
                         WvWhiteboard.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         WvWhiteboard.CoreWebView2.Settings.IsStatusBarEnabled = false;
                         WvWhiteboard.CoreWebView2.Settings.IsZoomControlEnabled = false;
-                        WvWhiteboard.CoreWebView2.Settings.IsPinchZoomEnabled = false;
+                        WvWhiteboard.CoreWebView2.Settings.IsPinchZoomEnabled = true;
                         WvWhiteboard.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
                         WvWhiteboard.CoreWebView2.Settings.IsSwipeNavigationEnabled = false;
                     }
