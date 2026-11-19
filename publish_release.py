@@ -22,24 +22,21 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.9"
-TITLE = "MinNote v0.0.4.9 - Tách Biệt Chọn Điểm/Đoạn Thẳng & Chọn Nhiều Đối Tượng Không Nền Xanh Mờ"
-BODY = """## MinNote v0.0.4.9 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.0"
+TITLE = "MinNote v0.0.5.0 - Bộ Icon Phím Tắt Thanh Công Cụ Thiết Kế Lại Đồng Bộ & Sắc Nét"
+BODY = """## MinNote v0.0.5.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.9 tách biệt hoàn toàn giữa các đối tượng khi chọn và loại bỏ nền xanh mờ khi chọn nhiều đối tượng:
+Bản cập nhật v0.0.5.0 vẽ lại toàn bộ 22 icon phím tắt trên thanh công cụ theo ngôn ngữ thiết kế Duotone hiện đại, sắc nét và đồng nhất:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.9:
-1. **Tách Biệt Độc Lập Giữa Đoạn Thẳng & Điểm Khi Chọn**:
-   - Click trực tiếp vào đoạn thẳng, đường thẳng, tia, đường tròn hoặc cạnh đa giác chỉ chọn **duy nhất đường/cạnh đó**, không còn tự động kéo theo 2 điểm đầu mút vào vùng chọn.
-   - Click vào điểm chỉ chọn đúng điểm đó; kéo đoạn thẳng vẫn tự động di chuyển mượt mà.
-2. **Chọn Nhiều Đối Tượng Khác Nhau Cùng Lúc (`Shift / Ctrl + Click`)**:
-   - Hỗ trợ giữ `Shift` hoặc `Ctrl` rồi bấm để chọn/bỏ chọn xen kẽ **nhiều đối tượng khác loại cùng lúc** (đoạn thẳng + điểm + mặt + nét bút vẽ tay + ảnh/văn bản), kể cả khi đối tượng nằm chồng bên trong khung của các đối tượng đã chọn trước đó.
-   - Không còn tự kéo thêm các điểm hay cạnh lân cận không được bấm; bấm nhầm ra khoảng trắng khi đang giữ `Shift/Ctrl` không làm mất các đối tượng đã chọn.
-   - Thanh công cụ chọn tự động cập nhật tức thì đầy đủ nút (`Ẩn đường`, `Ẩn điểm`, `Kiểu đường`, `Kiểu nét`, `Xóa`...) đúng theo các loại đối tượng đang chọn.
-3. **Bỏ Hoàn Toàn Nền Xanh Mờ Phía Sau Vùng Chọn**:
-   - Loại bỏ nền xanh mờ `rgba(0, 128, 255, 0.135)` trên tất cả khung chọn để nhìn xuyên suốt hình vẽ rõ ràng.
-   - Khi chọn nhiều đối tượng bằng `Shift/Ctrl + Click`: chỉ phát sáng xanh ngọc `#0d9488` trực tiếp trên từng điểm, đoạn thẳng, nét bút hoặc viền từng đối tượng được chọn — không hiện khung bao lớn gây rối mắt.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.0:
+1. **Vẽ Lại Toàn Bộ 22 Icon Phím Tắt Thanh Công Cụ (Modern Duotone SVG Set)**:
+   - Chuẩn hóa toàn bộ 22 nút: Nét đứt, Hình mẫu, Hình học phẳng, Đồ thị hàm số, Bảng biến thiên, Hệ trục Oxyz 3D, Sơ đồ cây xác suất, Đường tròn lượng giác, Biểu đồ thống kê & Boxplot, Công thức Σ, Khung đề bài, Nhãn dán ghi chú, Đồng hồ bấm giờ, Xúc xắc ngẫu nhiên, Trình duyệt web, Máy tính khoa học (Casio / Vinacal), Văn bản T, Tô miền, Thước kẻ, Chọn đối tượng (kèm mũi tên trỏ), Bàn tay di chuyển và Bật/Tắt vẽ tay.
+   - Đồng bộ độ dày nét (`1.75px`), bo góc tinh tế và điểm nhấn phủ mờ Duotone (`currentColor` + `fillOpacity`) hiển thị sắc nét cả ở trạng thái thường lẫn trạng thái kích hoạt trên nền xanh ngọc.
+2. **Kế thừa toàn diện các tính năng v0.0.4.9**:
+   - Tách biệt chọn đoạn thẳng và điểm đầu mút; chọn nhiều đối tượng khác loại bằng `Shift/Ctrl + Click` không nền xanh mờ.
+   - Phóng to / thu nhỏ mượt mà bằng 2 ngón trên bàn di chuột (Touchpad Pinch-to-Zoom).
+   - Máy tính VINACAL 680EX PLUS III tràn viền & màn hình sát viền; 2 máy tính Casio/Vinacal offline.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
