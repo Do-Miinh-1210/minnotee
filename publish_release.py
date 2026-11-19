@@ -22,21 +22,24 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.0"
-TITLE = "MinNote v0.0.5.0 - Bộ Icon Phím Tắt Thanh Công Cụ Thiết Kế Lại Đồng Bộ & Sắc Nét"
-BODY = """## MinNote v0.0.5.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.1"
+TITLE = "MinNote v0.0.5.1 - Tự Động Cập Nhật Nét Liền / Nét Đứt Hình Không Gian 3D Theo Thời Gian Thực"
+BODY = """## MinNote v0.0.5.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.0 vẽ lại toàn bộ 22 icon phím tắt trên thanh công cụ theo ngôn ngữ thiết kế Duotone hiện đại, sắc nét và đồng nhất:
+Bản cập nhật v0.0.5.1 bổ sung tính năng tự động hóa nét liền / nét đứt theo không gian 3D khi kéo di chuyển đỉnh hoặc điểm trên hình khối:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.0:
-1. **Vẽ Lại Toàn Bộ 22 Icon Phím Tắt Thanh Công Cụ (Modern Duotone SVG Set)**:
-   - Chuẩn hóa toàn bộ 22 nút: Nét đứt, Hình mẫu, Hình học phẳng, Đồ thị hàm số, Bảng biến thiên, Hệ trục Oxyz 3D, Sơ đồ cây xác suất, Đường tròn lượng giác, Biểu đồ thống kê & Boxplot, Công thức Σ, Khung đề bài, Nhãn dán ghi chú, Đồng hồ bấm giờ, Xúc xắc ngẫu nhiên, Trình duyệt web, Máy tính khoa học (Casio / Vinacal), Văn bản T, Tô miền, Thước kẻ, Chọn đối tượng (kèm mũi tên trỏ), Bàn tay di chuyển và Bật/Tắt vẽ tay.
-   - Đồng bộ độ dày nét (`1.75px`), bo góc tinh tế và điểm nhấn phủ mờ Duotone (`currentColor` + `fillOpacity`) hiển thị sắc nét cả ở trạng thái thường lẫn trạng thái kích hoạt trên nền xanh ngọc.
-2. **Kế thừa toàn diện các tính năng v0.0.4.9**:
-   - Tách biệt chọn đoạn thẳng và điểm đầu mút; chọn nhiều đối tượng khác loại bằng `Shift/Ctrl + Click` không nền xanh mờ.
-   - Phóng to / thu nhỏ mượt mà bằng 2 ngón trên bàn di chuột (Touchpad Pinch-to-Zoom).
-   - Máy tính VINACAL 680EX PLUS III tràn viền & màn hình sát viền; 2 máy tính Casio/Vinacal offline.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.1:
+1. **Tự Động Cập Nhật Nét Liền / Nét Đứt Theo Không Gian 3D (Real-time Auto Hidden-Line)**:
+   - Khi kéo đỉnh (ví dụ kéo đỉnh `S` sang trái/phải hoặc kéo xuống dưới mặt đáy `ABCD`) hoặc di chuyển điểm thuộc hình khối 3D, toàn bộ các cạnh, đường chéo, đoạn thẳng dựng thêm (`MN`, `NC`, `MC`, `MB`...), đường thẳng và tia (`line`, `ray`, `extend`) tự động tính lại mặt nhìn thấy / mặt khuất và chuyển đổi nét liền ↔ nét đứt ngay trong lúc kéo theo thời gian thực.
+   - Áp dụng cho mọi khối 3D dựng sẵn (hình chóp, lăng trụ, hình hộp, lập phương, bát diện, hình chóp cụt, nón, trụ, cầu...) và các hình 2D đã chuyển sang 3D (`Chuyển thành 3D`).
+   - Hỗ trợ cả kéo đơn điểm, gộp điểm và biến dạng nhóm đỉnh (kéo một phần đỉnh của khối), đồng thời giữ nguyên kiểu nét thủ công khi chỉ di chuyển tịnh tiến cả khối hình hoặc khi người dùng chủ động bấm nút đổi nét đứt/liền.
+2. **Tùy Chọn Bật / Tắt Trong Menu Dựng Hình Động (`HÌNH VẼ`)**:
+   - Thêm mục `✓ Tự động nét liền / đứt` ngay dưới `Bắt điểm lưới` (mặc định bật và tự động lưu cấu hình) để giáo viên có thể tắt tạm thời khi muốn giữ nguyên nét đứt thủ công trong lúc kéo điểm.
+3. **Kế thừa toàn diện các tính năng v0.0.5.0**:
+   - Bộ 22 icon phím tắt Duotone thiết kế lại đồng bộ và sắc nét.
+   - Tách biệt chọn đoạn thẳng và điểm đầu mút; chọn nhiều đối tượng bằng `Shift/Ctrl + Click` không nền xanh mờ.
+   - Touchpad Pinch-to-Zoom mượt mà; máy tính Casio FX-580VN X & VINACAL 680EX PLUS III tràn viền offline.
+4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
