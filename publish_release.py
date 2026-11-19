@@ -22,21 +22,22 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.4.7"
-TITLE = "MinNote v0.0.4.7 - Hỗ Trợ Phóng To / Thu Nhỏ Bằng Bàn Di Chuột (Touchpad Pinch-to-Zoom)"
-BODY = """## MinNote v0.0.4.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.4.8"
+TITLE = "MinNote v0.0.4.8 - Chọn Đoạn Thẳng Chỉ Phát Sáng Đoạn, Bỏ Khung Vùng Chọn Xanh"
+BODY = """## MinNote v0.0.4.8 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.4.7 khôi phục hoàn toàn tính năng phóng to / thu nhỏ mượt mà bằng 2 ngón trên bàn di chuột (Touchpad):
+Bản cập nhật v0.0.4.8 làm gọn hiển thị khi chọn đoạn thẳng/đường thẳng có điểm đầu mút:
 
-### 🌟 Điểm Mới Trong Bản v0.0.4.7:
-1. **Phóng To / Thu Nhỏ Bằng Bàn Di Chuột (Touchpad Pinch-to-Zoom)**:
-   - Gỡ bỏ cờ `--disable-pinch` / `PinchToZoom` và bật `IsPinchZoomEnabled = true` trong WebView2 để Windows Precision Touchpad truyền cử chỉ chụm/mở 2 ngón (`ctrl + wheel`) trực tiếp vào bảng viết.
-   - Chặn zoom trình duyệt ngoài vùng canvas (`e.preventDefault()` ở cấp `window` & `touch-action: pan-x pan-y`), đảm bảo chỉ phóng to/thu nhỏ trang viết mượt mà tại vị trí con trỏ mà không làm méo thanh công cụ.
-2. **Kế thừa toàn diện các tính năng v0.0.4.6**:
+### 🌟 Điểm Mới Trong Bản v0.0.4.8:
+1. **Chọn Đoạn Thẳng / Đường Thẳng Không Hiện Vùng Sáng Hình Chữ Nhật**:
+   - Khi chọn đoạn thẳng, đường thẳng, tia hoặc đường kéo dài (kể cả khi đi kèm điểm đầu mút hoặc chọn nhiều đoạn rời bằng `Shift/Ctrl + Click`): chỉ phát sáng xanh ngọc `#0d9488` đúng đoạn thẳng được chọn, **không hiện khung vùng sáng xanh + viền nét đứt cam + tay nắm xoay/co giãn** che khuất hình vẽ xung quanh.
+   - Không còn bị vướng vùng khung vô hình khi bấm vào các cạnh khác nằm lân cận; kéo trực tiếp đoạn thẳng hoặc kéo từng điểm đầu mút hoạt động độc lập.
+   - Khi quét chọn cả khối hình / ảnh / chữ / nét vẽ tự do, khung vùng chọn và tay nắm xoay/co giãn vẫn hiển thị bình thường.
+2. **Kế thừa toàn diện các tính năng v0.0.4.7**:
+   - Phóng to / thu nhỏ mượt mà bằng 2 ngón trên bàn di chuột (Touchpad Pinch-to-Zoom).
    - Máy tính VINACAL 680EX PLUS III tràn viền liền khối & màn hình LCD sát viền.
    - Tô miền (Fill tool) bắt điểm phát sáng xanh ngọc `#0d9488` khi hover đỉnh đa giác.
    - Bắt điểm & bắt đường phát sáng khi vẽ/dựng hình học; tùy chọn ẩn độc lập (đường / điểm / mặt / tất cả) & chọn nhiều đối tượng.
-   - 2 Máy tính Casio fx-580VN X & VINACAL 680EX PLUS III offline, chụp LCD vào bảng.
 3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
