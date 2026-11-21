@@ -22,23 +22,27 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.1"
-TITLE = "MinNote v0.0.5.1 - Tự Động Cập Nhật Nét Liền / Nét Đứt Hình Không Gian 3D Theo Thời Gian Thực"
-BODY = """## MinNote v0.0.5.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.2"
+TITLE = "MinNote v0.0.5.2 - Chuyển Động Điểm, Dựng Lại Hình Theo Kịch Bản & Phím Tắt Ctrl+H / Ctrl+Shift+H / Ctrl+M"
+BODY = """## MinNote v0.0.5.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.1 bổ sung tính năng tự động hóa nét liền / nét đứt theo không gian 3D khi kéo di chuyển đỉnh hoặc điểm trên hình khối:
+Bản cập nhật v0.0.5.2 bổ sung bộ công cụ trình diễn hình học động chuyên nghiệp và bộ phím tắt dựng hình nhanh:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.1:
-1. **Tự Động Cập Nhật Nét Liền / Nét Đứt Theo Không Gian 3D (Real-time Auto Hidden-Line)**:
-   - Khi kéo đỉnh (ví dụ kéo đỉnh `S` sang trái/phải hoặc kéo xuống dưới mặt đáy `ABCD`) hoặc di chuyển điểm thuộc hình khối 3D, toàn bộ các cạnh, đường chéo, đoạn thẳng dựng thêm (`MN`, `NC`, `MC`, `MB`...), đường thẳng và tia (`line`, `ray`, `extend`) tự động tính lại mặt nhìn thấy / mặt khuất và chuyển đổi nét liền ↔ nét đứt ngay trong lúc kéo theo thời gian thực.
-   - Áp dụng cho mọi khối 3D dựng sẵn (hình chóp, lăng trụ, hình hộp, lập phương, bát diện, hình chóp cụt, nón, trụ, cầu...) và các hình 2D đã chuyển sang 3D (`Chuyển thành 3D`).
-   - Hỗ trợ cả kéo đơn điểm, gộp điểm và biến dạng nhóm đỉnh (kéo một phần đỉnh của khối), đồng thời giữ nguyên kiểu nét thủ công khi chỉ di chuyển tịnh tiến cả khối hình hoặc khi người dùng chủ động bấm nút đổi nét đứt/liền.
-2. **Tùy Chọn Bật / Tắt Trong Menu Dựng Hình Động (`HÌNH VẼ`)**:
-   - Thêm mục `✓ Tự động nét liền / đứt` ngay dưới `Bắt điểm lưới` (mặc định bật và tự động lưu cấu hình) để giáo viên có thể tắt tạm thời khi muốn giữ nguyên nét đứt thủ công trong lúc kéo điểm.
-3. **Kế thừa toàn diện các tính năng v0.0.5.0**:
-   - Bộ 22 icon phím tắt Duotone thiết kế lại đồng bộ và sắc nét.
-   - Tách biệt chọn đoạn thẳng và điểm đầu mút; chọn nhiều đối tượng bằng `Shift/Ctrl + Click` không nền xanh mờ.
-   - Touchpad Pinch-to-Zoom mượt mà; máy tính Casio FX-580VN X & VINACAL 680EX PLUS III tràn viền offline.
+### 🌟 Điểm Mới Trong Bản v0.0.5.2:
+1. **Chuyển Động Điểm Có Cài Đặt Tốc Độ (Point Animation)**:
+   - Chọn bất kỳ điểm di chuyển được (điểm trên đoạn/đường thẳng, trên đường tròn/đường cong, điểm theo phương vectơ hoặc điểm tự do) → bấm nút **Chuyển động** trên thanh nổi (ngay cạnh `Hiện vết`).
+   - Hỗ trợ chạy đồng thời nhiều điểm, tùy chỉnh **tốc độ mượt (`0.2× – 4.0×` và các mức nhanh `0.5×, 1×, 1.5×, 2×, 3×`)**, chuyển chế độ **Qua lại (`↔`) / Vòng lặp (`↻`)**, tạm dừng / tiếp tục từng điểm hoặc toàn bộ ngay trên bảng điều khiển nổi góc dưới-phải.
+   - Tích hợp trọn vẹn với **Hiện vết (quỹ tích)** và **Tự động nét liền/đứt 3D** theo thời gian thực trong lúc điểm chuyển động.
+2. **Dựng Lại Hình Theo Kịch Bản Thứ Tự Vẽ (Construction Replay & Script Editor)**:
+   - Mở từ menu **Dựng hình động → `▶ Kịch bản dựng hình`** hoặc bấm **Dựng lại hình** trên thanh nổi khi đang chọn hình.
+   - Trình diễn vẽ lại từng nét hình từ đầu với hiệu ứng nét chạy mượt (ví dụ đoạn thẳng `AB` kéo nét dần từ `A → B` kèm đầu bút phát sáng, đường tròn quét compa `0 → 360°`, đa giác nối từng cạnh và phủ màu...).
+   - **Bảng Kịch Bản Thứ Tự linh hoạt**: kéo thả hoặc bấm `↑ / ↓` đổi thứ tự vẽ, bấm `⇄` đảo chiều vẽ (`A → B` ↔ `B → A`), gộp nhóm vẽ đồng thời (`⊕`) / tách nhóm (`⊖`), bật/bỏ qua bước (`👁`), preset **Thứ tự gốc** & **Khối gốc → Nét thêm**, chế độ **Dừng sau mỗi bước** để giảng bài từng bước và nút **Thu gọn** thành thanh trình chiếu nhỏ gọn ở cuối màn hình.
+   - Tự động lưu kịch bản thứ tự ngay trên trang sổ.
+3. **Bộ Phím Tắt Hình Học Nhanh**:
+   - **`Ctrl + H`**: Ẩn đối tượng đang chọn (điểm, đoạn, đường, mặt, hình — giữ tách biệt điểm đầu mút khi ẩn đoạn thẳng).
+   - **`Ctrl + Shift + H`**: Hiện lại các đối tượng đang bị ẩn trên trang hiện tại.
+   - **`Ctrl + M`**: Dựng trung điểm ngay lập tức nếu đang chọn sẵn 2 điểm hoặc 1 đoạn thẳng; nếu chưa chọn sẽ bật ngay công cụ **Trung điểm** (hiển thị nhãn `Ctrl+M` trong menu Dựng hình động).
+   - Phím tắt `Sơ đồ tư duy` và `Cân bằng Hóa học` được chuyển sang `Ctrl + Alt + M` và `Ctrl + Alt + H` để tránh trùng lặp.
 4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 

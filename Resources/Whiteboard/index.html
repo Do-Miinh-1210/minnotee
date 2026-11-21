@@ -248,7 +248,7 @@
           </svg>
           Kho Đề &amp; Câu hỏi (Ctrl + Q)
         </button>
-        <button class="btn-mindmap-mea" id="btn-toggle-mindmap" onclick="if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();" title="Mở tab Sơ đồ tư duy Toán học (Ctrl + M)">
+        <button class="btn-mindmap-mea" id="btn-toggle-mindmap" onclick="if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();" title="Mở tab Sơ đồ tư duy Toán học (Ctrl + Alt + M)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="18" cy="5" r="3"></circle>
             <circle cx="6" cy="12" r="3"></circle>
@@ -256,7 +256,7 @@
             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
           </svg>
-          Sơ đồ tư duy (Ctrl + M)
+          Sơ đồ tư duy (Ctrl + Alt + M)
         </button>
         <!-- WINDOW CONTROLS: Thu nhỏ, Phóng to/Khôi phục, Đóng cửa sổ -->
         <div class="mea-window-controls" style="display:flex;align-items:center;gap:3px;margin-left:8px;border-left:1px solid #334155;padding-left:8px;">
@@ -704,7 +704,7 @@
           if (window.chrome && window.chrome.webview) {
             window.chrome.webview.postMessage({ type: 'TOGGLE_RIBBON', timestamp: Date.now() });
           }
-        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
+        } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'm' || e.key === 'M')) {
           e.preventDefault();
           if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
@@ -719,7 +719,7 @@
         } else if ((e.ctrlKey || e.metaKey) && e.key === '3') {
           e.preventDefault();
           if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
-        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H')) {
+        } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'h' || e.key === 'H')) {
           e.preventDefault();
           if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W') && e.shiftKey) {
@@ -785,7 +785,7 @@
           const btnM = document.createElement('button');
           btnM.id = 'tb-btn-mindmap';
           btnM.className = 'tb';
-          btnM.title = 'Sơ đồ tư duy Toán học (Ctrl + M)';
+          btnM.title = 'Sơ đồ tư duy Toán học (Ctrl + Alt + M)';
           btnM.setAttribute('aria-label', 'Sơ đồ tư duy');
           btnM.innerHTML = `
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -841,7 +841,7 @@
           const btnC = document.createElement('button');
           btnC.id = 'tb-btn-chem';
           btnC.className = 'tb';
-          btnC.title = 'Cân bằng phản ứng Hóa học (Ctrl + H)';
+          btnC.title = 'Cân bằng phản ứng Hóa học (Ctrl + Alt + H)';
           btnC.setAttribute('aria-label', 'Hóa học');
           btnC.innerHTML = `
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1124,5 +1124,7 @@
         }
       }, true);
     </script>
+    <link rel="stylesheet" href="./geo-motion-replay.css" />
+    <script src="./geo-motion-replay.js" defer></script>
   </body>
 </html>

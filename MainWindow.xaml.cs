@@ -1045,7 +1045,7 @@ namespace MinNote
                 e.Handled = true;
                 ExecuteScriptSafe("if (typeof toggleQuestionBankModal === 'function') toggleQuestionBankModal();");
             }
-            else if (e.Key == Key.M && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            else if (e.Key == Key.M && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) == (ModifierKeys.Control | ModifierKeys.Alt))
             {
                 e.Handled = true;
                 ExecuteScriptSafe("if (typeof toggleMindMapStudio === 'function') toggleMindMapStudio();");
