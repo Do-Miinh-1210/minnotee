@@ -293,64 +293,119 @@
     return (sh.dashed ? 'Nét đứt' : 'Nét liền') + (step.tempHide ? ' • Tự ẩn sau khi vẽ' : '');
   }
 
+  function parseNtTimestamp(id) {
+    if (typeof id !== 'string' || id.length < 8) return null;
+    // nt() starts with 8-char base36 Date.now() timestamp (e.g. "m..." for 2024..2035 -> ~1.7e12..2.1e12 ms)
+    const head = id.slice(0, 8);
+    if (!/^[a-z0-9]{8}$/.test(head)) return null;
+    const ms = parseInt(head, 36);
+    return (ms > 1500000000000 && ms < 4000000000000) ? ms : null;
+  }
+
   function buildDefaultSteps(geo, scopeShapes, scopePoints) {
     const shapes = geo.shapes.filter(s => s.kind !== 'solid' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id)));
     const usedPtsByShape = new Set();
     for (const s of shapes) s.pts.forEach(id => usedPtsByShape.add(id));
-
-    const steps = [];
-    const emittedPts = new Set();
     const solidGroups = new Set(geo.shapes.filter(s => s.kind === 'solid').map(s => s.group).filter(Boolean));
 
-    const isConstructedStepPt = (pt) => {
+    const isStepPt = (pt) => {
       if (!pt || !pt.show || pt.hidden) return false;
       if (scopePoints && !scopePoints.has(pt.id)) return false;
-      // ALWAYS emit intersection points as explicit 2-line-guide -> point -> hide steps!
       if (pt.def && pt.def.t === 'inter') return true;
       if (!usedPtsByShape.has(pt.id)) return true;
       if (pt.group && solidGroups.has(pt.group)) return false;
-      return ['mid', 'on', 'foot', 'path'].includes(pt.def.t);
+      return ['mid', 'on', 'foot', 'path', 'free'].includes(pt.def.t) && (!pt.group || !solidGroups.has(pt.group));
     };
 
-    const emitPointWithDeps = (pid, visiting = new Set()) => {
-      if (emittedPts.has(pid) || visiting.has(pid)) return;
-      const pt = geo.points[pid];
-      if (!isConstructedStepPt(pt)) return;
-      visiting.add(pid);
-      // Emit prerequisite intersection/constructed points first (e.g. O before I, I before N)
-      const d = pt.def;
-      const depIds = [];
-      if (d.a) depIds.push(d.a);
-      if (d.b) depIds.push(d.b);
-      if (d.p) depIds.push(d.p);
-      if (d.l1) depIds.push(d.l1[0], d.l1[1]);
-      if (d.l2) depIds.push(d.l2[0], d.l2[1]);
-      for (const dep of depIds) emitPointWithDeps(dep, visiting);
-      emittedPts.add(pid);
-      steps.push({
-        id: 'st_p_' + pid,
-        kind: 'point',
-        refId: pid,
-        rev: false,
-        showGuides: d.t === 'inter',
-        enabled: true
+    // Build unified chronological timeline using exact creation timestamp from nt() IDs + insertion order
+    const entries = [];
+    const ptEntries = Object.values(geo.points);
+    ptEntries.forEach((pt, idx) => {
+      if (!isStepPt(pt)) return;
+      // Don't clutter with free points that are just immediate endpoints of a 2D segment drawn in the same action (<25ms)
+      if (pt.def.t === 'free' && usedPtsByShape.has(pt.id)) return;
+      entries.push({
+        ts: parseNtTimestamp(pt.id),
+        kindRank: 0, // at identical ms, point precedes shape
+        ord: idx,
+        step: {
+          id: 'st_p_' + pt.id,
+          kind: 'point',
+          refId: pt.id,
+          rev: false,
+          showGuides: !!(pt.def && pt.def.t === 'inter'),
+          enabled: true
+        }
       });
-    };
+    });
 
-    for (const sh of shapes) {
-      for (const pid of sh.pts) emitPointWithDeps(pid);
-      steps.push({ id: 'st_s_' + sh.id, kind: 'shape', refId: sh.id, rev: false, tempHide: false, enabled: true });
+    shapes.forEach((sh, idx) => {
+      entries.push({
+        ts: parseNtTimestamp(sh.id),
+        kindRank: 1,
+        ord: idx,
+        step: {
+          id: 'st_s_' + sh.id,
+          kind: 'shape',
+          refId: sh.id,
+          rev: false,
+          tempHide: false,
+          enabled: true
+        }
+      });
+    });
+
+    // Sort strictly by creation timestamp when both have nt() timestamps; otherwise preserve logical order
+    const hasAnyTs = entries.some(e => e.ts !== null);
+    if (hasAnyTs) {
+      entries.sort((a, b) => {
+        if (a.ts !== null && b.ts !== null && a.ts !== b.ts) return a.ts - b.ts;
+        if (a.ts !== null && b.ts === null) return -1;
+        if (a.ts === null && b.ts !== null) return 1;
+        if (a.kindRank !== b.kindRank) return a.kindRank - b.kindRank;
+        return a.ord - b.ord;
+      });
     }
 
-    // Remaining standalone or intersection points not referenced by any visible shape
-    for (const pt of Object.values(geo.points)) {
-      if (!emittedPts.has(pt.id) && pt.show && !pt.hidden && (!scopePoints || scopePoints.has(pt.id))) {
-        if (!usedPtsByShape.has(pt.id) || (pt.def && pt.def.t === 'inter')) {
-          emitPointWithDeps(pt.id);
-        }
+    // Light dependency pass: ensure any prerequisite point step appears before the first shape or derived point that uses it
+    const raw = entries.map(e => e.step);
+    const byPtId = new Map();
+    for (const st of raw) if (st.kind === 'point') byPtId.set(st.refId, st);
+
+    const out = [];
+    const emitted = new Set();
+    const emitPtDeps = (pid, visiting = new Set()) => {
+      const pst = byPtId.get(pid);
+      if (!pst || emitted.has(pst.id) || visiting.has(pid)) return;
+      visiting.add(pid);
+      const pt = geo.points[pid];
+      if (pt && pt.def) {
+        const d = pt.def;
+        const deps = [];
+        if (d.a) deps.push(d.a);
+        if (d.b) deps.push(d.b);
+        if (d.p) deps.push(d.p);
+        if (d.l1) deps.push(d.l1[0], d.l1[1]);
+        if (d.l2) deps.push(d.l2[0], d.l2[1]);
+        for (const dep of deps) emitPtDeps(dep, visiting);
+      }
+      emitted.add(pst.id);
+      out.push(pst);
+    };
+
+    const shMap = new Map(shapes.map(s => [s.id, s]));
+    for (const st of raw) {
+      if (emitted.has(st.id)) continue;
+      if (st.kind === 'point') {
+        emitPtDeps(st.refId);
+      } else if (st.kind === 'shape') {
+        const sh = shMap.get(st.refId);
+        if (sh) for (const pid of sh.pts) emitPtDeps(pid);
+        emitted.add(st.id);
+        out.push(st);
       }
     }
-    return steps;
+    return out;
   }
 
   function loadSavedScript(pg) {

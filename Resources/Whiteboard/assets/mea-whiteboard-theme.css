@@ -1522,3 +1522,266 @@ body > .ML__keyboard,
 
 /* Suppress any intrusive update or privacy modal gates */
 .update-gate { display: none !important; pointer-events: none !important; }
+
+
+/* ==========================================================================
+   12. FULL DARK MODE COMPATIBILITY (html.dark) — Obsidian Slate & Emerald Teal
+   ========================================================================== */
+html.dark,
+:root.dark {
+  --ink: #f1f5f9 !important;
+  --muted: #94a3b8 !important;
+  --accent: #14b8a6 !important;
+  --accent-dark: #2dd4bf !important;
+  --accent-hover: #2dd4bf !important;
+  --accent-soft: rgba(20, 184, 166, 0.16) !important;
+  --accent-ring: rgba(45, 212, 191, 0.4) !important;
+  --line: #334155 !important;
+  --surface: #1e293b !important;
+  --surface-subtle: #0f172a !important;
+  --dock-bg: rgba(15, 23, 42, 0.96) !important;
+  --dock-shadow: 0 12px 28px rgba(0, 0, 0, 0.48) !important;
+}
+
+html.dark,
+html.dark body {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .toolbar {
+  background: rgba(15, 23, 42, 0.97) !important;
+  border-bottom: 1px solid #334155 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.dark .tb-group,
+html.dark .tb-group.tools,
+html.dark .nb-tools-dock,
+html.dark .tb-title,
+html.dark .tb-palette,
+html.dark .toolbar > .tb-palette {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: none !important;
+}
+
+html.dark .tb,
+html.dark .nb-tools-dock .tb,
+html.dark .zoom-button {
+  color: #e2e8f0 !important;
+}
+
+html.dark .tb:hover:not(:disabled),
+html.dark .nb-tools-dock .tb:hover:not(:disabled),
+html.dark .zoom-button:hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+
+html.dark .tb:disabled {
+  color: #475569 !important;
+}
+
+html.dark .tb.on {
+  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+  color: #ffffff !important;
+}
+
+html.dark .sep,
+html.dark .nb-tools-dock .tb-sep,
+html.dark .toolbar .tb-row-break {
+  background: #334155 !important;
+}
+
+html.dark .swatch:hover {
+  background: #334155 !important;
+}
+
+html.dark .dropdown-menu,
+html.dark .menu,
+html.dark .popover,
+html.dark [role="menu"] {
+  background: rgba(15, 23, 42, 0.98) !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.dark .menu button,
+html.dark .menu-item,
+html.dark .dropdown-menu button {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+
+html.dark .menu button:hover,
+html.dark .dropdown-menu button:hover {
+  background: rgba(20, 184, 166, 0.16) !important;
+  color: #5eead4 !important;
+}
+
+html.dark .menu button.checked,
+html.dark .dropdown-menu button.checked {
+  background: rgba(13, 148, 136, 0.3) !important;
+  color: #5eead4 !important;
+}
+
+html.dark .menu-heading {
+  color: #94a3b8 !important;
+}
+
+html.dark .menu hr {
+  border-color: #334155 !important;
+}
+
+html.dark .menu kbd {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .zoom-input label {
+  color: #e2e8f0 !important;
+}
+
+html.dark .zoom-input input,
+html.dark .menu input {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+html.dark .side-choices button {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .side-choices button.checked {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+  border-color: #14b8a6 !important;
+}
+
+html.dark .pages-panel {
+  background: #0f172a !important;
+  border-right-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .sheet-bar,
+html.dark .sheets-bar {
+  background: #0f172a !important;
+  border-top-color: #334155 !important;
+}
+
+html.dark .sheet-tab,
+html.dark .sheet-add {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .sheet-tab.on,
+html.dark .sheet-tab.active {
+  background: rgba(13, 148, 136, 0.28) !important;
+  color: #5eead4 !important;
+  border-bottom-color: #14b8a6 !important;
+}
+
+html.dark .sel-bar,
+html.dark .sel-pen-pop {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.dark .sel-bar button {
+  color: #e2e8f0 !important;
+}
+
+html.dark .sel-bar button:hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+
+html.dark .sel-bar button.on {
+  background: rgba(13, 148, 136, 0.32) !important;
+  color: #5eead4 !important;
+}
+
+html.dark .library,
+html.dark .lib-backdrop,
+html.dark .lib-body,
+html.dark .lib-main {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .library h1,
+html.dark .library h2,
+html.dark .library h3,
+html.dark .lib-title,
+html.dark .lib-head,
+html.dark .lib-shelf-name {
+  color: #f8fafc !important;
+}
+
+html.dark .lib-count,
+html.dark .lib-meta,
+html.dark .lib-date,
+html.dark .lib-empty {
+  color: #94a3b8 !important;
+}
+
+html.dark .library button:not(.primary):not(.lib-del) {
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .dialog,
+html.dark .settings section {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .settings section {
+  background: #1e293b !important;
+}
+
+html.dark .dialog h2,
+html.dark .dialog h3,
+html.dark .dialog h4,
+html.dark .dialog label {
+  color: #f1f5f9 !important;
+}
+
+html.dark .dialog input[type="text"],
+html.dark .dialog input[type="number"],
+html.dark .dialog select,
+html.dark .dialog textarea {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+html.dark .paper-choice {
+  background: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .paper-choice.on {
+  background: rgba(13, 148, 136, 0.28) !important;
+  color: #5eead4 !important;
+  border-color: #14b8a6 !important;
+}
+
+html.dark .dialog-actions button:not(.primary) {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
