@@ -120,6 +120,49 @@ function _teePartial(e,t,n,p,rev){
   _drawTip(e,tip),e.restore();
   return tip;
 }
+function _drawInterGuideLine(e,a,b,I,t,fade){
+  if(t<=0||fade<=0)return;
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);if(len<1e-6)return;
+  const ux=dx/len,uy=dy/len;
+  const proj=q=>(q.x-a.x)*ux+(q.y-a.y)*uy;
+  const pA=0,pB=len,pI=proj(I);
+  const mn=Math.min(pA,pB,pI)-18,mx=Math.max(pA,pB,pI)+18;
+  const s0={x:a.x+ux*mn,y:a.y+uy*mn},s1={x:a.x+ux*mx,y:a.y+uy*mx};
+  const end=t>=1?s1:_lerpPt(s0,s1,t);
+  e.save();
+  e.globalAlpha=.85*fade;
+  e.strokeStyle="#0284c7";
+  e.lineWidth=1.8;
+  e.lineCap="round";
+  e.setLineDash([7,5]);
+  e.beginPath();e.moveTo(s0.x,s0.y);e.lineTo(end.x,end.y);e.stroke();
+  if(t<1&&fade>.5)_drawTip(e,end);
+  e.restore();
+}
+function _drawInterGuideCircle(e,O,R,t,fade){
+  if(t<=0||fade<=0)return;
+  const r=Math.hypot(R.x-O.x,R.y-O.y);if(r<1e-6)return;
+  const a0=Math.atan2(R.y-O.y,R.x-O.x),a1=a0+Math.PI*2*t;
+  e.save();
+  e.globalAlpha=.85*fade;
+  e.strokeStyle="#0284c7";
+  e.lineWidth=1.8;
+  e.setLineDash([7,5]);
+  e.beginPath();e.arc(O.x,O.y,r,a0,a1,!1);e.stroke();
+  if(t<1&&fade>.5)_drawTip(e,{x:O.x+r*Math.cos(a1),y:O.y+r*Math.sin(a1)});
+  e.restore();
+}
+function _drawInterGuides(e,pt,coords,rawP){
+  if(!pt||!pt.def||pt.def.t!=="inter")return rawP;
+  const I=coords.get(pt.id);if(!I)return rawP;
+  const d=pt.def;
+  const a1=coords.get(d.l1[0]),b1=coords.get(d.l1[1]),a2=coords.get(d.l2[0]),b2=coords.get(d.l2[1]);
+  const clamp=v=>Math.max(0,Math.min(1,v));
+  const t1=clamp(rawP/.36),t2=clamp((rawP-.2)/.36),tp=clamp((rawP-.52)/.24),fade=rawP<.74?1:clamp(1-(rawP-.74)/.26);
+  if(a1&&b1){d.c1?_drawInterGuideCircle(e,a1,b1,t1,fade):_drawInterGuideLine(e,a1,b1,I,t1,fade)}
+  if(a2&&b2){d.c2?_drawInterGuideCircle(e,a2,b2,t2,fade):_drawInterGuideLine(e,a2,b2,I,t2,fade)}
+  return tp;
+}
 `.replace(/\n\s*/g, '');
 
 // 1. Add _teePartial helper right after sAD
@@ -342,9 +385,15 @@ _notifyAuxUI(){
   try{window.dispatchEvent(new CustomEvent("minnote:aux-update"))}catch{}
 }
 saveBuildScript(pageIdx,script){
-  const pg=this.doc.pages[pageIdx];if(!pg)return;
-  this.doc=this.updatePage(pageIdx,s=>({...s,geo:{...s.geo,script}}));
+  var _n;
+  const pg=this.doc.pages[pageIdx];if(!pg)return!1;
+  const clean=JSON.parse(JSON.stringify(script));
+  this.doc=this.updatePage(pageIdx,s=>({...s,geo:{...s.geo,script:clean}}));
   this.dirty=!0;
+  this.emit();
+  (_n=this.cb.changed)==null||_n.call(this.cb);
+  try{localStorage.setItem("mn_geo_script_"+pg.id,JSON.stringify(clean))}catch{}
+  return!0;
 }
 replayHiddenPage(t){
   const r=this.replay;if(!r||!r.active)return t;
@@ -385,7 +434,9 @@ _ensureReplayLoop(){
     if(!activeSteps.length){r.playing=!1,this._notifyAuxUI(),this.redraw();return}
     if(r.stepIdx>=activeSteps.length){r.playing=!1,r.stepProgress=1,this._notifyAuxUI(),this.redraw();return}
     const cur=activeSteps[r.stepIdx];
-    const dur=(cur.kind==="point"?.45:.95)/Math.max(.15,r.speed||1);
+    const pg0=this.doc.pages[r.page];
+    const isInterGuide=cur.kind==="point"&&cur.showGuides!==!1&&pg0&&pg0.geo.points[cur.refId]&&pg0.geo.points[cur.refId].def.t==="inter";
+    const dur=(isInterGuide?1.65:cur.tempHide?1.25:cur.kind==="point"?.48:.95)/Math.max(.15,r.speed||1);
     r.stepProgress=Math.min(1,r.stepProgress+dt/dur);
     if(r.stepProgress>=1){
       if(r.stepIdx>=activeSteps.length-1){
@@ -420,17 +471,30 @@ paintReplay(ctx,pageIdx){
   for(let i=0;i<activeSteps.length;i++){
     if(i>r.stepIdx)break;
     const st=activeSteps[i];
-    const prog=i<r.stepIdx?1:ease(Math.max(0,Math.min(1,r.stepProgress)));
+    const rawP=i<r.stepIdx?1:Math.max(0,Math.min(1,r.stepProgress));
+    const prog=i<r.stepIdx?1:ease(rawP);
     const items=st.items&&st.items.length?st.items:[{kind:st.kind,refId:st.refId,rev:!!st.rev}];
     for(const it of items){
       if(it.kind==="shape"){
         const sh=shMap.get(it.refId);
-        if(!sh||sh.hidden)continue;
-        if(prog>=1){tee(ctx,sh,coords);markPts(sh,1)}
+        if(!sh||(sh.hidden&&!st.tempHide&&!st.includeHidden))continue;
+        if(st.tempHide){
+          if(i<r.stepIdx)continue;
+          const dp=Math.min(1,rawP/.72),fa=rawP<.72?1:Math.max(0,1-(rawP-.72)/.28);
+          if(dp>0&&fa>0){ctx.save(),ctx.globalAlpha*=fa,_teePartial(ctx,sh,coords,ease(dp),!!(it.rev??st.rev)),ctx.restore()}
+        }else if(prog>=1){tee(ctx,sh,coords);markPts(sh,1)}
         else if(prog>0){_teePartial(ctx,sh,coords,prog,!!(it.rev??st.rev));markPts(sh,Math.min(1,prog*2.5))}
       }else if(it.kind==="point"){
-        if(prog>=1)donePts.add(it.refId);
-        else if(prog>0)animPts.set(it.refId,Math.max(animPts.get(it.refId)??0,prog));
+        const pt=geo.points[it.refId];
+        if(i<r.stepIdx){donePts.add(it.refId)}
+        else if(rawP>0){
+          if(pt&&pt.def&&pt.def.t==="inter"&&st.showGuides!==!1){
+            const tp=_drawInterGuides(ctx,pt,coords,rawP);
+            if(tp>0)animPts.set(it.refId,Math.max(animPts.get(it.refId)??0,tp));
+          }else{
+            animPts.set(it.refId,Math.max(animPts.get(it.refId)??0,prog));
+          }
+        }
       }
     }
   }
@@ -537,6 +601,13 @@ replaceOnce(
   'HÌNH VẼ menu Construction Script button',
   'h.jsxs("button",{className:aD3?"checked":"",title:n.autoDash3dHint,onClick:tAD3,children:[aD3?"✓ ":"",n.autoDash3d]})]}),',
   'h.jsxs("button",{className:aD3?"checked":"",title:n.autoDash3dHint,onClick:tAD3,children:[aD3?"✓ ":"",n.autoDash3d]}),h.jsxs("button",{title:"Mở bảng kịch bản thứ tự dựng lại hình từ đầu theo từng nét",onClick:()=>{xt(""),window.MinNoteGeoReplay&&window.MinNoteGeoReplay.open(false)},children:["▶ Kịch bản dựng hình"]})]}),'
+);
+
+// 14. Add Hide Sheet Bar button inside nav.sheet-bar + unobtrusive Restore Sheet Bar pill when hidden
+replaceOnce(
+  'Sheet bar hide/show toggle button',
+  'h.jsx("button",{className:"sheet-add",title:n.addSheet,onClick:vi,children:"+"})]}),',
+  'h.jsx("button",{className:"sheet-add",title:n.addSheet,onClick:vi,children:"+"}),h.jsxs("button",{className:"sheet-hide-btn",title:"Ẩn thanh Sheet",onClick:ev,children:[h.jsx("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",children:h.jsx("polyline",{points:"6 9 12 15 18 9"})})," Ẩn sheet"]})]}),Ua&&h.jsxs("button",{className:"sheet-restore-pill",title:"Hiện lại thanh Sheet",onClick:ev,children:[h.jsx("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",children:h.jsx("polyline",{points:"18 15 12 9 6 15"})})," Sheet"]}),'
 );
 
 fs.writeFileSync(targetFile, code, 'utf8');

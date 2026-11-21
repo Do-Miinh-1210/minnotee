@@ -22,28 +22,24 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.2"
-TITLE = "MinNote v0.0.5.2 - Chuyển Động Điểm, Dựng Lại Hình Theo Kịch Bản & Phím Tắt Ctrl+H / Ctrl+Shift+H / Ctrl+M"
-BODY = """## MinNote v0.0.5.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.3"
+TITLE = "MinNote v0.0.5.3 - Giao Điểm Vẽ 2 Đường Giao Rồi Ẩn, Kéo Thả & Lưu Kịch Bản Mượt, Nút Ẩn Thanh Sheet"
+BODY = """## MinNote v0.0.5.3 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.2 bổ sung bộ công cụ trình diễn hình học động chuyên nghiệp và bộ phím tắt dựng hình nhanh:
+Bản cập nhật v0.0.5.3 hoàn thiện sâu trải nghiệm kịch bản dựng lại hình và giao diện bảng viết:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.2:
-1. **Chuyển Động Điểm Có Cài Đặt Tốc Độ (Point Animation)**:
-   - Chọn bất kỳ điểm di chuyển được (điểm trên đoạn/đường thẳng, trên đường tròn/đường cong, điểm theo phương vectơ hoặc điểm tự do) → bấm nút **Chuyển động** trên thanh nổi (ngay cạnh `Hiện vết`).
-   - Hỗ trợ chạy đồng thời nhiều điểm, tùy chỉnh **tốc độ mượt (`0.2× – 4.0×` và các mức nhanh `0.5×, 1×, 1.5×, 2×, 3×`)**, chuyển chế độ **Qua lại (`↔`) / Vòng lặp (`↻`)**, tạm dừng / tiếp tục từng điểm hoặc toàn bộ ngay trên bảng điều khiển nổi góc dưới-phải.
-   - Tích hợp trọn vẹn với **Hiện vết (quỹ tích)** và **Tự động nét liền/đứt 3D** theo thời gian thực trong lúc điểm chuyển động.
-2. **Dựng Lại Hình Theo Kịch Bản Thứ Tự Vẽ (Construction Replay & Script Editor)**:
-   - Mở từ menu **Dựng hình động → `▶ Kịch bản dựng hình`** hoặc bấm **Dựng lại hình** trên thanh nổi khi đang chọn hình.
-   - Trình diễn vẽ lại từng nét hình từ đầu với hiệu ứng nét chạy mượt (ví dụ đoạn thẳng `AB` kéo nét dần từ `A → B` kèm đầu bút phát sáng, đường tròn quét compa `0 → 360°`, đa giác nối từng cạnh và phủ màu...).
-   - **Bảng Kịch Bản Thứ Tự linh hoạt**: kéo thả hoặc bấm `↑ / ↓` đổi thứ tự vẽ, bấm `⇄` đảo chiều vẽ (`A → B` ↔ `B → A`), gộp nhóm vẽ đồng thời (`⊕`) / tách nhóm (`⊖`), bật/bỏ qua bước (`👁`), preset **Thứ tự gốc** & **Khối gốc → Nét thêm**, chế độ **Dừng sau mỗi bước** để giảng bài từng bước và nút **Thu gọn** thành thanh trình chiếu nhỏ gọn ở cuối màn hình.
-   - Tự động lưu kịch bản thứ tự ngay trên trang sổ.
-3. **Bộ Phím Tắt Hình Học Nhanh**:
-   - **`Ctrl + H`**: Ẩn đối tượng đang chọn (điểm, đoạn, đường, mặt, hình — giữ tách biệt điểm đầu mút khi ẩn đoạn thẳng).
-   - **`Ctrl + Shift + H`**: Hiện lại các đối tượng đang bị ẩn trên trang hiện tại.
-   - **`Ctrl + M`**: Dựng trung điểm ngay lập tức nếu đang chọn sẵn 2 điểm hoặc 1 đoạn thẳng; nếu chưa chọn sẽ bật ngay công cụ **Trung điểm** (hiển thị nhãn `Ctrl+M` trong menu Dựng hình động).
-   - Phím tắt `Sơ đồ tư duy` và `Cân bằng Hóa học` được chuyển sang `Ctrl + Alt + M` và `Ctrl + Alt + H` để tránh trùng lặp.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.3:
+1. **Dựng Giao Điểm Đúng Chuẩn Hình Học (Vẽ 2 Đường Giao → Hiện Giao Điểm → Ẩn 2 Đường Phụ)**:
+   - Mọi bước **Giao điểm** trong kịch bản tự động trình diễn 3 pha: vẽ lần lượt 2 đường (hoặc đường tròn) giao nhau cắt tại giao điểm → làm nổi bật điểm giao → mờ dần và **ẩn 2 đường phụ** trước khi vẽ các đoạn thẳng nối tiếp theo.
+   - Bổ sung nút **`✛`** bật/tắt đường phụ cho từng giao điểm, nút **`👻`** (Vẽ tạm rồi tự ẩn) cho bất kỳ nét vẽ nào, và nút **`+ Nét đã ẩn`** để đưa các đường phụ đã ẩn bằng `Ctrl+H` vào kịch bản trình chiếu.
+2. **Kéo Thả Đổi Thứ Tự Cảnh Dựng Bằng Pointer Events (Siêu Mượt Trên WebView2 / Chuột / Bút / Cảm Ứng)**:
+   - Thay thế hoàn toàn cơ chế HTML5 drag cũ bằng kéo thả Pointer Events trực tiếp trên tay nắm `⋮⋮` hoặc trên dòng kịch bản, có bóng mờ theo con trỏ, vạch xanh ngọc chỉ vị trí thả và tự cuộn danh sách.
+3. **Lưu Kịch Bản Bền Vững (`💾 Lưu`)**:
+   - Thêm nút **`💾 Lưu`** ngay trên tiêu đề bảng Kịch bản kèm phản hồi `✓ Đã lưu!`, đồng thời tự động lưu kịch bản vào dữ liệu trang sổ (`page.geo.script` + kích hoạt auto-save sổ) và sao lưu dự phòng vào `localStorage` để đóng/mở lại vẫn giữ nguyên thứ tự đã sắp xếp.
+4. **Nút Ẩn / Hiện Thanh Sheet Ngay Trên Thanh Sheet**:
+   - Thêm nút **`⌄ Ẩn sheet`** ngay cạnh `Sheet 1 | +` để ẩn thanh sheet giúp mở rộng tối đa diện tích bảng viết; khi ẩn sẽ có nút nhỏ **`⌃ Sheet`** gọn gàng ở góc dưới bên trái để mở lại chỉ với 1 bấm (tự động ghi nhớ trạng thái).
+5. **Kế thừa toàn diện v0.0.5.2**: Chuyển động điểm có cài đặt tốc độ, tự động nét liền/đứt 3D, phím tắt `Ctrl+H` / `Ctrl+Shift+H` / `Ctrl+M`.
+6. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

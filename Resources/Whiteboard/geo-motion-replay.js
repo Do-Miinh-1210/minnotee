@@ -28,6 +28,10 @@
     handle.addEventListener('pointercancel', end);
   }
 
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   /* ============================================================================
    * 1. POINT MOTION (CHUYỂN ĐỘNG ĐIỂM) UI CONTROLLER
    * ============================================================================ */
@@ -150,7 +154,6 @@
       if (!ids.length) return;
       const anyAnim = ids.some(id => b.ptAnims.has(id));
       if (anyAnim) {
-        // Toggle pause/resume on selected animating points
         const anyRunning = ids.some(id => b.ptAnims.has(id) && !b.ptAnims.get(id).paused);
         for (const id of ids) {
           if (b.ptAnims.has(id)) b.setPointAnimConfig(id, { paused: anyRunning });
@@ -179,42 +182,41 @@
   let replayPanel = null;
   let replayPill = null;
   let replayCollapsed = false;
-  let dragSrcIdx = -1;
-
-  function escapeHtml(str) {
-    return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
+  let savedFlashTimer = 0;
 
   function ptName(geo, id) {
     const p = geo.points[id];
     return (p && p.label) ? p.label : '?';
   }
 
-  function describeShape(geo, sh, rev) {
+  function describeShape(geo, sh, rev, tempHide) {
     const names = sh.pts.map(id => ptName(geo, id));
-    const dashTag = sh.dashed ? ' (nét đứt)' : '';
+    const tags = [];
+    if (sh.dashed) tags.push('nét đứt');
+    if (tempHide) tags.push('vẽ rồi ẩn');
+    const tagStr = tags.length ? ` (${tags.join(', ')})` : '';
     switch (sh.kind) {
       case 'segment': {
         const a = rev ? names[1] : names[0];
         const b = rev ? names[0] : names[1];
-        return (sh.arrow ? 'Vectơ ' : 'Đoạn thẳng ') + `${a} → ${b}${dashTag}`;
+        return (sh.arrow ? 'Vectơ ' : 'Đoạn thẳng ') + `${a} → ${b}${tagStr}`;
       }
       case 'line': {
         const a = rev ? names[1] : names[0];
         const b = rev ? names[0] : names[1];
-        return `Đường thẳng ${a} → ${b}${dashTag}`;
+        return `Đường thẳng ${a} → ${b}${tagStr}`;
       }
       case 'ray': {
         const a = rev ? names[1] : names[0];
         const b = rev ? names[0] : names[1];
-        return `Tia ${a} → ${b}${dashTag}`;
+        return `Tia ${a} → ${b}${tagStr}`;
       }
       case 'extend':
-        return `Kéo dài ${names[1] || ''}${names[2] || ''} → ${names[0] || ''}${dashTag}`;
+        return `Kéo dài ${names[1] || ''}${names[2] || ''} → ${names[0] || ''}${tagStr}`;
       case 'circle':
-        return `Đường tròn (${names[0]}; ${names[0]}${names[1]})${dashTag}`;
+        return `Đường tròn (${names[0]}; ${names[0]}${names[1]})${tagStr}`;
       case 'polygon':
-        return `Đa giác ${names.join('')}${sh.fill ? ' (tô màu)' : ''}`;
+        return `Đa giác ${names.join('')}${sh.fill ? ' (tô màu)' : ''}${tempHide ? ' (vẽ rồi ẩn)' : ''}`;
       case 'right':
         return `Kí hiệu góc vuông ${names.join('')}`;
       case 'angle':
@@ -230,7 +232,7 @@
       case 'parabola': return `Parabol (${names[0]})`;
       case 'hyperbola': return `Hypebol (${names[0]})`;
       default:
-        return `${sh.kind} ${names.join('')}${dashTag}`;
+        return `${sh.kind} ${names.join('')}${tagStr}`;
     }
   }
 
@@ -239,15 +241,19 @@
       if (step.customTitle) return step.customTitle;
       const first = step.items[0];
       const sh = first.kind === 'shape' ? geo.shapes.find(s => s.id === first.refId) : null;
-      const firstLbl = sh ? describeShape(geo, sh, !!(first.rev ?? step.rev)) : (first.kind === 'point' ? `Điểm ${ptName(geo, first.refId)}` : 'Nét');
+      const firstLbl = sh ? describeShape(geo, sh, !!(first.rev ?? step.rev), !!step.tempHide) : (first.kind === 'point' ? `Điểm ${ptName(geo, first.refId)}` : 'Nét');
       return `Nhóm (${step.items.length} nét): ${firstLbl}…`;
     }
     const it = (step.items && step.items[0]) || step;
     if (it.kind === 'point') {
+      const p = geo.points[it.refId];
+      if (p && p.def && p.def.t === 'inter') {
+        return `Giao điểm ${ptName(geo, it.refId)}`;
+      }
       return `Điểm ${ptName(geo, it.refId)}`;
     }
     const sh = geo.shapes.find(s => s.id === it.refId);
-    return sh ? describeShape(geo, sh, !!(it.rev ?? step.rev)) : 'Đối tượng';
+    return sh ? describeShape(geo, sh, !!(it.rev ?? step.rev), !!step.tempHide) : 'Đối tượng';
   }
 
   function stepSubtitle(geo, step) {
@@ -264,9 +270,15 @@
       const p = geo.points[it.refId];
       if (!p) return '';
       const t = p.def.t;
+      if (t === 'inter') {
+        const l1 = `${ptName(geo, p.def.l1[0])}${ptName(geo, p.def.l1[1])}`;
+        const l2 = `${ptName(geo, p.def.l2[0])}${ptName(geo, p.def.l2[1])}`;
+        return step.showGuides !== false
+          ? `Vẽ ${l1} ∩ ${l2} → hiện ${ptName(geo, p.id)} → ẩn 2 đường`
+          : `Giao điểm ${l1} ∩ ${l2} (không vẽ đường phụ)`;
+      }
       if (t === 'mid') return `Trung điểm ${ptName(geo, p.def.a)}${ptName(geo, p.def.b)}`;
       if (t === 'on') return `Điểm trên ${ptName(geo, p.def.a)}${ptName(geo, p.def.b)}`;
-      if (t === 'inter') return `Giao điểm`;
       if (t === 'foot') return `Chân đường vuông góc`;
       return 'Điểm dựng';
     }
@@ -276,9 +288,9 @@
       const rev = !!(it.rev ?? step.rev);
       const a = ptName(geo, rev ? sh.pts[1] : sh.pts[0]);
       const b = ptName(geo, rev ? sh.pts[0] : sh.pts[1]);
-      return `Chiều vẽ: ${a} ⟶ ${b}`;
+      return `Chiều vẽ: ${a} ⟶ ${b}${step.tempHide ? ' • Tự ẩn sau khi vẽ' : ''}`;
     }
-    return sh.dashed ? 'Nét đứt' : 'Nét liền';
+    return (sh.dashed ? 'Nét đứt' : 'Nét liền') + (step.tempHide ? ' • Tự ẩn sau khi vẽ' : '');
   }
 
   function buildDefaultSteps(geo, scopeShapes, scopePoints) {
@@ -288,43 +300,79 @@
 
     const steps = [];
     const emittedPts = new Set();
-
-    // Helper: if a point is a derived construction point (mid/on/inter/foot/path) not belonging to a built-in solid group,
-    // emit it as a crisp point step right before the first shape that uses it!
     const solidGroups = new Set(geo.shapes.filter(s => s.kind === 'solid').map(s => s.group).filter(Boolean));
 
     const isConstructedStepPt = (pt) => {
       if (!pt || !pt.show || pt.hidden) return false;
       if (scopePoints && !scopePoints.has(pt.id)) return false;
-      if (!usedPtsByShape.has(pt.id)) return true; // standalone visible point
-      if (pt.group && solidGroups.has(pt.group)) return false; // solid's own initial vertices appear with edges
-      return ['mid', 'on', 'inter', 'foot', 'path'].includes(pt.def.t);
+      // ALWAYS emit intersection points as explicit 2-line-guide -> point -> hide steps!
+      if (pt.def && pt.def.t === 'inter') return true;
+      if (!usedPtsByShape.has(pt.id)) return true;
+      if (pt.group && solidGroups.has(pt.group)) return false;
+      return ['mid', 'on', 'foot', 'path'].includes(pt.def.t);
+    };
+
+    const emitPointWithDeps = (pid, visiting = new Set()) => {
+      if (emittedPts.has(pid) || visiting.has(pid)) return;
+      const pt = geo.points[pid];
+      if (!isConstructedStepPt(pt)) return;
+      visiting.add(pid);
+      // Emit prerequisite intersection/constructed points first (e.g. O before I, I before N)
+      const d = pt.def;
+      const depIds = [];
+      if (d.a) depIds.push(d.a);
+      if (d.b) depIds.push(d.b);
+      if (d.p) depIds.push(d.p);
+      if (d.l1) depIds.push(d.l1[0], d.l1[1]);
+      if (d.l2) depIds.push(d.l2[0], d.l2[1]);
+      for (const dep of depIds) emitPointWithDeps(dep, visiting);
+      emittedPts.add(pid);
+      steps.push({
+        id: 'st_p_' + pid,
+        kind: 'point',
+        refId: pid,
+        rev: false,
+        showGuides: d.t === 'inter',
+        enabled: true
+      });
     };
 
     for (const sh of shapes) {
-      for (const pid of sh.pts) {
-        const pt = geo.points[pid];
-        if (!emittedPts.has(pid) && isConstructedStepPt(pt)) {
-          emittedPts.add(pid);
-          steps.push({ id: 'st_p_' + pid, kind: 'point', refId: pid, rev: false, enabled: true });
-        }
-      }
-      steps.push({ id: 'st_s_' + sh.id, kind: 'shape', refId: sh.id, rev: false, enabled: true });
+      for (const pid of sh.pts) emitPointWithDeps(pid);
+      steps.push({ id: 'st_s_' + sh.id, kind: 'shape', refId: sh.id, rev: false, tempHide: false, enabled: true });
     }
 
-    // Any remaining standalone visible points
+    // Remaining standalone or intersection points not referenced by any visible shape
     for (const pt of Object.values(geo.points)) {
-      if (!emittedPts.has(pt.id) && pt.show && !pt.hidden && (!scopePoints || scopePoints.has(pt.id)) && !usedPtsByShape.has(pt.id)) {
-        emittedPts.add(pt.id);
-        steps.push({ id: 'st_p_' + pt.id, kind: 'point', refId: pt.id, rev: false, enabled: true });
+      if (!emittedPts.has(pt.id) && pt.show && !pt.hidden && (!scopePoints || scopePoints.has(pt.id))) {
+        if (!usedPtsByShape.has(pt.id) || (pt.def && pt.def.t === 'inter')) {
+          emitPointWithDeps(pt.id);
+        }
       }
     }
     return steps;
   }
 
+  function loadSavedScript(pg) {
+    if (pg && pg.geo && Array.isArray(pg.geo.script) && pg.geo.script.length) {
+      return pg.geo.script;
+    }
+    if (pg && pg.id) {
+      try {
+        const raw = localStorage.getItem('mn_geo_script_' + pg.id);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) return parsed;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
   function reconcileSavedScript(geo, saved, scopeShapes, scopePoints) {
     if (!Array.isArray(saved) || !saved.length) return buildDefaultSteps(geo, scopeShapes, scopePoints);
-    const shIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
+    const allShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
+    const visShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
     const ptIds = new Set(Object.values(geo.points).filter(p => p.show && !p.hidden && (!scopePoints || scopePoints.has(p.id))).map(p => p.id));
 
     const seenSh = new Set();
@@ -334,25 +382,28 @@
     for (const st of saved) {
       if (st.items && st.items.length) {
         const items = st.items.filter(it => {
-          if (it.kind === 'shape' && shIds.has(it.refId) && !seenSh.has(it.refId)) { seenSh.add(it.refId); return true; }
+          const validSh = (st.tempHide || st.includeHidden) ? allShIds.has(it.refId) : visShIds.has(it.refId);
+          if (it.kind === 'shape' && validSh && !seenSh.has(it.refId)) { seenSh.add(it.refId); return true; }
           if (it.kind === 'point' && ptIds.has(it.refId) && !seenPt.has(it.refId)) { seenPt.add(it.refId); return true; }
           return false;
         });
         if (items.length === 1) {
-          out.push({ id: st.id || ('st_' + items[0].refId), kind: items[0].kind, refId: items[0].refId, rev: !!(items[0].rev ?? st.rev), enabled: st.enabled !== false });
+          out.push({ ...st, id: st.id || ('st_' + items[0].refId), kind: items[0].kind, refId: items[0].refId, items: undefined, rev: !!(items[0].rev ?? st.rev), enabled: st.enabled !== false });
         } else if (items.length > 1) {
           out.push({ ...st, items, enabled: st.enabled !== false });
         }
-      } else if (st.kind === 'shape' && shIds.has(st.refId) && !seenSh.has(st.refId)) {
-        seenSh.add(st.refId);
-        out.push({ ...st, enabled: st.enabled !== false });
+      } else if (st.kind === 'shape') {
+        const validSh = (st.tempHide || st.includeHidden) ? allShIds.has(st.refId) : visShIds.has(st.refId);
+        if (validSh && !seenSh.has(st.refId)) {
+          seenSh.add(st.refId);
+          out.push({ ...st, enabled: st.enabled !== false });
+        }
       } else if (st.kind === 'point' && ptIds.has(st.refId) && !seenPt.has(st.refId)) {
         seenPt.add(st.refId);
         out.push({ ...st, enabled: st.enabled !== false });
       }
     }
 
-    // Append any newly created shapes/points not yet in saved script
     const fresh = buildDefaultSteps(geo, scopeShapes, scopePoints);
     for (const st of fresh) {
       if (st.kind === 'shape' && !seenSh.has(st.refId)) out.push(st);
@@ -396,6 +447,28 @@
     return [...out, ...rest];
   }
 
+  function flashSavedBadge() {
+    if (!replayPanel) return;
+    const btn = replayPanel.querySelector('#mn-rp-save');
+    if (!btn) return;
+    btn.classList.add('saved');
+    btn.textContent = '✓ Đã lưu!';
+    clearTimeout(savedFlashTimer);
+    savedFlashTimer = setTimeout(() => {
+      if (btn) {
+        btn.classList.remove('saved');
+        btn.textContent = '💾 Lưu';
+      }
+    }, 1800);
+  }
+
+  function persistScript(b, showFeedback = false) {
+    if (!b || !b.replay) return false;
+    const ok = b.saveBuildScript(b.replay.page, b.replay.steps);
+    if (ok && showFeedback) flashSavedBadge();
+    return ok;
+  }
+
   function ensureReplayUI() {
     if (!replayPanel) {
       const el = document.createElement('div');
@@ -407,6 +480,7 @@
             <span>Kịch bản dựng lại hình</span>
           </div>
           <div class="mn-mp-head-btns">
+            <button class="mn-save-btn" id="mn-rp-save" title="Lưu thứ tự và cài đặt kịch bản vào trang hiện tại">💾 Lưu</button>
             <button class="mn-icon-btn" id="mn-rp-collapse" title="Thu gọn thành thanh trình chiếu">▁</button>
             <button class="mn-icon-btn danger" id="mn-rp-close" title="Thoát chế độ dựng lại hình">✕</button>
           </div>
@@ -440,16 +514,21 @@
         <div class="mn-rp-presets">
           <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục đúng thứ tự vẽ hình từ ban đầu">Thứ tự gốc</button>
           <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khung khối 3D gốc thành Bước 1, tách các đường dựng thêm thành các bước tiếp theo">Khối gốc → Nét thêm</button>
-          <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách toàn bộ các nhóm bước thành từng nét riêng lẻ">Tách tất cả</button>
+          <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường phụ đã ẩn (Ctrl+H) vào kịch bản ở chế độ vẽ tạm rồi tự ẩn">+ Nét đã ẩn</button>
+          <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách toàn bộ các nhóm bước thành từng nét riêng lẻ">Tách nhóm</button>
         </div>
         <div class="mn-rp-list" id="mn-rp-list"></div>
         <div class="mn-rp-foot">
-          <span>Kéo thả hoặc bấm ↑↓ để đổi thứ tự • ⇄ đảo chiều nét</span>
+          <span>Kéo thả ⋮⋮ hoặc ↑↓ đổi thứ tự • ⇄ đảo chiều • 👻 vẽ rồi ẩn</span>
         </div>
       `;
       document.body.appendChild(el);
       makeDraggable(el, el.querySelector('.mn-rp-head'));
 
+      el.querySelector('#mn-rp-save').addEventListener('click', () => {
+        const b = getBoard();
+        persistScript(b, true);
+      });
       el.querySelector('#mn-rp-close').addEventListener('click', () => window.MinNoteGeoReplay.close());
       el.querySelector('#mn-rp-collapse').addEventListener('click', () => {
         replayCollapsed = true;
@@ -475,6 +554,7 @@
       });
       el.querySelector('#mn-rp-preset-orig').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('orig'));
       el.querySelector('#mn-rp-preset-solid').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('solidFirst'));
+      el.querySelector('#mn-rp-preset-hidden').addEventListener('click', () => window.MinNoteGeoReplay.addHiddenLines());
       el.querySelector('#mn-rp-preset-ungroup').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('ungroup'));
 
       replayPanel = el;
@@ -503,9 +583,99 @@
     }
   }
 
-  function persistScript(b) {
-    if (!b || !b.replay || b.replay.scopeShapes) return; // persist full-page script to page.geo.script
-    b.saveBuildScript(b.replay.page, b.replay.steps);
+  /* Pure Pointer-Events Drag-and-Drop Reorder (100% WebView2 / Mouse / Touchpad / Stylus reliable!) */
+  let suppressRowClickUntil = 0;
+
+  function attachPointerReorder(listEl, row, rawIdx, b, r, labelText) {
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      if (e.target.closest('button')) return;
+
+      const onHandle = !!e.target.closest('.mn-step-drag');
+      const startX = e.clientX, startY = e.clientY;
+      const rowRect = row.getBoundingClientRect();
+      let started = false;
+      let ghost = null;
+      let dropIdx = rawIdx;
+
+      const startDrag = (ev) => {
+        started = true;
+        row.classList.add('drag-source');
+        ghost = document.createElement('div');
+        ghost.className = 'mn-drag-ghost';
+        ghost.style.width = rowRect.width + 'px';
+        ghost.style.left = rowRect.left + 'px';
+        ghost.style.top = (ev.clientY - rowRect.height / 2) + 'px';
+        ghost.innerHTML = `<span style="color:#0d9488;">⋮⋮</span><span>${escapeHtml(labelText)}</span>`;
+        document.body.appendChild(ghost);
+      };
+
+      const clearIndicators = () => {
+        listEl.querySelectorAll('.mn-step-item').forEach(el => {
+          el.classList.remove('drag-insert-before', 'drag-insert-after');
+        });
+      };
+
+      const onMove = (ev) => {
+        const dy = Math.abs(ev.clientY - startY);
+        const dx = Math.abs(ev.clientX - startX);
+        if (!started) {
+          if (onHandle ? (dy > 3 || dx > 3) : dy > 7) startDrag(ev);
+          else return;
+        }
+        ev.preventDefault();
+        if (ghost) ghost.style.top = (ev.clientY - rowRect.height / 2) + 'px';
+
+        // Auto-scroll list when dragging near top or bottom
+        const lRect = listEl.getBoundingClientRect();
+        if (ev.clientY < lRect.top + 28) listEl.scrollTop -= 8;
+        else if (ev.clientY > lRect.bottom - 28) listEl.scrollTop += 8;
+
+        clearIndicators();
+        const rows = [...listEl.querySelectorAll('.mn-step-item')];
+        let target = rows.length - 1;
+        let insertAfter = true;
+        for (let k = 0; k < rows.length; k++) {
+          const rr = rows[k].getBoundingClientRect();
+          if (ev.clientY < rr.top + rr.height / 2) {
+            target = k;
+            insertAfter = false;
+            break;
+          }
+        }
+        const targetRow = rows[target];
+        if (targetRow) {
+          targetRow.classList.add(insertAfter ? 'drag-insert-after' : 'drag-insert-before');
+        }
+        dropIdx = insertAfter ? target + 1 : target;
+      };
+
+      const finish = () => {
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerup', finish, true);
+        window.removeEventListener('pointercancel', finish, true);
+        clearIndicators();
+        row.classList.remove('drag-source');
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (started) {
+          suppressRowClickUntil = Date.now() + 250;
+          let dest = dropIdx;
+          if (dest > rawIdx) dest -= 1;
+          dest = Math.max(0, Math.min(r.steps.length - 1, dest));
+          if (dest !== rawIdx) {
+            const [moved] = r.steps.splice(rawIdx, 1);
+            r.steps.splice(dest, 0, moved);
+            persistScript(b, false);
+            b.redraw();
+            renderReplayUI();
+          }
+        }
+      };
+
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', finish, true);
+      window.addEventListener('pointercancel', finish, true);
+    });
   }
 
   function renderReplayUI() {
@@ -556,6 +726,7 @@
     });
 
     const listEl = replayPanel.querySelector('#mn-rp-list');
+    const prevScroll = listEl.scrollTop;
     listEl.innerHTML = '';
     if (!r.steps.length) {
       listEl.innerHTML = '<div class="mn-rp-empty">Trang này chưa có hình học nào để dựng lại.<br/>Hãy vẽ hình (đoạn thẳng, hình chóp, đường tròn…) rồi mở lại bảng kịch bản!</div>';
@@ -571,23 +742,25 @@
 
       const row = document.createElement('div');
       row.className = `mn-step-item${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
-      row.draggable = true;
       row.dataset.idx = String(rawIdx);
 
-      const hasDir = st.kind === 'shape' && (() => {
-        const sh = geo.shapes.find(s => s.id === st.refId);
-        return sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind);
-      })();
+      const isShape = st.kind === 'shape';
+      const sh = isShape ? geo.shapes.find(s => s.id === st.refId) : null;
+      const hasDir = isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind);
+      const isInterPt = st.kind === 'point' && geo.points[st.refId] && geo.points[st.refId].def && geo.points[st.refId].def.t === 'inter';
       const isGroup = !!(st.items && st.items.length > 1);
+      const labelText = stepDisplayLabel(geo, st);
 
       row.innerHTML = `
-        <span class="mn-step-drag" title="Kéo thả đổi thứ tự">⋮⋮</span>
+        <span class="mn-step-drag" title="Kéo thả để đổi thứ tự">⋮⋮</span>
         <span class="mn-step-num">${isEnabled ? myActiveIdx + 1 : '—'}</span>
         <div class="mn-step-info">
-          <div class="mn-step-label">${escapeHtml(stepDisplayLabel(geo, st))}</div>
+          <div class="mn-step-label">${escapeHtml(labelText)}</div>
           <div class="mn-step-sub">${escapeHtml(stepSubtitle(geo, st))}</div>
         </div>
         <div class="mn-step-actions">
+          ${isInterPt ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="${st.showGuides !== false ? 'Đang bật: vẽ 2 đường giao nhau rồi tự ẩn' : 'Đang tắt: chỉ hiện điểm giao'}">✛</button>` : ''}
+          ${isShape ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="${st.tempHide ? 'Vẽ tạm rồi tự ẩn (bấm để giữ nét lại)' : 'Chế độ vẽ tạm rồi tự ẩn sau khi vẽ xong'}">👻</button>` : ''}
           ${hasDir ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ (A → B thành B → A)">⇄</button>` : ''}
           ${rawIdx > 0 ? `<button class="mn-mini-btn" data-act="merge" title="Gộp vẽ đồng thời với bước phía trên">⊕</button>` : ''}
           ${isGroup ? `<button class="mn-mini-btn" data-act="split" title="Tách nhóm thành các bước riêng">⊖</button>` : ''}
@@ -597,33 +770,10 @@
         </div>
       `;
 
-      // Drag and drop reorder
-      row.addEventListener('dragstart', (e) => {
-        dragSrcIdx = rawIdx;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(rawIdx));
-      });
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        row.classList.add('drag-over');
-      });
-      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-      row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        row.classList.remove('drag-over');
-        const from = dragSrcIdx;
-        const to = rawIdx;
-        if (from >= 0 && from !== to) {
-          const [moved] = r.steps.splice(from, 1);
-          r.steps.splice(to, 0, moved);
-          persistScript(b);
-          b.redraw();
-          renderReplayUI();
-        }
-        dragSrcIdx = -1;
-      });
+      attachPointerReorder(listEl, row, rawIdx, b, r, labelText);
 
       row.addEventListener('click', (e) => {
+        if (Date.now() < suppressRowClickUntil) return;
         const btn = e.target.closest('[data-act]');
         if (!btn) {
           if (isEnabled) window.MinNoteGeoReplay.jumpTo(myActiveIdx + 1, false);
@@ -631,36 +781,47 @@
         }
         e.stopPropagation();
         const act = btn.dataset.act;
-        if (act === 'rev') {
+        if (act === 'guides') {
+          st.showGuides = st.showGuides === false;
+          persistScript(b, false);
+          if (isEnabled) window.MinNoteGeoReplay.playSingleStep(myActiveIdx);
+          else renderReplayUI();
+        } else if (act === 'temphide') {
+          st.tempHide = !st.tempHide;
+          persistScript(b, false);
+          if (isEnabled) window.MinNoteGeoReplay.playSingleStep(myActiveIdx);
+          else renderReplayUI();
+        } else if (act === 'rev') {
           st.rev = !st.rev;
-          persistScript(b);
+          persistScript(b, false);
           if (isEnabled) window.MinNoteGeoReplay.playSingleStep(myActiveIdx);
           else renderReplayUI();
         } else if (act === 'up' && rawIdx > 0) {
           [r.steps[rawIdx - 1], r.steps[rawIdx]] = [r.steps[rawIdx], r.steps[rawIdx - 1]];
-          persistScript(b); b.redraw(); renderReplayUI();
+          persistScript(b, false); b.redraw(); renderReplayUI();
         } else if (act === 'down' && rawIdx < r.steps.length - 1) {
           [r.steps[rawIdx + 1], r.steps[rawIdx]] = [r.steps[rawIdx], r.steps[rawIdx + 1]];
-          persistScript(b); b.redraw(); renderReplayUI();
+          persistScript(b, false); b.redraw(); renderReplayUI();
         } else if (act === 'toggle') {
           st.enabled = st.enabled === false;
-          persistScript(b); b.redraw(); renderReplayUI();
+          persistScript(b, false); b.redraw(); renderReplayUI();
         } else if (act === 'merge' && rawIdx > 0) {
           const prev = r.steps[rawIdx - 1];
           const pItems = prev.items && prev.items.length ? prev.items : [{ kind: prev.kind, refId: prev.refId, rev: !!prev.rev }];
           const cItems = st.items && st.items.length ? st.items : [{ kind: st.kind, refId: st.refId, rev: !!st.rev }];
           r.steps[rawIdx - 1] = { id: prev.id, kind: 'group', items: [...pItems, ...cItems], enabled: prev.enabled !== false };
           r.steps.splice(rawIdx, 1);
-          persistScript(b); b.redraw(); renderReplayUI();
+          persistScript(b, false); b.redraw(); renderReplayUI();
         } else if (act === 'split' && isGroup) {
           const expanded = st.items.map((it, k) => ({ id: `${st.id}_${k}`, kind: it.kind, refId: it.refId, rev: !!it.rev, enabled: true }));
           r.steps.splice(rawIdx, 1, ...expanded);
-          persistScript(b); b.redraw(); renderReplayUI();
+          persistScript(b, false); b.redraw(); renderReplayUI();
         }
       });
 
       listEl.appendChild(row);
     });
+    listEl.scrollTop = prevScroll;
   }
 
   window.MinNoteGeoReplay = {
@@ -683,9 +844,8 @@
         b.emit();
       }
 
-      const steps = scopeShapes
-        ? buildDefaultSteps(pg.geo, scopeShapes, scopePoints)
-        : reconcileSavedScript(pg.geo, pg.geo.script, null, null);
+      const saved = loadSavedScript(pg);
+      const steps = reconcileSavedScript(pg.geo, saved, scopeShapes, scopePoints);
 
       replayCollapsed = false;
       b.setReplay({
@@ -707,6 +867,33 @@
       const b = getBoard();
       if (b) b.stopReplay();
       renderReplayUI();
+    },
+    save() {
+      const b = getBoard();
+      return persistScript(b, true);
+    },
+    addHiddenLines() {
+      const b = getBoard();
+      if (!b || !b.replay) return;
+      const r = b.replay;
+      const pg = b.doc.pages[r.page];
+      if (!pg) return;
+      const existing = new Set();
+      for (const st of r.steps) {
+        if (st.kind === 'shape') existing.add(st.refId);
+        if (st.items) st.items.forEach(it => it.kind === 'shape' && existing.add(it.refId));
+      }
+      let added = 0;
+      for (const sh of pg.geo.shapes) {
+        if (sh.kind === 'solid' || !sh.hidden || existing.has(sh.id)) continue;
+        r.steps.push({ id: 'st_h_' + sh.id, kind: 'shape', refId: sh.id, rev: false, tempHide: true, includeHidden: true, enabled: true });
+        added++;
+      }
+      if (added > 0) {
+        persistScript(b, true);
+        b.redraw();
+        renderReplayUI();
+      }
     },
     reset() {
       const b = getBoard();
@@ -819,7 +1006,7 @@
       r.stepIdx = 0;
       r.stepProgress = 0;
       r.playing = false;
-      persistScript(b);
+      persistScript(b, false);
       b.setReplay(r);
     }
   };
