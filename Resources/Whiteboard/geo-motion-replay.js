@@ -303,7 +303,7 @@
   }
 
   function buildDefaultSteps(geo, scopeShapes, scopePoints) {
-    const shapes = geo.shapes.filter(s => s.kind !== 'solid' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id)));
+    const shapes = geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id)));
     const usedPtsByShape = new Set();
     for (const s of shapes) s.pts.forEach(id => usedPtsByShape.add(id));
     const solidGroups = new Set(geo.shapes.filter(s => s.kind === 'solid').map(s => s.group).filter(Boolean));
@@ -426,8 +426,8 @@
 
   function reconcileSavedScript(geo, saved, scopeShapes, scopePoints) {
     if (!Array.isArray(saved) || !saved.length) return buildDefaultSteps(geo, scopeShapes, scopePoints);
-    const allShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
-    const visShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
+    const allShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
+    const visShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
     const ptIds = new Set(Object.values(geo.points).filter(p => p.show && !p.hidden && (!scopePoints || scopePoints.has(p.id))).map(p => p.id));
 
     const seenSh = new Set();
@@ -940,7 +940,7 @@
       }
       let added = 0;
       for (const sh of pg.geo.shapes) {
-        if (sh.kind === 'solid' || !sh.hidden || existing.has(sh.id)) continue;
+        if (sh.kind === 'solid' || sh.kind === 'flatLink' || !sh.hidden || existing.has(sh.id)) continue;
         r.steps.push({ id: 'st_h_' + sh.id, kind: 'shape', refId: sh.id, rev: false, tempHide: true, includeHidden: true, enabled: true });
         added++;
       }

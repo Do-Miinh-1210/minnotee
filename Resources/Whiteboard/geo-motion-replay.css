@@ -794,3 +794,36 @@ html.dark .sheet-restore-pill {
   color: #5eead4;
   border-color: #334155;
 }
+
+
+/* ==================== 6. FLAT PLANE SYNC CHECKBOX ==================== */
+.flat-sync-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(13, 148, 136, 0.28);
+  background: #f0fdfa;
+  color: #0f766e;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.flat-sync-check input[type="checkbox"] {
+  accent-color: #0d9488;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+html.dark .flat-sync-check {
+  background: rgba(13, 148, 136, 0.22);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #5eead4;
+}
