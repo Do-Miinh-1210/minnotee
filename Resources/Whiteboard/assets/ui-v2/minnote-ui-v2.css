@@ -1117,3 +1117,175 @@ html[data-ui="v2"] .selection-bar button svg {
   width: 14px !important;
   height: 14px !important;
 }
+
+/* ---------- 16. Tôn trọng ĐÚNG vị trí thanh công cụ (Trên / Dưới / Trái / Phải / Bảng nổi) ---------- */
+
+/* Khi chọn "Trên" (mặc định: header.toolbar > .tb-group.tools), đặt thanh công cụ NGANG ở trên cùng
+   thay vì ép sang bên trái; bỏ cột rail thừa để trang viết rộng trọn 100% chiều ngang. */
+html[data-ui="v2"] .app,
+html[data-ui="v2"] .app.bar-hidden,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) {
+  grid-template-columns: auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+  grid-template-rows: 38px auto minmax(0, 1fr) auto auto !important;
+}
+html[data-ui="v2"] .app.menu-hidden {
+  grid-template-rows: 0px auto minmax(0, 1fr) auto auto !important;
+}
+html[data-ui="v2"] .app::after {
+  content: none !important;
+  display: none !important;
+}
+html[data-ui="v2"] .app::before {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  margin-left: 8px !important;
+  z-index: 30 !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-title {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  z-index: 25 !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-palette {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  z-index: 25 !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .nb-tools-dock {
+  grid-column: 5 !important;
+  grid-row: 1 !important;
+  z-index: 25 !important;
+}
+
+/* Vị trí "Trên": thanh công cụ vẽ nằm NGANG gọn gàng ngay dưới thanh trên (hàng 2) */
+html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 3px 8px !important;
+  overflow: visible !important;
+  background: var(--v2-rail) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--v2-rail-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  z-index: 20 !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group.tools > .tb-palette {
+  grid-column: auto !important;
+  width: auto !important;
+  height: 27px !important;
+  flex-direction: row !important;
+  padding: 0 5px !important;
+  gap: 2px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group.tools > .sep,
+html[data-ui="v2"] .app > header.toolbar > .tb-group.tools > .tb-row-break {
+  grid-column: auto !important;
+  width: 1px !important;
+  height: 18px !important;
+  margin: 0 3px !important;
+  background: var(--v2-rail-sep) !important;
+}
+
+/* Vùng làm việc (hàng 3), thanh Dưới (hàng 4), thanh Sheet (hàng 5) */
+html[data-ui="v2"] .app > .work {
+  grid-column: 1 / -1 !important;
+  grid-row: 3 !important;
+}
+html[data-ui="v2"] .app > aside.tools-bar.side-bottom:not(.float) {
+  grid-column: 1 / -1 !important;
+  grid-row: 4 !important;
+}
+html[data-ui="v2"] .app > .sheet-bar {
+  grid-column: 1 / -1 !important;
+  grid-row: 5 !important;
+}
+
+/* Vị trí "Trái" & "Phải": thanh dọc 2 cột siêu gọn (68px), hiện trọn bộ công cụ không phải cuộn */
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float),
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) {
+  width: 68px !important;
+  min-width: 68px !important;
+  padding: 6px 4px !important;
+  border-radius: 12px !important;
+  z-index: 20 !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools {
+  display: grid !important;
+  grid-template-columns: repeat(2, 27px) !important;
+  grid-auto-rows: minmax(27px, auto) !important;
+  gap: 2px !important;
+  justify-content: center !important;
+  align-content: start !important;
+  width: 100% !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .tb-palette {
+  grid-column: 1 / -1 !important;
+  width: 58px !important;
+  height: auto !important;
+  min-height: 24px !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  padding: 2px !important;
+  gap: 1px !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .tb-palette .swatch,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .tb-palette .swatch {
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .sep,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .sep {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  height: 1px !important;
+  margin: 2px 0 !important;
+}
+
+/* Bảng nổi: tôn trọng hướng ngang (Trên/Dưới) và dọc (Trái/Phải) */
+html[data-ui="v2"] aside.tools-bar.float.side-left .tb-group.tools,
+html[data-ui="v2"] aside.tools-bar.float.side-right .tb-group.tools {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+html[data-ui="v2"] aside.tools-bar.float.side-left .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.float.side-right .tb-group.tools > .tb-palette {
+  width: 30px !important;
+  height: auto !important;
+  flex-direction: column !important;
+  padding: 4px 0 !important;
+  gap: 2px !important;
+}
+html[data-ui="v2"] aside.tools-bar.float.side-top .tb-group.tools,
+html[data-ui="v2"] aside.tools-bar.float.side-bottom .tb-group.tools {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+/* Viên thuốc hiện Sheet luôn nằm dưới menu thả xuống để không bao giờ che chữ trong menu */
+html[data-ui="v2"] .sheet-restore-pill {
+  left: var(--sheet-pill-left, 16px) !important;
+  z-index: 5 !important;
+}

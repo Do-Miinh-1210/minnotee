@@ -34,8 +34,8 @@
     }
   }, true);
 
-  /* Menu thả xuống mở từ rail công cụ: tự đặt sang phải (rail trái), sang trái (rail phải),
-     hoặc phía trên (thanh dưới) để không đè lên nút hay tràn khỏi màn hình. */
+  /* Menu thả xuống mở từ thanh công cụ: tự phát hiện thanh ngang (Trên/Dưới) hay thanh dọc (Trái/Phải)
+     để mở đúng hướng (dưới nút, trên nút, bên phải hoặc bên trái) mà không đè lên nút hay tràn màn hình. */
   function placeRailMenu(menu) {
     if (root.getAttribute('data-ui') !== 'v2') return;
     var rail = menu.closest('.tb-group.tools');
@@ -50,19 +50,19 @@
     var mRect = menu.getBoundingClientRect();
     var mw = mRect.width || 220;
     var natural = Math.min(menu.scrollHeight + 2, vh - 16);
-    var isHoriz = aside && (aside.classList.contains('side-bottom') || aside.classList.contains('side-top'));
-    var isRight = aside && aside.classList.contains('side-right');
+    var isHoriz = (aside && (aside.classList.contains('side-bottom') || aside.classList.contains('side-top'))) || (railRect.width > railRect.height);
+    var isRight = (aside && aside.classList.contains('side-right')) || (!isHoriz && railRect.left > vw / 2);
     var left, top, maxH;
     if (isHoriz) {
       left = Math.round(Math.max(8, Math.min(b.left, vw - mw - 8)));
-      if (aside.classList.contains('side-bottom')) {
-        top = Math.round(Math.max(8, railRect.top - natural - 8));
-        maxH = Math.round(Math.max(120, railRect.top - top - 8));
+      if ((aside && aside.classList.contains('side-bottom')) || railRect.top > vh / 2) {
+        top = Math.round(Math.max(8, railRect.top - natural - 6));
+        maxH = Math.round(Math.max(120, railRect.top - top - 6));
       } else {
-        top = Math.round(Math.min(vh - 120, railRect.bottom + 8));
+        top = Math.round(Math.min(vh - 120, railRect.bottom + 6));
         maxH = Math.round(Math.max(120, vh - top - 8));
       }
-    } else if (isRight || railRect.left > vw / 2) {
+    } else if (isRight) {
       left = Math.round(Math.max(8, railRect.left - mw - 8));
       top = Math.round(Math.max(8, Math.min(b.top - 6, vh - natural - 8)));
       maxH = Math.round(vh - top - 8);

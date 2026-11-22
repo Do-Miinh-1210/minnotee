@@ -22,22 +22,21 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.8"
-TITLE = "MinNote v0.0.5.8 - Lưu Mặc Định Đường & Điểm, Giao Diện Thanh Công Cụ Siêu Gọn Ưu Tiên Màn Hình & Phím Tắt Ctrl+K Tự Đánh Nhãn"
-BODY = """## MinNote v0.0.5.8 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.9"
+TITLE = "MinNote v0.0.5.9 - Sửa Vị Trí Thanh Công Cụ Trên Nằm Đúng Phía Trên (1 Hàng Siêu Gọn)"
+BODY = """## MinNote v0.0.5.9 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.8 sửa triệt để lỗi lưu mặc định nét đường/điểm, thu gọn toàn bộ thanh công cụ để tối đa không gian màn hình viết và bổ sung phím tắt nhanh `Ctrl+K`:
+Bản cập nhật v0.0.5.9 sửa triệt để lỗi chọn vị trí thanh công cụ **Trên** nhưng thanh công cụ lại bị đặt sang cạnh trái:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.8:
-1. **Lưu Bền Vững Định Dạng Mặc Định Đường & Điểm**:
-   - Đọc và lưu đầy đủ **Độ dày nét đường**, **Màu đường mặc định**, **Nét liền/đứt mặc định**, cùng **Cỡ chấm tròn điểm**, **Màu chấm tròn**, **Cỡ chữ & màu tên điểm** vào bộ nhớ cài đặt (`prefs`) khi bấm **Áp dụng**.
-   - Tự động khôi phục đúng các thông số đã lưu sau khi khởi động lại ứng dụng, khi mở sổ mới/sổ cũ chưa thiết lập riêng, và không còn bị ghi đè mất độ dày/màu đường mặc định khi đổi nét bút vẽ tay.
-2. **Thanh Công Cụ Siêu Gọn — Ưu Tiên Tối Đa Không Gian Màn Hình**:
-   - Thu gọn thanh tiêu đề cửa sổ (`40px → 30px`), thanh trên (`56px → 40px`), thanh công cụ dọc bên trái (`140px → 96px` trên màn hình 1366×768 và `104px → 70px` màn hình cao — hiện đủ 100% công cụ không phải cuộn), thanh danh sách trang (`140px → 88px`), thanh Sheet (`46px → 30px`), thanh chọn nổi và giảm đệm viền quanh trang giấy.
-3. **Phím Tắt `Ctrl+K` — Hiện & Tự Đánh Nhãn Đối Tượng Đang Chọn**:
-   - Chọn một hoặc nhiều **điểm**, **đoạn thẳng**, **đa giác** hay **hình khối** rồi nhấn **`Ctrl+K`**: lập tức hiện tên nhãn và tự động đánh chữ cái (`A, B, C, D…`, tự tránh trùng nhãn trên trang) cho các điểm chưa có tên.
-   - Nhấn **`Ctrl+K`** lần nữa khi tất cả đối tượng đang chọn đã hiện nhãn sẽ ẩn gọn nhãn trở lại; hỗ trợ đầy đủ `Ctrl+Z` / `Ctrl+Y`.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.9:
+1. **Tôn Trọng Đúng Vị Trí Thanh Công Cụ (`Trên / Dưới / Trái / Phải / Bảng nổi`)**:
+   - **Chọn `Trên`**: Thanh công cụ vẽ nằm **ngang 1 hàng siêu gọn (`34px`)** ngay phía dưới thanh menu trên cùng, giải phóng **100% chiều ngang màn hình** cho trang viết (không còn bị ép sang cột dọc bên trái).
+   - **Chọn `Trái` hoặc `Phải`**: Thanh công cụ vẽ đặt dọc 2 cột siêu gọn (`68px`) đúng ở cạnh trái hoặc cạnh phải như lựa chọn, hiển thị đầy đủ các chấm màu và công cụ không cần cuộn.
+   - **Chọn `Dưới` hoặc `Bảng nổi`**: Đặt đúng cạnh dưới hoặc thanh nổi theo hướng ngang/dọc tương ứng.
+2. **Định Vị Menu Thả Xuống & Thứ Tự Lớp Chuẩn Xác**:
+   - Menu thả xuống của các công cụ (Hình phẳng/3D, Dựng hình, Toán học...) tự động mở ngay bên dưới nút khi thanh công cụ ở vị trí **Trên**, mở phía trên khi ở **Dưới**, và mở sang phải/trái khi ở **Trái/Phải**.
+   - Hạ lớp hiển thị (`z-index`) của nút `^ Sheet` xuống dưới các menu thả xuống để không đè lên danh sách menu khi mở.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
