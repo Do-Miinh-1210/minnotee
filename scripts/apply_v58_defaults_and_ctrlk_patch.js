@@ -114,5 +114,12 @@ replaceOnce(
   'picker:"Random student picker (open / close)",calc:"Scientific calculator",'
 );
 
+// 10. Always include ALL visible point labels (including Ctrl+K / manually named points when doc.names === false) & dot radii in selectionImage() copy bounding box!
+replaceOnce(
+  'Include all visible labels & dots in selectionImage() copy bounds',
+  'if(r.names){const a=r.labelSize??Ll;for(const l of xk(i,Tt(i),r).values())t.x0=Math.min(t.x0,l.x-a),t.y0=Math.min(t.y0,l.y-a),t.x1=Math.max(t.x1,l.x+a),t.y1=Math.max(t.y1,l.y+a)}return(async()=>{await bc([{...n,items:o.items}]);const a=12,l=2,',
+  '{const a=r.labelSize??Ll,_coords=Tt(i),_dotR=Pm(r)+4;for(const _p of Object.values(i.points)){if(!_p.show||_p.hidden)continue;const _c=_coords.get(_p.id);if(_c)t.x0=Math.min(t.x0,_c.x-_dotR),t.y0=Math.min(t.y0,_c.y-_dotR),t.x1=Math.max(t.x1,_c.x+_dotR),t.y1=Math.max(t.y1,_c.y+_dotR)}for(const[_id,l]of xk(i,_coords,r)){const _pt=i.points[_id],_len=_pt&&_pt.label?_pt.label.length:1,_hw=Math.max(a*.75,a*.42*_len+8),_hh=a*.8+6;t.x0=Math.min(t.x0,l.x-_hw),t.y0=Math.min(t.y0,l.y-_hh),t.x1=Math.max(t.x1,l.x+_hw),t.y1=Math.max(t.y1,l.y+_hh)}}return(async()=>{await bc([{...n,items:o.items}]);const a=16,l=3,'
+);
+
 fs.writeFileSync(targetFile, code, 'utf8');
 console.log('Successfully applied v0.0.5.8 defaults persistence + Ctrl+K patch to', targetFile);

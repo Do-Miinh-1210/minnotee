@@ -77,7 +77,7 @@
                     </Border>
                     <TextBlock Text="MinNote" FontWeight="Bold" FontSize="12" Foreground="#F2F0F7" VerticalAlignment="Center" />
                     <Border Background="#24222D" BorderBrush="#6C5CF5" BorderThickness="1" CornerRadius="4" Padding="4,0" Margin="5,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtAppVersion" Text="v0.0.6.2 (Core v1.0.7)" FontSize="10.5" FontWeight="Bold" Foreground="#FFB547" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TxtAppVersion" Text="v0.0.6.3 (Core v1.0.7)" FontSize="10.5" FontWeight="Bold" Foreground="#FFB547" VerticalAlignment="Center" />
                     </Border>
                     <TextBlock Text=" • Bảng Viết &amp; Vẽ Hình Toán Học" FontSize="11" Foreground="#9A96A8" VerticalAlignment="Center" Margin="5,0,0,0" />
                 </StackPanel>

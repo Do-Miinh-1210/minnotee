@@ -22,22 +22,19 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.2"
-TITLE = "MinNote v0.0.6.2 - Nâng Cấp Sơ Đồ Tư Duy Chuẩn Vector Siêu Nét, Nhúng Trọn Bộ Font KaTeX Không Vỡ Nét Khi Zoom & Chèn Bảng Vẽ"
-BODY = """## MinNote v0.0.6.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.3"
+TITLE = "MinNote v0.0.6.3 - Sửa Sao Chép Hình Lấy Trọn Đầy Đủ Nhãn Điểm (Kể Cả Khi Tắt Tên Tự Động) & Nâng Nét 3× HiDPI"
+BODY = """## MinNote v0.0.6.3 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.6.2 làm lại toàn bộ hệ thống hiển thị zoom và kết xuất của **Sơ đồ tư duy Toán học**, khắc phục triệt để tình trạng vỡ nét khi phóng to và mất công thức toán học khi chèn vào bảng vẽ:
+Bản cập nhật v0.0.6.3 khắc phục lỗi bị cắt mất nhãn điểm (`S, B, C, D…`) ở các mép ảnh khi sao chép đối tượng hình học ra Zalo / Word / PowerPoint:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.2:
-1. **Phóng To Sơ Đồ Tư Duy Không Vỡ Nét (Tới 400%)**:
-   - Chuyển cơ chế thu phóng trong Studio Sơ đồ tư duy từ `transform: scale()` trên lớp bitmap GPU `4000×4000` sang cơ chế `CSS zoom` vector thuần kết hợp dịch chuyển nguyên pixel, giúp mọi chữ viết, đường cong Bezier và công thức KaTeX luôn sắc nét tuyệt đối ở mọi mức zoom (`20% – 400%`).
-2. **Nhúng Trọn Bộ 20 Font KaTeX (`.woff2`) Vào Vector SVG — Không Bao Giờ Mất Công Thức Toán**:
-   - Gỡ bỏ cơ chế trích xuất văn bản thô (`mm-native-fallback`) và bộ lọc tách nền ăn mất nét chữ tối (`removeMindmapBackground`) trước đây.
-   - `generateMindmapSvg()` tự động nhúng trọn bộ 20 font KaTeX dưới dạng Base64 vào `<svg><style>` cùng DOM KaTeX nguyên bản, giữ vẹn nguyên 100% mọi công thức phức tạp: giới hạn, phân số, căn thức, tích phân, vectơ, hệ phương trình, ký hiệu tập số.
-3. **Chèn Bảng Vẽ Dạng Vector SVG Thuần & Xuất Ảnh 4K Siêu Nét**:
-   - Nút **`Chèn Bảng vẽ`** chèn trực tiếp vector SVG nền trong suốt (nhúng sẵn font KaTeX) vào bảng viết — phóng to trên bảng viết lên `200% – 400%` hoặc kéo to nhỏ vẫn **giữ nét chân thực, không bao giờ vỡ hạt**.
-   - Xuất **Word** và tải **PNG** dùng độ phân giải siêu nét **4K (`scale = 4×`, nền trong suốt)** từ cùng nguồn vector chuẩn KaTeX.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.3:
+1. **Sao Chép (`Ctrl+C`) Luôn Lấy Đầy Đủ Toàn Bộ Nhãn Điểm & Chấm Tròn**:
+   - Bỏ điều kiện chỉ mở rộng khung ảnh khi bật tên tự động của sổ (`if (r.names)`): nay luôn tự động tính toán và mở rộng vùng ảnh sao chép cho **tất cả các nhãn điểm đang hiển thị** (bao gồm cả nhãn bật thủ công bằng **`Ctrl+K`** hay **Đặt tên điểm** khi sổ đang tắt tự đánh tên) cùng bán kính chấm tròn ở 4 biên.
+   - Tự tính độ rộng theo số ký tự nhãn (`A`, `A'`, `M_1`…) và thêm lề trắng cân đối (`16px`) giúp không bao giờ bị cắt mất chữ ở mép ảnh.
+2. **Nâng Độ Sắc Nét Ảnh Sao Chép Lên `3×` HiDPI**:
+   - Tăng tỷ lệ kết xuất ảnh sao chép (`selectionImage`) từ `2×` lên `3×`, cho hình vẽ dán sang Zalo / Word / PowerPoint sắc nét rõ từng nét liền, nét đứt và ký hiệu điểm.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
