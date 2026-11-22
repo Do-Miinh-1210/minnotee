@@ -22,20 +22,20 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.9"
-TITLE = "MinNote v0.0.5.9 - Sửa Vị Trí Thanh Công Cụ Trên Nằm Đúng Phía Trên (1 Hàng Siêu Gọn)"
-BODY = """## MinNote v0.0.5.9 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.0"
+TITLE = "MinNote v0.0.6.0 - Sửa Triệt Để Lỗi Menu Thả Xuống Hiển Thị Chậm & Kéo Giãn Tràn Khung Ở Thanh Công Cụ Dưới/Trái/Phải"
+BODY = """## MinNote v0.0.6.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.9 sửa triệt để lỗi chọn vị trí thanh công cụ **Trên** nhưng thanh công cụ lại bị đặt sang cạnh trái:
+Bản cập nhật v0.0.6.0 khắc phục triệt để lỗi menu thả xuống (`Chế độ viết`, `Tẩy`, `Hình vẽ`...) bị hiển thị chậm 1 nhịp và bị kéo giãn tràn dọc khắp màn hình khi đặt thanh công cụ ở vị trí **Dưới / Trái / Phải**:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.9:
-1. **Tôn Trọng Đúng Vị Trí Thanh Công Cụ (`Trên / Dưới / Trái / Phải / Bảng nổi`)**:
-   - **Chọn `Trên`**: Thanh công cụ vẽ nằm **ngang 1 hàng siêu gọn (`34px`)** ngay phía dưới thanh menu trên cùng, giải phóng **100% chiều ngang màn hình** cho trang viết (không còn bị ép sang cột dọc bên trái).
-   - **Chọn `Trái` hoặc `Phải`**: Thanh công cụ vẽ đặt dọc 2 cột siêu gọn (`68px`) đúng ở cạnh trái hoặc cạnh phải như lựa chọn, hiển thị đầy đủ các chấm màu và công cụ không cần cuộn.
-   - **Chọn `Dưới` hoặc `Bảng nổi`**: Đặt đúng cạnh dưới hoặc thanh nổi theo hướng ngang/dọc tương ứng.
-2. **Định Vị Menu Thả Xuống & Thứ Tự Lớp Chuẩn Xác**:
-   - Menu thả xuống của các công cụ (Hình phẳng/3D, Dựng hình, Toán học...) tự động mở ngay bên dưới nút khi thanh công cụ ở vị trí **Trên**, mở phía trên khi ở **Dưới**, và mở sang phải/trái khi ở **Trái/Phải**.
-   - Hạ lớp hiển thị (`z-index`) của nút `^ Sheet` xuống dưới các menu thả xuống để không đè lên danh sách menu khi mở.
+### 🌟 Điểm Mới Trong Bản v0.0.6.0:
+1. **Định Vị Menu Thả Xuống Đồng Bộ Tức Thì (`0ms`, Không Giật/Trễ)**:
+   - Gỡ bỏ bộ `MutationObserver` bất đồng bộ trong `ui-switch.js` (vốn gán chồng `top !important` lên `bottom` khiến menu bị kéo giãn cao suốt màn hình hoặc nhảy vị trí sau 1 khung hình).
+   - Tính toán vị trí trực tiếp trong `useLayoutEffect` đồng bộ của hộp menu (`si()`) theo đúng mép ngoài của thanh công cụ (`aside.tools-bar`), đảm bảo menu hiện ra tức thì ngay khung hình đầu tiên với chiều cao gọn tự nhiên (`156px`).
+2. **Không Tràn / Đè Lên Thanh Công Cụ Ở Mọi Vị Trí**:
+   - **Vị trí `Dưới`**: Menu mở gọn ngay phía trên thanh công cụ dưới (`cách 8px`), tách riêng hàng thanh Sheet bên dưới để không chồng lên nhau.
+   - **Vị trí `Trái / Phải`**: Menu mở sát mép ngoài của cột công cụ 2 cột (`cách 8px`), không đè lên cột nút thứ 2; thu gọn nút `25px` để hiện đủ toàn bộ công cụ và bảng màu với khoảng trống thoáng ở đáy.
+   - **Vị trí `Trên`**: Menu mở ngay dưới thanh công cụ ngang trên cùng.
 3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 

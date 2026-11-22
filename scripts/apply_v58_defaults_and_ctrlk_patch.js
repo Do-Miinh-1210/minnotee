@@ -82,5 +82,12 @@ replaceOnce(
   'if(lt&&!te.altKey&&!te.shiftKey&&(ze==="m"||te.code==="KeyM")){return Ft(()=>{if(Ie.quickMidpoint())Ln("Đã dựng trung điểm");else{mn({k:"geo",t:"midpoint"}),Ln("Trung điểm (Ctrl+M): bấm 2 điểm hoặc 1 đoạn thẳng")}})}if(lt&&!te.altKey&&!te.shiftKey&&(ze==="k"||te.code==="KeyK")){return Ft(()=>{const _r=Ie.quickToggleLabel();if(!_r)Ln("Chọn điểm hoặc hình rồi nhấn Ctrl+K để hiện và tự đánh nhãn");else if(_r.mode==="show")Ln("Đã hiện nhãn: "+_r.labels.join(", ")+" (Ctrl+K)");else Ln("Đã ẩn nhãn đối tượng chọn (Ctrl+K)")})}'
 );
 
+// 8. Synchronous zero-lag dropdown positioning in si() using outer toolbar edge (prevents bottom/side overflow & stretch)
+replaceOnce(
+  'Synchronous outer-bar dropdown positioning in si()',
+  'const d=a.current.getBoundingClientRect();if(p==="bottom"){const y=window.innerHeight-d.top+6,k=Math.max(0,((v=document.querySelector("header.toolbar"))==null?void 0:v.getBoundingClientRect().bottom)??0),w=d.top-6-k-8;u(s==="right"?{bottom:y,maxHeight:w,right:Math.max(8,window.innerWidth-d.right)}:s==="center"?{bottom:y,maxHeight:w,left:d.left+d.width/2,transform:"translateX(-50%)"}:{bottom:y,maxHeight:w,left:Math.max(8,d.left)});return}if(p==="left"||p==="right"){const y=Math.max(8,d.top),k=window.innerHeight-16;u(p==="left"?{top:y,maxHeight:k,left:d.right+6}:{top:y,maxHeight:k,right:window.innerWidth-d.left+6});return}',
+  'const d=a.current.getBoundingClientRect(),_bar=a.current.closest("aside.tools-bar"),_br=_bar?_bar.getBoundingClientRect():null;if(p==="bottom"){const _top=_br?Math.min(d.top,_br.top):d.top,y=window.innerHeight-_top+8,k=Math.max(38,((v=document.querySelector(".board-wrap"))==null?void 0:v.getBoundingClientRect().top)??38),w=Math.max(120,_top-8-k-8);u(s==="right"?{bottom:y,maxHeight:w,right:Math.max(8,window.innerWidth-d.right)}:s==="center"?{bottom:y,maxHeight:w,left:d.left+d.width/2,transform:"translateX(-50%)"}:{bottom:y,maxHeight:w,left:Math.max(8,d.left)});return}if(p==="left"||p==="right"){const y=Math.max(8,d.top),k=window.innerHeight-16,_rEdge=_br?Math.max(d.right,_br.right):d.right,_lEdge=_br?Math.min(d.left,_br.left):d.left;u(p==="left"?{top:y,maxHeight:k,left:_rEdge+8}:{top:y,maxHeight:k,right:window.innerWidth-_lEdge+8});return}'
+);
+
 fs.writeFileSync(targetFile, code, 'utf8');
 console.log('Successfully applied v0.0.5.8 defaults persistence + Ctrl+K patch to', targetFile);

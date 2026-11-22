@@ -1209,29 +1209,40 @@ html[data-ui="v2"] .app > aside.tools-bar.side-bottom:not(.float) {
   grid-column: 1 / -1 !important;
   grid-row: 4 !important;
 }
-html[data-ui="v2"] .app > .sheet-bar {
+html[data-ui="v2"] .app > .sheet-bar,
+html[data-ui="v2"] .app:has(> aside.tools-bar.side-bottom:not(.float)) > .sheet-bar {
   grid-column: 1 / -1 !important;
   grid-row: 5 !important;
 }
 
-/* Vị trí "Trái" & "Phải": thanh dọc 2 cột siêu gọn (68px), hiện trọn bộ công cụ không phải cuộn */
+/* Vị trí "Trái" & "Phải": thanh dọc 2 cột siêu gọn (64px), hiện trọn bộ công cụ không phải cuộn */
 html[data-ui="v2"] aside.tools-bar.side-left:not(.float),
 html[data-ui="v2"] aside.tools-bar.side-right:not(.float) {
-  width: 68px !important;
-  min-width: 68px !important;
-  padding: 6px 4px !important;
+  width: 64px !important;
+  min-width: 64px !important;
+  padding: 4px 3px !important;
   border-radius: 12px !important;
   z-index: 20 !important;
 }
 html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools,
 html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools {
   display: grid !important;
-  grid-template-columns: repeat(2, 27px) !important;
-  grid-auto-rows: minmax(27px, auto) !important;
+  grid-template-columns: repeat(2, 25px) !important;
+  grid-auto-rows: minmax(25px, auto) !important;
   gap: 2px !important;
   justify-content: center !important;
   align-content: start !important;
   width: 100% !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .dropdown,
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .tb,
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools .tb,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .dropdown,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .tb,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools .tb {
+  width: 25px !important;
+  height: 25px !important;
+  min-width: 25px !important;
 }
 html[data-ui="v2"] aside.tools-bar.side-left:not(.float) .tb-group.tools > .tb-palette,
 html[data-ui="v2"] aside.tools-bar.side-right:not(.float) .tb-group.tools > .tb-palette {
