@@ -22,24 +22,32 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.5"
-TITLE = "MinNote v0.0.5.5 - Tùy Chọn Đồng Bộ Trực Tiếp Khi Tách Mặt Phẳng 3D"
-BODY = """## MinNote v0.0.5.5 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.6"
+TITLE = "MinNote v0.0.5.6 - Giao Diện Mới Atelier"
+BODY = """## MinNote v0.0.5.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.5 bổ sung tính năng **Đồng bộ (Live Sync)** cho công cụ **Tách mặt phẳng**, cho phép linh hoạt lựa chọn giữ nguyên mẫu độc lập hoặc tự động biến đổi theo hình không gian 3D chính:
+Bản cập nhật v0.0.5.6 thay toàn bộ giao diện bằng thiết kế mới **Atelier**. Mọi tính năng giữ nguyên; giao diện cũ vẫn dùng được.
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.5:
-1. **Tích Chọn `☐ Đồng bộ` Ngay Trong Tách Mặt Phẳng**:
-   - Hiển thị ô tích chọn **`Đồng bộ`** ngay trên thanh chọn điểm khi **Tách mặt phẳng** (và ngay bên cạnh nút **Tách mặt phẳng** khi chọn trực tiếp một mặt phẳng tô màu).
-   - **Không tích chọn (mặc định)**: Hình 2D tách ra là bản độc lập, giữ nguyên kích thước và hình dạng ban đầu ngay cả khi hình 3D chính thay đổi.
-   - **Tích chọn `☑ Đồng bộ`**: Mặt phẳng 2D tách ra tự động thay đổi hình dạng và tỷ lệ thực theo thời gian thực khi kéo đỉnh, xoay 3D, chạy **Chuyển động điểm**, hoặc vẽ thêm/xóa bớt điểm và đoạn thẳng nằm trên mặt phẳng đó ở hình 3D chính.
-2. **Bật/Tắt Đồng Bộ Linh Hoạt Bất Cứ Lúc Nào**:
-   - Khi bấm chọn lại mặt phẳng đã tách, thanh công cụ nổi hiển thị nút tích **`☑ Đồng bộ`** cho phép bật lại đồng bộ (hình lập tức cập nhật theo trạng thái mới nhất của hình 3D chính) hoặc bỏ tích để đóng băng nguyên mẫu.
-   - Tự do kéo di chuyển vị trí mặt phẳng đã tách trên trang viết mà không bị giật về chỗ cũ khi đồng bộ.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### Điểm mới trong bản v0.0.5.6
+1. **Bố cục mới**:
+   - Công cụ vẽ chuyển thành thanh dọc màu tối bên trái, nút to hơn (40px), hợp bút cảm ứng và bảng tương tác.
+   - Màn hình thấp (1366×768, 1440×900) tự chuyển thanh công cụ sang 3 cột để hiện đủ công cụ, không phải cuộn.
+   - Trang viết nổi như tờ giấy trên mặt bàn; danh sách trang chuyển sang bên phải.
+   - Menu của công cụ mở bên phải thanh công cụ, ngang hàng với nút.
+2. **Bộ icon mới**: thay toàn bộ 193 icon bằng icon khối đặc, dễ nhìn ở cỡ nhỏ. Icon toán học (đường tròn lượng giác, Oxyz, bảng biến thiên, thước đo độ, ê-ke, parabol...) được vẽ riêng.
+3. **Màu và chữ mới**: màu nhấn tím iris và vàng hổ phách; font Be Vietnam Pro cho tiếng Việt. Có cả chế độ sáng và tối.
+4. **Hiệu ứng chọn gọn hơn**: viền sáng của đường được chọn mảnh hơn, vòng tròn quanh điểm nhỏ lại vừa với điểm và theo màu giao diện.
+5. **Khung cửa sổ** (thanh tiêu đề, màn chờ, hộp kích hoạt) dùng bảng màu mới.
+6. **Về giao diện cũ**: bấm **Ctrl + Alt + U** để đổi qua lại; app nhớ lựa chọn cho lần mở sau.
+7. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
+
+# Không tạo bản phát hành khi chưa có bộ cài: app của người dùng sẽ thấy bản mới mà không có gì để tải.
+if not os.path.exists(SETUP_EXE):
+    print(f"Asset file not found at {SETUP_EXE}. Build the installer first; no release was created.")
+    sys.exit(1)
 
 headers = {
     "Authorization": f"token {GITHUB_TOKEN}",
