@@ -16,6 +16,7 @@
         }
       }, { passive: false });
 
+      window.__isMinNoteWebView2 = !!(window.chrome && window.chrome.webview && !window.minnoteNative);
       if (window.minnoteNative || !window.chrome || !window.chrome.webview) {
         window.chrome = window.chrome || {};
         const _listeners = new Map();
@@ -136,6 +137,60 @@
           request: async () => ({})
         }
       };
+
+      // Native TikZ compiler bridge for WPF WebView2 (renderTikz & traceTikz)
+      if (window.__isMinNoteWebView2 && window.chrome && window.chrome.webview) {
+        (function initWebView2TikzBridge() {
+          const pending = new Map();
+          let seq = 0;
+          window.chrome.webview.addEventListener('message', function(ev) {
+            let msg = ev && ev.data;
+            if (typeof msg === 'string') {
+              try { msg = JSON.parse(msg); } catch (_) { return; }
+            }
+            if (!msg || msg.type !== 'TIKZ_RESULT' || !msg.id) return;
+            const entry = pending.get(msg.id);
+            if (!entry) return;
+            pending.delete(msg.id);
+            clearTimeout(entry.timer);
+            if (msg.ok) {
+              entry.resolve(msg.result);
+            } else {
+              entry.reject(new Error(msg.error || 'Lỗi biên dịch TikZ.'));
+            }
+          });
+
+          function callHostTikz(type, source, defs) {
+            return new Promise(function(resolve, reject) {
+              const id = 'tikz_' + (++seq) + '_' + Date.now();
+              const timer = setTimeout(function() {
+                if (pending.has(id)) {
+                  pending.delete(id);
+                  reject(new Error('Biên dịch TeX quá thời gian chờ.'));
+                }
+              }, 40000);
+              pending.set(id, { resolve, reject, timer });
+              window.chrome.webview.postMessage({
+                type: type,
+                id: id,
+                source: String(source || ''),
+                defs: String(defs || '')
+              });
+            });
+          }
+
+          if (typeof window.noteRenderer.renderTikz !== 'function') {
+            window.noteRenderer.renderTikz = function(source, defs) {
+              return callHostTikz('RENDER_TIKZ', source, defs);
+            };
+          }
+          if (typeof window.noteRenderer.traceTikz !== 'function') {
+            window.noteRenderer.traceTikz = function(source, defs) {
+              return callHostTikz('TRACE_TIKZ', source, defs);
+            };
+          }
+        })();
+      }
 
       // Modal Google Drive
       window.openGoogleDriveModal = function() {

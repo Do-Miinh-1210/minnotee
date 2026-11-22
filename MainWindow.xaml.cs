@@ -822,6 +822,86 @@ namespace MinNote
                             });
                         }
                     }
+                    else if (msgType == "RENDER_TIKZ")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idElem) ? (idElem.GetString() ?? "") : "";
+                        string source = root.TryGetProperty("source", out var srcElem) ? (srcElem.GetString() ?? "") : "";
+                        string defs = root.TryGetProperty("defs", out var defsElem) ? (defsElem.GetString() ?? "") : "";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var rendered = await TikzCompilerService.Instance.RenderTikzAsync(source, defs, Log).ConfigureAwait(false);
+                                string payload = JsonSerializer.Serialize(new
+                                {
+                                    type = "TIKZ_RESULT",
+                                    id = reqId,
+                                    ok = true,
+                                    result = new { src = rendered.Src, w = rendered.W, h = rendered.H }
+                                });
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                                });
+                            }
+                            catch (Exception exTikz)
+                            {
+                                Log($"[TikZ] RENDER_TIKZ error: {exTikz.Message}");
+                                string payload = JsonSerializer.Serialize(new
+                                {
+                                    type = "TIKZ_RESULT",
+                                    id = reqId,
+                                    ok = false,
+                                    error = exTikz.Message
+                                });
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                                });
+                            }
+                        });
+                    }
+                    else if (msgType == "TRACE_TIKZ")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idElem) ? (idElem.GetString() ?? "") : "";
+                        string source = root.TryGetProperty("source", out var srcElem) ? (srcElem.GetString() ?? "") : "";
+                        string defs = root.TryGetProperty("defs", out var defsElem) ? (defsElem.GetString() ?? "") : "";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                string traceText = await TikzCompilerService.Instance.TraceTikzAsync(source, defs, Log).ConfigureAwait(false);
+                                string payload = JsonSerializer.Serialize(new
+                                {
+                                    type = "TIKZ_RESULT",
+                                    id = reqId,
+                                    ok = true,
+                                    result = traceText
+                                });
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                                });
+                            }
+                            catch (Exception exTrace)
+                            {
+                                Log($"[TikZ] TRACE_TIKZ error: {exTrace.Message}");
+                                string payload = JsonSerializer.Serialize(new
+                                {
+                                    type = "TIKZ_RESULT",
+                                    id = reqId,
+                                    ok = false,
+                                    error = exTrace.Message
+                                });
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                                });
+                            }
+                        });
+                    }
                     else if (msgType == "DOWNLOAD_MINDMAP_SVG")
                     {
                         if (root.TryGetProperty("svg", out var svgElem))

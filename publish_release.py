@@ -22,23 +22,23 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.4"
-TITLE = "MinNote v0.0.6.4 - Xuất & Sao Chép Ảnh Vector EMF Không Nền (Inkscape/MinInk) Cho Word/PowerPoint & PNG Tách Nền"
-BODY = """## MinNote v0.0.6.4 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.5"
+TITLE = "MinNote v0.0.6.5 - Sửa Lỗi Biên Dịch TikZ (TeX Live & MiKTeX), Dựng Hình Sửa Được & Ảnh Vector SVG Trong Suốt"
+BODY = r"""## MinNote v0.0.6.5 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.6.4 tích hợp **hệ thống xuất & sao chép ảnh vector EMF trong suốt (không nền)** theo chuẩn công cụ `Inkscape / MinInk` của `MEA_v5.0` — dán vào **Word / PowerPoint** siêu nét vô cực không còn khung trắng, và dán sang **Zalo / trình duyệt** ra ảnh PNG 3× tách nền:
+Bản cập nhật **v0.0.6.5** khắc phục triệt để lỗi biên dịch mã **TikZ** trong app (cả chế độ **Hình sửa được** lẫn **Ảnh TeX** và hình/bảng trong **Đề bài LaTeX**):
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.4:
-1. **Sao Chép Vector EMF Không Nền (`Ctrl+C` & Nút `EMF`)**:
-   - Bỏ nền trắng cứng (`#fff`) khi sao chép đối tượng được chọn, ghi trực tiếp toàn bộ lệnh vẽ Canvas2D + `Path2D` (hình không gian 3D, nét đứt, mặt cắt trong suốt, chấm điểm, nhãn chữ nghiêng `Times New Roman`, nét bút tay...) thành SVG trong suốt và chuyển sang **vector EMF** qua `Inkscape / MinInk` (`--export-type=emf --export-text-to-path --export-dpi=600`).
-   - Sử dụng tiến trình nền **`inkscape.com --shell` (warm process)** giúp tốc độ chuyển đổi EMF chỉ còn **~5 – 15 ms**.
-   - Ghi đồng thời **`CF_ENHMETAFILE` (ID 14)** + **`PNG` 32-bit Alpha** bằng Win32 Clipboard nguyên bản (Word/PowerPoint dán vector EMF không nền; Zalo/Chrome dán ảnh PNG 3× tách nền; `Ctrl+V` trong MinNote vẫn giữ nguyên hình học chỉnh sửa được).
-   - Bổ sung nút **`EMF`** chuyên biệt ngay cạnh nút `Sao chép` trên thanh chọn đối tượng (ghi thuần `CF_ENHMETAFILE` ép Word/PowerPoint dán vector 100%).
-2. **Xuất File Vector `.emf` Không Nền**:
-   - Bổ sung mục **`Xuất EMF (không nền)...`** trong menu **Xuất file** (xuất vùng đang chọn hoặc toàn bộ trang hiện tại ra file `.emf`).
-3. **Tự Động Dò & Tải MinInk (Dùng Chung Với `MEA_v5.0`)**:
-   - Tự phát hiện `Inkscape` có sẵn trên máy hoặc `MinInk` tại `%LocalAppData%\\MatrixExamAI\\tools\\minink`; nếu máy chưa cài sẽ tự tải nền có xác thực SHA-256 ghim cứng.
-4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.5:
+1. **Biên Dịch TikZ Trực Tiếp Trong App WPF (`TikzCompilerService`) & Electron**:
+   - Bổ sung cầu nối WebView2 (`RENDER_TIKZ` / `TRACE_TIKZ`) và bật lại đầy đủ nút chuyển chế độ **Hình sửa được** / **Ảnh TeX** trên hộp thoại TikZ & Đề bài LaTeX.
+   - Tự động phát hiện và tương thích hoàn toàn với cả **TeX Live** (bỏ cờ `-enable-installer` vốn chỉ dành cho MiKTeX gây lỗi trên TeX Live) lẫn **MiKTeX**.
+2. **Xuất Ảnh TikZ Dạng Vector SVG Trong Suốt Siêu Nét (`latex` + `dvisvgm`)**:
+   - Ưu tiên xuất ảnh **SVG vector trong suốt** (`--no-fonts --exact-bbox`), giữ sắc nét vô cực khi phóng to và không phụ thuộc font máy; tự động dự phòng `pdflatex` + Ghostscript (`pngalpha`) / `pdftoppm`.
+3. **Dựng Hình Sửa Được Chuẩn Theo TeX (`traceTikz`)**:
+   - Gắn hook PGF trích xuất chính xác toàn bộ tọa độ điểm (`\coordinate`, `name intersections`, `calc`, `\foreach`, `\tkzDefPoint`…), màu sắc và luồng nét vẽ để dựng hình hình học kéo điểm được ngay cả với hình không gian phức tạp.
+4. **Tự Động Nhận Diện Gói & Cú Pháp Linh Hoạt**:
+   - Hỗ trợ mã TikZ trần, file LaTeX đầy đủ, bảng `\begin{tabular}`, tiếng Việt UTF-8 (`T5`), `tkz-euclide`, `tkz-tab`, `pgfplots`, `tikz-3dplot`, `circuitikz`, `patterns.meta`, `\hoac`, `\heva`.
+5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

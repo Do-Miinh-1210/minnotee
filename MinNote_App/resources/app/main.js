@@ -203,18 +203,18 @@ ipcMain.handle('open-file', async () => {
   };
 });
 
-ipcMain.handle('render-tikz', async (event, source) => {
+ipcMain.handle('render-tikz', async (event, source, defs) => {
   try {
-    return await tikz.renderTikz(source);
+    return await tikz.renderTikz(source, defs);
   } catch (err) {
     log('render-tikz error: ' + err.message);
     throw err;
   }
 });
 
-ipcMain.handle('trace-tikz', async (event, source) => {
+ipcMain.handle('trace-tikz', async (event, source, defs) => {
   try {
-    return await tikz.traceTikz(source);
+    return await tikz.traceTikz(source, defs);
   } catch (err) {
     log('trace-tikz error: ' + err.message);
     throw err;
