@@ -22,22 +22,22 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.7"
-TITLE = "MinNote v0.0.5.7 - Đồng Bộ Sáng/Tối Toàn Bộ Thanh Công Cụ & Sửa Nút Ẩn/Hiện Sheet Không Che Nút"
-BODY = """## MinNote v0.0.5.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.8"
+TITLE = "MinNote v0.0.5.8 - Lưu Mặc Định Đường & Điểm, Giao Diện Thanh Công Cụ Siêu Gọn Ưu Tiên Màn Hình & Phím Tắt Ctrl+K Tự Đánh Nhãn"
+BODY = """## MinNote v0.0.5.8 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.7 khắc phục triệt để lỗi thanh công cụ nhảy giao diện lệch sáng/tối và lỗi nút hiện lại thanh Sheet che nút công cụ phía sau:
+Bản cập nhật v0.0.5.8 sửa triệt để lỗi lưu mặc định nét đường/điểm, thu gọn toàn bộ thanh công cụ để tối đa không gian màn hình viết và bổ sung phím tắt nhanh `Ctrl+K`:
 
-### 🌟 Điểm Mới Trong Bản v0.0.5.7:
-1. **Đồng Bộ Giao Diện Sáng / Tối Cho Toàn Bộ Thanh Công Cụ**:
-   - **Chế độ Sáng**: Thanh công cụ dọc, thanh trên, bảng màu, tiêu đề thư viện và thanh công cụ ở mọi vị trí (**Trên / Trái / Phải / Dưới / Nổi**) đồng nhất tông sáng ấm Atelier, icon đậm rõ nét — không còn lệch nền đen/trắng hay mất màu icon.
-   - **Chế độ Tối**: Toàn bộ thanh công cụ, thanh rời (`aside.tools-bar`), bảng màu (có viền tương phản rõ cho chấm mực đen) và nút Sheet đồng bộ hoàn toàn nền tối Obsidian.
-   - Khi chuyển vị trí thanh công cụ sang **Trái / Phải / Dưới**, bật chế độ **Nổi** hoặc ẩn thanh công cụ: tự động thu gọn cột rail bên trái về `0px` và ẩn logo `M` thừa, không còn nhảy giao diện hay để lại khoảng trống đen góc trên trái.
-   - Menu thả xuống mở từ thanh công cụ ở cạnh phải hoặc cạnh dưới tự động định vị sang trái / phía trên để không bị tràn khỏi màn hình.
-2. **Nút Hiện Lại Thanh Sheet (`^ Sheet`) Không Còn Che Nút Phía Sau**:
-   - Tự động căn vị trí nút `^ Sheet` nằm gọn trong góc dưới bên trái vùng trang viết (`.board-wrap`), tự né thanh công cụ dọc bên trái, thanh công cụ bên dưới và thanh công cụ nổi ở mọi bố cục và kích thước màn hình.
-   - Đồng bộ màu sắc sáng/tối của nút `^ Sheet` theo giao diện Atelier.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.8:
+1. **Lưu Bền Vững Định Dạng Mặc Định Đường & Điểm**:
+   - Đọc và lưu đầy đủ **Độ dày nét đường**, **Màu đường mặc định**, **Nét liền/đứt mặc định**, cùng **Cỡ chấm tròn điểm**, **Màu chấm tròn**, **Cỡ chữ & màu tên điểm** vào bộ nhớ cài đặt (`prefs`) khi bấm **Áp dụng**.
+   - Tự động khôi phục đúng các thông số đã lưu sau khi khởi động lại ứng dụng, khi mở sổ mới/sổ cũ chưa thiết lập riêng, và không còn bị ghi đè mất độ dày/màu đường mặc định khi đổi nét bút vẽ tay.
+2. **Thanh Công Cụ Siêu Gọn — Ưu Tiên Tối Đa Không Gian Màn Hình**:
+   - Thu gọn thanh tiêu đề cửa sổ (`40px → 30px`), thanh trên (`56px → 40px`), thanh công cụ dọc bên trái (`140px → 96px` trên màn hình 1366×768 và `104px → 70px` màn hình cao — hiện đủ 100% công cụ không phải cuộn), thanh danh sách trang (`140px → 88px`), thanh Sheet (`46px → 30px`), thanh chọn nổi và giảm đệm viền quanh trang giấy.
+3. **Phím Tắt `Ctrl+K` — Hiện & Tự Đánh Nhãn Đối Tượng Đang Chọn**:
+   - Chọn một hoặc nhiều **điểm**, **đoạn thẳng**, **đa giác** hay **hình khối** rồi nhấn **`Ctrl+K`**: lập tức hiện tên nhãn và tự động đánh chữ cái (`A, B, C, D…`, tự tránh trùng nhãn trên trang) cho các điểm chưa có tên.
+   - Nhấn **`Ctrl+K`** lần nữa khi tất cả đối tượng đang chọn đã hiện nhãn sẽ ẩn gọn nhãn trở lại; hỗ trợ đầy đủ `Ctrl+Z` / `Ctrl+Y`.
+4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

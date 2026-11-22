@@ -22,8 +22,8 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 1. Header Bar: Tiêu đề & Công cụ điều khiển cửa sổ -->
-        <Border x:Name="TopHeaderBar" Grid.Row="0" MouseLeftButtonDown="TopHeaderBar_MouseLeftButtonDown" Background="#17161D" Height="40" Padding="12,0,8,0"
+        <!-- 1. Header Bar: Tiêu đề & Công cụ điều khiển cửa sổ (nhỏ gọn ưu tiên màn hình) -->
+        <Border x:Name="TopHeaderBar" Grid.Row="0" MouseLeftButtonDown="TopHeaderBar_MouseLeftButtonDown" Background="#17161D" Height="30" Padding="8,0,6,0"
                 BorderBrush="#24222D" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True">
                 <!-- Trailing / Right: Nút chức năng & Window Controls -->
@@ -32,8 +32,8 @@
                     <ui:Button x:Name="BtnUpdateTop" Appearance="Transparent"
                                Icon="{ui:SymbolIcon ArrowSync24}"
                                Content="Cập nhật"
-                               FontSize="11" Padding="6,4"
-                               Margin="0,0,6,0"
+                               FontSize="10.5" Padding="5,2"
+                               Margin="0,0,4,0"
                                Cursor="Hand"
                                ToolTip="Kiểm tra bản cập nhật mới từ GitHub"
                                Click="BtnUpdateTop_Click" />
@@ -42,8 +42,8 @@
                     <ui:Button x:Name="BtnLicenseTop" Appearance="Transparent" Visibility="Visible"
                                Icon="{ui:SymbolIcon ShieldCheckmark24}"
                                Content="Bản quyền: ULTRA"
-                               FontSize="11" Padding="8,4"
-                               Margin="0,0,6,0"
+                               FontSize="10.5" Padding="6,2"
+                               Margin="0,0,4,0"
                                Cursor="Hand"
                                ToolTip="Thông tin bản quyền và Mã máy (Bấm để xem / kích hoạt)"
                                Click="BtnLicenseTop_Click" />
@@ -52,34 +52,34 @@
                     <ui:Button x:Name="BtnFullScreenTop" Appearance="Transparent"
                                Icon="{ui:SymbolIcon FullScreenMaximize24}"
                                ToolTip="Bật/Tắt Toàn Màn Hình (F11)"
-                               Click="BtnFullScreenTop_Click" Padding="6,2" Margin="0,0,2,0" />
+                               Click="BtnFullScreenTop_Click" Padding="4,1" Margin="0,0,2,0" />
 
                     <!-- Nút thu nhỏ, phóng to, đóng cửa sổ -->
-                    <Border Width="1" Height="18" Background="#2E2C3A" Margin="0,0,8,0" />
+                    <Border Width="1" Height="14" Background="#2E2C3A" Margin="0,0,6,0" />
                     <ui:Button x:Name="BtnWinMin" Appearance="Transparent"
                                Icon="{ui:SymbolIcon Subtract24}"
                                ToolTip="Thu nhỏ cửa sổ"
-                               Click="BtnWinMin_Click" Padding="6,2" Margin="0,0,2,0" />
+                               Click="BtnWinMin_Click" Padding="4,1" Margin="0,0,2,0" />
                     <ui:Button x:Name="BtnWinMax" Appearance="Transparent"
                                Icon="{ui:SymbolIcon Maximize24}"
                                ToolTip="Phóng to / Khôi phục kích thước"
-                               Click="BtnWinMax_Click" Padding="6,2" Margin="0,0,2,0" />
+                               Click="BtnWinMax_Click" Padding="4,1" Margin="0,0,2,0" />
                     <ui:Button x:Name="BtnWinClose" Appearance="Danger"
                                Icon="{ui:SymbolIcon Dismiss24}"
                                ToolTip="Đóng ứng dụng"
-                               Click="BtnWinClose_Click" Padding="6,2" />
+                               Click="BtnWinClose_Click" Padding="4,1" />
                 </StackPanel>
 
                 <!-- Leading / Left: Logo & Tiêu đề ứng dụng -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#6C5CF5" CornerRadius="6" Width="24" Height="24" Margin="0,0,8,0">
-                        <TextBlock Text="M" FontWeight="Bold" Foreground="White" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Background="#6C5CF5" CornerRadius="5" Width="20" Height="20" Margin="0,0,6,0">
+                        <TextBlock Text="M" FontWeight="Bold" Foreground="White" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="MinNote" FontWeight="Bold" FontSize="13" Foreground="#F2F0F7" VerticalAlignment="Center" />
-                    <Border Background="#24222D" BorderBrush="#6C5CF5" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtAppVersion" Text="v0.0.5.7 (Core v1.0.7)" FontSize="11" FontWeight="Bold" Foreground="#FFB547" VerticalAlignment="Center" />
+                    <TextBlock Text="MinNote" FontWeight="Bold" FontSize="12" Foreground="#F2F0F7" VerticalAlignment="Center" />
+                    <Border Background="#24222D" BorderBrush="#6C5CF5" BorderThickness="1" CornerRadius="4" Padding="4,0" Margin="5,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtAppVersion" Text="v0.0.5.8 (Core v1.0.7)" FontSize="10.5" FontWeight="Bold" Foreground="#FFB547" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text=" • Bảng Viết &amp; Vẽ Hình Toán Học" FontSize="12" Foreground="#9A96A8" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    <TextBlock Text=" • Bảng Viết &amp; Vẽ Hình Toán Học" FontSize="11" Foreground="#9A96A8" VerticalAlignment="Center" Margin="5,0,0,0" />
                 </StackPanel>
             </DockPanel>
         </Border>

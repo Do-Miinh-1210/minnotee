@@ -848,12 +848,272 @@ html[data-ui="v2"] .sheet-restore-pill:hover {
   border-color: var(--v2-accent) !important;
 }
 @media (max-height: 1000px) {
-  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 158px); }
+  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 108px); }
 }
 @media (max-width: 1100px) {
-  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 78px); }
+  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 54px); }
 }
 html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) .sheet-restore-pill,
 html[data-ui="v2"] .app.bar-hidden .sheet-restore-pill {
-  left: var(--sheet-pill-left, 18px);
+  left: var(--sheet-pill-left, 16px);
+}
+
+/* ---------- 15. Chế độ thanh công cụ NHỎ GỌN — tối đa không gian màn hình viết ---------- */
+html[data-ui="v2"] .app {
+  grid-template-columns: 70px auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+  grid-template-rows: 40px minmax(0, 1fr) auto !important;
+}
+html[data-ui="v2"] .app::after {
+  margin-top: 7px !important;
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 8px !important;
+  font: 700 13.5px/1 var(--v2-font) !important;
+  box-shadow: 0 -10px 0 18px var(--v2-rail) !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
+  grid-template-columns: repeat(2, 28px) !important;
+  grid-auto-rows: minmax(28px, auto) !important;
+  gap: 3px !important;
+  padding: 40px 5px 8px !important;
+}
+html[data-ui="v2"] .tb-group.tools > .dropdown,
+html[data-ui="v2"] .tb-group.tools > .tb,
+html[data-ui="v2"] .tb-group.tools .tb {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+}
+html[data-ui="v2"] .tb-group.tools .tb svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+html[data-ui="v2"] .tb-group.tools > .tb-palette {
+  width: 59px !important;
+  height: 28px !important;
+  padding: 0 3px !important;
+  border-radius: 8px !important;
+}
+html[data-ui="v2"] .tb-group.tools > .tb-palette .swatch {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  padding: 0 !important;
+}
+html[data-ui="v2"] .tb-group.tools > .sep,
+html[data-ui="v2"] .tb-group.tools > .tb-row-break {
+  margin: 1px 0 !important;
+}
+
+/* Màn hình thấp (<= 1000px, vd 1366x768): rail 3 cột siêu gọn 96px — vừa khít mọi công cụ */
+@media (max-height: 1000px) {
+  html[data-ui="v2"] .app {
+    grid-template-columns: 96px auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+  }
+  html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
+    grid-template-columns: repeat(3, 27px) !important;
+    grid-auto-rows: minmax(27px, auto) !important;
+    gap: 2px !important;
+    padding: 38px 4px 6px !important;
+  }
+  html[data-ui="v2"] .tb-group.tools > .dropdown,
+  html[data-ui="v2"] .tb-group.tools > .tb,
+  html[data-ui="v2"] .tb-group.tools .tb {
+    width: 27px !important;
+    height: 27px !important;
+    min-width: 27px !important;
+  }
+  html[data-ui="v2"] .tb-group.tools .tb svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+  html[data-ui="v2"] .tb-group.tools > .tb-palette {
+    width: 85px !important;
+    height: 27px !important;
+    padding: 0 4px !important;
+  }
+  html[data-ui="v2"] .app::after {
+    box-shadow: 0 -10px 0 14px var(--v2-rail), -24px -10px 0 14px var(--v2-rail), 24px -10px 0 14px var(--v2-rail) !important;
+  }
+}
+
+/* Màn hình hẹp (<= 1100px): rail 1 cột gọn 42px */
+@media (max-width: 1100px) {
+  html[data-ui="v2"] .app {
+    grid-template-columns: 42px auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+  }
+  html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
+    grid-template-columns: 28px !important;
+    padding: 38px 6px 6px !important;
+  }
+  html[data-ui="v2"] .tb-group.tools > .tb-palette {
+    width: 28px !important;
+    height: auto !important;
+    flex-direction: column !important;
+    padding: 4px 0 !important;
+  }
+}
+
+/* Giữ thu gọn cột 1 = 0px khi công cụ rời khỏi header.toolbar (ưu tiên cao hơn media queries ở trên) */
+html[data-ui="v2"] .app.bar-hidden,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) {
+  grid-template-columns: 0px auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+}
+
+/* Thanh trên siêu gọn (40px) */
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child {
+  margin-left: 6px !important;
+  gap: 1px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb {
+  height: 28px !important;
+  min-width: 28px !important;
+  width: 28px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-title {
+  height: 27px !important;
+  padding: 0 9px !important;
+  margin-left: 6px !important;
+}
+html[data-ui="v2"] .zoom-button {
+  font: 600 11.5px/1 var(--v2-font) !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-palette {
+  height: 27px !important;
+  padding: 0 5px !important;
+  margin-left: 6px !important;
+  gap: 1px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-palette .swatch {
+  width: 20px !important;
+  height: 20px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-palette .swatch span {
+  width: 11px !important;
+  height: 11px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .nb-tools-dock {
+  height: 30px !important;
+  padding: 0 3px !important;
+  margin-right: 6px !important;
+  gap: 1px !important;
+}
+html[data-ui="v2"] .nb-tools-dock .tb {
+  height: 24px !important;
+  min-width: 26px !important;
+  padding: 0 8px !important;
+  gap: 4px !important;
+}
+html[data-ui="v2"] .nb-tools-dock .tb span {
+  font: 500 11.5px/1 var(--v2-font) !important;
+}
+html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 {
+  width: 14px !important;
+  height: 14px !important;
+}
+html[data-ui="v2"] .nb-tools-dock .tb-sep {
+  height: 14px !important;
+}
+
+/* Tối đa diện tích vùng làm việc (giảm đệm viền & thu gọn thanh danh sách trang + thanh Sheet) */
+html[data-ui="v2"] .app > .work {
+  gap: 6px !important;
+  padding: 5px 6px 5px 6px !important;
+}
+html[data-ui="v2"] .board-wrap {
+  border-radius: 10px !important;
+}
+html[data-ui="v2"] .pages-panel {
+  width: 88px !important;
+  border-radius: 10px !important;
+}
+html[data-ui="v2"] .pages-panel .pages-list {
+  padding: 6px 5px !important;
+  gap: 6px !important;
+}
+html[data-ui="v2"] .pages-panel .page-thumb {
+  border-radius: 7px !important;
+}
+html[data-ui="v2"] .pages-panel .page-actions button {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+}
+
+/* Thanh sheet siêu gọn (30px) */
+html[data-ui="v2"] .sheet-bar {
+  height: 30px !important;
+  padding: 0 10px 4px !important;
+  gap: 4px !important;
+}
+html[data-ui="v2"] .sheet-tab,
+html[data-ui="v2"] .sheet-add,
+html[data-ui="v2"] .sheet-hide-btn {
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 9px !important;
+  font: 500 11px/1 var(--v2-font) !important;
+}
+html[data-ui="v2"] .sheet-add {
+  width: 22px !important;
+  padding: 0 !important;
+}
+html[data-ui="v2"] .sheet-restore-pill {
+  height: 22px !important;
+  padding: 0 9px !important;
+  font-size: 11px !important;
+}
+
+/* Thanh công cụ rời (aside.tools-bar: Trái/Phải/Dưới/Nổi) cũng siêu gọn */
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float),
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) {
+  width: 44px !important;
+  min-width: 44px !important;
+  padding: 6px 4px !important;
+  border-radius: 12px !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.side-right .tb-group.tools > .tb-palette {
+  width: 32px !important;
+  padding: 4px 0 !important;
+  gap: 2px !important;
+}
+html[data-ui="v2"] .app > aside.tools-bar.side-bottom:not(.float) {
+  padding: 4px 8px !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-bottom .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.side-top .tb-group.tools > .tb-palette {
+  height: 28px !important;
+  padding: 0 5px !important;
+  gap: 2px !important;
+}
+html[data-ui="v2"] aside.tools-bar.float {
+  padding: 4px !important;
+  border-radius: 12px !important;
+}
+
+/* Thanh chọn nổi gọn hơn để không che hình vẽ */
+html[data-ui="v2"] .selection-bar {
+  padding: 3px 6px !important;
+  gap: 3px !important;
+  border-radius: 10px !important;
+}
+html[data-ui="v2"] .selection-bar button {
+  height: 26px !important;
+  padding: 0 8px !important;
+  font-size: 11.5px !important;
+  border-radius: 7px !important;
+}
+html[data-ui="v2"] .selection-bar button svg {
+  width: 14px !important;
+  height: 14px !important;
 }
