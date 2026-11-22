@@ -561,3 +561,31 @@ html[data-ui="v2"] .pages-panel .page-thumb-num {
 }
 html[data-ui="v2"] .pages-panel .page-thumb.on .page-thumb-num { color: var(--v2-accent) !important; }
 html[data-ui="v2"].dark .tb-group.tools > .tb-palette { background: #2e2c3a !important; }
+
+/* ---------- 12. Bộ icon khối đặc (icons-v2.js) ----------
+   Mỗi icon được render 2 bản: .mn-ic1 (cũ) và .mn-ic2 (mới). Quy tắc dưới chọn bản hiện ra.
+   Hai quy tắc đầu cố ý KHÔNG nằm dưới html[data-ui="v2"] để giao diện cũ ẩn icon mới. */
+html:not([data-ui="v2"]) svg.mn-ic2 { display: none !important; }
+html[data-ui="v2"] svg.mn-ic1 { display: none !important; }
+html[data-ui="v2"] svg.mn-ic2 {
+  fill: currentColor !important;
+  stroke: none !important;
+  flex-shrink: 0;
+  overflow: visible;
+}
+html[data-ui="v2"] .fav-star svg.mn-ic2,
+html[data-ui="v2"] .fav-tray-head svg.mn-ic2 { fill: currentColor !important; }
+/* icon trong menu thả xuống: cùng cỡ với chữ, hơi nhạt hơn chữ */
+html[data-ui="v2"] .dropdown-menu svg.mn-ic2 { width: 18px; height: 18px; }
+html[data-ui="v2"] .dropdown-menu button:not(.checked) svg.mn-ic2 { color: var(--v2-ink); opacity: .82; }
+/* nhóm "Chèn": icon 16px */
+html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 { width: 17px !important; height: 17px !important; }
+/* index.html có quy tắc ".tb svg:not(:first-child){display:none}" để giấu mũi tên nhỏ;
+   icon mới đứng sau icon cũ nên cần được hiện lại (trừ mũi tên .chevron). */
+html[data-ui="v2"] .tb svg.mn-ic2:not(.chevron),
+html[data-ui="v2"] button svg.mn-ic2:not(.chevron) { display: inline-block !important; }
+
+/* rail cuộn: logo mang theo một nền tối (box-shadow) để icon cuộn lên không lộ quanh logo */
+html[data-ui="v2"] .app::after {
+  box-shadow: 0 -14px 0 28px var(--v2-rail);
+}
