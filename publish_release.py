@@ -22,23 +22,25 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.5"
-TITLE = "MinNote v0.0.6.5 - Sửa Lỗi Biên Dịch TikZ (TeX Live & MiKTeX), Dựng Hình Sửa Được & Ảnh Vector SVG Trong Suốt"
-BODY = r"""## MinNote v0.0.6.5 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.6"
+TITLE = "MinNote v0.0.6.6 - Nâng Cấp Quay Màn Hình Siêu Nét 60fps, Khung Chính Xác 1:1, Cài Đặt Lưu Trữ & Bỏ Qua Hộp Thoại Xác Nhận"
+BODY = r"""## MinNote v0.0.6.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật **v0.0.6.5** khắc phục triệt để lỗi biên dịch mã **TikZ** trong app (cả chế độ **Hình sửa được** lẫn **Ảnh TeX** và hình/bảng trong **Đề bài LaTeX**):
+Bản cập nhật **v0.0.6.6** nâng cấp toàn diện hệ thống **Quay Màn Hình** trong MinNote theo chuẩn ứng dụng desktop chuyên nghiệp:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.5:
-1. **Biên Dịch TikZ Trực Tiếp Trong App WPF (`TikzCompilerService`) & Electron**:
-   - Bổ sung cầu nối WebView2 (`RENDER_TIKZ` / `TRACE_TIKZ`) và bật lại đầy đủ nút chuyển chế độ **Hình sửa được** / **Ảnh TeX** trên hộp thoại TikZ & Đề bài LaTeX.
-   - Tự động phát hiện và tương thích hoàn toàn với cả **TeX Live** (bỏ cờ `-enable-installer` vốn chỉ dành cho MiKTeX gây lỗi trên TeX Live) lẫn **MiKTeX**.
-2. **Xuất Ảnh TikZ Dạng Vector SVG Trong Suốt Siêu Nét (`latex` + `dvisvgm`)**:
-   - Ưu tiên xuất ảnh **SVG vector trong suốt** (`--no-fonts --exact-bbox`), giữ sắc nét vô cực khi phóng to và không phụ thuộc font máy; tự động dự phòng `pdflatex` + Ghostscript (`pngalpha`) / `pdftoppm`.
-3. **Dựng Hình Sửa Được Chuẩn Theo TeX (`traceTikz`)**:
-   - Gắn hook PGF trích xuất chính xác toàn bộ tọa độ điểm (`\coordinate`, `name intersections`, `calc`, `\foreach`, `\tkzDefPoint`…), màu sắc và luồng nét vẽ để dựng hình hình học kéo điểm được ngay cả với hình không gian phức tạp.
-4. **Tự Động Nhận Diện Gói & Cú Pháp Linh Hoạt**:
-   - Hỗ trợ mã TikZ trần, file LaTeX đầy đủ, bảng `\begin{tabular}`, tiếng Việt UTF-8 (`T5`), `tkz-euclide`, `tkz-tab`, `pgfplots`, `tikz-3dplot`, `circuitikz`, `patterns.meta`, `\hoac`, `\heva`.
-5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.6:
+1. **Khung Camera Chính Xác Tuyệt Đối 1:1 (Hết Lệch Khung Sau Setup)**:
+   - Khóa tọa độ khung ngay khi bấm **Bắt đầu quay**, đồng bộ 0 px giữa khung chọn vùng và khung viền đỏ khi đang quay.
+   - Cắt video chuẩn từng điểm ảnh gốc bằng **Region Capture (`CropTarget.fromElement`)** kết hợp bộ dự phòng tự bù tỷ lệ & viền đen.
+2. **Chất Lượng Video Đầu Ra Siêu Nét (HiDPI 1:1 • 60 FPS • 24 Mbps)**:
+   - Mặc định chế độ **Siêu nét** (24 Mbps, H.264 High Profile, 60 FPS, âm thanh 192 kbps lọc ồn) kèm `contentHint = 'detail'` giữ sắc nét từng đường hình học & công thức toán.
+3. **Bảng Cài Đặt Quay Màn Hình & Lưu Trữ Chuyên Biệt (3 Tab)**:
+   - Chọn/mở thư mục lưu mặc định (`Videos\MinNote`), đặt tiền tố tên tệp, chọn chế độ **Xem trước & lưu** hoặc **Tự động lưu**, chỉnh chất lượng/FPS/định dạng/micro và quản lý danh sách video đã lưu.
+4. **Loại Bỏ Hộp Thoại Tải Xuống Kiểu Trình Duyệt Web**:
+   - Chặn hoàn toàn popup **"Nội dung tải xuống"** của WebView2, thay bằng **Bảng Xem Trước & Lưu Video** ghi trực tiếp xuống ổ đĩa qua `VideoRecorderService`.
+5. **Bỏ Qua Xác Nhận Tab Trình Duyệt Khi Bắt Đầu Quay**:
+   - Tự động chấp nhận quay tab hiện tại (`--auto-accept-this-tab-capture`) và tự cấp quyền Micro cho ứng dụng.
+6. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

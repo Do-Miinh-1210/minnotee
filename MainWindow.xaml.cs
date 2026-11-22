@@ -28,6 +28,8 @@ namespace MinNote
         private bool _onlineCheckDone;
         private DateTime _lastAutoRecover = DateTime.MinValue;
         private string? _pendingWordPath;
+        private string? _lastBatchDownloadDir;
+        private DateTime _lastBatchDownloadUtc = DateTime.MinValue;
         private readonly System.Windows.Threading.DispatcherTimer _licenseTimer = new() { Interval = TimeSpan.FromMinutes(10) };
         private WindowState _previousWindowState = WindowState.Normal;
         private WindowStyle _previousWindowStyle = WindowStyle.SingleBorderWindow;
@@ -65,6 +67,7 @@ namespace MinNote
             {
                 Log("Window Closed");
                 try { MininkEmfService.Instance.Dispose(); } catch { }
+                try { VideoRecorderService.Instance.Dispose(); } catch { }
             };
 
             // Tự dò & làm nóng Inkscape/MinInk nền (hoặc tải MinInk có xác thực SHA-256 nếu máy chưa có)
@@ -160,7 +163,8 @@ namespace MinNote
 
         // Không mở cổng remote debugging: bất kỳ chương trình nào trên máy cũng có thể điều khiển trang qua cổng đó
         // Cho phép pinch touchpad (DirectManipulation -> wheel ctrlKey) để phóng to/thu nhỏ trực tiếp trên canvas bảng viết
-        private const string BrowserArgs = "--disable-features=Translate,OptimizationHints,MediaRouter --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --disable-client-side-phishing-detection --disable-default-apps --no-default-browser-check --enable-gpu-rasterization --enable-zero-copy --disable-hang-monitor";
+        // Tự động chấp nhận quay tab hiện tại (--auto-accept-this-tab-capture) để bỏ qua hộp thoại xác nhận trình duyệt
+        private const string BrowserArgs = "--disable-features=Translate,OptimizationHints,MediaRouter --disable-background-networking --disable-component-update --disable-sync --disable-domain-reliability --disable-client-side-phishing-detection --disable-default-apps --no-default-browser-check --enable-gpu-rasterization --enable-zero-copy --disable-hang-monitor --auto-accept-this-tab-capture --auto-select-tab-capture-source-by-title=MinNote";
 
         public static async Task<CoreWebView2Environment> CreateEnvironmentWithFallbackAsync()
         {
@@ -318,10 +322,134 @@ namespace MinNote
 
                     WvWhiteboard.CoreWebView2.PermissionRequested += (s, e) =>
                     {
-                        if (e.PermissionKind == CoreWebView2PermissionKind.ClipboardRead)
+                        bool isLocalApp = !string.IsNullOrEmpty(e.Uri) &&
+                            (e.Uri.StartsWith("https://minnote.app/", StringComparison.OrdinalIgnoreCase) ||
+                             e.Uri.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
+                             e.Uri.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase));
+                        if (isLocalApp && (
+                            e.PermissionKind == CoreWebView2PermissionKind.ClipboardRead ||
+                            e.PermissionKind == CoreWebView2PermissionKind.Microphone ||
+                            e.PermissionKind == CoreWebView2PermissionKind.Camera ||
+                            e.PermissionKind == CoreWebView2PermissionKind.MultipleAutomaticDownloads))
                         {
                             e.State = CoreWebView2PermissionState.Allow;
                         }
+                    };
+
+                    WvWhiteboard.CoreWebView2.ScreenCaptureStarting += (s, e) =>
+                    {
+                        string src = e.OriginalSourceFrameInfo?.Source ?? "";
+                        Log($"[ScreenCaptureStarting] source={src}");
+                        bool isLocalApp = string.IsNullOrEmpty(src) ||
+                            src.StartsWith("https://minnote.app/", StringComparison.OrdinalIgnoreCase) ||
+                            src.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
+                            src.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase);
+                        if (!isLocalApp)
+                        {
+                            e.Cancel = true;
+                        }
+                    };
+
+                    // Chặn hoàn toàn hộp thoại "Nội dung tải xuống" kiểu trình duyệt web,
+                    // thay bằng hộp thoại lưu chuẩn Windows / lưu thẳng thư mục cài đặt + thông báo trong app.
+                    WvWhiteboard.CoreWebView2.DownloadStarting += (s, e) =>
+                    {
+                        e.Handled = true;
+                        string origPath = e.ResultFilePath ?? "";
+                        string origName = Path.GetFileName(origPath);
+                        if (string.IsNullOrWhiteSpace(origName)) origName = "MinNote_Export";
+                        string ext = Path.GetExtension(origName).ToLowerInvariant();
+
+                        if (ext == ".mp4" || ext == ".webm")
+                        {
+                            string folder = VideoRecorderService.Instance.EnsureFolderExists();
+                            string dest = VideoRecorderService.ResolveUniquePath(folder, Path.GetFileNameWithoutExtension(origName), ext.TrimStart('.'));
+                            e.ResultFilePath = dest;
+                            var op = e.DownloadOperation;
+                            op.StateChanged += (_, __) =>
+                            {
+                                if (op.State == CoreWebView2DownloadState.Completed)
+                                {
+                                    Dispatcher.InvokeAsync(() =>
+                                    {
+                                        string esc = Path.GetFileName(dest).Replace("\\", "\\\\").Replace("'", "\\'");
+                                        WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Đã lưu video: {esc}', 'success');");
+                                    });
+                                }
+                            };
+                            return;
+                        }
+
+                        var deferral = e.GetDeferral();
+                        Dispatcher.InvokeAsync(() =>
+                        {
+                            try
+                            {
+                                string? targetPath = null;
+                                // Nếu xuất hàng loạt nhiều ảnh PNG liên tiếp trong 3 giây → dùng chung thư mục vừa chọn
+                                if (!string.IsNullOrEmpty(_lastBatchDownloadDir)
+                                    && Directory.Exists(_lastBatchDownloadDir)
+                                    && (DateTime.UtcNow - _lastBatchDownloadUtc).TotalSeconds <= 3.0)
+                                {
+                                    targetPath = Path.Combine(_lastBatchDownloadDir, origName);
+                                    _lastBatchDownloadUtc = DateTime.UtcNow;
+                                }
+                                else
+                                {
+                                    string filter = ext switch
+                                    {
+                                        ".pdf" => "Tài liệu PDF (*.pdf)|*.pdf|Tất cả tệp (*.*)|*.*",
+                                        ".png" => "Ảnh PNG (*.png)|*.png|Tất cả tệp (*.*)|*.*",
+                                        ".svg" => "Ảnh Vector SVG (*.svg)|*.svg|Tất cả tệp (*.*)|*.*",
+                                        ".html" or ".htm" => "Trang HTML (*.html)|*.html|Tất cả tệp (*.*)|*.*",
+                                        ".nrn" => "Sổ ghi chú MinNote (*.nrn)|*.nrn|Tất cả tệp (*.*)|*.*",
+                                        _ => "Tất cả tệp (*.*)|*.*"
+                                    };
+                                    var sfd = new Microsoft.Win32.SaveFileDialog
+                                    {
+                                        Title = "Lưu tệp từ MinNote",
+                                        FileName = origName,
+                                        Filter = filter
+                                    };
+                                    if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
+                                    {
+                                        targetPath = sfd.FileName;
+                                        _lastBatchDownloadDir = Path.GetDirectoryName(targetPath);
+                                        _lastBatchDownloadUtc = DateTime.UtcNow;
+                                    }
+                                    else
+                                    {
+                                        e.Cancel = true;
+                                    }
+                                }
+
+                                if (!e.Cancel && !string.IsNullOrEmpty(targetPath))
+                                {
+                                    e.ResultFilePath = targetPath;
+                                    string savedName = Path.GetFileName(targetPath);
+                                    var op = e.DownloadOperation;
+                                    op.StateChanged += (_, __) =>
+                                    {
+                                        if (op.State == CoreWebView2DownloadState.Completed)
+                                        {
+                                            Dispatcher.InvokeAsync(() =>
+                                            {
+                                                string esc = savedName.Replace("\\", "\\\\").Replace("'", "\\'");
+                                                WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Đã lưu tệp: {esc}', 'success');");
+                                            });
+                                        }
+                                    };
+                                }
+                            }
+                            catch (Exception exDl)
+                            {
+                                Log($"DownloadStarting error: {exDl.Message}");
+                            }
+                            finally
+                            {
+                                deferral.Complete();
+                            }
+                        });
                     };
 
                     WvWhiteboard.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
@@ -926,11 +1054,287 @@ namespace MinNote
                             }
                         }
                     }
+                    else if (msgType == "REC_GET_SETTINGS")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var settings = VideoRecorderService.Instance.GetSettings();
+                                VideoRecorderService.Instance.EnsureFolderExists(settings.Folder);
+                                var videos = VideoRecorderService.Instance.ListRecentVideos(settings.Folder);
+                                await PostRecResultAsync(reqId, true, new { settings, videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_SAVE_SETTINGS")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string settingsJson = root.TryGetProperty("settings", out var sEl) ? sEl.GetRawText() : "{}";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var incoming = JsonSerializer.Deserialize<VideoRecorderSettings>(settingsJson,
+                                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new VideoRecorderSettings();
+                                var saved = VideoRecorderService.Instance.SaveSettings(incoming);
+                                var videos = VideoRecorderService.Instance.ListRecentVideos(saved.Folder);
+                                await PostRecResultAsync(reqId, true, new { settings = saved, videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_CHOOSE_FOLDER")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        try
+                        {
+                            string currentFolder = VideoRecorderService.Instance.EnsureFolderExists();
+                            var ofd = new Microsoft.Win32.OpenFolderDialog
+                            {
+                                Title = "Chọn thư mục lưu video quay màn hình MinNote",
+                                InitialDirectory = currentFolder,
+                                Multiselect = false
+                            };
+                            if (ofd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(ofd.FolderName))
+                            {
+                                var saved = VideoRecorderService.Instance.SetFolder(ofd.FolderName);
+                                var videos = VideoRecorderService.Instance.ListRecentVideos(saved.Folder);
+                                await PostRecResultAsync(reqId, true, new { folder = saved.Folder, settings = saved, videos });
+                            }
+                            else
+                            {
+                                await PostRecResultAsync(reqId, true, new { folder = (string?)null, cancelled = true });
+                            }
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_OPEN_FOLDER")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string? folder = root.TryGetProperty("folder", out var fEl) ? fEl.GetString() : null;
+                        try
+                        {
+                            VideoRecorderService.Instance.OpenFolder(folder);
+                            await PostRecResultAsync(reqId, true, new { opened = true });
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_OPEN_FILE")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string path = root.TryGetProperty("path", out var pEl) ? (pEl.GetString() ?? "") : "";
+                        try
+                        {
+                            VideoRecorderService.Instance.OpenFile(path);
+                            await PostRecResultAsync(reqId, true, new { opened = true });
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_REVEAL_FILE")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string path = root.TryGetProperty("path", out var pEl) ? (pEl.GetString() ?? "") : "";
+                        try
+                        {
+                            VideoRecorderService.Instance.RevealFile(path);
+                            await PostRecResultAsync(reqId, true, new { revealed = true });
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_LIST_VIDEOS")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string? folder = root.TryGetProperty("folder", out var fEl) ? fEl.GetString() : null;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var videos = VideoRecorderService.Instance.ListRecentVideos(folder);
+                                await PostRecResultAsync(reqId, true, new { videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_DELETE_VIDEO")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string path = root.TryGetProperty("path", out var pEl) ? (pEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                bool deleted = VideoRecorderService.Instance.DeleteVideo(path);
+                                var videos = VideoRecorderService.Instance.ListRecentVideos();
+                                await PostRecResultAsync(reqId, true, new { deleted, videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_PICK_SAVE_PATH")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string suggestedName = root.TryGetProperty("fileName", out var fnEl) ? (fnEl.GetString() ?? "MinNote_Video") : "MinNote_Video";
+                        string ext = root.TryGetProperty("ext", out var exEl) ? (exEl.GetString() ?? "mp4") : "mp4";
+                        ext = ext.Trim().TrimStart('.').ToLowerInvariant();
+                        if (ext != "webm") ext = "mp4";
+                        try
+                        {
+                            string initialDir = VideoRecorderService.Instance.EnsureFolderExists();
+                            string cleanName = VideoRecorderService.SanitizeFileName(suggestedName);
+                            if (!cleanName.EndsWith("." + ext, StringComparison.OrdinalIgnoreCase)) cleanName += "." + ext;
+                            var sfd = new Microsoft.Win32.SaveFileDialog
+                            {
+                                Title = "Chọn nơi lưu video MinNote",
+                                InitialDirectory = initialDir,
+                                FileName = cleanName,
+                                Filter = ext == "webm"
+                                    ? "Video WebM (*.webm)|*.webm|Video MP4 (*.mp4)|*.mp4"
+                                    : "Video MP4 (*.mp4)|*.mp4|Video WebM (*.webm)|*.webm"
+                            };
+                            if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
+                            {
+                                await PostRecResultAsync(reqId, true, new { path = sfd.FileName });
+                            }
+                            else
+                            {
+                                await PostRecResultAsync(reqId, true, new { path = (string?)null, cancelled = true });
+                            }
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_FILE_BEGIN")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string? fullPath = root.TryGetProperty("fullPath", out var fpEl) ? fpEl.GetString() : null;
+                        string? folder = root.TryGetProperty("folder", out var fEl) ? fEl.GetString() : null;
+                        string? fileName = root.TryGetProperty("fileName", out var fnEl) ? fnEl.GetString() : null;
+                        string? ext = root.TryGetProperty("ext", out var exEl) ? exEl.GetString() : "mp4";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (sessionId, finalPath) = VideoRecorderService.Instance.BeginWrite(fullPath, folder, fileName, ext);
+                                await PostRecResultAsync(reqId, true, new { sessionId, path = finalPath });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_FILE_CHUNK")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string sessionId = root.TryGetProperty("sessionId", out var sEl) ? (sEl.GetString() ?? "") : "";
+                        string data = root.TryGetProperty("data", out var dEl) ? (dEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                long written = VideoRecorderService.Instance.WriteChunk(sessionId, data);
+                                await PostRecResultAsync(reqId, true, new { bytesWritten = written });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_FILE_END")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string sessionId = root.TryGetProperty("sessionId", out var sEl) ? (sEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (finalPath, savedName, sizeBytes) = VideoRecorderService.Instance.FinishWrite(sessionId);
+                                var videos = VideoRecorderService.Instance.ListRecentVideos();
+                                Log($"[REC] Saved video: {finalPath} ({sizeBytes} bytes)");
+                                await PostRecResultAsync(reqId, true, new { path = finalPath, fileName = savedName, sizeBytes, videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_FILE_ABORT")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string sessionId = root.TryGetProperty("sessionId", out var sEl) ? (sEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                VideoRecorderService.Instance.AbortWrite(sessionId);
+                                await PostRecResultAsync(reqId, true, new { aborted = true });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Log($"WebMessage error: {ex.Message}");
+            }
+        }
+
+        private async Task PostRecResultAsync(string reqId, bool ok, object? result, string? error = null)
+        {
+            if (string.IsNullOrEmpty(reqId)) return;
+            try
+            {
+                string payload = JsonSerializer.Serialize(new
+                {
+                    type = "REC_RESULT",
+                    id = reqId,
+                    ok,
+                    result,
+                    error
+                });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"PostRecResultAsync error: {ex.Message}");
             }
         }
 
