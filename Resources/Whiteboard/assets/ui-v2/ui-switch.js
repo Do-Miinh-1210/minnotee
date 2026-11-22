@@ -23,4 +23,40 @@
       window.dispatchEvent(new Event('resize'));
     }
   }, true);
+
+  /* Menu thả xuống mở từ rail công cụ: app tính vị trí cho thanh ngang (mở xuống dưới nút),
+     nên ở v2 menu sẽ đè lên rail. Đặt lại menu sang bên phải rail, ngang hàng với nút. */
+  function placeRailMenu(menu) {
+    if (root.getAttribute('data-ui') !== 'v2') return;
+    var rail = menu.closest('.tb-group.tools');
+    var holder = menu.closest('.dropdown');
+    var btn = holder && holder.querySelector('.tb');
+    if (!rail || !btn) return;
+    var railRect = rail.getBoundingClientRect();
+    var b = btn.getBoundingClientRect();
+    var vh = window.innerHeight;
+    var natural = Math.min(menu.scrollHeight + 2, vh - 16);
+    var left = Math.round(railRect.right + 8);
+    var top = Math.round(Math.max(8, Math.min(b.top - 6, vh - natural - 8)));
+    var maxH = Math.round(vh - top - 8);
+    var s = menu.style;
+    if (s.getPropertyValue('left') !== left + 'px' || s.getPropertyPriority('left') !== 'important') s.setProperty('left', left + 'px', 'important');
+    if (s.getPropertyValue('top') !== top + 'px' || s.getPropertyPriority('top') !== 'important') s.setProperty('top', top + 'px', 'important');
+    if (s.getPropertyValue('max-height') !== maxH + 'px' || s.getPropertyPriority('max-height') !== 'important') s.setProperty('max-height', maxH + 'px', 'important');
+  }
+  function scanMenus() {
+    var list = document.querySelectorAll('.tb-group.tools .dropdown-menu');
+    for (var i = 0; i < list.length; i++) placeRailMenu(list[i]);
+  }
+  function startMenus() {
+    var queued = false;
+    new MutationObserver(function () {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; scanMenus(); });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    window.addEventListener('resize', scanMenus);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startMenus);
+  else startMenus();
 })();

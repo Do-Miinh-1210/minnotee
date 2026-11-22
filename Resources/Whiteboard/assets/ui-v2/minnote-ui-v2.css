@@ -176,7 +176,7 @@ html[data-ui="v2"] .app > header.toolbar > .tb-palette {
 }
 html[data-ui="v2"] .app > header.toolbar > .nb-tools-dock {
   grid-column: 6; grid-row: 1; align-self: center; justify-self: end;
-  min-width: 0; max-width: calc(100% - 14px);
+  min-width: 0; max-width: none;  /* max-width theo % làm cột lưới hụt 10px; chỉ đặt ở màn hẹp (mục 13e) */
   overflow-x: auto !important; scrollbar-width: none;
   margin: 0 14px 0 0 !important;
   z-index: 3;
@@ -238,7 +238,7 @@ html[data-ui="v2"] .app::after {
   width: 38px; height: 38px;
   display: grid; place-items: center;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--v2-accent), #a35cf5 60%, var(--v2-amber));
+  background: var(--v2-accent);
   color: #fff;
   font: 700 19px/1 var(--v2-font);
   letter-spacing: -.02em;
@@ -588,4 +588,83 @@ html[data-ui="v2"] button svg.mn-ic2:not(.chevron) { display: inline-block !impo
 /* rail cuộn: logo mang theo một nền tối (box-shadow) để icon cuộn lên không lộ quanh logo */
 html[data-ui="v2"] .app::after {
   box-shadow: 0 -14px 0 28px var(--v2-rail);
+}
+
+/* ---------- 13. Cải tiến sau tự đánh giá ---------- */
+
+/* 13a. Màn hình thấp (≤ 1000px, gồm 1366×768 và 1440×900): rail 3 cột để mọi công cụ vừa màn hình */
+@media (max-height: 1000px) {
+  html[data-ui="v2"] .app { grid-template-columns: 140px auto auto auto minmax(0, 1fr) minmax(0, auto) !important; }
+  html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
+    grid-template-columns: repeat(3, 38px) !important;
+    grid-auto-rows: minmax(38px, auto) !important;
+    gap: 3px !important;
+    padding: 56px 9px 8px !important;
+  }
+  html[data-ui="v2"] .tb-group.tools > .dropdown,
+  html[data-ui="v2"] .tb-group.tools > .tb,
+  html[data-ui="v2"] .tb-group.tools .tb { width: 38px !important; height: 38px !important; min-width: 38px !important; }
+  html[data-ui="v2"] .tb-group.tools > .tb-palette {
+    grid-row: auto !important;
+    width: 120px !important; height: 38px !important;
+    flex-direction: row !important; padding: 0 6px !important;
+  }
+  /* phủ ngang đủ rộng 140px nhưng mép dưới (48-14+20=54px) không chạm hàng nút đầu (56px) */
+  html[data-ui="v2"] .app::after {
+    box-shadow: 0 -14px 0 20px var(--v2-rail), -30px -14px 0 20px var(--v2-rail), 30px -14px 0 20px var(--v2-rail);
+  }
+}
+
+/* 13b. Viền focus bàn phím rõ trên cả rail tối và thanh sáng */
+html[data-ui="v2"] .tb:focus-visible,
+html[data-ui="v2"] .swatch:focus-visible,
+html[data-ui="v2"] .sheet-tab:focus-visible,
+html[data-ui="v2"] .page-thumb:focus-visible,
+html[data-ui="v2"] .dropdown-menu button:focus-visible {
+  outline: 3px solid var(--v2-amber) !important;
+  outline-offset: 2px !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb:focus-visible,
+html[data-ui="v2"] .nb-tools-dock .tb:focus-visible,
+html[data-ui="v2"] .dropdown-menu button:focus-visible { outline-color: var(--v2-accent) !important; }
+
+/* 13c. Danh sách trang: chừa lề để viền trang đang chọn không bị cắt */
+html[data-ui="v2"] .pages-panel .pages-list { padding: 14px 10px 10px !important; }
+html[data-ui="v2"] .pages-panel .page-item,
+html[data-ui="v2"] .pages-panel .page-thumb { width: 100% !important; max-width: 100% !important; box-sizing: border-box; }
+html[data-ui="v2"] .pages-panel .page-actions { width: 100% !important; justify-content: space-between; }
+html[data-ui="v2"] .pages-panel { width: 140px !important; }
+
+/* 13d. Menu mở từ rail: JS (ui-switch.js) đặt bên phải rail; đây là dự phòng chỉ cho trục ngang */
+html[data-ui="v2"] .tb-group.tools .dropdown-menu { margin-left: 0 !important; }
+
+/* 13e. Màn hẹp: nén khoảng cách thanh trên */
+/* Không cần max-width: cột lưới minmax(0, auto) + min-width: 0 tự co nhóm "Chèn" và cho cuộn khi thiếu chỗ. */
+@media (max-width: 1100px) {
+  html[data-ui="v2"] .nb-tools-dock .tb { padding: 0 5px !important; min-width: 28px !important; }
+  html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child { gap: 0 !important; }
+  html[data-ui="v2"] .app > header.toolbar > .tb-title,
+  html[data-ui="v2"] .app > header.toolbar > .tb-palette { margin-left: 6px !important; }
+  html[data-ui="v2"] .app > header.toolbar > .tb-palette { padding: 0 4px !important; }
+  html[data-ui="v2"] .app > header.toolbar > .tb-palette .swatch { width: 22px !important; height: 22px !important; }
+}
+
+/* 13f. Trạng thái "đang chọn" phải thắng hover. Trên bảng cảm ứng, :hover bị "dính" sau khi chạm,
+   nên trước đây chạm vào công cụ đang chọn làm mất nền vàng. */
+html[data-ui="v2"] .tb-group.tools .tb.on:hover:not(:disabled),
+html[data-ui="v2"] .tb-group.tools .tb.on:focus-visible {
+  background: var(--v2-amber) !important;
+  color: var(--v2-amber-ink) !important;
+}
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on:hover:not(:disabled) {
+  background: var(--v2-accent-soft) !important;
+  color: var(--v2-accent) !important;
+}
+/* Thiết bị không có chuột (bảng tương tác, máy tính bảng): bỏ hiệu ứng hover để không bị dính */
+@media (hover: none) {
+  html[data-ui="v2"] .tb-group.tools .tb:not(.on):hover,
+  html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb:not(.on):hover,
+  html[data-ui="v2"] .nb-tools-dock .tb:not(:first-child):hover { background: transparent !important; }
+  html[data-ui="v2"] .tb-group.tools .tb:not(.on):hover { color: var(--v2-rail-ink) !important; }
+  html[data-ui="v2"] .pages-panel .page-thumb:hover { transform: none; }
 }

@@ -147,8 +147,8 @@ Object.assign(icons, custom(phosphorInner('eraser')));
 
 // Icon cho các nút do minnote-noteboard-bridge.js tạo (không nằm trong bộ `oe`)
 const DOCK = {
-  'tb-btn-questionbank': 'books', 'tb-btn-mindmap': 'tree-view', 'tb-btn-spatial': 'cube',
-  'tb-btn-chem': 'atom', 'tb-btn-word': 'clipboard-text', 'tb-btn-import-word': 'file-doc',
+  'tb-btn-questionbank': 'archive', 'tb-btn-mindmap': 'tree-view', 'tb-btn-spatial': 'cube',
+  'tb-btn-chem': 'atom', 'tb-btn-word': 'notepad', 'tb-btn-import-word': 'file-doc',
   'tb-btn-google-drive': 'cloud-arrow-up', 'tb-btn-insert-image': 'image',
 };
 const dock = {};
