@@ -61,7 +61,14 @@ namespace MinNote
             _licenseTimer.Start();
 
             Closing += (s, e) => Log($"Window Closing: Cancel={e.Cancel}");
-            Closed += (s, e) => Log("Window Closed");
+            Closed += (s, e) =>
+            {
+                Log("Window Closed");
+                try { MininkEmfService.Instance.Dispose(); } catch { }
+            };
+
+            // Tự dò & làm nóng Inkscape/MinInk nền (hoặc tải MinInk có xác thực SHA-256 nếu máy chưa có)
+            _ = Task.Run(() => MininkEmfService.Instance.EnsureAvailableOnStartupAsync(Log));
 
             // Khởi chạy ngầm WebView2 ngay từ constructor để loại bỏ hoàn toàn độ trễ
             _ = InitializeWhiteboardAsync();
@@ -445,7 +452,7 @@ namespace MinNote
             try
             {
                 string json = e.WebMessageAsJson;
-                Log($"[WebMessage] {json}");
+                Log($"[WebMessage] {(json.Length > 300 ? json.Substring(0, 300) + "...(truncated)" : json)}");
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("type", out var typeElem))
@@ -681,6 +688,139 @@ namespace MinNote
                                 });
                             }
                         });
+                    }
+                    else if (msgType == "COPY_EMF_SELECTION")
+                    {
+                        string svgContent = root.TryGetProperty("svg", out var svgProp) ? (svgProp.GetString() ?? "") : "";
+                        string pngBase64 = root.TryGetProperty("pngBase64", out var pngProp) ? (pngProp.GetString() ?? "") : "";
+                        bool emfOnly = root.TryGetProperty("emfOnly", out var eoProp) && eoProp.ValueKind == JsonValueKind.True;
+
+                        byte[]? pngBytes = null;
+                        if (!string.IsNullOrEmpty(pngBase64))
+                        {
+                            try { pngBytes = Convert.FromBase64String(pngBase64); } catch { }
+                        }
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                byte[]? emfBytes = null;
+                                if (!string.IsNullOrWhiteSpace(svgContent))
+                                {
+                                    emfBytes = await MininkEmfService.Instance.ConvertSvgToEmfAsync(svgContent, 15000, Log).ConfigureAwait(false);
+                                }
+
+                                bool ok = await Dispatcher.InvokeAsync(() =>
+                                    NativeClipboardService.SetEmfAndTransparentPng(emfBytes, pngBytes, emfOnly)
+                                );
+
+                                if (ok && emfBytes != null)
+                                {
+                                    Log($"[EMF] Copied to clipboard: EMF={emfBytes.Length}B, PNG={(pngBytes?.Length ?? 0)}B, emfOnly={emfOnly}");
+                                    if (emfOnly)
+                                    {
+                                        await Dispatcher.InvokeAsync(async () =>
+                                        {
+                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                                "if (typeof window.showToast === 'function') window.showToast('Đã sao chép vector EMF không nền! Dán (Ctrl+V) vào Word/PowerPoint không vỡ nét.', 'success');");
+                                        });
+                                    }
+                                }
+                                else if (ok && pngBytes != null)
+                                {
+                                    Log($"[EMF] Fallback transparent PNG copied ({pngBytes.Length}B); MinInk downloading={MininkEmfService.Instance.IsDownloading}");
+                                    if (emfOnly)
+                                    {
+                                        string msg = MininkEmfService.Instance.IsDownloading
+                                            ? "Đang tự động tải công cụ xuất EMF (MinInk) ở nền... Đã tạm chép ảnh PNG tách nền."
+                                            : "Chưa tìm thấy Inkscape/MinInk. Đã chép ảnh PNG tách nền thay thế.";
+                                        await Dispatcher.InvokeAsync(async () =>
+                                        {
+                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                                $"if (typeof window.showToast === 'function') window.showToast('{msg}', 'info');");
+                                        });
+                                    }
+                                }
+                            }
+                            catch (Exception exEmf)
+                            {
+                                Log($"[EMF] COPY_EMF_SELECTION error: {exEmf.Message}");
+                            }
+                        });
+                    }
+                    else if (msgType == "SAVE_EMF_FILE")
+                    {
+                        string svgContent = root.TryGetProperty("svg", out var svgProp) ? (svgProp.GetString() ?? "") : "";
+                        string suggestedName = root.TryGetProperty("fileName", out var fnProp) ? (fnProp.GetString() ?? "") : "";
+                        if (string.IsNullOrWhiteSpace(suggestedName))
+                            suggestedName = $"MinNote_Vector_{DateTime.Now:yyyyMMdd_HHmmss}.emf";
+                        if (!suggestedName.EndsWith(".emf", StringComparison.OrdinalIgnoreCase))
+                            suggestedName += ".emf";
+
+                        if (string.IsNullOrWhiteSpace(svgContent))
+                        {
+                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                "if (typeof window.showToast === 'function') window.showToast('Trang hoặc vùng chọn đang trống, không có hình để xuất EMF.', 'warning');");
+                            return;
+                        }
+
+                        var sfd = new Microsoft.Win32.SaveFileDialog
+                        {
+                            Title = "Xuất ảnh vector EMF (không nền)",
+                            Filter = "Enhanced Metafile Vector (*.emf)|*.emf",
+                            FileName = suggestedName
+                        };
+
+                        if (sfd.ShowDialog() == true)
+                        {
+                            string outPath = sfd.FileName;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    if (!MininkEmfService.Instance.IsAvailable)
+                                    {
+                                        await Dispatcher.InvokeAsync(async () =>
+                                        {
+                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                                "if (typeof window.showToast === 'function') window.showToast('Đang tự động tải MinInk (Inkscape thu gọn) để xuất EMF...', 'info');");
+                                        });
+                                        await MininkEmfService.Instance.DownloadMininkAsync(Log).ConfigureAwait(false);
+                                    }
+
+                                    byte[]? emfBytes = await MininkEmfService.Instance.ConvertSvgToEmfAsync(svgContent, 20000, Log).ConfigureAwait(false);
+                                    if (emfBytes != null && emfBytes.Length >= 88)
+                                    {
+                                        await File.WriteAllBytesAsync(outPath, emfBytes).ConfigureAwait(false);
+                                        Log($"[EMF] Saved {emfBytes.Length}B to {outPath}");
+                                        await Dispatcher.InvokeAsync(async () =>
+                                        {
+                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                                "if (typeof window.showToast === 'function') window.showToast('Đã xuất file vector EMF không nền thành công!', 'success');");
+                                        });
+                                    }
+                                    else
+                                    {
+                                        await Dispatcher.InvokeAsync(async () =>
+                                        {
+                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                                "if (typeof window.showToast === 'function') window.showToast('Không thể chuyển sang EMF (chưa có Inkscape/MinInk).', 'error');");
+                                        });
+                                    }
+                                }
+                                catch (Exception exSaveEmf)
+                                {
+                                    Log($"[EMF] SAVE_EMF_FILE error: {exSaveEmf.Message}");
+                                    string esc = exSaveEmf.Message.Replace("\\", "\\\\").Replace("'", "\\'");
+                                    await Dispatcher.InvokeAsync(async () =>
+                                    {
+                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                            $"if (typeof window.showToast === 'function') window.showToast('Lỗi xuất EMF: {esc}', 'error');");
+                                    });
+                                }
+                            });
+                        }
                     }
                     else if (msgType == "DOWNLOAD_MINDMAP_SVG")
                     {

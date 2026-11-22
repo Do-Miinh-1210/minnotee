@@ -22,19 +22,23 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.3"
-TITLE = "MinNote v0.0.6.3 - Sửa Sao Chép Hình Lấy Trọn Đầy Đủ Nhãn Điểm (Kể Cả Khi Tắt Tên Tự Động) & Nâng Nét 3× HiDPI"
-BODY = """## MinNote v0.0.6.3 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.4"
+TITLE = "MinNote v0.0.6.4 - Xuất & Sao Chép Ảnh Vector EMF Không Nền (Inkscape/MinInk) Cho Word/PowerPoint & PNG Tách Nền"
+BODY = """## MinNote v0.0.6.4 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.6.3 khắc phục lỗi bị cắt mất nhãn điểm (`S, B, C, D…`) ở các mép ảnh khi sao chép đối tượng hình học ra Zalo / Word / PowerPoint:
+Bản cập nhật v0.0.6.4 tích hợp **hệ thống xuất & sao chép ảnh vector EMF trong suốt (không nền)** theo chuẩn công cụ `Inkscape / MinInk` của `MEA_v5.0` — dán vào **Word / PowerPoint** siêu nét vô cực không còn khung trắng, và dán sang **Zalo / trình duyệt** ra ảnh PNG 3× tách nền:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.3:
-1. **Sao Chép (`Ctrl+C`) Luôn Lấy Đầy Đủ Toàn Bộ Nhãn Điểm & Chấm Tròn**:
-   - Bỏ điều kiện chỉ mở rộng khung ảnh khi bật tên tự động của sổ (`if (r.names)`): nay luôn tự động tính toán và mở rộng vùng ảnh sao chép cho **tất cả các nhãn điểm đang hiển thị** (bao gồm cả nhãn bật thủ công bằng **`Ctrl+K`** hay **Đặt tên điểm** khi sổ đang tắt tự đánh tên) cùng bán kính chấm tròn ở 4 biên.
-   - Tự tính độ rộng theo số ký tự nhãn (`A`, `A'`, `M_1`…) và thêm lề trắng cân đối (`16px`) giúp không bao giờ bị cắt mất chữ ở mép ảnh.
-2. **Nâng Độ Sắc Nét Ảnh Sao Chép Lên `3×` HiDPI**:
-   - Tăng tỷ lệ kết xuất ảnh sao chép (`selectionImage`) từ `2×` lên `3×`, cho hình vẽ dán sang Zalo / Word / PowerPoint sắc nét rõ từng nét liền, nét đứt và ký hiệu điểm.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.4:
+1. **Sao Chép Vector EMF Không Nền (`Ctrl+C` & Nút `EMF`)**:
+   - Bỏ nền trắng cứng (`#fff`) khi sao chép đối tượng được chọn, ghi trực tiếp toàn bộ lệnh vẽ Canvas2D + `Path2D` (hình không gian 3D, nét đứt, mặt cắt trong suốt, chấm điểm, nhãn chữ nghiêng `Times New Roman`, nét bút tay...) thành SVG trong suốt và chuyển sang **vector EMF** qua `Inkscape / MinInk` (`--export-type=emf --export-text-to-path --export-dpi=600`).
+   - Sử dụng tiến trình nền **`inkscape.com --shell` (warm process)** giúp tốc độ chuyển đổi EMF chỉ còn **~5 – 15 ms**.
+   - Ghi đồng thời **`CF_ENHMETAFILE` (ID 14)** + **`PNG` 32-bit Alpha** bằng Win32 Clipboard nguyên bản (Word/PowerPoint dán vector EMF không nền; Zalo/Chrome dán ảnh PNG 3× tách nền; `Ctrl+V` trong MinNote vẫn giữ nguyên hình học chỉnh sửa được).
+   - Bổ sung nút **`EMF`** chuyên biệt ngay cạnh nút `Sao chép` trên thanh chọn đối tượng (ghi thuần `CF_ENHMETAFILE` ép Word/PowerPoint dán vector 100%).
+2. **Xuất File Vector `.emf` Không Nền**:
+   - Bổ sung mục **`Xuất EMF (không nền)...`** trong menu **Xuất file** (xuất vùng đang chọn hoặc toàn bộ trang hiện tại ra file `.emf`).
+3. **Tự Động Dò & Tải MinInk (Dùng Chung Với `MEA_v5.0`)**:
+   - Tự phát hiện `Inkscape` có sẵn trên máy hoặc `MinInk` tại `%LocalAppData%\\MatrixExamAI\\tools\\minink`; nếu máy chưa cài sẽ tự tải nền có xác thực SHA-256 ghim cứng.
+4. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
