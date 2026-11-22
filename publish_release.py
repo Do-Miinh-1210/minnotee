@@ -22,22 +22,19 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.7"
-TITLE = "MinNote v0.0.6.7 - Khóa Khung Camera 0px Khi Quay, Thu Gọn Thanh Kịch Bản, Chạy Song Song Nhiều Kịch Bản & Nhớ Kịch Bản Riêng Theo Từng Hình"
-BODY = r"""## MinNote v0.0.6.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.8"
+TITLE = "MinNote v0.0.6.8 - Thiết Kế Lại Bảng Kịch Bản Đa Hình Gọn Gàng & Nút Thu Gọn Rõ Ràng 3 Cấp"
+BODY = r"""## MinNote v0.0.6.8 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật **v0.0.6.7** khắc phục triệt để độ lệch khung quay trên WebView2 và nâng cấp mạnh hệ thống **Kịch bản dựng hình**:
+Bản cập nhật **v0.0.6.8** thiết kế lại toàn bộ giao diện **Bảng Kịch Bản Dựng Hình** theo hướng tối giản, tích hợp chạy nhiều hình cùng lúc và bổ sung nút **Thu gọn** rõ ràng ở mọi trạng thái:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.7:
-1. **Khung Camera Cố Định Tuyệt Đối (0 px Nhảy Xuống Khi Bắt Đầu Quay)**:
-   - Khởi tạo trước luồng quay tab ngầm ngay khi mở chọn khung trên WPF WebView2 để thanh trạng thái `44px` ổn định sẵn trước khi căn khung (`dIh = 0, dx = 0, dy = 0`).
-2. **Nút Thu Gọn 3 Cấp Cho Thanh Chạy Kịch Bản & Chuyển Động Điểm**:
-   - Thanh chạy kịch bản nổi kéo thả tự do được và có nút **`─` Thu gọn tối đa** thành viên thuốc mini; bảng **Chuyển động điểm** cũng có nút **`─` Thu gọn**.
-3. **Chạy Song Song Nhiều Kịch Bản Cùng Lúc**:
-   - Hỗ trợ mở nhiều tab kịch bản hình độc lập và chạy đồng thời trên cùng vòng lặp 60 FPS, kèm nút **▶▶ Phát tất cả / ⏸ Dừng tất cả / ↺ Reset tất cả**.
-4. **Nhớ Kịch Bản Riêng Theo Từng Hình**:
-   - Lưu kịch bản riêng cho từng hình (`pg.geo.scripts`), tự khôi phục đúng kịch bản của hình cũ dù đã đổi/sửa hình khác, kèm dải **📂 Đã lưu** mở nhanh bằng 1 click.
-5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.8:
+1. **Nút Thu Gọn Rõ Ràng 3 Cấp**:
+   - Nút **`▾ Thu gọn`** trên thanh tiêu đề bảng kịch bản, nút **`▴ Ẩn bước` / `▾ Hiện bước`** gập gọn bảng còn ~214px, và nút **`─ Thu gọn`** trên thanh chạy nổi thu về viên thuốc mini kéo thả tự do.
+2. **Tích Hợp Chạy Nhiều Hình Gọn Gàng (Bỏ Toàn Bộ Nút Lặp)**:
+   - Gộp điều khiển thành 1 thanh thống nhất **Phát/Dừng tất cả**, mỗi thẻ hình (`S.ABCD`, `S.MNP`…) có sẵn nút **`▶/⏸` riêng từng hình**, nhấp đúp đổi tên, nút **`📂 Đã lưu`** và **`Mẫu ▾`** gập gọn thông minh.
+   - Bấm **`💾 Lưu`** lưu riêng cho tất cả hình đang mở.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

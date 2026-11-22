@@ -217,6 +217,9 @@
   let replayPanel = null;
   let replayPill = null;
   let replayViewMode = 'full'; // 'full' | 'pill' | 'mini'
+  let stepsCollapsed = false;
+  let presetsOpen = false;
+  let savedShelfOpen = false;
   let savedFlashTimer = 0;
 
   function getActiveReplays(b) {
@@ -376,10 +379,14 @@
         seen.add(lbl);
         labels.push(lbl);
       }
-      if (labels.length >= 6) break;
     }
     if (labels.length >= 2) {
-      return `Hình ${labels.join('')}`;
+      const hasS = labels.includes('S');
+      const rest = labels.filter(l => l !== 'S').sort((a, b) => a.localeCompare(b));
+      if (hasS && rest.length >= 2) {
+        return `S.${rest.slice(0, 4).join('')}`;
+      }
+      return `Hình ${rest.slice(0, 5).join('')}`;
     }
     const cnt = scopeShapes ? scopeShapes.size : ptSet.size;
     return `Hình #${fallbackIndex || 1} (${cnt} nét)`;
@@ -667,12 +674,12 @@
     return [...out, ...rest];
   }
 
-  function flashSavedBadge() {
+  function flashSavedBadge(count = 1) {
     if (!replayPanel) return;
     const btn = replayPanel.querySelector('#mn-rp-save');
     if (!btn) return;
     btn.classList.add('saved');
-    btn.textContent = '✓ Đã lưu!';
+    btn.textContent = count > 1 ? `✓ Lưu (${count})` : '✓ Đã lưu!';
     clearTimeout(savedFlashTimer);
     savedFlashTimer = setTimeout(() => {
       if (btn) {
@@ -699,8 +706,19 @@
       pauseBetween: !!r.pauseBetween
     };
     const ok = b.saveBuildScript(r.page, r.steps, meta);
-    if (ok && showFeedback) flashSavedBadge();
+    if (ok && showFeedback) flashSavedBadge(1);
     return ok;
+  }
+
+  function persistAllActiveScripts(b, showFeedback = true) {
+    const actives = getActiveReplays(b);
+    if (!actives.length) return false;
+    let savedCnt = 0;
+    for (const item of actives) {
+      if (persistScript(b, false, item)) savedCnt++;
+    }
+    if (savedCnt > 0 && showFeedback) flashSavedBadge(savedCnt);
+    return savedCnt > 0;
   }
 
   function ensureReplayUI() {
@@ -710,67 +728,62 @@
       el.innerHTML = `
         <div class="mn-rp-head">
           <div class="mn-rp-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" fill-opacity=".22"/></svg>
-            <span id="mn-rp-head-title">Kịch bản dựng hình</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" fill-opacity=".22"/></svg>
+            <span id="mn-rp-head-title">Kịch bản</span>
+            <span class="mn-rp-count-badge" id="mn-rp-count-badge" style="display:none;"></span>
           </div>
           <div class="mn-mp-head-btns">
-            <button class="mn-save-btn" id="mn-rp-save" title="Lưu kịch bản riêng cho hình này (không ghi đè hình khác)">💾 Lưu</button>
-            <button class="mn-icon-btn" id="mn-rp-collapse" title="Thu gọn thành thanh chạy kịch bản">─</button>
+            <button class="mn-save-btn" id="mn-rp-save" title="Lưu kịch bản riêng cho từng hình đang mở">💾 Lưu</button>
+            <button class="mn-collapse-btn" id="mn-rp-collapse" title="Thu gọn bảng thành thanh chạy nổi">▾ Thu gọn</button>
             <button class="mn-icon-btn danger" id="mn-rp-close" title="Đóng tất cả kịch bản">✕</button>
           </div>
         </div>
         <div class="mn-rp-tabs" id="mn-rp-tabs"></div>
-        <div class="mn-rp-allbar" id="mn-rp-allbar" style="display:none;">
-          <span class="mn-rp-allbar-label" id="mn-rp-allbar-label">Chạy đồng thời (2 kịch bản)</span>
-          <div class="mn-rp-allbar-btns">
-            <button class="mn-icon-btn" id="mn-rp-reset-all" title="Đưa tất cả kịch bản về bước 0">↺</button>
-            <button class="mn-icon-btn primary" id="mn-rp-play-all" title="Phát / Tạm dừng tất cả kịch bản cùng lúc">▶▶ Phát tất cả</button>
-          </div>
-        </div>
         <div class="mn-rp-saved-bar" id="mn-rp-saved-bar" style="display:none;"></div>
         <div class="mn-rp-controls">
           <div class="mn-rp-transport">
-            <button class="mn-icon-btn" id="mn-rp-reset" title="Về bước đầu tiên (0)">↺</button>
-            <button class="mn-icon-btn" id="mn-rp-prev" title="Bước trước">⏮</button>
+            <button class="mn-icon-btn" id="mn-rp-reset" title="Đưa về bước 0">↺</button>
+            <button class="mn-icon-btn" id="mn-rp-prev" title="Bước trước (hình đang chọn)">⏮</button>
             <button class="mn-icon-btn primary mn-play-btn" id="mn-rp-play">▶ Phát kịch bản</button>
-            <button class="mn-icon-btn" id="mn-rp-next" title="Bước tiếp theo">⏭</button>
+            <button class="mn-icon-btn" id="mn-rp-next" title="Bước tiếp (hình đang chọn)">⏭</button>
           </div>
           <div class="mn-rp-scrubber">
-            <span id="mn-rp-step-count" style="font-weight:700;color:#0f766e;min-width:64px;">Bước 0/0</span>
+            <span id="mn-rp-step-count" style="font-weight:700;color:#0f766e;min-width:60px;">Bước 0/0</span>
             <input type="range" id="mn-rp-scrub" min="0" max="0" step="1" value="0" />
-          </div>
-          <div class="mn-speed-row">
-            <span>Tốc độ vẽ</span>
-            <input type="range" id="mn-rp-speed" min="0.4" max="3" step="0.1" value="1" />
-            <span class="mn-speed-val" id="mn-rp-speed-val">1.0×</span>
           </div>
           <div class="mn-rp-meta">
             <label class="mn-rp-check" title="Tự động dừng sau mỗi nét để giáo viên giảng bài rồi bấm ⏭ vẽ tiếp">
               <input type="checkbox" id="mn-rp-pause-between" />
-              <span>Dừng sau mỗi bước</span>
+              <span>Dừng từng bước</span>
             </label>
             <div class="mn-speed-presets" style="gap:3px;">
               ${[0.5, 1, 1.5, 2, 3].map(v => `<button class="mn-chip" data-rp-speed="${v}">${v}×</button>`).join('')}
             </div>
           </div>
         </div>
-        <div class="mn-rp-presets">
+        <div class="mn-rp-steps-bar">
+          <div class="mn-rp-steps-bar-left">
+            <span id="mn-rp-steps-title">Danh sách bước (0)</span>
+          </div>
+          <div class="mn-rp-steps-bar-right">
+            <button class="mn-chip" id="mn-rp-presets-toggle" title="Mẫu sắp xếp nhanh & thêm nét ẩn">Mẫu ▾</button>
+            <button class="mn-chip" id="mn-rp-steps-toggle" title="Ẩn / hiện danh sách bước để bảng nhỏ gọn hơn">▴ Ẩn bước</button>
+          </div>
+        </div>
+        <div class="mn-rp-presets-pop" id="mn-rp-presets-pop">
           <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục đúng thứ tự vẽ hình từ ban đầu">Thứ tự gốc</button>
-          <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khung khối 3D gốc thành Bước 1, tách các đường dựng thêm thành các bước tiếp theo">Khối gốc → Nét thêm</button>
+          <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khung khối 3D gốc thành Bước 1, tách đường dựng thêm">Khối gốc → Nét thêm</button>
           <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường phụ đã ẩn (Ctrl+H) vào kịch bản ở chế độ vẽ tạm rồi tự ẩn">+ Nét đã ẩn</button>
           <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách toàn bộ các nhóm bước thành từng nét riêng lẻ">Tách nhóm</button>
         </div>
         <div class="mn-rp-list" id="mn-rp-list"></div>
-        <div class="mn-rp-foot">
-          <span>Chọn thêm hình khác → bấm Kịch bản để chạy song song nhiều hình</span>
-        </div>
       `;
       document.body.appendChild(el);
       makeDraggable(el, el.querySelector('.mn-rp-head'));
 
       el.querySelector('#mn-rp-save').addEventListener('click', () => {
         const b = getBoard();
-        persistScript(b, true);
+        persistAllActiveScripts(b, true);
         renderReplayUI();
       });
       el.querySelector('#mn-rp-close').addEventListener('click', () => window.MinNoteGeoReplay.close());
@@ -778,18 +791,21 @@
         replayViewMode = 'pill';
         renderReplayUI();
       });
-      el.querySelector('#mn-rp-reset-all').addEventListener('click', () => window.MinNoteGeoReplay.resetAll());
-      el.querySelector('#mn-rp-play-all').addEventListener('click', () => window.MinNoteGeoReplay.togglePlayAll());
-      el.querySelector('#mn-rp-reset').addEventListener('click', () => window.MinNoteGeoReplay.reset());
+      el.querySelector('#mn-rp-reset').addEventListener('click', () => {
+        const actives = getActiveReplays(getBoard());
+        if (actives.length > 1) window.MinNoteGeoReplay.resetAll();
+        else window.MinNoteGeoReplay.reset();
+      });
       el.querySelector('#mn-rp-prev').addEventListener('click', () => window.MinNoteGeoReplay.prevStep());
       el.querySelector('#mn-rp-next').addEventListener('click', () => window.MinNoteGeoReplay.nextStep());
-      el.querySelector('#mn-rp-play').addEventListener('click', () => window.MinNoteGeoReplay.togglePlay());
+      el.querySelector('#mn-rp-play').addEventListener('click', () => {
+        const actives = getActiveReplays(getBoard());
+        if (actives.length > 1) window.MinNoteGeoReplay.togglePlayAll();
+        else window.MinNoteGeoReplay.togglePlay();
+      });
 
       el.querySelector('#mn-rp-scrub').addEventListener('input', (e) => {
         window.MinNoteGeoReplay.jumpTo(parseInt(e.target.value, 10) || 0, true);
-      });
-      el.querySelector('#mn-rp-speed').addEventListener('input', (e) => {
-        window.MinNoteGeoReplay.setSpeed(parseFloat(e.target.value) || 1);
       });
       el.querySelector('#mn-rp-pause-between').addEventListener('change', (e) => {
         const b = getBoard();
@@ -802,6 +818,16 @@
       });
       el.querySelectorAll('[data-rp-speed]').forEach(btn => {
         btn.addEventListener('click', () => window.MinNoteGeoReplay.setSpeed(parseFloat(btn.dataset.rpSpeed)));
+      });
+      el.querySelector('#mn-rp-presets-toggle').addEventListener('click', () => {
+        presetsOpen = !presetsOpen;
+        if (presetsOpen && stepsCollapsed) stepsCollapsed = false;
+        renderReplayUI();
+      });
+      el.querySelector('#mn-rp-steps-toggle').addEventListener('click', () => {
+        stepsCollapsed = !stepsCollapsed;
+        if (stepsCollapsed) presetsOpen = false;
+        renderReplayUI();
       });
       el.querySelector('#mn-rp-preset-orig').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('orig'));
       el.querySelector('#mn-rp-preset-solid').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('solidFirst'));
@@ -819,6 +845,12 @@
 
       pill.addEventListener('click', (e) => {
         if (wasDragged()) return;
+        const figBtn = e.target.closest('[data-pill-fig]');
+        if (figBtn) {
+          e.stopPropagation();
+          window.MinNoteGeoReplay.togglePlayScript(figBtn.getAttribute('data-pill-fig'));
+          return;
+        }
         const btn = e.target.closest('[data-pill-act]');
         if (!btn) {
           if (replayViewMode === 'mini') {
@@ -983,23 +1015,28 @@
 
       if (replayViewMode === 'mini') {
         const badgeTxt = isMulti
-          ? (playingCount ? `${playingCount}/${actives.length} đang chạy` : `${actives.length} kịch bản`)
+          ? (playingCount ? `${playingCount}/${actives.length} hình` : `${actives.length} hình`)
           : `Bước ${curDisplay}/${total}`;
         replayPill.innerHTML = `
           <span class="mn-pill-grip">⋮⋮</span>
           <span class="mn-pill-mini-dot ${anyPlaying ? 'playing' : ''}"></span>
           <button class="mn-pill-btn primary" data-pill-act="play" title="${anyPlaying ? 'Tạm dừng' : 'Phát'}">${anyPlaying ? '⏸' : '▶'}</button>
-          <span class="mn-pill-label" style="max-width:130px;">${escapeHtml(badgeTxt)}</span>
-          <button class="mn-pill-btn" data-pill-act="unmini" title="Mở thanh điều khiển">▢</button>
+          <span class="mn-pill-label" style="max-width:120px;">${escapeHtml(badgeTxt)}</span>
+          <button class="mn-pill-btn" data-pill-act="unmini" title="Mở thanh điều khiển">Mở</button>
           <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản đầy đủ">≡</button>
         `;
         return;
       }
 
       const curSt = activeSteps[Math.min(r.stepIdx, Math.max(0, total - 1))];
-      const pillLabel = isMulti
-        ? `${actives.length} kịch bản${playingCount ? ` • ${playingCount} đang chạy` : ''}`
-        : (total ? `Bước ${curDisplay}/${total}${curSt ? ' • ' + stepDisplayLabel(geo, curSt) : ''}` : 'Chưa có nét hình học');
+      const figChipsHtml = isMulti
+        ? actives.slice(0, 4).map((item, idx) => {
+            const itTotal = item.steps.filter(s => s.enabled !== false).length;
+            const itCur = itTotal ? Math.min(itTotal, item.stepIdx + (item.stepProgress > 0 ? 1 : 0)) : 0;
+            const lbl = item.title || `Hình ${idx + 1}`;
+            return `<button type="button" class="mn-rp-pill-fig ${item.playing ? 'playing' : ''}" data-pill-fig="${escapeHtml(item.id)}" title="Bấm để phát / tạm dừng riêng ${escapeHtml(lbl)}">${item.playing ? '⏸' : '▶'} ${escapeHtml(lbl)} ${itCur}/${itTotal}</button>`;
+          }).join('')
+        : `<span class="mn-pill-label">${escapeHtml(total ? `Bước ${curDisplay}/${total}${curSt ? ' • ' + stepDisplayLabel(geo, curSt) : ''}` : 'Chưa có nét')}</span>`;
 
       replayPill.innerHTML = `
         <span class="mn-pill-grip" title="Kéo để di chuyển thanh chạy">⋮⋮</span>
@@ -1007,24 +1044,36 @@
         ${!isMulti ? '<button class="mn-pill-btn" data-pill-act="prev" title="Bước trước">⏮</button>' : ''}
         <button class="mn-pill-btn primary" data-pill-act="play" title="${isMulti ? (anyPlaying ? 'Tạm dừng tất cả' : 'Phát tất cả cùng lúc') : (r.playing ? 'Tạm dừng' : 'Phát')}">${isMulti ? (anyPlaying ? '⏸' : '▶▶') : (r.playing ? '⏸' : '▶')}</button>
         ${!isMulti ? '<button class="mn-pill-btn" data-pill-act="next" title="Bước tiếp">⏭</button>' : ''}
-        <span class="mn-pill-label">${escapeHtml(pillLabel)}</span>
-        <button class="mn-pill-btn" data-pill-act="mini" title="Thu gọn tối đa">─</button>
-        <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản">Kịch bản</button>
+        ${figChipsHtml}
+        <button class="mn-pill-btn" data-pill-act="mini" title="Thu gọn tối đa">─ Thu gọn</button>
+        <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản đầy đủ">Mở rộng</button>
         <button class="mn-pill-btn" data-pill-act="close" title="Thoát dựng lại hình">✕</button>
       `;
       return;
     }
 
-    // Full editor drawer ('full')
+    // Full / compact studio panel ('full')
     replayPill.classList.remove('open');
     replayPanel.classList.add('open');
+    replayPanel.classList.toggle('steps-hidden', stepsCollapsed);
 
     const headTitle = replayPanel.querySelector('#mn-rp-head-title');
-    if (headTitle) {
-      headTitle.textContent = isMulti ? `Kịch bản (${actives.length} hình song song)` : 'Kịch bản dựng hình';
+    if (headTitle) headTitle.textContent = 'Kịch bản';
+    const countBadge = replayPanel.querySelector('#mn-rp-count-badge');
+    if (countBadge) {
+      if (isMulti) {
+        countBadge.style.display = 'inline-flex';
+        countBadge.textContent = playingCount ? `${playingCount}/${actives.length} ▶` : `${actives.length} hình`;
+      } else {
+        countBadge.style.display = 'none';
+      }
     }
 
-    // Render active script tabs
+    // Saved scripts count on current page
+    const savedMap = loadSavedScriptsMap(pg);
+    const savedEntries = Object.values(savedMap).filter(e => e && e.key && Array.isArray(e.steps) && e.steps.length);
+
+    // Render integrated multi-figure strip (each chip has per-figure Play/Pause + Select + Close + Saved toggle)
     const tabsEl = replayPanel.querySelector('#mn-rp-tabs');
     if (tabsEl) {
       tabsEl.innerHTML = '';
@@ -1033,13 +1082,18 @@
         tab.className = 'mn-rp-tab' + (item.id === r.id ? ' active' : '');
         const itemTotal = item.steps.filter(s => s.enabled !== false).length;
         const itemCur = itemTotal ? Math.min(itemTotal, item.stepIdx + (item.stepProgress > 0 ? 1 : 0)) : 0;
-        const lbl = item.title || `Kịch bản ${idx + 1}`;
+        const lbl = item.title || `Hình ${idx + 1}`;
         tab.innerHTML = `
-          <span class="mn-rp-tab-dot ${item.playing ? 'playing' : ''}"></span>
-          <span title="${escapeHtml(lbl)}">${escapeHtml(lbl)} (${itemCur}/${itemTotal})</span>
-          <button type="button" class="mn-rp-tab-close" title="Đóng riêng kịch bản này">✕</button>
+          <button type="button" class="mn-rp-tab-play" title="${item.playing ? 'Tạm dừng hình này' : 'Phát riêng hình này'}">${item.playing ? '⏸' : '▶'}</button>
+          <span title="${escapeHtml(lbl)} (Nhấp đúp để đổi tên)">${escapeHtml(lbl)} <small style="opacity:.8">(${itemCur}/${itemTotal})</small></span>
+          <button type="button" class="mn-rp-tab-close" title="Đóng riêng hình này">✕</button>
         `;
         tab.addEventListener('click', (e) => {
+          if (e.target.closest('.mn-rp-tab-play')) {
+            e.stopPropagation();
+            window.MinNoteGeoReplay.togglePlayScript(item.id);
+            return;
+          }
           if (e.target.closest('.mn-rp-tab-close')) {
             e.stopPropagation();
             window.MinNoteGeoReplay.closeScript(item.id);
@@ -1047,36 +1101,45 @@
           }
           window.MinNoteGeoReplay.selectScript(item.id);
         });
+        tab.addEventListener('dblclick', (e) => {
+          if (e.target.closest('button')) return;
+          e.stopPropagation();
+          const nextName = window.prompt('Đặt tên cho kịch bản hình này:', item.title || lbl);
+          if (nextName && nextName.trim()) {
+            item.title = nextName.trim();
+            persistScript(b, false, item);
+            renderReplayUI();
+          }
+        });
         tabsEl.appendChild(tab);
       });
-    }
 
-    // Render Play All bar when 2+ scripts are open concurrently
-    const allBar = replayPanel.querySelector('#mn-rp-allbar');
-    if (allBar) {
-      allBar.style.display = isMulti ? 'flex' : 'none';
-      if (isMulti) {
-        const lblEl = replayPanel.querySelector('#mn-rp-allbar-label');
-        const playAllBtn = replayPanel.querySelector('#mn-rp-play-all');
-        if (lblEl) lblEl.textContent = playingCount ? `Đang chạy ${playingCount}/${actives.length} kịch bản` : `${actives.length} kịch bản sẵn sàng`;
-        if (playAllBtn) playAllBtn.textContent = anyPlaying ? '⏸ Dừng tất cả' : '▶▶ Phát tất cả';
+      if (savedEntries.length > 0) {
+        const savedToggle = document.createElement('button');
+        savedToggle.type = 'button';
+        savedToggle.className = 'mn-rp-saved-toggle' + (savedShelfOpen ? ' open' : '');
+        savedToggle.title = 'Mở danh sách kịch bản đã lưu trên trang này';
+        savedToggle.textContent = `📂 Đã lưu (${savedEntries.length})`;
+        savedToggle.addEventListener('click', () => {
+          savedShelfOpen = !savedShelfOpen;
+          renderReplayUI();
+        });
+        tabsEl.appendChild(savedToggle);
       }
     }
 
-    // Render Saved Scripts shelf for current page (allows 1-click loading of any remembered figure!)
+    // Expandable Saved Scripts shelf (hidden by default so zero vertical clutter!)
     const savedBar = replayPanel.querySelector('#mn-rp-saved-bar');
     if (savedBar) {
-      const savedMap = loadSavedScriptsMap(pg);
-      const savedEntries = Object.values(savedMap).filter(e => e && e.key && Array.isArray(e.steps) && e.steps.length);
-      if (savedEntries.length > 0) {
+      if (savedShelfOpen && savedEntries.length > 0) {
         savedBar.style.display = 'flex';
-        savedBar.innerHTML = '<span class="mn-rp-saved-title">📂 Đã lưu:</span>';
+        savedBar.innerHTML = '<span class="mn-rp-saved-title">Bấm để mở song song:</span>';
         savedEntries.sort((a, b2) => (b2.updatedAt || 0) - (a.updatedAt || 0)).forEach(entry => {
           const isLoaded = actives.some(x => x.page === r.page && (x.scriptKey === entry.key || x.scopeKey === entry.key));
           const chip = document.createElement('div');
           chip.className = 'mn-rp-saved-chip' + (isLoaded ? ' loaded' : '');
           const name = entry.title || (entry.key === 'all' ? 'Cả trang' : 'Hình đã lưu');
-          chip.title = isLoaded ? `Đang mở: ${name}` : `Bấm để mở thêm kịch bản đã lưu "${name}" (có thể chạy song song)`;
+          chip.title = isLoaded ? `Đang mở: ${name}` : `Bấm để mở thêm kịch bản "${name}"`;
           chip.innerHTML = `<span>${escapeHtml(name)}</span><button type="button" class="mn-rp-saved-del" title="Xóa kịch bản đã lưu này">✕</button>`;
           chip.addEventListener('click', (e) => {
             if (e.target.closest('.mn-rp-saved-del')) {
@@ -1094,21 +1157,38 @@
       }
     }
 
+    // Unified Transport button (Play All when multi, Play Script when single)
     const playBtn = replayPanel.querySelector('#mn-rp-play');
-    playBtn.textContent = r.playing ? '⏸ Tạm dừng' : (r.stepIdx >= total - 1 && r.stepProgress >= 1 ? '↺ Phát lại' : '▶ Phát kịch bản');
+    const resetBtn = replayPanel.querySelector('#mn-rp-reset');
+    if (isMulti) {
+      playBtn.textContent = anyPlaying ? `⏸ Dừng tất cả (${playingCount}/${actives.length})` : `▶▶ Phát tất cả (${actives.length})`;
+      resetBtn.title = 'Đưa tất cả hình về bước 0';
+    } else {
+      playBtn.textContent = r.playing ? '⏸ Tạm dừng' : (r.stepIdx >= total - 1 && r.stepProgress >= 1 ? '↺ Phát lại' : '▶ Phát kịch bản');
+      resetBtn.title = 'Về bước đầu tiên (0)';
+    }
 
     replayPanel.querySelector('#mn-rp-step-count').textContent = `Bước ${curDisplay}/${total}`;
     const scrub = replayPanel.querySelector('#mn-rp-scrub');
     scrub.max = String(total);
     scrub.value = String(curDisplay);
 
-    const spEl = replayPanel.querySelector('#mn-rp-speed');
-    spEl.value = String(r.speed);
-    replayPanel.querySelector('#mn-rp-speed-val').textContent = Number(r.speed).toFixed(1) + '×';
     replayPanel.querySelector('#mn-rp-pause-between').checked = !!r.pauseBetween;
     replayPanel.querySelectorAll('[data-rp-speed]').forEach(btn => {
       btn.classList.toggle('on', Math.abs(r.speed - parseFloat(btn.dataset.rpSpeed)) < 0.06);
     });
+
+    // Steps header bar + presets drawer toggle
+    const stepsTitle = replayPanel.querySelector('#mn-rp-steps-title');
+    if (stepsTitle) stepsTitle.textContent = `${r.title || 'Các bước'} (${total} bước)`;
+    const stepsToggle = replayPanel.querySelector('#mn-rp-steps-toggle');
+    if (stepsToggle) stepsToggle.textContent = stepsCollapsed ? '▾ Hiện bước' : '▴ Ẩn bước';
+    const presetsToggle = replayPanel.querySelector('#mn-rp-presets-toggle');
+    if (presetsToggle) presetsToggle.classList.toggle('on', presetsOpen && !stepsCollapsed);
+    const presetsPop = replayPanel.querySelector('#mn-rp-presets-pop');
+    if (presetsPop) presetsPop.classList.toggle('open', presetsOpen && !stepsCollapsed);
+
+    if (stepsCollapsed) return;
 
     const listEl = replayPanel.querySelector('#mn-rp-list');
     const prevScroll = listEl.scrollTop;
@@ -1393,6 +1473,28 @@
       renderReplayUI();
     },
 
+    togglePlayScript(id) {
+      const b = getBoard();
+      if (!b) return;
+      const actives = getActiveReplays(b);
+      const r = actives.find(x => x.id === id);
+      if (!r) return;
+      const activeSteps = r.steps.filter(s => s.enabled !== false);
+      if (!activeSteps.length) return;
+      if (r.playing) {
+        r.playing = false;
+      } else {
+        r.stopAfterStep = false;
+        if (r.stepIdx >= activeSteps.length - 1 && r.stepProgress >= 1) {
+          r.stepIdx = 0; r.stepProgress = 0;
+        } else if (r.stepProgress >= 1 && r.stepIdx < activeSteps.length - 1) {
+          r.stepIdx++; r.stepProgress = 0;
+        }
+        r.playing = true;
+      }
+      commitReplayChange(b, r, false);
+    },
+
     closeScript(id) {
       const b = getBoard();
       if (!b) return;
@@ -1414,7 +1516,7 @@
 
     save() {
       const b = getBoard();
-      const ok = persistScript(b, true);
+      const ok = persistAllActiveScripts(b, true);
       renderReplayUI();
       return ok;
     },
