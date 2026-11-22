@@ -1084,10 +1084,111 @@
     let activeRec = null;
     let cropTargetEl = null;
     let destroyed = false;
+    let userEditedRect = false;
+
+    // Pre-warmed displayStream in WPF WebView2:
+    // WebView2 displays a 44px top "Sharing this tab" infobar when getDisplayMedia starts,
+    // which shrinks window.innerHeight by 44px and shifts the bottom toolbar upward.
+    // Pre-acquiring the stream during setup (zero dialog thanks to --auto-accept-this-tab-capture)
+    // settles the 44px layout BEFORE the user frames the camera -> 0px jump when clicking Start!
+    let prewarmedStream = null;
+    let prewarmedCursor = null;
+    let prewarmPromise = null;
+
+    function stopPrewarmedStream() {
+      if (prewarmedStream) {
+        try { prewarmedStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+        prewarmedStream = null;
+        prewarmedCursor = null;
+      }
+    }
+
+    function buildDisplayConstraints(settings) {
+      const preset = QUALITY_PRESETS[settings.quality] || QUALITY_PRESETS.ultra;
+      const targetFps = settings.fps === 30 ? 30 : 60;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const captureScale = preset.scaleMode === 'standard'
+        ? 1
+        : (preset.scaleMode === 'high' ? Math.min(dpr, 1.5) : dpr);
+      const idealW = even(Math.max(window.innerWidth * captureScale, 640));
+      const idealH = even(Math.max(window.innerHeight * captureScale, 360));
+      return {
+        preset: preset,
+        targetFps: targetFps,
+        dpr: dpr,
+        captureScale: captureScale,
+        idealW: idealW,
+        idealH: idealH,
+        media: {
+          video: {
+            width: { ideal: idealW },
+            height: { ideal: idealH },
+            frameRate: { ideal: targetFps, max: targetFps },
+            displaySurface: 'browser',
+            cursor: settings.showCursor ? 'always' : 'never'
+          },
+          audio: false,
+          preferCurrentTab: true,
+          selfBrowserSurface: 'include',
+          surfaceSwitching: 'exclude'
+        }
+      };
+    }
+
+    function prewarmDisplayStream() {
+      if (!isNativeHost() || destroyed || prewarmedStream || prewarmPromise) return;
+      const settings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
+      const cfg = buildDisplayConstraints(settings);
+      prewarmPromise = navigator.mediaDevices.getDisplayMedia(cfg.media).then(function (stream) {
+        prewarmPromise = null;
+        if (destroyed || phase !== 'select') {
+          try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+          return null;
+        }
+        prewarmedStream = stream;
+        prewarmedCursor = !!settings.showCursor;
+        const vt = stream.getVideoTracks()[0];
+        if (vt) {
+          try { vt.contentHint = 'detail'; } catch (_) {}
+          vt.addEventListener('ended', function () {
+            if (prewarmedStream === stream) {
+              prewarmedStream = null;
+              prewarmedCursor = null;
+            }
+          });
+        }
+        // Re-clamp rect cleanly once WebView2's 44px top infobar settles (if user hasn't dragged yet)
+        setTimeout(function () {
+          if (destroyed || phase !== 'select') return;
+          if (!userEditedRect) {
+            const pr = safePageRect(props.pageRect);
+            rect = clampRect(
+              saved && saved.w
+                ? { x: saved.x * window.innerWidth, y: saved.y * window.innerHeight, w: saved.w * window.innerWidth, h: saved.h * window.innerHeight }
+                : pr
+            );
+            // Never overlap bottom toolbar on initial open
+            if (rect.y + rect.h > pr.y + pr.h) {
+              rect = clampRect({ x: rect.x, y: Math.max(0, pr.y + pr.h - rect.h), w: rect.w, h: Math.min(rect.h, pr.h) });
+            }
+            liveRectRef.current = rect;
+            render();
+          }
+        }, 120);
+        return stream;
+      }).catch(function () {
+        prewarmPromise = null;
+        return null;
+      });
+    }
 
     const root = document.createElement('div');
     root.className = 'mnrec-root';
-    hostEl.appendChild(root);
+    // Mount directly on document.body (outside .app CSS Grid) to guarantee zero layout interference
+    document.body.appendChild(root);
+
+    // Pre-warm stream silently on WPF WebView2 so viewport height is already stable during setup
+    prewarmDisplayStream();
 
     // Sync settings from C# host asynchronously
     syncSettingsFromHost().then(function (res) {
@@ -1169,7 +1270,11 @@
       if (phase !== 'select') return;
 
       // 1. Freeze exact rect IMMEDIATELY so pointer events cannot shift it!
-      const lockedRect = clampRect({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+      let lockedRect = clampRect({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+      const prBefore = safePageRect(props.pageRect);
+      const wasAboveBottomBar = (lockedRect.y + lockedRect.h) <= (prBefore.y + prBefore.h + 4);
+      const ihBefore = window.innerHeight;
+
       rect = lockedRect;
       liveRectRef.current = lockedRect;
       phase = 'starting';
@@ -1189,40 +1294,71 @@
       await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
 
       const settings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
-      const preset = QUALITY_PRESETS[settings.quality] || QUALITY_PRESETS.ultra;
-      const targetFps = settings.fps === 30 ? 30 : 60;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const captureScale = preset.scaleMode === 'standard'
-        ? 1
-        : (preset.scaleMode === 'high' ? Math.min(dpr, 1.5) : dpr);
-      const idealW = even(Math.max(window.innerWidth * captureScale, 640));
-      const idealH = even(Math.max(window.innerHeight * captureScale, 360));
+      const cfg = buildDisplayConstraints(settings);
+      const preset = cfg.preset;
+      const targetFps = cfg.targetFps;
+      const dpr = cfg.dpr;
+      const captureScale = cfg.captureScale;
 
       const audioCtx = micOn ? new AudioContext() : null;
       let displayStream = null;
 
-      try {
-        displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: idealW },
-            height: { ideal: idealH },
-            frameRate: { ideal: targetFps, max: targetFps },
-            displaySurface: 'browser',
-            cursor: settings.showCursor ? 'always' : 'never'
-          },
-          audio: false,
-          preferCurrentTab: true,
-          selfBrowserSurface: 'include',
-          surfaceSwitching: 'exclude'
-        });
-      } catch (err) {
-        if (audioCtx) audioCtx.close().catch(function () {});
-        removeCropTarget();
-        phase = 'select';
-        syncStopRef();
-        render();
-        notify('Không thể bắt đầu quay màn hình.');
-        return;
+      // Reuse pre-warmed stream if available & live (0ms layout shift, 0ms banner jump!)
+      if (prewarmPromise) {
+        try { await prewarmPromise; } catch (_) {}
+      }
+      if (prewarmedStream) {
+        const pTrack = prewarmedStream.getVideoTracks()[0];
+        const cursorMatches = prewarmedCursor === !!settings.showCursor;
+        if (pTrack && pTrack.readyState === 'live' && cursorMatches) {
+          displayStream = prewarmedStream;
+          prewarmedStream = null;
+          prewarmedCursor = null;
+          try {
+            await pTrack.applyConstraints({
+              width: { ideal: cfg.idealW },
+              height: { ideal: cfg.idealH },
+              frameRate: { ideal: targetFps, max: targetFps }
+            });
+          } catch (_) {}
+        } else {
+          stopPrewarmedStream();
+        }
+      }
+
+      if (!displayStream) {
+        try {
+          displayStream = await navigator.mediaDevices.getDisplayMedia(cfg.media);
+        } catch (err) {
+          if (audioCtx) audioCtx.close().catch(function () {});
+          removeCropTarget();
+          phase = 'select';
+          syncStopRef();
+          render();
+          notify('Không thể bắt đầu quay màn hình.');
+          return;
+        }
+        // Fallback safety: if getDisplayMedia caused a viewport shrink (e.g. non-prewarmed infobar),
+        // keep the frame cleanly above the bottom toolbar instead of dropping onto it!
+        await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+        if (window.innerHeight < ihBefore) {
+          const prAfter = safePageRect(props.pageRect);
+          if (wasAboveBottomBar && lockedRect.y + lockedRect.h > prAfter.y + prAfter.h) {
+            const overflow = (lockedRect.y + lockedRect.h) - (prAfter.y + prAfter.h);
+            lockedRect = clampRect({
+              x: lockedRect.x,
+              y: Math.max(prAfter.y, lockedRect.y - overflow),
+              w: lockedRect.w,
+              h: Math.min(lockedRect.h, prAfter.h)
+            });
+          } else {
+            lockedRect = clampRect(lockedRect);
+          }
+          rect = lockedRect;
+          liveRectRef.current = lockedRect;
+          updateCropTargetStyle(lockedRect);
+          render();
+        }
       }
 
       // Hint encoder to preserve sharp math lines, grid, and small labels
@@ -1610,6 +1746,7 @@
 
         overlay.addEventListener('pointermove', function (e) {
           if (!dragState || phase !== 'select') return;
+          userEditedRect = true;
           const dx = e.clientX - dragState.sx;
           const dy = e.clientY - dragState.sy;
           const f = dragState.from;
@@ -1682,10 +1819,12 @@
       if (!btn) return;
       const act = btn.getAttribute('data-act');
       if (act === 'preset-page') {
+        userEditedRect = true;
         rect = safePageRect(props.pageRect);
         liveRectRef.current = rect;
         render();
       } else if (act === 'preset-whole') {
+        userEditedRect = true;
         rect = wholeWindowRect();
         liveRectRef.current = rect;
         render();
@@ -1720,6 +1859,7 @@
         if (activeRec) {
           try { activeRec.stop(); } catch (_) {}
         }
+        stopPrewarmedStream();
         removeCropTarget();
         if (stopRef) stopRef.current = null;
         root.remove();

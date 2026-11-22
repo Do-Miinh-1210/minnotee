@@ -22,25 +22,22 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.6"
-TITLE = "MinNote v0.0.6.6 - Nâng Cấp Quay Màn Hình Siêu Nét 60fps, Khung Chính Xác 1:1, Cài Đặt Lưu Trữ & Bỏ Qua Hộp Thoại Xác Nhận"
-BODY = r"""## MinNote v0.0.6.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.7"
+TITLE = "MinNote v0.0.6.7 - Khóa Khung Camera 0px Khi Quay, Thu Gọn Thanh Kịch Bản, Chạy Song Song Nhiều Kịch Bản & Nhớ Kịch Bản Riêng Theo Từng Hình"
+BODY = r"""## MinNote v0.0.6.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật **v0.0.6.6** nâng cấp toàn diện hệ thống **Quay Màn Hình** trong MinNote theo chuẩn ứng dụng desktop chuyên nghiệp:
+Bản cập nhật **v0.0.6.7** khắc phục triệt để độ lệch khung quay trên WebView2 và nâng cấp mạnh hệ thống **Kịch bản dựng hình**:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.6:
-1. **Khung Camera Chính Xác Tuyệt Đối 1:1 (Hết Lệch Khung Sau Setup)**:
-   - Khóa tọa độ khung ngay khi bấm **Bắt đầu quay**, đồng bộ 0 px giữa khung chọn vùng và khung viền đỏ khi đang quay.
-   - Cắt video chuẩn từng điểm ảnh gốc bằng **Region Capture (`CropTarget.fromElement`)** kết hợp bộ dự phòng tự bù tỷ lệ & viền đen.
-2. **Chất Lượng Video Đầu Ra Siêu Nét (HiDPI 1:1 • 60 FPS • 24 Mbps)**:
-   - Mặc định chế độ **Siêu nét** (24 Mbps, H.264 High Profile, 60 FPS, âm thanh 192 kbps lọc ồn) kèm `contentHint = 'detail'` giữ sắc nét từng đường hình học & công thức toán.
-3. **Bảng Cài Đặt Quay Màn Hình & Lưu Trữ Chuyên Biệt (3 Tab)**:
-   - Chọn/mở thư mục lưu mặc định (`Videos\MinNote`), đặt tiền tố tên tệp, chọn chế độ **Xem trước & lưu** hoặc **Tự động lưu**, chỉnh chất lượng/FPS/định dạng/micro và quản lý danh sách video đã lưu.
-4. **Loại Bỏ Hộp Thoại Tải Xuống Kiểu Trình Duyệt Web**:
-   - Chặn hoàn toàn popup **"Nội dung tải xuống"** của WebView2, thay bằng **Bảng Xem Trước & Lưu Video** ghi trực tiếp xuống ổ đĩa qua `VideoRecorderService`.
-5. **Bỏ Qua Xác Nhận Tab Trình Duyệt Khi Bắt Đầu Quay**:
-   - Tự động chấp nhận quay tab hiện tại (`--auto-accept-this-tab-capture`) và tự cấp quyền Micro cho ứng dụng.
-6. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.7:
+1. **Khung Camera Cố Định Tuyệt Đối (0 px Nhảy Xuống Khi Bắt Đầu Quay)**:
+   - Khởi tạo trước luồng quay tab ngầm ngay khi mở chọn khung trên WPF WebView2 để thanh trạng thái `44px` ổn định sẵn trước khi căn khung (`dIh = 0, dx = 0, dy = 0`).
+2. **Nút Thu Gọn 3 Cấp Cho Thanh Chạy Kịch Bản & Chuyển Động Điểm**:
+   - Thanh chạy kịch bản nổi kéo thả tự do được và có nút **`─` Thu gọn tối đa** thành viên thuốc mini; bảng **Chuyển động điểm** cũng có nút **`─` Thu gọn**.
+3. **Chạy Song Song Nhiều Kịch Bản Cùng Lúc**:
+   - Hỗ trợ mở nhiều tab kịch bản hình độc lập và chạy đồng thời trên cùng vòng lặp 60 FPS, kèm nút **▶▶ Phát tất cả / ⏸ Dừng tất cả / ↺ Reset tất cả**.
+4. **Nhớ Kịch Bản Riêng Theo Từng Hình**:
+   - Lưu kịch bản riêng cho từng hình (`pg.geo.scripts`), tự khôi phục đúng kịch bản của hình cũ dù đã đổi/sửa hình khác, kèm dải **📂 Đã lưu** mở nhanh bằng 1 click.
+5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

@@ -827,3 +827,266 @@ html.dark .flat-sync-check {
   border-color: rgba(45, 212, 191, 0.45);
   color: #5eead4;
 }
+
+/* ==================== 7. COLLAPSIBLE MOTION PANEL, MULTI-SCRIPT TABS & COMPACT RUNNER ==================== */
+#mn-motion-panel.minimized {
+  width: auto;
+  min-width: 196px;
+}
+
+#mn-motion-panel.minimized .mn-mp-body {
+  display: none;
+}
+
+#mn-motion-panel.minimized .mn-mp-head {
+  border-bottom: none;
+}
+
+.mn-rp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f1f5f9;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mn-rp-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mn-rp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+
+.mn-rp-tab:hover {
+  border-color: #0d9488;
+  color: #0f766e;
+}
+
+.mn-rp-tab.active {
+  background: #0d9488;
+  border-color: #0d9488;
+  color: #fff;
+}
+
+.mn-rp-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.mn-rp-tab-dot.playing {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}
+
+.mn-rp-tab.active .mn-rp-tab-dot.playing {
+  background: #bbf7d0;
+}
+
+.mn-rp-tab-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.mn-rp-tab-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.mn-rp-allbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #ecfeff, #f0fdfa);
+  border-bottom: 1px solid rgba(13, 148, 136, 0.2);
+}
+
+.mn-rp-allbar-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0f766e;
+  white-space: nowrap;
+}
+
+.mn-rp-allbar-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mn-rp-saved-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: #fafafa;
+  flex-wrap: wrap;
+}
+
+.mn-rp-saved-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.mn-rp-saved-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 148, 136, 0.28);
+  background: #f0fdfa;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 170px;
+}
+
+.mn-rp-saved-chip:hover {
+  background: #ccfbf1;
+}
+
+.mn-rp-saved-chip.loaded {
+  background: #0d9488;
+  color: #fff;
+  border-color: #0d9488;
+}
+
+.mn-rp-saved-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mn-rp-saved-del {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.mn-rp-saved-del:hover {
+  opacity: 1;
+}
+
+/* Draggable + Ultra-compact collapsible runner pill */
+#mn-replay-pill {
+  cursor: grab;
+  touch-action: none;
+}
+
+#mn-replay-pill:active {
+  cursor: grabbing;
+}
+
+#mn-replay-pill.moved {
+  transform: none;
+}
+
+#mn-replay-pill .mn-pill-grip {
+  opacity: 0.5;
+  font-size: 12px;
+  margin-right: -2px;
+  pointer-events: none;
+}
+
+#mn-replay-pill.mini {
+  padding: 5px 10px;
+  gap: 6px;
+}
+
+#mn-replay-pill .mn-pill-mini-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #14b8a6;
+  flex-shrink: 0;
+}
+
+#mn-replay-pill .mn-pill-mini-dot.playing {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.32);
+}
+
+html.dark .mn-rp-tabs {
+  background: #0f172a;
+  border-bottom-color: #334155;
+}
+
+html.dark .mn-rp-tab {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html.dark .mn-rp-tab.active {
+  background: #0d9488;
+  border-color: #14b8a6;
+  color: #fff;
+}
+
+html.dark .mn-rp-allbar {
+  background: linear-gradient(135deg, #134e4a, #0f172a);
+  border-bottom-color: #334155;
+}
+
+html.dark .mn-rp-allbar-label {
+  color: #5eead4;
+}
+
+html.dark .mn-rp-saved-bar {
+  background: #141d2e;
+  border-bottom-color: #334155;
+}
+
+html.dark .mn-rp-saved-title {
+  color: #94a3b8;
+}
+
+html.dark .mn-rp-saved-chip {
+  background: rgba(13, 148, 136, 0.22);
+  border-color: rgba(45, 212, 191, 0.35);
+  color: #5eead4;
+}
+
+html.dark .mn-rp-saved-chip.loaded {
+  background: #0d9488;
+  color: #fff;
+}
