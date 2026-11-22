@@ -101,6 +101,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG dist/installer/MinNote_Setup.exe --clobber
           } else {
-            gh release create $env:TAG dist/installer/MinNote_Setup.exe --title "$title" --notes-file $notes --target $env:GITHUB_SHA --latest
+            Get-Content $notes -Encoding utf8 | Select-Object -Skip 1 | Set-Content body.md -Encoding utf8
+            gh release create $env:TAG dist/installer/MinNote_Setup.exe --title "$title" --notes-file body.md --target $env:GITHUB_SHA --latest
           }
           if ($LASTEXITCODE -ne 0) { throw "gh release lỗi $LASTEXITCODE" }
