@@ -36,3 +36,10 @@ Giao diện mới dạng tuỳ chọn. Giao diện cũ vẫn là mặc định.
 - Chưa phủ: Kho Đề, Sơ đồ, 3D, máy tính Casio/Vinacal, Quick Word
 - Khung WPF (`MainWindow.xaml`) và bản Electron (`app.asar`) chưa đổi
 - Chưa kiểm tra với tuỳ chọn thanh công cụ trái/phải và chế độ trình chiếu
+
+## Màu hiệu ứng chọn trên canvas
+- Vòng quanh điểm, viền sáng của đường/nét bút được chọn, khung chọn nhiều đối tượng và hiệu ứng
+  phát lại dựng hình lấy màu từ `globalThis.__mnHi(alpha)` (trong `ui-switch.js`):
+  v1 xanh ngọc `#0d9488`, v2 tím iris `#6c5cf5` (tối: `#9488ff`).
+- Bundle được vá bằng `scripts/apply_select_highlight_size_patch.js` (kích thước) rồi
+  `scripts/apply_highlight_theme_patch.js` (màu). Build lại `index-*.js` thì chạy lại cả hai theo thứ tự đó.

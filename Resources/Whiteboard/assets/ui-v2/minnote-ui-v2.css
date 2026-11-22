@@ -668,3 +668,6 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on:hover:no
   html[data-ui="v2"] .tb-group.tools .tb:not(.on):hover { color: var(--v2-rail-ink) !important; }
   html[data-ui="v2"] .pages-panel .page-thumb:hover { transform: none; }
 }
+
+/* 13g. Ô tích trong thanh công cụ của vùng chọn (ví dụ "Đồng bộ") theo màu Atelier */
+html[data-ui="v2"] input[type="checkbox"] { accent-color: var(--v2-accent) !important; }

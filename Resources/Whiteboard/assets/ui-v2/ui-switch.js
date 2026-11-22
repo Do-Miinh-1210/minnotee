@@ -14,6 +14,16 @@
     v = localStorage.getItem(KEY);
   } catch (_) {}
   apply(v);
+
+  /* Màu hiệu ứng chọn / rê chuột / phát lại dựng hình trên canvas (bundle gọi qua móc
+     scripts/apply_highlight_theme_patch.js). v1: xanh ngọc cũ; v2: tím iris của Atelier. */
+  globalThis.__mnHi = function (alpha) {
+    var rgb;
+    if (root.getAttribute('data-ui') === 'v2') rgb = root.classList.contains('dark') ? '148,136,255' : '108,92,245';
+    else rgb = '13,148,136';
+    return (alpha === undefined || alpha === '') ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
+  };
+
   window.addEventListener('keydown', function (e) {
     if (e.ctrlKey && e.altKey && (e.key === 'u' || e.key === 'U')) {
       e.preventDefault();
