@@ -1983,3 +1983,22 @@ body.mindmap-capturing *,
 }
 
 
+
+
+/* CRISP VECTOR MINDMAP RENDERING (v0.0.6.2) */
+#mindmap-viewport,
+#mindmap-zoom-layer {
+  will-change: auto !important;
+  backface-visibility: visible !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.mm-node-card,
+.mm-node-text,
+.mm-node-text .katex {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+.mm-node-card .katex-html {
+  display: inline-block;
+}

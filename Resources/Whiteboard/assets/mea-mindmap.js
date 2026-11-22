@@ -2050,7 +2050,7 @@
 
 
 
-          w = Math.ceil(rect.width) + 12; // Room for collapse badge and borders
+          w = Math.ceil(rect.width) + 18; // Room for collapse badge, borders & wide KaTeX
 
 
 
@@ -2710,77 +2710,43 @@
 
 
 
+    const svgW = Math.max(1200, Math.ceil((state.bounds ? state.bounds.maxX : 1200) + 160));
+    const svgH = Math.max(800, Math.ceil((state.bounds ? state.bounds.maxY : 800) + 160));
+
     svgWrap.innerHTML = `
-
-
-
-      <div id="mindmap-viewport" style="transform: translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom}); transform-origin: 0 0; width: 100%; height: 100%; position: absolute; top:0; left:0;">
-
-
-
-        <svg style="position: absolute; top:0; left:0; width: 4000px; height: 4000px; pointer-events: none;">
-
-
-
-          ${pathsHtml}
-
-
-
-        </svg>
-
-
-
-        <div style="position: absolute; top:0; left:0; width: 4000px; height: 4000px;">
-
-
-
-          ${nodesHtml}
-
-
-
+      <div id="mindmap-viewport" style="transform: translate(${Math.round(state.pan.x)}px, ${Math.round(state.pan.y)}px); transform-origin: 0 0; position: absolute; top:0; left:0; width: ${svgW}px; height: ${svgH}px;">
+        <div id="mindmap-zoom-layer" style="zoom: ${state.zoom}; position: relative; width: ${svgW}px; height: ${svgH}px;">
+          <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" shape-rendering="geometricPrecision" style="position: absolute; top:0; left:0; width: ${svgW}px; height: ${svgH}px; pointer-events: none; overflow: visible;">
+            ${pathsHtml}
+          </svg>
+          <div style="position: absolute; top:0; left:0; width: ${svgW}px; height: ${svgH}px;">
+            ${nodesHtml}
+          </div>
         </div>
-
-
-
       </div>
-
-
-
     `;
 
-
-
-
-
-
-
     // Update zoom label
-
-
-
     const zoomLabel = document.getElementById('mindmap-zoom-label');
-
-
-
     if (zoomLabel) {
-
-
-
       zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
-
-
-
     }
-
-
-
   }
 
-
-
-
-
-
+  function applyMindmapViewportTransform() {
+    const viewport = document.getElementById('mindmap-viewport');
+    if (viewport) {
+      viewport.style.transform = `translate(${Math.round(state.pan.x)}px, ${Math.round(state.pan.y)}px)`;
+    }
+    const zoomLayer = document.getElementById('mindmap-zoom-layer');
+    if (zoomLayer) {
+      zoomLayer.style.zoom = String(state.zoom);
+    }
+    const zoomLabel = document.getElementById('mindmap-zoom-label');
+    if (zoomLabel) {
+      zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+    }
+  }
 
   // 8. INTERACTIVE NODE OPERATIONS
 
@@ -4578,487 +4544,242 @@
 
 
 
-  window.generateMindmapSvg = function (forCanvas = false) {
+  // Embedded Base64 KaTeX CSS cache so SVG <foreignObject> renders 100% authentic math fonts inside <img> / <canvas> / Whiteboard
+  let _cachedEmbeddedKatexCss = null;
+  let _embeddingKatexPromise = null;
 
+  async function ensureEmbeddedKatexCss() {
+    if (_cachedEmbeddedKatexCss !== null) return _cachedEmbeddedKatexCss;
+    if (_embeddingKatexPromise) return _embeddingKatexPromise;
+    _embeddingKatexPromise = (async () => {
+      try {
+        const cssResp = await fetch('./katex.min.css');
+        if (!cssResp.ok) throw new Error('katex.min.css HTTP ' + cssResp.status);
+        let cssText = await cssResp.text();
+        const urlRegex = /url\(["']?([^"')]+\.woff2)["']?\)/g;
+        const seen = new Map();
+        const matches = [...cssText.matchAll(urlRegex)];
+        await Promise.all(matches.map(async (m) => {
+          const rel = m[1];
+          if (seen.has(rel)) return;
+          seen.set(rel, null);
+          try {
+            const fr = await fetch(rel);
+            if (!fr.ok) return;
+            const buf = await fr.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let bin = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+              bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            }
+            seen.set(rel, 'data:font/woff2;base64,' + btoa(bin));
+          } catch (_) {}
+        }));
+        cssText = cssText.replace(
+          /url\(["']?([^"')]+\.woff2)["']?\)\s*format\(["']woff2["']\)(?:,\s*url\([^)]+\)\s*format\([^)]+\))*/g,
+          (_, rel) => {
+            const dataUrl = seen.get(rel);
+            return dataUrl ? `url("${dataUrl}") format("woff2")` : `url("${rel}") format("woff2")`;
+          }
+        );
+        _cachedEmbeddedKatexCss = cssText;
+      } catch (err) {
+        console.warn('[Mindmap] ensureEmbeddedKatexCss fallback:', err);
+        _cachedEmbeddedKatexCss = '';
+      } finally {
+        _embeddingKatexPromise = null;
+      }
+      return _cachedEmbeddedKatexCss;
+    })();
+    return _embeddingKatexPromise;
+  }
+  window.ensureEmbeddedKatexCss = ensureEmbeddedKatexCss;
 
+  // Pre-warm embedded KaTeX fonts in background so export/insert is instant
+  setTimeout(() => { ensureEmbeddedKatexCss(); }, 400);
 
-    const viewport = document.getElementById('mindmap-viewport');
+  function buildMindmapExportCss() {
+    const katexCss = _cachedEmbeddedKatexCss || '';
+    return `
+      ${katexCss}
+      * { box-sizing: border-box; }
+      .katex-mathml { display: none !important; }
+      .katex-html { display: inline-block; }
+      .mm-node-card {
+        position: absolute;
+        padding: 7px 14px;
+        border-radius: 10px;
+        background: #ffffff;
+        border: 1.5px solid var(--node-color, #0d9488);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+        display: inline-block;
+        max-width: 620px;
+        min-width: 90px;
+        box-sizing: border-box;
+        font-family: "Be Vietnam Pro", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        overflow: visible;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+      .mm-node-card.level-0 {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #ffffff;
+        border: 2px solid #2dd4bf;
+        box-shadow: 0 4px 16px rgba(13, 148, 136, 0.35);
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 13.5px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .mm-node-card.level-0 .katex,
+      .mm-node-card.level-0 .katex * {
+        color: #ffffff !important;
+      }
+      .mm-node-card.level-1 {
+        background: #ffffff;
+        border-width: 2px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #0f172a;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+      }
+      .mm-node-card.level-2,
+      .mm-node-card.level-3,
+      .mm-node-card.level-4 {
+        background: #ffffff;
+        border-left-width: 3.5px;
+        font-size: 11.5px;
+        line-height: 1.45;
+        color: #1e293b;
+      }
+      .mm-node-text {
+        word-break: normal;
+        overflow-wrap: break-word;
+        white-space: normal;
+        line-height: 1.45;
+        color: inherit;
+      }
+      .mm-node-text .katex {
+        font-size: 1.05em;
+        color: #0f172a;
+      }
+      .mm-node-card.level-0 .mm-node-text .katex {
+        color: #ffffff !important;
+      }
+      .mm-node-text .katex-display {
+        margin: 4px 0 !important;
+      }
+      .mm-node-actions,
+      .mm-color-palette,
+      .mm-collapse-badge {
+        display: none !important;
+      }
+    `;
+  }
 
-
-
-    if (!viewport) return null;
-
-
-
-
-
-
-
+  window.generateMindmapSvg = function () {
     calculateLayout(state.tree);
 
-
-
-
-
-
-
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-
-
     function getBounds(node) {
-
-
-
       if (!node) return;
-
-
-
       if (typeof node.x === 'number' && node.x < minX) minX = node.x;
-
-
-
       if (typeof node.y === 'number' && node.y < minY) minY = node.y;
-
-
-
       if (typeof node.x === 'number' && node.x + (node.w || 120) > maxX) maxX = node.x + (node.w || 120);
-
-
-
       if (typeof node.y === 'number' && node.y + (node.h || 40) > maxY) maxY = node.y + (node.h || 40);
-
-
-
       if (node.children && node.expanded !== false) {
-
-
-
         node.children.forEach(getBounds);
-
-
-
       }
-
-
-
     }
-
-
-
     getBounds(state.tree);
 
-
-
-
-
-
-
     if (!isFinite(minX) || !isFinite(minY)) {
-
-
-
       minX = 0; minY = 0; maxX = 800; maxY = 600;
-
-
-
     }
 
-
-
-
-
-
-
-    const pad = 40;
-
-
-
-    const width = Math.max(400, (maxX - minX) + pad * 2);
-
-
-
-    const height = Math.max(300, (maxY - minY) + pad * 2);
-
-
-
-
-
-
-
-    const svgClone = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-
-
-
-    svgClone.setAttribute('width', width);
-
-
-
-    svgClone.setAttribute('height', height);
-
-
-
-    svgClone.setAttribute('viewBox', `${minX - pad} ${minY - pad} ${width} ${height}`);
-
-
-
-    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-
-
-
-
-
-
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-
-
-
-    bgRect.setAttribute('x', minX - pad);
-
-
-
-    bgRect.setAttribute('y', minY - pad);
-
-
-
-    bgRect.setAttribute('width', width);
-
-
-
-    bgRect.setAttribute('height', height);
-
-
-
-    bgRect.setAttribute('fill', 'none');
-
-
-
-    svgClone.appendChild(bgRect);
-
-
-
-
-
-
-
-    const svgPaths = viewport.querySelector('svg')?.cloneNode(true);
-
-
-
-    if (svgPaths) {
-
-
-
-      while (svgPaths.firstChild) {
-
-
-
-        svgClone.appendChild(svgPaths.firstChild);
-
-
-
-      }
-
-
-
-    }
-
-
-
-
-
-
-
-    // Native vector fallback for SVG viewers / Office converters that ignore <foreignObject>
-    const cards = viewport.querySelectorAll('.mm-node-card');
-    const nativeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    nativeGroup.setAttribute('class', 'mm-native-fallback');
-
-    cards.forEach(c => {
-      const curLeft = parseFloat(c.style.left || '0');
-      const curTop = parseFloat(c.style.top || '0');
-      const curW = c.offsetWidth || 140;
-      const curH = c.offsetHeight || 42;
-      const isRoot = c.classList.contains('root-node') || c.classList.contains('level-0');
-      const nodeColor = c.style.getPropertyValue('--node-color') || (isRoot ? '#0d9488' : '#0d9488');
-      const cardFill = isRoot ? '#0d9488' : '#ffffff';
-      const cardStroke = isRoot ? '#0f766e' : (nodeColor || '#cbd5e1');
-      const textFill = isRoot ? '#ffffff' : '#1e293b';
-
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', curLeft);
-      rect.setAttribute('y', curTop);
-      rect.setAttribute('width', curW);
-      rect.setAttribute('height', curH);
-      rect.setAttribute('rx', isRoot ? '14' : '10');
-      rect.setAttribute('ry', isRoot ? '14' : '10');
-      rect.setAttribute('fill', cardFill);
-      rect.setAttribute('stroke', cardStroke);
-      rect.setAttribute('stroke-width', isRoot ? '2.5' : '1.8');
-      nativeGroup.appendChild(rect);
-
-      // Clean KaTeX text extraction without katex-mathml duplicate text
-      const textElem = c.querySelector('.mm-node-text') || c.querySelector('.mm-node-title') || c.querySelector('.mm-node-content') || c;
-      const clone = textElem.cloneNode(true);
-      clone.querySelectorAll('.katex-mathml').forEach(m => m.remove());
-      const rawText = (clone.innerText || clone.textContent || '').trim();
-      const lines = rawText.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('+') && !s.startsWith('✏') && !s.startsWith('🎨') && !s.startsWith('🗑') && !s.startsWith('−'));
-
-      if (lines.length > 0) {
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', curLeft + curW / 2);
-        const fontSize = isRoot ? 15 : 13;
-        const lineHeight = fontSize + 4;
-        const startY = curTop + (curH - (lines.length - 1) * lineHeight) / 2 + (fontSize * 0.35);
-        text.setAttribute('y', startY);
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('fill', textFill);
-        text.setAttribute('font-size', fontSize);
-        text.setAttribute('font-weight', isRoot ? 'bold' : '600');
-        text.setAttribute('font-family', 'Segoe UI, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
-
-        lines.forEach((line, idx) => {
-          const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-          tspan.setAttribute('x', curLeft + curW / 2);
-          if (idx > 0) tspan.setAttribute('dy', lineHeight);
-          tspan.textContent = line;
-          text.appendChild(tspan);
+    const pad = 36;
+    const ox = minX - pad;
+    const oy = minY - pad;
+    const width = Math.max(320, Math.ceil((maxX - minX) + pad * 2));
+    const height = Math.max(200, Math.ceil((maxY - minY) + pad * 2));
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const xhtmlNS = 'http://www.w3.org/1999/xhtml';
+    const svgEl = document.createElementNS(svgNS, 'svg');
+    svgEl.setAttribute('xmlns', svgNS);
+    svgEl.setAttribute('width', String(width));
+    svgEl.setAttribute('height', String(height));
+    svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svgEl.setAttribute('shape-rendering', 'geometricPrecision');
+
+    // Embedded styles (including Base64 KaTeX .woff2 fonts + exact node card styles)
+    const styleEl = document.createElementNS(svgNS, 'style');
+    styleEl.textContent = buildMindmapExportCss();
+    svgEl.appendChild(styleEl);
+
+    // 1. Vector Bezier connecting branches
+    const pathGroup = document.createElementNS(svgNS, 'g');
+    pathGroup.setAttribute('fill', 'none');
+    pathGroup.setAttribute('stroke-linecap', 'round');
+
+    // 2. HTML + KaTeX node cards inside <foreignObject>
+    const foreign = document.createElementNS(svgNS, 'foreignObject');
+    foreign.setAttribute('x', '0');
+    foreign.setAttribute('y', '0');
+    foreign.setAttribute('width', String(width));
+    foreign.setAttribute('height', String(height));
+
+    const container = document.createElementNS(xhtmlNS, 'div');
+    container.setAttribute('xmlns', xhtmlNS);
+    container.style.cssText = `position: relative; width: ${width}px; height: ${height}px; background: transparent;`;
+
+    function buildNodeElements(node) {
+      const nodeColor = node.color || (node.level === 1 ? THEME_COLORS[Math.abs(node.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % THEME_COLORS.length] : '#0d9488');
+      if (node.children && node.children.length > 0 && node.expanded !== false) {
+        node.children.forEach((child) => {
+          const sx = (node.x + node.w) - ox;
+          const sy = (node.y + node.h / 2) - oy;
+          const ex = child.x - ox;
+          const ey = (child.y + child.h / 2) - oy;
+          const c1 = sx + (ex - sx) * 0.45;
+          const c2 = ex - (ex - sx) * 0.45;
+          const childColor = child.color || nodeColor;
+          const pathEl = document.createElementNS(svgNS, 'path');
+          pathEl.setAttribute('d', `M ${sx} ${sy} C ${c1} ${sy}, ${c2} ${ey}, ${ex} ${ey}`);
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', childColor);
+          pathEl.setAttribute('stroke-width', '2.2');
+          pathEl.setAttribute('stroke-linecap', 'round');
+          pathEl.setAttribute('opacity', '0.9');
+          pathGroup.appendChild(pathEl);
+          buildNodeElements(child);
         });
-        nativeGroup.appendChild(text);
       }
-    });
 
-    svgClone.appendChild(nativeGroup);
-
-    if (forCanvas) {
-      return new XMLSerializer().serializeToString(svgClone);
+      const card = document.createElementNS(xhtmlNS, 'div');
+      card.setAttribute('class', `mm-node-card level-${node.level}`);
+      card.style.cssText = `position: absolute; left: ${node.x - ox}px; top: ${node.y - oy}px; width: ${node.w}px; min-height: ${node.h}px; box-sizing: border-box; --node-color: ${nodeColor}; border-color: ${node.level === 0 ? '#2dd4bf' : nodeColor};`;
+      const textDiv = document.createElementNS(xhtmlNS, 'div');
+      textDiv.setAttribute('class', 'mm-node-text');
+      textDiv.innerHTML = renderMathInText(node.text || '');
+      card.appendChild(textDiv);
+      container.appendChild(card);
     }
 
-
-
-
-
-
-
-    const foreign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-
-
-
-    foreign.setAttribute('x', minX - pad);
-
-
-
-    foreign.setAttribute('y', minY - pad);
-
-
-
-    foreign.setAttribute('width', width);
-
-
-
-    foreign.setAttribute('height', height);
-
-
-
-
-
-
-
-    const container = document.createElement('div');
-
-
-
-    container.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-
-
-
-    container.style.position = 'relative';
-
-
-
-    container.style.width = width + 'px';
-
-
-
-    container.style.height = height + 'px';
-
-
-
-
-
-
-
-    cards.forEach(c => {
-
-
-
-      const clone = c.cloneNode(true);
-
-
-
-      clone.querySelector('.mm-node-actions')?.remove();
-
-
-
-      clone.querySelector('.mm-color-palette')?.remove();
-
-
-
-      clone.classList.remove('selected');
-
-
-
-      const curLeft = parseFloat(clone.style.left || '0');
-
-
-
-      const curTop = parseFloat(clone.style.top || '0');
-
-
-
-      clone.style.left = (curLeft - (minX - pad)) + 'px';
-
-
-
-      clone.style.top = (curTop - (minY - pad)) + 'px';
-
-
-
-      container.appendChild(clone);
-
-
-
-    });
-
-
-
-
-
-
-
-    const styleElem = document.createElementNS('http://www.w3.org/2000/svg', 'style');
-
-
-
-    let collectedCss = `
-
-
-
-      .katex-mathml { display: none !important; }
-
-
-
-      .mm-node-card {
-
-
-
-        box-sizing: border-box !important;
-
-
-
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-
-
-
-      }
-
-
-
-    `;
-
-
-
-    try {
-
-
-
-      for (let s = 0; s < document.styleSheets.length; s++) {
-
-
-
-        const sheet = document.styleSheets[s];
-
-
-
-        try {
-
-
-
-          const rules = sheet.cssRules || sheet.rules;
-
-
-
-          if (rules) {
-
-
-
-            for (let r = 0; r < rules.length; r++) {
-
-
-
-              collectedCss += rules[r].cssText + '\n';
-
-
-
-            }
-
-
-
-          }
-
-
-
-        } catch (_) {}
-
-
-
-      }
-
-
-
-    } catch (_) {}
-
-
-
-    styleElem.textContent = collectedCss;
-
-
-
-    svgClone.appendChild(styleElem);
-
-
-
-
-
-
-
+    buildNodeElements(state.tree);
+    svgEl.appendChild(pathGroup);
     foreign.appendChild(container);
+    svgEl.appendChild(foreign);
 
-
-
-    svgClone.appendChild(foreign);
-
-
-
-
-
-
-
-    return new XMLSerializer().serializeToString(svgClone);
-
-
-
+    return new XMLSerializer().serializeToString(svgEl);
   };
 
-
-
-
-
-
-
-  window.exportMindmapAsPng = async function (callback, scale = 3) {
-    const svgString = window.generateMindmapSvg(true);
+  window.exportMindmapAsPng = async function (callback, scale = 4) {
+    await ensureEmbeddedKatexCss();
+    const svgString = window.generateMindmapSvg();
     if (!svgString) {
       if (callback) callback(null, null);
       return;
@@ -5070,783 +4791,209 @@
     const svgW = parseInt(svgEl ? svgEl.getAttribute('width') : '800', 10) || 800;
     const svgH = parseInt(svgEl ? svgEl.getAttribute('height') : '600', 10) || 600;
 
+    // Cap maximum bitmap dimension to 8192px while preserving crisp 4x HiDPI quality
+    const effScale = Math.min(scale, 8192 / Math.max(svgW, svgH, 1));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(svgW * scale);
-    canvas.height = Math.round(svgH * scale);
+    canvas.width = Math.max(1, Math.round(svgW * effScale));
+    canvas.height = Math.max(1, Math.round(svgH * effScale));
 
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const URL = window.URL || window.webkitURL || window;
-    const blobURL = URL.createObjectURL(svgBlob);
-
+    const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
     const img = new Image();
     img.onload = function () {
       try {
         const ctx = canvas.getContext('2d');
-        // Transparent background (no white fill)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(blobURL);
         const pngData = canvas.toDataURL('image/png');
         if (callback) callback(pngData, svgString);
       } catch (e) {
         console.warn('[Mindmap] Canvas export error:', e);
-        URL.revokeObjectURL(blobURL);
         if (callback) callback(null, svgString);
       }
     };
     img.onerror = function (err) {
       console.warn('[Mindmap] SVG image render error:', err);
-      URL.revokeObjectURL(blobURL);
       if (callback) callback(null, svgString);
     };
-    img.src = blobURL;
+    img.src = dataUri;
   };
-
-
-
-
-
-
 
   window.showToast = function (message, type = 'info') {
-
-
-
     let container = document.getElementById('mea-toast-container');
-
-
-
     if (!container) {
-
-
-
       container = document.createElement('div');
-
-
-
       container.id = 'mea-toast-container';
-
-
-
       container.className = 'mea-toast-container';
-
-
-
       document.body.appendChild(container);
-
-
-
     }
-
-
-
-    container.innerHTML = ''; // Prevent stacked duplicate toasts
-
-
-
+    container.innerHTML = '';
     const toast = document.createElement('div');
-
-
-
     toast.className = `mea-toast ${type}`;
-
-
-
     toast.innerHTML = message;
-
-
-
     container.appendChild(toast);
-
-
-
     setTimeout(() => {
-
-
-
       toast.classList.add('hide');
-
-
-
       setTimeout(() => toast.remove(), 300);
-
-
-
     }, 3200);
-
-
-
   };
-
-
-
-
-
-
-
-  function getMindmapScreenRect() {
-
-
-
-    const canvasArea = document.getElementById('mindmap-canvas-area');
-
-
-
-    if (!canvasArea) {
-
-
-
-      return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, viewWidth: window.innerWidth, viewHeight: window.innerHeight };
-
-
-
-    }
-
-
-
-
-
-
-
-    const cards = canvasArea.querySelectorAll('.mm-node-card');
-
-
-
-    if (!cards || cards.length === 0) {
-
-
-
-      return {
-
-
-
-        x: 0,
-
-
-
-        y: 0,
-
-
-
-        width: window.innerWidth,
-
-
-
-        height: window.innerHeight,
-
-
-
-        viewWidth: window.innerWidth,
-
-
-
-        viewHeight: window.innerHeight
-
-
-
-      };
-
-
-
-    }
-
-
-
-
-
-
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-
-
-    cards.forEach(card => {
-
-
-
-      const r = card.getBoundingClientRect();
-
-
-
-      if (r.left < minX) minX = r.left;
-
-
-
-      if (r.top < minY) minY = r.top;
-
-
-
-      if (r.right > maxX) maxX = r.right;
-
-
-
-      if (r.bottom > maxY) maxY = r.bottom;
-
-
-
-    });
-
-
-
-
-
-
-
-    const svgElem = canvasArea.querySelector('svg');
-
-
-
-    if (svgElem) {
-
-
-
-      const paths = svgElem.querySelectorAll('path');
-
-
-
-      paths.forEach(p => {
-
-
-
-        try {
-
-
-
-          const r = p.getBoundingClientRect();
-
-
-
-          if (r.width > 0 && r.height > 0) {
-
-
-
-            if (r.left < minX) minX = r.left;
-
-
-
-            if (r.top < minY) minY = r.top;
-
-
-
-            if (r.right > maxX) maxX = r.right;
-
-
-
-            if (r.bottom > maxY) maxY = r.bottom;
-
-
-
-          }
-
-
-
-        } catch (_) {}
-
-
-
-      });
-
-
-
-    }
-
-
-
-
-
-
-
-    const pad = 24;
-
-
-
-    const cropLeft = Math.max(0, Math.floor(minX - pad));
-
-
-
-    const cropTop = Math.max(0, Math.floor(minY - pad));
-
-
-
-    const cropRight = Math.ceil(maxX + pad);
-
-
-
-    const cropBottom = Math.ceil(maxY + pad);
-
-
-
-
-
-
-
-    return {
-
-
-
-      x: cropLeft,
-
-
-
-      y: cropTop,
-
-
-
-      width: Math.max(120, cropRight - cropLeft),
-
-
-
-      height: Math.max(80, cropBottom - cropTop),
-
-
-
-      viewWidth: window.innerWidth,
-
-
-
-      viewHeight: window.innerHeight
-
-
-
-    };
-
-
-
-  }
-
-
-
-
-
-
 
   let _isCapturingMindmap = false;
-
   window.__capturingPrevSelected = null;
 
-
-
   window.restoreAfterMindmapCapture = function () {
-
     document.documentElement.classList.remove('mindmap-capturing');
-
     document.body.classList.remove('mindmap-capturing');
-
     const container = document.getElementById('mea-mindmap-container');
-
     if (container) {
-
       container.classList.remove('mindmap-clean-export', 'mindmap-capturing');
-
     }
-
     if (window.__capturingPrevSelected !== null) {
-
       state.selectedId = window.__capturingPrevSelected;
-
       window.__capturingPrevSelected = null;
-
     }
-
     renderMindMap();
-
   };
 
-
-
-  window.captureAndHandleMindmap = function (action) {
+  window.captureAndHandleMindmap = async function (action) {
     if (_isCapturingMindmap) return;
     if (state.mode === 'closed') {
       window.showToast('Vui lòng mở Sơ đồ tư duy trước khi thực hiện!', 'warning');
       return;
     }
     _isCapturingMindmap = true;
-    setTimeout(() => { _isCapturingMindmap = false; }, 3000);
-
-    window.scrollTo(0, 0);
-    if (document.documentElement) { document.documentElement.scrollLeft = 0; document.documentElement.scrollTop = 0; }
-    if (document.body) { document.body.scrollLeft = 0; document.body.scrollTop = 0; }
-
-    window.__capturingPrevSelected = state.selectedId;
-    state.selectedId = null;
-    renderMindMap();
-
-    // 1. Prioritize pure HiDPI vector export (scale 3x, 100% transparent, zero black background)
-    window.exportMindmapAsPng(async (pngData) => {
-      if (pngData) {
-        window.restoreAfterMindmapCapture();
-        if (action === 'insert_board' || !action) {
-          await window.finishInsertMindmapToBoard(pngData);
-        } else if (action === 'copy_word') {
-          window.copyImageToClipboard(pngData);
-        } else if (action === 'save_png') {
-          const a = document.createElement('a');
-          a.href = pngData;
-          a.download = `mindmap_${Date.now()}.png`;
-          a.click();
-        }
+    try {
+      await ensureEmbeddedKatexCss();
+      const svgString = window.generateMindmapSvg();
+      if (!svgString) {
+        window.showToast('Không thể kết xuất Sơ đồ tư duy!', 'error');
         return;
       }
 
-      // 2. Fallback to native capture if needed
-      const container = document.getElementById('mea-mindmap-container');
-      if (container) {
-        container.classList.add('mindmap-clean-export', 'mindmap-capturing');
+      if (action === 'insert_board' || !action) {
+        // Insert TRUE VECTOR SVG Data URI directly onto Whiteboard: infinite sharpness at ANY zoom (100%-400%) & 100% KaTeX math!
+        const svgDataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+        await window.finishInsertMindmapToBoard(svgDataUri);
+        return;
       }
-      document.documentElement.classList.add('mindmap-capturing');
-      document.body.classList.add('mindmap-capturing');
 
-      setTimeout(() => {
-        const rectData = getMindmapScreenRect();
-        let captured = false;
-        window.__onMindmapCapturedSuccess = function() {
-          captured = true;
-        };
-
-        if (window.chrome && window.chrome.webview) {
-          window.chrome.webview.postMessage({
-            type: 'CAPTURE_MINDMAP',
-            action: action,
-            rect: {
-              x: rectData.x,
-              y: rectData.y,
-              width: rectData.width,
-              height: rectData.height
-            },
-            treeData: JSON.stringify(state.tree),
-            viewWidth: rectData.viewWidth,
-            viewHeight: rectData.viewHeight
-          });
-
-          setTimeout(() => {
-            if (!captured && document.documentElement.classList.contains('mindmap-capturing')) {
-              window.restoreAfterMindmapCapture();
+      // For Word clipboard & PNG download: render 4K Ultra-HiDPI transparent PNG from vector SVG
+      await new Promise((resolve) => {
+        window.exportMindmapAsPng(async (pngData) => {
+          if (pngData) {
+            if (action === 'copy_word') {
+              await window.copyImageToClipboard(pngData);
+            } else if (action === 'save_png') {
+              const a = document.createElement('a');
+              a.href = pngData;
+              a.download = `SoDoTuDuy_${Date.now()}.png`;
+              a.click();
+              window.showToast('Đã tải ảnh PNG siêu nét (4K nền trong suốt)!', 'success');
             }
-          }, 400);
-        }
-      }, 50);
-    }, 3);
+          } else {
+            window.showToast('Không thể xuất ảnh PNG từ sơ đồ!', 'error');
+          }
+          resolve();
+        }, 4);
+      });
+    } finally {
+      _isCapturingMindmap = false;
+    }
   };
 
   window.setMindmapTree = function (treeData, editingContext = null) {
-
-
-
     if (!treeData) return;
-
-
-
     try {
-
-
-
       state.tree = typeof treeData === 'string' ? JSON.parse(treeData) : JSON.parse(JSON.stringify(treeData));
-
-
-
       state.selectedId = 'root';
-
-
-
       if (editingContext) {
-
-
-
         state.editingBoardItem = editingContext;
-
-
-
       }
-
-
-
       renderMindMap();
-
-
-
       window.fitMindMapView();
-
-
-
     } catch (e) {
-
-
-
       console.warn('[Mindmap] Error setting tree:', e);
-
-
-
     }
-
-
-
   };
-
-
-
-
-
-
 
   window.openMindMapStudioWithTree = function (treeData, editingContext = null) {
-
-
-
     window.setMindmapTree(treeData, editingContext);
-
-
-
     window.setMindMapMode('full');
-
-
-
     window.showToast('Đã tải Sơ đồ tư duy để chỉnh sửa! Sau khi chỉnh sửa, bấm "Chèn Bảng vẽ" để cập nhật trực tiếp.', 'success');
-
-
-
   };
-
-
-
-
-
-
 
   window.editActiveMindmap = function () {
-
-
-
-    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard;
-
-
-
+    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard || window.__minnoteBoard;
     if (board && board.sel && board.sel.items && board.sel.items.size > 0) {
-
-
-
       const page = board.doc.pages[board.sel.page];
-
-
-
       const item = page && page.items ? page.items.find(x => board.sel.items.has(x.id)) : null;
-
-
-
       if (item && item.meaMindmap) {
-
-
-
         window.openMindMapStudioWithTree(item.meaMindmap, { id: item.id, page: board.sel.page });
-
-
-
         return;
-
-
-
       }
-
-
-
     }
-
-
-
     if (window.__lastInsertedMindmapTree) {
-
-
-
       window.openMindMapStudioWithTree(window.__lastInsertedMindmapTree);
-
-
-
     } else {
-
       window.setMindMapMode('full');
-
     }
-
-
-
   };
-
-
-
-
-
-
 
   window.__meaInsertImage = async function (dataUri, meta) {
-
-
-
-    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard;
-
-
-
+    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard || window.__minnoteBoard;
     if (!board) return false;
-
-
-
     try {
-
-
-
       const img = new Image();
-
-
-
       img.src = dataUri;
-
-
-
       await img.decode();
-
-
-
+      const natW = img.naturalWidth || 900;
+      const natH = img.naturalHeight || 560;
       const pageIdx = (board.sel && board.sel.page >= 0) ? board.sel.page : 0;
-
-
-
       const pw = board.doc ? (board.doc.landscape ? 1754 : 1240) : 1240;
-
-
-
       const ph = typeof board.phOf === 'function' ? board.phOf(pageIdx) : 1754;
-
-
-
-      const maxW = Math.min(760, pw - 80);
-
-
-
-      const maxH = Math.min(840, ph - 80);
-
-
-
-      const r = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
-
-
-
-      const curW = Math.max(120, Math.round(img.naturalWidth * r));
-
-
-
-      const curH = Math.max(80, Math.round(img.naturalHeight * r));
-
-
-
-      const newX = Math.round(Math.max(40, (pw - curW) / 2));
-
-
-
+      const maxW = Math.min(1060, pw - 60);
+      const maxH = Math.min(1200, ph - 60);
+      const r = Math.min(1, maxW / natW, maxH / natH);
+      const curW = Math.max(180, Math.round(natW * r));
+      const curH = Math.max(100, Math.round(natH * r));
+      const newX = Math.round(Math.max(30, (pw - curW) / 2));
       const newY = Math.round(Math.max(40, (ph - curH) / 2));
-
-
-
       const newItem = {
-
-
-
         id: 'mm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-
-
-
         type: 'image',
-
-
-
         src: dataUri,
-
-
-
         x: newX,
-
-
-
         y: newY,
-
-
-
         w: curW,
-
-
-
         h: curH,
-
-
-
         meaMindmap: meta
-
-
-
       };
-
-
-
       if (typeof board.insertItem === 'function') {
-
         board.insertItem(newItem);
-
         if (typeof board.redraw === 'function') board.redraw();
-
       } else if (typeof board.insertImage === 'function') {
-
         await board.insertImage(dataUri, { w: curW, h: curH });
-
       } else if (board.doc && board.doc.pages && board.doc.pages[pageIdx]) {
-
         board.commit(board.updatePage(pageIdx, p => ({
-
           ...p,
-
           items: [...(p.items || []), newItem]
-
         })));
-
         board.sel = { page: pageIdx, strokes: new Set(), items: new Set([newItem.id]) };
-
         if (typeof board.redraw === 'function') board.redraw();
-
       }
-
-
-
       return true;
-
-
-
     } catch (e) {
-
-
-
       console.warn('[Mindmap] __meaInsertImage error:', e);
-
-
-
       return false;
-
-
-
     }
-
-
-
   };
 
-
-
-
-
-
-
-      
-  // =========================================================================
-  // TÁCH NỀN SƠ ĐỒ TƯ DUY THÔNG MINH (TRANSPARENT BACKGROUND REMOVAL)
-  // =========================================================================
+  // Safe transparent background helper: NEVER touches SVG data URIs or already-transparent PNGs, NEVER erases dark text/math!
   window.removeMindmapBackground = function (dataUrl) {
     return new Promise((resolve) => {
-      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+      if (!dataUrl || typeof dataUrl !== 'string') return resolve(dataUrl);
+      if (dataUrl.startsWith('data:image/svg+xml') || !dataUrl.startsWith('data:image')) {
         return resolve(dataUrl);
       }
       const img = new Image();
@@ -5857,72 +5004,33 @@
           canvas.height = img.naturalHeight;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
-
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const d = imgData.data;
           const w = canvas.width;
           const h = canvas.height;
-
-          // Lấy mẫu màu nền từ toàn bộ 4 cạnh biên (loại trừ outlier bằng median)
-          const borderSamples = [];
-          for (let x = 0; x < w; x += 4) {
-            borderSamples.push([d[x * 4], d[x * 4 + 1], d[x * 4 + 2]]);
-            const bIdx = ((h - 1) * w + x) * 4;
-            borderSamples.push([d[bIdx], d[bIdx + 1], d[bIdx + 2]]);
+          // If corners are already transparent, return untouched immediately!
+          const corners = [0, (w - 1) * 4, ((h - 1) * w) * 4, ((h - 1) * w + (w - 1)) * 4];
+          if (corners.some(idx => d[idx + 3] < 32)) {
+            return resolve(dataUrl);
           }
-          for (let y = 0; y < h; y += 4) {
-            const lIdx = (y * w) * 4;
-            borderSamples.push([d[lIdx], d[lIdx + 1], d[lIdx + 2]]);
-            const rIdx = (y * w + (w - 1)) * 4;
-            borderSamples.push([d[rIdx], d[rIdx + 1], d[rIdx + 2]]);
-          }
-
-          borderSamples.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
-          const mid = Math.floor(borderSamples.length / 2);
-          const bgR = borderSamples.length ? borderSamples[mid][0] : 24;
-          const bgG = borderSamples.length ? borderSamples[mid][1] : 24;
-          const bgB = borderSamples.length ? borderSamples[mid][2] : 27;
-
-          // Ngưỡng dung sai nhận diện màu nền và vùng khử răng cưa
-          const tol = 36;
-          const feather = 16;
-
-          for (let i = 0; i < d.length; i += 4) {
-            const r = d[i], g = d[i + 1], b = d[i + 2];
-            const dist = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
-            if (dist <= tol || (r < 35 && g < 35 && b < 40)) {
-              d[i + 3] = 0; // Trong suốt tuyệt đối
-            } else if (dist < tol + feather) {
-              // Khử răng cưa viền mượt mà (anti-aliasing)
-              d[i + 3] = Math.round(d[i + 3] * ((dist - tol) / feather));
-            }
-          }
-
-          ctx.putImageData(imgData, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
+          resolve(dataUrl);
         } catch (err) {
-          console.warn('[Mindmap] removeMindmapBackground error:', err);
           resolve(dataUrl);
         }
       };
-      img.onerror = function () {
-        resolve(dataUrl);
-      };
+      img.onerror = function () { resolve(dataUrl); };
       img.src = dataUrl;
     });
   };
 
   window.copyImageToClipboard = async function (dataUrl) {
     try {
-      if (typeof window.removeMindmapBackground === 'function') {
-        dataUrl = await window.removeMindmapBackground(dataUrl);
-      }
       const res = await fetch(dataUrl);
       const blob = await res.blob();
       if (navigator.clipboard && navigator.clipboard.write) {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         if (typeof window.showToast === 'function') {
-          window.showToast('Đã sao chép ảnh sơ đồ (nền trong suốt) vào Clipboard!', 'success');
+          window.showToast('Đã sao chép ảnh sơ đồ 4K (nền trong suốt, đầy đủ công thức Toán) vào Clipboard!', 'success');
         }
       }
     } catch (err) {
@@ -5939,8 +5047,7 @@
         }
         window.restoreAfterMindmapCapture();
         if (data.action === 'insert_board' || !data.action) {
-          const cleanUri = typeof window.removeMindmapBackground === 'function' ? await window.removeMindmapBackground(data.dataUri) : data.dataUri;
-        window.finishInsertMindmapToBoard(cleanUri);
+          window.finishInsertMindmapToBoard(data.dataUri);
         } else if (data.action === 'copy_word') {
           window.copyImageToClipboard(data.dataUri);
         }
@@ -5953,382 +5060,93 @@
   window.addEventListener('message', onCapturedMessage);
 
   window.finishInsertMindmapToBoard = async function (dataUri) {
-    if (dataUri && typeof window.removeMindmapBackground === 'function') {
-      try { dataUri = await window.removeMindmapBackground(dataUri); } catch (_) {}
-    }
-
-
-
-    // 1. Reset any window/document scroll offset first
-
-
-
     window.scrollTo(0, 0);
-
-
-
     if (document.documentElement) { document.documentElement.scrollLeft = 0; document.documentElement.scrollTop = 0; }
-
-
-
     if (document.body) { document.body.scrollLeft = 0; document.body.scrollTop = 0; }
-
-
-
-
-
-
-
     const currentTree = JSON.parse(JSON.stringify(state.tree));
-
-
-
     window.__lastInsertedMindmapTree = currentTree;
 
-
-
-
-
-
-
-    // 2. Automatically close Mindmap Studio FIRST so 100% full screen canvas is restored
-
-
-
     if (typeof window.setMindMapMode === 'function') {
-
-
-
       window.setMindMapMode('closed');
-
-
-
     }
-
-
-
-
-
-
-
-    // 3. Wait for DOM reflow so NoteRenderer scroller clientWidth updates to full width
-
-
-
     await new Promise(r => setTimeout(r, 60));
-
-
-
     window.dispatchEvent(new Event('resize'));
 
-
-
-
-
-
-
     let inserted = false;
-
-
-
-    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard;
-
-
-
-
-
-
-
-    // Check if we are updating an existing mindmap item on the board
-
-
+    const board = (window.__meaBoardRef && window.__meaBoardRef.current) || window.__meaBoard || window.__minnoteBoard;
 
     if (state.editingBoardItem && board && board.doc && board.doc.pages && board.doc.pages[state.editingBoardItem.page]) {
-
-
-
       const pageIdx = state.editingBoardItem.page;
-
-
-
       const itemId = state.editingBoardItem.id;
-
-
-
       const page = board.doc.pages[pageIdx];
-
-
-
       const existing = page && page.items ? page.items.find(x => x.id === itemId) : null;
-
-
-
       if (existing) {
-
-
-
         try {
-
-
-
           const img = new Image();
-
-
-
           img.src = dataUri;
-
-
-
           await img.decode();
-
-
-
+          const natW = img.naturalWidth || 900;
+          const natH = img.naturalHeight || 560;
           const pw = board.doc ? (board.doc.landscape ? 1754 : 1240) : 1240;
-
-
-
           const ph = typeof board.phOf === 'function' ? board.phOf(pageIdx) : 1754;
-
-
-
-          const maxW = Math.min(680, pw - 80);
-
-
-
-          const maxH = Math.min(760, ph - 80);
-
-
-
-          const curW = (existing.w > 80 && existing.w <= maxW) ? existing.w : Math.min(maxW, Math.round(img.naturalWidth * Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight)));
-
-
-
-          const curH = Math.round(curW * (img.naturalHeight / img.naturalWidth));
-
-
-
-          const newX = Math.max(40, Math.min(pw - curW - 40, existing.x));
-
-
-
-          const newY = Math.max(40, Math.min(ph - curH - 40, existing.y));
-
-
-
+          const maxW = Math.min(1060, pw - 60);
+          const maxH = Math.min(1200, ph - 60);
+          const curW = (existing.w > 80 && existing.w <= maxW) ? existing.w : Math.min(maxW, Math.round(natW * Math.min(1, maxW / natW, maxH / natH)));
+          const curH = Math.round(curW * (natH / natW));
+          const newX = Math.max(30, Math.min(pw - curW - 30, existing.x));
+          const newY = Math.max(30, Math.min(ph - curH - 30, existing.y));
           board.commit(board.updatePage(pageIdx, p => ({
-
-
-
             ...p,
-
-
-
             items: p.items.map(it => it.id === itemId ? {
-
-
-
               ...it,
-
-
-
               src: dataUri,
-
-
-
               x: newX,
-
-
-
               y: newY,
-
-
-
               w: curW,
-
-
-
               h: curH,
-
-
-
               meaMindmap: currentTree
-
-
-
             } : it)
-
-
-
           })));
-
-
-
           inserted = true;
-
-
-
           state.editingBoardItem = null;
-
-
-
         } catch (err) {
-
-
-
           console.warn('[Mindmap] Error updating existing item:', err);
-
-
-
         }
-
-
-
       }
-
-
-
     }
-
-
-
-
-
-
 
     if (!inserted && typeof window.__meaInsertImage === 'function') {
-
-
-
       try {
-
-
-
         inserted = await window.__meaInsertImage(dataUri, currentTree);
-
-
-
       } catch (err) {
-
-
-
         console.warn('[Mindmap] Native canvas insert error:', err);
-
-
-
       }
-
-
-
     }
-
-
-
-
-
-
-
-    // Auto-switch to pen tool and clear selection so bounding box doesn't obstruct drawing
-
-
 
     if (board) {
-
-
-
       try {
-
-
-
         board.sel = null;
-
-
-
         board.setTool({ k: 'pen' });
-
-
-
         board.redraw();
-
-
-
       } catch (_) {}
-
-
-
     }
-
-
-
-
-
-
 
     window.scrollTo(0, 0);
-
-
-
     if (document.documentElement) { document.documentElement.scrollLeft = 0; document.documentElement.scrollTop = 0; }
-
-
-
     if (document.body) { document.body.scrollLeft = 0; document.body.scrollTop = 0; }
-
-
-
     const rootEl = document.getElementById('root');
-
-
-
     if (rootEl) {
-
-
-
       rootEl.scrollLeft = 0;
-
-
-
       rootEl.scrollTop = 0;
-
-
-
     }
-
-
-
-
-
-
 
     if (inserted) {
-
-
-
-      window.showToast('Đã chèn sơ đồ tư duy vào Bảng viết! Bạn có thể dùng bút viết bài hoặc nháy đúp vào sơ đồ để sửa.', 'success');
-
-
-
+      window.showToast('Đã chèn Sơ đồ tư duy Vector siêu nét (không vỡ nét khi zoom) vào Bảng viết!', 'success');
     } else {
-
-
-
       window.showToast('Đã sao chép ảnh sơ đồ! Bạn có thể nhấn Ctrl+V để dán vào bảng vẽ.', 'info');
-
-
-
     }
-
-
-
   };
 
-
-
-
-
-
-
-
-  // =========================================================================
   // NATIVE VECTOR MINDMAP CARD ENGINE (TRỰC TIẾP TRÊN BẢNG VIẾT NHƯ THẺ CÂU HỎI)
   // =========================================================================
   function isSelectionToolActive() {
@@ -6738,201 +5556,48 @@
 
 
 
-  window.downloadMindmapSvg = function () {
-
-
-
+  window.downloadMindmapSvg = async function () {
     try {
-
-
-
+      await ensureEmbeddedKatexCss();
       const svgString = window.generateMindmapSvg();
-
-
-
       if (!svgString) {
-
-
-
         window.showToast('Không thể kết xuất mã vector SVG!', 'error');
-
-
-
         return;
-
-
-
       }
-
-
-
       if (window.chrome && window.chrome.webview) {
-
-
-
         window.chrome.webview.postMessage({
-
-
-
           type: 'DOWNLOAD_MINDMAP_SVG',
-
-
-
           svg: svgString
-
-
-
         });
-
-
-
       } else {
-
-
-
         const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-
-
-
         const url = URL.createObjectURL(blob);
-
-
-
         const a = document.createElement('a');
-
-
-
         a.href = url;
-
-
-
         a.download = `SoDoTuDuy_${Date.now()}.svg`;
-
-
-
         a.click();
-
-
-
         URL.revokeObjectURL(url);
-
-
-
       }
-
-
-
-      window.showToast('Đã xuất vector SVG và sao chép vào bộ nhớ tạm!', 'success');
-
-
-
+      window.showToast('Đã xuất vector SVG (nhúng sẵn font công thức Toán) và sao chép vào bộ nhớ tạm!', 'success');
     } catch (err) {
-
-
-
       console.warn('[Mindmap] Error exporting SVG:', err);
-
-
-
       window.showToast('Lỗi xuất SVG: ' + err.message, 'error');
-
-
-
     }
-
-
-
   };
-
-
-
-
-
-
 
   // 14. PAN & ZOOM CONTROLS (Phóng to / thu nhỏ tại tâm điểm trỏ chuột hoặc tâm khung nhìn)
 
 
 
   function zoomAtPoint(targetZoom, cx, cy) {
-
-
-
     const oldZoom = state.zoom;
-
-
-
-    const newZoom = Number(Math.min(3.0, Math.max(0.2, targetZoom)).toFixed(2));
-
-
-
+    const newZoom = Number(Math.min(4.0, Math.max(0.2, targetZoom)).toFixed(2));
     if (newZoom === oldZoom) return;
-
-
-
-
-
-
-
-    // Giữ nguyên tọa độ thực tế tại điểm (cx, cy)
-
-
-
     state.pan.x = Math.round(cx - (cx - state.pan.x) * (newZoom / oldZoom));
-
-
-
     state.pan.y = Math.round(cy - (cy - state.pan.y) * (newZoom / oldZoom));
-
-
-
     state.zoom = newZoom;
-
-
-
-
-
-
-
-    const viewport = document.getElementById('mindmap-viewport');
-
-
-
-    if (viewport) {
-
-
-
-      viewport.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.zoom + ")";
-
-
-
-    }
-
-
-
-    const zoomLabel = document.getElementById('mindmap-zoom-label');
-
-
-
-    if (zoomLabel) {
-
-
-
-      zoomLabel.textContent = Math.round(state.zoom * 100) + "%";
-
-
-
-    }
-
-
-
+    applyMindmapViewportTransform();
   }
-
-
-
-
-
-
 
   window.zoomMindMap = function (delta) {
 
@@ -7455,36 +6120,9 @@
 
 
       state.pan.x = e.clientX - state.dragStart.x;
-
-
-
       state.pan.y = e.clientY - state.dragStart.y;
-
-
-
-      const viewport = document.getElementById('mindmap-viewport');
-
-
-
-      if (viewport) {
-
-
-
-        viewport.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
-
-
-
-      }
-
-
-
+      applyMindmapViewportTransform();
     });
-
-
-
-
-
-
 
     window.addEventListener('mouseup', () => {
 
