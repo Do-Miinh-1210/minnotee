@@ -1070,4 +1070,66 @@
     renderMotionPanel();
     renderReplayUI();
   });
+
+  // ==================== SMART POSITION FOR .sheet-restore-pill (NEVER OVERLAP TOOLBARS) ====================
+  function positionSheetRestorePill() {
+    const pill = document.querySelector('.sheet-restore-pill');
+    if (!pill) return;
+    const bw = document.querySelector('.board-wrap');
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = 14;
+    let bottom = 10;
+    if (bw) {
+      const r = bw.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        left = Math.round(r.left + 12);
+        bottom = Math.round(Math.max(10, vh - r.bottom + 10));
+      }
+    }
+    // Also ensure we never overlap a floating toolbar inside .float-layer
+    const fl = document.querySelector('.float-layer .tools-bar.float');
+    if (fl) {
+      const fr = fl.getBoundingClientRect();
+      if (fr.width > 0 && fr.height > 0) {
+        const pillW = pill.offsetWidth || 86;
+        const pillH = pill.offsetHeight || 28;
+        const pillTop = vh - bottom - pillH;
+        const pillBottom = vh - bottom;
+        const overlapX = left < fr.right + 8 && (left + pillW) > fr.left - 8;
+        const overlapY = pillTop < fr.bottom + 8 && pillBottom > fr.top - 8;
+        if (overlapX && overlapY) {
+          if (fl.classList.contains('side-bottom')) {
+            bottom = Math.round(Math.max(bottom, vh - fr.top + 10));
+          } else if (fl.classList.contains('side-left')) {
+            left = Math.round(Math.max(left, fr.right + 12));
+          }
+        }
+      }
+    }
+    left = Math.max(8, Math.min(vw - 100, left));
+    bottom = Math.max(8, Math.min(vh - 44, bottom));
+    const lVal = left + 'px';
+    const bVal = bottom + 'px';
+    if (pill.style.getPropertyValue('--sheet-pill-left') !== lVal) pill.style.setProperty('--sheet-pill-left', lVal);
+    if (pill.style.getPropertyValue('--sheet-pill-bottom') !== bVal) pill.style.setProperty('--sheet-pill-bottom', bVal);
+  }
+
+  function startSheetPillObserver() {
+    let raf = 0;
+    const schedule = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        positionSheetRestorePill();
+      });
+    };
+    const mo = new MutationObserver(schedule);
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-ui'] });
+    window.addEventListener('resize', schedule);
+    schedule();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSheetPillObserver);
+  else startSheetPillObserver();
 })();

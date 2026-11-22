@@ -22,24 +22,22 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.5.6"
-TITLE = "MinNote v0.0.5.6 - Giao Diện Mới Atelier"
-BODY = """## MinNote v0.0.5.6 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.5.7"
+TITLE = "MinNote v0.0.5.7 - Đồng Bộ Sáng/Tối Toàn Bộ Thanh Công Cụ & Sửa Nút Ẩn/Hiện Sheet Không Che Nút"
+BODY = """## MinNote v0.0.5.7 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.5.6 thay toàn bộ giao diện bằng thiết kế mới **Atelier**. Mọi tính năng giữ nguyên; giao diện cũ vẫn dùng được.
+Bản cập nhật v0.0.5.7 khắc phục triệt để lỗi thanh công cụ nhảy giao diện lệch sáng/tối và lỗi nút hiện lại thanh Sheet che nút công cụ phía sau:
 
-### Điểm mới trong bản v0.0.5.6
-1. **Bố cục mới**:
-   - Công cụ vẽ chuyển thành thanh dọc màu tối bên trái, nút to hơn (40px), hợp bút cảm ứng và bảng tương tác.
-   - Màn hình thấp (1366×768, 1440×900) tự chuyển thanh công cụ sang 3 cột để hiện đủ công cụ, không phải cuộn.
-   - Trang viết nổi như tờ giấy trên mặt bàn; danh sách trang chuyển sang bên phải.
-   - Menu của công cụ mở bên phải thanh công cụ, ngang hàng với nút.
-2. **Bộ icon mới**: thay toàn bộ 193 icon bằng icon khối đặc, dễ nhìn ở cỡ nhỏ. Icon toán học (đường tròn lượng giác, Oxyz, bảng biến thiên, thước đo độ, ê-ke, parabol...) được vẽ riêng.
-3. **Màu và chữ mới**: màu nhấn tím iris và vàng hổ phách; font Be Vietnam Pro cho tiếng Việt. Có cả chế độ sáng và tối.
-4. **Hiệu ứng chọn gọn hơn**: viền sáng của đường được chọn mảnh hơn, vòng tròn quanh điểm nhỏ lại vừa với điểm và theo màu giao diện.
-5. **Khung cửa sổ** (thanh tiêu đề, màn chờ, hộp kích hoạt) dùng bảng màu mới.
-6. **Về giao diện cũ**: bấm **Ctrl + Alt + U** để đổi qua lại; app nhớ lựa chọn cho lần mở sau.
-7. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.5.7:
+1. **Đồng Bộ Giao Diện Sáng / Tối Cho Toàn Bộ Thanh Công Cụ**:
+   - **Chế độ Sáng**: Thanh công cụ dọc, thanh trên, bảng màu, tiêu đề thư viện và thanh công cụ ở mọi vị trí (**Trên / Trái / Phải / Dưới / Nổi**) đồng nhất tông sáng ấm Atelier, icon đậm rõ nét — không còn lệch nền đen/trắng hay mất màu icon.
+   - **Chế độ Tối**: Toàn bộ thanh công cụ, thanh rời (`aside.tools-bar`), bảng màu (có viền tương phản rõ cho chấm mực đen) và nút Sheet đồng bộ hoàn toàn nền tối Obsidian.
+   - Khi chuyển vị trí thanh công cụ sang **Trái / Phải / Dưới**, bật chế độ **Nổi** hoặc ẩn thanh công cụ: tự động thu gọn cột rail bên trái về `0px` và ẩn logo `M` thừa, không còn nhảy giao diện hay để lại khoảng trống đen góc trên trái.
+   - Menu thả xuống mở từ thanh công cụ ở cạnh phải hoặc cạnh dưới tự động định vị sang trái / phía trên để không bị tràn khỏi màn hình.
+2. **Nút Hiện Lại Thanh Sheet (`^ Sheet`) Không Còn Che Nút Phía Sau**:
+   - Tự động căn vị trí nút `^ Sheet` nằm gọn trong góc dưới bên trái vùng trang viết (`.board-wrap`), tự né thanh công cụ dọc bên trái, thanh công cụ bên dưới và thanh công cụ nổi ở mọi bố cục và kích thước màn hình.
+   - Đồng bộ màu sắc sáng/tối của nút `^ Sheet` theo giao diện Atelier.
+3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

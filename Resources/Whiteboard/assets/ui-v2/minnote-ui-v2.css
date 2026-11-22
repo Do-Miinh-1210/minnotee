@@ -64,10 +64,16 @@ html[data-ui="v2"] {
   --v2-ink: #1d1b24;
   --v2-muted: #7a7482;
 
-  --v2-rail: #17161d;          /* rail công cụ tối */
-  --v2-rail-2: #24222d;
-  --v2-rail-ink: #c9c5d6;
-  --v2-rail-ink-strong: #ffffff;
+  --v2-rail: #f6f3ed;          /* rail công cụ đồng bộ giao diện sáng */
+  --v2-rail-2: #e7e1d6;
+  --v2-rail-ink: #2c2838;
+  --v2-rail-ink-strong: #12101a;
+  --v2-rail-line: #ddd6ca;
+  --v2-rail-sep: rgba(29, 27, 36, .12);
+  --v2-rail-palette: #ebe6dc;
+  --v2-rail-on-bg: #6c5cf5;
+  --v2-rail-on-ink: #ffffff;
+  --v2-rail-on-shadow: 0 6px 14px -6px rgba(108, 92, 245, .55);
 
   --v2-accent: #6c5cf5;        /* tím iris */
   --v2-accent-ink: #ffffff;
@@ -103,8 +109,16 @@ html[data-ui="v2"].dark {
   --v2-line: #2e2c3a;
   --v2-ink: #ecebf3;
   --v2-muted: #9a96a8;
-  --v2-rail: #0a0a0e;
-  --v2-rail-2: #1c1b24;
+  --v2-rail: #14131c;
+  --v2-rail-2: #262433;
+  --v2-rail-ink: #d4d0e2;
+  --v2-rail-ink-strong: #ffffff;
+  --v2-rail-line: #2e2c3a;
+  --v2-rail-sep: rgba(255, 255, 255, .10);
+  --v2-rail-palette: #22202d;
+  --v2-rail-on-bg: #ffb547;
+  --v2-rail-on-ink: #241600;
+  --v2-rail-on-shadow: 0 6px 16px -6px rgba(255, 181, 71, .55);
   --v2-accent: #9488ff;
   --v2-accent-soft: #2a2645;
   --v2-shadow-paper: 0 0 0 1px #2a2836, 0 16px 40px -12px rgba(0, 0, 0, .6);
@@ -221,8 +235,9 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group.tools {
   scrollbar-width: none !important;
   background: var(--v2-rail) !important;
   border: 0 !important;
+  border-right: 1px solid var(--v2-rail-line) !important;
   border-radius: 0 !important;
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .04) !important;
+  box-shadow: none !important;
   z-index: 6;
   position: relative;
   flex-wrap: nowrap !important;
@@ -270,9 +285,9 @@ html[data-ui="v2"] .tb-group.tools .tb:hover:not(:disabled) {
 }
 html[data-ui="v2"] .tb-group.tools .tb:hover:not(:disabled) svg:first-child { color: inherit !important; transform: none !important; }
 html[data-ui="v2"] .tb-group.tools .tb.on {
-  background: var(--v2-amber) !important;
-  color: var(--v2-amber-ink) !important;
-  box-shadow: 0 6px 16px -6px rgba(255, 181, 71, .7) !important;
+  background: var(--v2-rail-on-bg) !important;
+  color: var(--v2-rail-on-ink) !important;
+  box-shadow: var(--v2-rail-on-shadow) !important;
 }
 
 /* vạch ngăn nhóm = đường ngang qua cả 2 cột */
@@ -282,7 +297,7 @@ html[data-ui="v2"] .tb-group.tools > .tb-row-break {
   width: 100% !important; height: 1px !important;
   margin: 2px 0 !important;
   align-self: center;
-  background: rgba(255, 255, 255, .09) !important;
+  background: var(--v2-rail-sep) !important;
 }
 html[data-ui="v2"] .tb-group.tools > .sep { height: 1px !important; }
 
@@ -292,15 +307,15 @@ html[data-ui="v2"] .tb-group.tools > .tb-palette {
   width: 86px !important; height: 40px !important;
   margin: 0 !important; padding: 0 6px !important;
   display: flex !important; justify-content: space-around; align-items: center;
-  background: #ece7de !important;
-  border: 0 !important;
+  background: var(--v2-rail-palette) !important;
+  border: 1px solid var(--v2-rail-line) !important;
   border-radius: var(--v2-r-md) !important;
 }
 html[data-ui="v2"] .tb-group.tools > .tb-palette .swatch {
   background: transparent !important; border: 0 !important;
 }
 html[data-ui="v2"] .tb-group.tools > .tb-palette .swatch.on {
-  outline: 2px solid var(--v2-amber); outline-offset: 1px; border-radius: 8px;
+  outline: 2px solid var(--v2-rail-on-bg); outline-offset: 1px; border-radius: 8px;
 }
 
 /* ---------- 4. Thanh trên ---------- */
@@ -478,21 +493,21 @@ html[data-ui="v2"] .dropdown-menu .zoom-input button.zoom-apply {
 html[data-ui="v2"] .library { background: var(--v2-desk) !important; font-family: var(--v2-font) !important; }
 html[data-ui="v2"] .lib-head {
   height: 64px !important;
-  background: var(--v2-rail) !important;
-  border-bottom: 0 !important;
-  color: #fff !important;
+  background: var(--v2-bar) !important;
+  border-bottom: 1px solid var(--v2-line) !important;
+  color: var(--v2-ink) !important;
 }
 html[data-ui="v2"] .lib-head h1,
 html[data-ui="v2"] .lib-head h2,
-html[data-ui="v2"] .lib-head > :not(.lib-back):not(.lib-search) { color: #fff !important; letter-spacing: -.01em; }
+html[data-ui="v2"] .lib-head > :not(.lib-back):not(.lib-search) { color: var(--v2-ink) !important; letter-spacing: -.01em; }
 html[data-ui="v2"] .lib-back {
-  background: var(--v2-rail-2) !important; border-color: transparent !important; color: #fff !important;
+  background: var(--v2-paper) !important; border: 1px solid var(--v2-line) !important; color: var(--v2-ink) !important;
 }
-html[data-ui="v2"] .lib-back:hover { background: var(--v2-accent) !important; }
+html[data-ui="v2"] .lib-back:hover { background: var(--v2-accent) !important; border-color: var(--v2-accent) !important; color: #fff !important; }
 html[data-ui="v2"] .lib-search {
-  background: var(--v2-rail-2) !important; border-color: transparent !important; color: #fff !important;
+  background: var(--v2-paper) !important; border: 1px solid var(--v2-line) !important; color: var(--v2-ink) !important;
 }
-html[data-ui="v2"] .lib-search::placeholder { color: var(--v2-rail-ink); }
+html[data-ui="v2"] .lib-search::placeholder { color: var(--v2-muted); }
 html[data-ui="v2"] .lib-search:focus { border-color: var(--v2-accent) !important; }
 html[data-ui="v2"] .lib-side {
   background: var(--v2-bar) !important; border-right: 1px solid var(--v2-line) !important;
@@ -653,8 +668,8 @@ html[data-ui="v2"] .tb-group.tools .dropdown-menu { margin-left: 0 !important; }
    nên trước đây chạm vào công cụ đang chọn làm mất nền vàng. */
 html[data-ui="v2"] .tb-group.tools .tb.on:hover:not(:disabled),
 html[data-ui="v2"] .tb-group.tools .tb.on:focus-visible {
-  background: var(--v2-amber) !important;
-  color: var(--v2-amber-ink) !important;
+  background: var(--v2-rail-on-bg) !important;
+  color: var(--v2-rail-on-ink) !important;
 }
 html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on:hover:not(:disabled) {
   background: var(--v2-accent-soft) !important;
@@ -671,3 +686,174 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on:hover:no
 
 /* 13g. Ô tích trong thanh công cụ của vùng chọn (ví dụ "Đồng bộ") theo màu Atelier */
 html[data-ui="v2"] input[type="checkbox"] { accent-color: var(--v2-accent) !important; }
+
+/* ---------- 14. Đồng bộ hoàn toàn mọi vị trí thanh công cụ (Trái/Phải/Dưới/Nổi/Ẩn) & Sáng/Tối ---------- */
+
+/* Khi công cụ vẽ rời khỏi header.toolbar (Vị trí Trái/Phải/Dưới, Kiểu Nổi, hoặc Ẩn thanh công cụ),
+   thu gọn cột rail bên trái về 0px và ẩn logo M thừa để không tạo khoảng trống/lệch nền. */
+html[data-ui="v2"] .app.bar-hidden,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) {
+  grid-template-columns: 0px auto auto auto minmax(0, 1fr) minmax(0, auto) !important;
+}
+html[data-ui="v2"] .app.bar-hidden::after,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools))::after {
+  content: none !important;
+  display: none !important;
+}
+html[data-ui="v2"] .app.bar-hidden::before,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools))::before {
+  grid-column: 1 / -1 !important;
+}
+html[data-ui="v2"] .app.bar-hidden > .work,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) > .work,
+html[data-ui="v2"] .app.bar-hidden > .sheet-bar,
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) > .sheet-bar {
+  grid-column: 1 / -1 !important;
+}
+
+/* Thanh công cụ rời (aside.tools-bar: gắn Trái, Phải, Dưới, hoặc Nổi) dùng đúng bảng màu sáng/tối Atelier */
+html[data-ui="v2"] aside.tools-bar {
+  background: var(--v2-rail) !important;
+  border-color: var(--v2-rail-line) !important;
+  color: var(--v2-rail-ink) !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float),
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  width: 64px !important;
+  min-width: 64px !important;
+  padding: 10px 6px !important;
+  border: 1px solid var(--v2-rail-line) !important;
+  border-radius: var(--v2-r-lg) !important;
+  box-shadow: var(--v2-shadow-paper) !important;
+  scrollbar-width: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left:not(.float)::-webkit-scrollbar,
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float)::-webkit-scrollbar { display: none; }
+html[data-ui="v2"] aside.tools-bar.side-right:not(.float) { order: 3; }
+
+html[data-ui="v2"] aside.tools-bar .tb-group.tools {
+  display: flex !important;
+  width: auto !important;
+  flex-basis: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 4px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  order: 0 !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left .tb-group.tools,
+html[data-ui="v2"] aside.tools-bar.side-right .tb-group.tools {
+  flex-direction: column !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.side-right .tb-group.tools > .tb-palette {
+  width: 44px !important;
+  height: auto !important;
+  flex-direction: column !important;
+  padding: 6px 0 !important;
+  gap: 4px !important;
+  background: var(--v2-rail-palette) !important;
+  border: 1px solid var(--v2-rail-line) !important;
+  border-radius: var(--v2-r-md) !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-left .tb-group.tools > .sep,
+html[data-ui="v2"] aside.tools-bar.side-right .tb-group.tools > .sep {
+  width: 30px !important;
+  height: 1px !important;
+  margin: 3px 0 !important;
+  background: var(--v2-rail-sep) !important;
+}
+
+/* Vị trí Dưới (docked bottom) */
+html[data-ui="v2"] .app > aside.tools-bar.side-bottom:not(.float) {
+  grid-column: 1 / -1 !important;
+  grid-row: 3 !important;
+  padding: 6px 14px !important;
+  border-top: 1px solid var(--v2-rail-line) !important;
+}
+html[data-ui="v2"] .app:has(> aside.tools-bar.side-bottom:not(.float)) > .sheet-bar {
+  grid-row: 4 !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-bottom .tb-group.tools,
+html[data-ui="v2"] aside.tools-bar.side-top .tb-group.tools {
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-bottom .tb-group.tools > .tb-palette,
+html[data-ui="v2"] aside.tools-bar.side-top .tb-group.tools > .tb-palette {
+  width: auto !important;
+  height: 38px !important;
+  flex-direction: row !important;
+  padding: 0 8px !important;
+  gap: 4px !important;
+  background: var(--v2-rail-palette) !important;
+  border: 1px solid var(--v2-rail-line) !important;
+  border-radius: var(--v2-r-md) !important;
+}
+html[data-ui="v2"] aside.tools-bar.side-bottom .tb-group.tools > .sep,
+html[data-ui="v2"] aside.tools-bar.side-top .tb-group.tools > .sep {
+  width: 1px !important;
+  height: 22px !important;
+  margin: 0 3px !important;
+  background: var(--v2-rail-sep) !important;
+}
+
+/* Kiểu Nổi (floating toolbar) */
+html[data-ui="v2"] aside.tools-bar.float {
+  border: 1px solid var(--v2-rail-line) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--v2-shadow-pop) !important;
+  padding: 6px !important;
+}
+html[data-ui="v2"] aside.tools-bar.float .float-arrow {
+  color: var(--v2-rail-ink) !important;
+  background: transparent !important;
+}
+html[data-ui="v2"] aside.tools-bar.float .float-arrow:hover {
+  background: var(--v2-rail-2) !important;
+  color: var(--v2-rail-ink-strong) !important;
+}
+
+/* Chấm màu tối (đen) trên nền tối vẫn nổi rõ trong chế độ Dark Mode */
+html[data-ui="v2"].dark .tb-palette .swatch span {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .28) !important;
+}
+html[data-ui="v2"].dark .tb-group.tools > .tb-palette {
+  background: var(--v2-rail-palette) !important;
+  border-color: var(--v2-rail-line) !important;
+}
+
+/* Đồng bộ giao diện sáng/tối & tránh chồng nút cho viên thuốc hiện lại Sheet */
+html[data-ui="v2"] .sheet-restore-pill {
+  left: var(--sheet-pill-left, 122px);
+  bottom: var(--sheet-pill-bottom, 10px);
+  background: var(--v2-bar) !important;
+  border: 1px solid var(--v2-line) !important;
+  color: var(--v2-accent) !important;
+  box-shadow: var(--v2-shadow-paper) !important;
+}
+html[data-ui="v2"] .sheet-restore-pill:hover {
+  background: var(--v2-accent-soft) !important;
+  border-color: var(--v2-accent) !important;
+}
+@media (max-height: 1000px) {
+  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 158px); }
+}
+@media (max-width: 1100px) {
+  html[data-ui="v2"] .sheet-restore-pill { left: var(--sheet-pill-left, 78px); }
+}
+html[data-ui="v2"] .app:not(:has(> header.toolbar > .tb-group.tools)) .sheet-restore-pill,
+html[data-ui="v2"] .app.bar-hidden .sheet-restore-pill {
+  left: var(--sheet-pill-left, 18px);
+}

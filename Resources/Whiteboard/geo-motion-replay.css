@@ -485,8 +485,8 @@
 
 .sheet-restore-pill {
   position: fixed;
-  left: 12px;
-  bottom: 8px;
+  left: var(--sheet-pill-left, 12px);
+  bottom: var(--sheet-pill-bottom, 10px);
   z-index: 9400;
   display: inline-flex;
   align-items: center;

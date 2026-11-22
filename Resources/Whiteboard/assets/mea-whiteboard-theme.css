@@ -1549,9 +1549,10 @@ html.dark body {
   color: #f1f5f9 !important;
 }
 
-html.dark .toolbar {
+html.dark .toolbar,
+html.dark aside.tools-bar {
   background: rgba(15, 23, 42, 0.97) !important;
-  border-bottom: 1px solid #334155 !important;
+  border-color: #334155 !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
 }
 

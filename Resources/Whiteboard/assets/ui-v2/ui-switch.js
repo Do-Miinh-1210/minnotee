@@ -34,21 +34,43 @@
     }
   }, true);
 
-  /* Menu thả xuống mở từ rail công cụ: app tính vị trí cho thanh ngang (mở xuống dưới nút),
-     nên ở v2 menu sẽ đè lên rail. Đặt lại menu sang bên phải rail, ngang hàng với nút. */
+  /* Menu thả xuống mở từ rail công cụ: tự đặt sang phải (rail trái), sang trái (rail phải),
+     hoặc phía trên (thanh dưới) để không đè lên nút hay tràn khỏi màn hình. */
   function placeRailMenu(menu) {
     if (root.getAttribute('data-ui') !== 'v2') return;
     var rail = menu.closest('.tb-group.tools');
     var holder = menu.closest('.dropdown');
     var btn = holder && holder.querySelector('.tb');
     if (!rail || !btn) return;
-    var railRect = rail.getBoundingClientRect();
+    var aside = rail.closest('aside.tools-bar');
+    var railRect = (aside || rail).getBoundingClientRect();
     var b = btn.getBoundingClientRect();
+    var vw = window.innerWidth;
     var vh = window.innerHeight;
+    var mRect = menu.getBoundingClientRect();
+    var mw = mRect.width || 220;
     var natural = Math.min(menu.scrollHeight + 2, vh - 16);
-    var left = Math.round(railRect.right + 8);
-    var top = Math.round(Math.max(8, Math.min(b.top - 6, vh - natural - 8)));
-    var maxH = Math.round(vh - top - 8);
+    var isHoriz = aside && (aside.classList.contains('side-bottom') || aside.classList.contains('side-top'));
+    var isRight = aside && aside.classList.contains('side-right');
+    var left, top, maxH;
+    if (isHoriz) {
+      left = Math.round(Math.max(8, Math.min(b.left, vw - mw - 8)));
+      if (aside.classList.contains('side-bottom')) {
+        top = Math.round(Math.max(8, railRect.top - natural - 8));
+        maxH = Math.round(Math.max(120, railRect.top - top - 8));
+      } else {
+        top = Math.round(Math.min(vh - 120, railRect.bottom + 8));
+        maxH = Math.round(Math.max(120, vh - top - 8));
+      }
+    } else if (isRight || railRect.left > vw / 2) {
+      left = Math.round(Math.max(8, railRect.left - mw - 8));
+      top = Math.round(Math.max(8, Math.min(b.top - 6, vh - natural - 8)));
+      maxH = Math.round(vh - top - 8);
+    } else {
+      left = Math.round(Math.min(vw - mw - 8, railRect.right + 8));
+      top = Math.round(Math.max(8, Math.min(b.top - 6, vh - natural - 8)));
+      maxH = Math.round(vh - top - 8);
+    }
     var s = menu.style;
     if (s.getPropertyValue('left') !== left + 'px' || s.getPropertyPriority('left') !== 'important') s.setProperty('left', left + 'px', 'important');
     if (s.getPropertyValue('top') !== top + 'px' || s.getPropertyPriority('top') !== 'important') s.setProperty('top', top + 'px', 'important');
