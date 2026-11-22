@@ -64,7 +64,7 @@
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Mã máy tính định danh (Dùng chung với MatrixExamAI):" FontWeight="SemiBold" FontSize="12.5" />
                             <TextBlock x:Name="TxtMachineId" Text="XXXX-XXXX-XXXX" FontFamily="Consolas, monospace" FontSize="20" FontWeight="Bold" 
-                                       Foreground="#0d9488" Margin="0,4,0,2" />
+                                       Foreground="#6C5CF5" Margin="0,4,0,2" />
                             <TextBlock x:Name="TxtHardwareDisplay" Text="Windows Hardware Guid" FontSize="11" 
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         </StackPanel>
@@ -89,14 +89,14 @@
                             CornerRadius="8" Padding="16">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <ui:SymbolIcon Symbol="Key24" FontSize="16" Foreground="#0d9488" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <ui:SymbolIcon Symbol="Key24" FontSize="16" Foreground="#6C5CF5" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Kích hoạt Trực tiếp &amp; Hỗ trợ" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" />
                             </StackPanel>
 
                             <TextBlock Text="Hướng dẫn kích hoạt bản quyền MinNote:" FontWeight="SemiBold" FontSize="11.5" Margin="0,0,0,6" />
                             <TextBlock Text="1. Sao chép Mã máy tính ở trên gửi Admin Đỗ Minh qua Zalo." FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
                             <TextBlock Text="2. Sau khi Admin cấp quyền trên hệ thống, bấm nút 'Kiểm tra Trực tuyến' để phần mềm tự động mở khóa." FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4" />
-                            <TextBlock Text="3. MinNote sử dụng cùng 1 Mã máy với MatrixExamAI. Bản quyền MatrixExamAI đã bao gồm đầy đủ quyền sử dụng MinNote." FontSize="11" Foreground="#0d9488" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock Text="3. MinNote sử dụng cùng 1 Mã máy với MatrixExamAI. Bản quyền MatrixExamAI đã bao gồm đầy đủ quyền sử dụng MinNote." FontSize="11" Foreground="#6C5CF5" TextWrapping="Wrap" Margin="0,0,0,12" />
 
                             <ui:Button x:Name="BtnContactZalo" Appearance="Secondary" Icon="{ui:SymbolIcon Chat24}" 
                                        Content="Mở Zalo Admin (033.999.8261)" HorizontalAlignment="Stretch" Padding="12,8" Click="BtnContactZalo_Click" />
@@ -112,7 +112,7 @@
                             CornerRadius="8" Padding="16">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <ui:SymbolIcon Symbol="QrCode24" FontSize="16" Foreground="#0d9488" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <ui:SymbolIcon Symbol="QrCode24" FontSize="16" Foreground="#6C5CF5" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Đăng ký &amp; Kích hoạt qua VietQR" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" />
                             </StackPanel>
 
@@ -141,9 +141,9 @@
                                        FontSize="10.5" FontWeight="SemiBold" TextAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,8" />
 
                             <!-- Thông tin Admin -->
-                            <Border Background="#0A0D9488" CornerRadius="4" Padding="8,6">
+                            <Border Background="#0A6C5CF5" CornerRadius="4" Padding="8,6">
                                 <StackPanel>
-                                    <TextBlock Text="Vietcombank: 1017919118 • DO HUYNH BINH MINH" FontSize="10.5" FontWeight="SemiBold" Foreground="#0d9488" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Vietcombank: 1017919118 • DO HUYNH BINH MINH" FontSize="10.5" FontWeight="SemiBold" Foreground="#6C5CF5" HorizontalAlignment="Center" />
                                     <TextBlock Text="Hỗ trợ &amp; Zalo: 033.999.8261 (Thầy Đỗ Minh)" FontSize="10.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                                 </StackPanel>
                             </Border>

@@ -1,5 +1,5 @@
-/* MinNote UI v2 — công tắc bật/tắt giao diện thử nghiệm.
-   ?ui=v2 / ?ui=v1 trên URL, hoặc Ctrl+Alt+U trong app. Lựa chọn được nhớ trong localStorage. */
+/* MinNote UI v2 "Atelier" — giao diện mặc định. Giao diện cũ (v1) vẫn dùng được:
+   ?ui=v1 / ?ui=v2 trên URL, hoặc Ctrl+Alt+U trong app. Lựa chọn được nhớ trong localStorage. */
 (function () {
   var KEY = 'minnote_ui';
   var root = document.documentElement;
@@ -13,7 +13,7 @@
     if (q === 'v1' || q === 'v2') localStorage.setItem(KEY, q);
     v = localStorage.getItem(KEY);
   } catch (_) {}
-  apply(v);
+  apply(v === 'v1' ? 'v1' : 'v2');  // chưa chọn gì → Atelier
 
   /* Màu hiệu ứng chọn / rê chuột / phát lại dựng hình trên canvas (bundle gọi qua móc
      scripts/apply_highlight_theme_patch.js). v1: xanh ngọc cũ; v2: tím iris của Atelier. */

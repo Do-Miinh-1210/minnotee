@@ -1,10 +1,11 @@
-# MinNote UI v2 — "Atelier" (bản thử nghiệm)
+# MinNote UI v2 — "Atelier"
 
-Giao diện mới dạng tuỳ chọn. Giao diện cũ vẫn là mặc định.
+Giao diện mặc định từ bản này. Giao diện cũ (v1) vẫn chuyển về được.
 
 ## Bật / tắt
-- Trong app: `Ctrl + Alt + U` (nhớ lựa chọn bằng localStorage)
-- Bản web: thêm `?ui=v2` (bật) hoặc `?ui=v1` (tắt) vào địa chỉ
+- Chưa chọn gì: Atelier
+- Trong app: `Ctrl + Alt + U` đổi qua lại (nhớ lựa chọn bằng localStorage)
+- Bản web: thêm `?ui=v1` (giao diện cũ) hoặc `?ui=v2` (Atelier) vào địa chỉ
 
 ## Thành phần
 - `ui-switch.js` — đặt `data-ui="v2"` lên `<html>` trước khi app render
