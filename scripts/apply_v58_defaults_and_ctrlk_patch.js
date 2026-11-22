@@ -89,5 +89,30 @@ replaceOnce(
   'const d=a.current.getBoundingClientRect(),_bar=a.current.closest("aside.tools-bar"),_br=_bar?_bar.getBoundingClientRect():null;if(p==="bottom"){const _top=_br?Math.min(d.top,_br.top):d.top,y=window.innerHeight-_top+8,k=Math.max(38,((v=document.querySelector(".board-wrap"))==null?void 0:v.getBoundingClientRect().top)??38),w=Math.max(120,_top-8-k-8);u(s==="right"?{bottom:y,maxHeight:w,right:Math.max(8,window.innerWidth-d.right)}:s==="center"?{bottom:y,maxHeight:w,left:d.left+d.width/2,transform:"translateX(-50%)"}:{bottom:y,maxHeight:w,left:Math.max(8,d.left)});return}if(p==="left"||p==="right"){const y=Math.max(8,d.top),k=window.innerHeight-16,_rEdge=_br?Math.max(d.right,_br.right):d.right,_lEdge=_br?Math.min(d.left,_br.left):d.left;u(p==="left"?{top:y,maxHeight:k,left:_rEdge+8}:{top:y,maxHeight:k,right:window.innerWidth-_lEdge+8});return}'
 );
 
+// 9. Prevent crash when searching in Shortcuts modal (missing keyActions entry like "calc" caused _d(x) -> undefined -> W5(undefined).normalize TypeError)
+replaceOnce(
+  'Null-safe W5() search normalizer',
+  'const W5=e=>e.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/đ/gi,"d").toLowerCase();',
+  'const W5=e=>(e==null?"":String(e)).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/đ/gi,"d").toLowerCase();'
+);
+
+replaceOnce(
+  'Safe fallback in _d() shortcut label lookup',
+  'if(n<0)return t.keyActions[e];',
+  'if(n<0)return t.keyActions[e]??e;'
+);
+
+replaceOnce(
+  'Add calc label to VI keyActions',
+  'picker:"Gọi tên ngẫu nhiên (mở / đóng)",',
+  'picker:"Gọi tên ngẫu nhiên (mở / đóng)",calc:"Máy tính bỏ túi (Vinacal)",'
+);
+
+replaceOnce(
+  'Add calc label to EN keyActions',
+  'picker:"Random student picker (open / close)",',
+  'picker:"Random student picker (open / close)",calc:"Scientific calculator",'
+);
+
 fs.writeFileSync(targetFile, code, 'utf8');
 console.log('Successfully applied v0.0.5.8 defaults persistence + Ctrl+K patch to', targetFile);

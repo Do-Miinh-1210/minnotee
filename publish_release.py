@@ -22,21 +22,17 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.0"
-TITLE = "MinNote v0.0.6.0 - Sửa Triệt Để Lỗi Menu Thả Xuống Hiển Thị Chậm & Kéo Giãn Tràn Khung Ở Thanh Công Cụ Dưới/Trái/Phải"
-BODY = """## MinNote v0.0.6.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.6.1"
+TITLE = "MinNote v0.0.6.1 - Sửa Lỗi Văng Trắng Màn Hình Khi Tìm Hoặc Nhấn Phím Trong Hộp Thoại Phím Tắt"
+BODY = """## MinNote v0.0.6.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật v0.0.6.0 khắc phục triệt để lỗi menu thả xuống (`Chế độ viết`, `Tẩy`, `Hình vẽ`...) bị hiển thị chậm 1 nhịp và bị kéo giãn tràn dọc khắp màn hình khi đặt thanh công cụ ở vị trí **Dưới / Trái / Phải**:
+Bản cập nhật v0.0.6.1 khắc phục triệt để lỗi văng trắng màn hình khi tìm kiếm hoặc thao tác trong hộp thoại **Phím tắt**:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.0:
-1. **Định Vị Menu Thả Xuống Đồng Bộ Tức Thì (`0ms`, Không Giật/Trễ)**:
-   - Gỡ bỏ bộ `MutationObserver` bất đồng bộ trong `ui-switch.js` (vốn gán chồng `top !important` lên `bottom` khiến menu bị kéo giãn cao suốt màn hình hoặc nhảy vị trí sau 1 khung hình).
-   - Tính toán vị trí trực tiếp trong `useLayoutEffect` đồng bộ của hộp menu (`si()`) theo đúng mép ngoài của thanh công cụ (`aside.tools-bar`), đảm bảo menu hiện ra tức thì ngay khung hình đầu tiên với chiều cao gọn tự nhiên (`156px`).
-2. **Không Tràn / Đè Lên Thanh Công Cụ Ở Mọi Vị Trí**:
-   - **Vị trí `Dưới`**: Menu mở gọn ngay phía trên thanh công cụ dưới (`cách 8px`), tách riêng hàng thanh Sheet bên dưới để không chồng lên nhau.
-   - **Vị trí `Trái / Phải`**: Menu mở sát mép ngoài của cột công cụ 2 cột (`cách 8px`), không đè lên cột nút thứ 2; thu gọn nút `25px` để hiện đủ toàn bộ công cụ và bảng màu với khoảng trống thoáng ở đáy.
-   - **Vị trí `Trên`**: Menu mở ngay dưới thanh công cụ ngang trên cùng.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.6.1:
+1. **Sửa Lỗi Văng Màn Hình Trong Hộp Thoại Phím Tắt (`yoe` / `W5`)**:
+   - Bổ sung nhãn tiếng Việt & tiếng Anh đầy đủ cho công cụ **Máy tính bỏ túi (`calc`)** trong danh sách phím tắt (`keyActions`).
+   - Thêm cơ chế bảo vệ chống `undefined` trong hàm chuẩn hóa tìm kiếm (`W5`) và hàm tra cứu tên phím tắt (`_d`), giúp gõ tìm kiếm bất kỳ chữ cái nào (như `G`) hoặc gán phím tắt mới luôn mượt mà, không bao giờ văng trắng màn hình.
+2. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
