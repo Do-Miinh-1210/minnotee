@@ -1,4 +1,4 @@
-/* MinNote GSP5 Parametric Geometry & Constraints Studio
+/* MinNote Parametric Geometry & Constraints Studio
  * - Native bottom-toolbar button (no corner pill!)
  * - Parameters appear directly on the whiteboard as clean KaTeX math formulas (e.g. a = 2 cm, α = 60°)
  * - Single-click KaTeX formula to select/arm -> combine with Circle / Segment / Angle / Rotate / Dilate / Translate to construct automatically!
@@ -8,45 +8,22 @@
   "use strict";
   if (window.MinNoteGeoParams) return;
 
-  const LOCUS_COLORS = [
-    ["#e11d48", "Đỏ hồng"],
-    ["#7c3aed", "Tím"],
-    ["#0d9488", "Xanh ngọc"],
-    ["#2563eb", "Xanh dương"],
-    ["#ea580c", "Cam"],
-    ["#1a1a1a", "Đen"]
-  ];
-
   const STATE = {
     open: false,
-    tab: "params", // "params" | "constraints" | "locus" | "build"
+    tab: "params", // "params" | "constraints" | "build"
     buildDim: "2d", // "2d" | "3d"
     buildKind2d: "segment",
     buildKind3d: "pyramid4",
     editingParamId: null,
     focusedParamId: null,
     selectedParamIds: [], // active KaTeX param IDs (at most 1 per unit: dist / angle / none)
-    showLabels: false, // keep board ultra-clean like GSP5 by default; user can toggle "Nhãn" in panel
+    showLabels: false, // keep board ultra-clean by default; user can toggle "Nhãn" in panel
     rafId: null,
     lastAnimTs: 0,
     sliderUndoSaved: false,
     panelPos: null,
     selKey: "",
     katexKey: "",
-    animPoints: new Map(), // key: `${pageIdx}:${ptId}` -> { pageIdx, ptId, dir }
-    traces: new Map(), // key: `${pageIdx}:${ptId}` -> { pageIdx, ptId, color, width, pts: [] }
-    locusForm: {
-      mode: "point", // "point" | "shape"
-      tracedId: "",
-      driverKey: "",
-      color: "#e11d48",
-      width: 2.4,
-      dashed: false,
-      samples: 240,
-      shapeSamples: 28,
-      min: "",
-      max: ""
-    },
     builderVals: {
       a: "4",
       b: "3",
@@ -341,15 +318,23 @@
     return false;
   }
 
-  // ==================== DYNAMIC LOCUS (QUỸ TÍCH) & TRACE ENGINE ====================
+  // ==================== DYNAMIC LOCUS (QUỸ TÍCH) ENGINE ====================
+
+  function resolveDriver(geo, ptId) {
+    const K = getKernel();
+    if (!geo || !geo.points || !ptId) return null;
+    if (K && typeof K._mnResolveDriver === "function") return K._mnResolveDriver(geo, ptId);
+    const pt = geo.points[ptId];
+    if (!pt || !pt.def) return null;
+    const d = pt.def;
+    if (d.t === "path" || d.t === "on" || d.t === "onLocus" || d.t === "vec" || (d.t === "len" && !d.lockedAng) || (d.t === "polar" && (!!d.fixedDist !== !!d.fixedAng))) {
+      return { kind: d.kind || d.t, pts: d.pts || [d.a, d.b].filter(Boolean) };
+    }
+    return null;
+  }
 
   function isDriverPoint(geo, ptId) {
-    const K = getKernel();
-    const pt = geo && geo.points && geo.points[ptId];
-    if (!pt || !pt.def) return false;
-    if (K && typeof K._mnIsDriverDef === "function") return K._mnIsDriverDef(pt.def);
-    const d = pt.def;
-    return d.t === "path" || d.t === "on" || d.t === "vec" || (d.t === "len" && !d.lockedAng) || (d.t === "polar" && (!!d.fixedDist !== !!d.fixedAng));
+    return !!resolveDriver(geo, ptId);
   }
 
   function describeDriverPoint(geo, ptId) {
@@ -362,6 +347,7 @@
       if (d.kind === "circle" && d.pts && d.pts[0]) return `${nm} ∈ (${ptName(geo, d.pts[0])})`;
       return `${nm} ∈ ${map[d.kind] || "đường cong"}`;
     }
+    if (d.t === "onLocus") return `${nm} ∈ quỹ tích`;
     if (d.t === "on") {
       const segName = `${ptName(geo, d.a)}${ptName(geo, d.b)}`;
       return d.seg ? `${nm} ∈ đoạn ${segName}` : `${nm} ∈ đường ${segName}`;
@@ -369,6 +355,14 @@
     if (d.t === "vec") return `${nm} trượt theo ${ptName(geo, d.a)}${ptName(geo, d.b)}`;
     if (d.t === "len") return `${nm} quay quanh ${ptName(geo, d.a)}`;
     if (d.t === "polar") return d.fixedDist ? `${nm} quay quanh ${ptName(geo, d.o)}` : `${nm} trượt tia ${ptName(geo, d.o)}`;
+    const drv = resolveDriver(geo, ptId);
+    if (drv) {
+      if (drv.kind === "circle" && drv.pts && drv.pts[0]) return `${nm} ∈ (${ptName(geo, drv.pts[0])})`;
+      if ((drv.kind === "segment" || drv.kind === "line" || drv.kind === "ray") && drv.pts && drv.pts.length >= 2) {
+        return `${nm} ∈ ${drv.kind === "segment" ? "đoạn" : drv.kind === "ray" ? "tia" : "đường"} ${ptName(geo, drv.pts[0])}${ptName(geo, drv.pts[1])}`;
+      }
+      if (drv.kind === "polygon") return `${nm} ∈ đa giác`;
+    }
     return nm;
   }
 
@@ -421,7 +415,6 @@
     const K = getKernel();
     if (!K) return out;
     const tracedSet = new Set(tracedIds);
-    // Find all ancestor points of tracedIds
     const anc = new Set();
     const stack = [...tracedIds];
     while (stack.length) {
@@ -434,13 +427,16 @@
       }
     }
     for (const id of anc) {
-      if (tracedSet.has(id) && tracedIds.length === 1) continue;
-      if (isDriverPoint(geo, id)) {
+      if (tracedSet.has(id)) continue;
+      const drv = resolveDriver(geo, id);
+      if (drv) {
         out.push({
           key: `pt:${id}`,
           type: "point",
           id,
-          label: `Điểm ${describeDriverPoint(geo, id)}`
+          shortName: ptName(geo, id),
+          label: `Theo điểm ${describeDriverPoint(geo, id)}`,
+          drv
         });
       }
     }
@@ -452,7 +448,8 @@
           key: `pm:${pm.id}`,
           type: "param",
           id: pm.id,
-          label: `Tham số ${pm.name} ∈ [${fmtNum(pm.min ?? 0, pm.unit === "angle" ? 0 : 1)}; ${fmtNum(pm.max ?? 10, pm.unit === "angle" ? 0 : 1)}]${unitSuffix(pm.unit)}`
+          shortName: pm.name,
+          label: `Theo tham số ${pm.name} ∈ [${fmtNum(pm.min ?? 0, pm.unit === "angle" ? 0 : 1)}; ${fmtNum(pm.max ?? 10, pm.unit === "angle" ? 0 : 1)}]${unitSuffix(pm.unit)}`
         });
       }
     }
@@ -472,7 +469,7 @@
 
   function describeLocus(geo, sh) {
     const L = sh && sh.locus;
-    if (!L) return "Quỹ tích";
+    if (!L) return { title: "Quỹ tích", sub: "" };
     const mode = L.mode === "shape" ? "shape" : "point";
     const dType = L.driverType === "param" ? "param" : "point";
     const pts = Array.isArray(sh.pts) ? sh.pts : [];
@@ -489,9 +486,7 @@
       driverLabel = `khi ${describeDriverPoint(geo, dId)}`;
     } else {
       const pm = (geo.params || []).find(p => p.id === L.paramId);
-      driverLabel = pm
-        ? `theo ${pm.name} ∈ [${fmtNum(L.min ?? pm.min ?? 0, pm.unit === "angle" ? 0 : 1)}; ${fmtNum(L.max ?? pm.max ?? 10, pm.unit === "angle" ? 0 : 1)}]${unitSuffix(pm.unit)}`
-        : "theo tham số";
+      driverLabel = pm ? `theo tham số ${pm.name}` : "theo tham số";
     }
     return { title: targetLabel, sub: driverLabel };
   }
@@ -507,7 +502,7 @@
     if (driverType === "point") {
       if (tracedId === driverId) { showToast("Điểm quỹ tích và điểm chuyển động phải khác nhau."); return false; }
       if (!isDriverPoint(geo, driverId)) {
-        showToast(`Điểm ${ptName(geo, driverId)} là điểm tự do chưa thuộc đường nào — hãy đặt nó lên đường tròn/đoạn thẳng/đường thẳng hoặc dùng Vết điểm.`);
+        showToast(`Điểm ${ptName(geo, driverId)} chưa nằm trên đường dẫn (đường tròn, đoạn thẳng, đường thẳng...).`);
         return false;
       }
       if (!dependsOn(geo, tracedId, driverId)) {
@@ -521,10 +516,29 @@
       }
     }
 
-    const color = opts.color || STATE.locusForm.color || "#e11d48";
-    const width = Number(opts.width) || STATE.locusForm.width || 2.4;
-    const dashed = opts.dashed !== undefined ? !!opts.dashed : !!STATE.locusForm.dashed;
-    const samples = Math.max(24, Math.min(720, Number(opts.samples) || STATE.locusForm.samples || 240));
+    // Avoid creating duplicate identical locus
+    const existing = (geo.shapes || []).find(s =>
+      s.kind === "locus" &&
+      s.locus &&
+      s.locus.mode === "point" &&
+      s.locus.driverType === driverType &&
+      s.pts &&
+      s.pts[0] === tracedId &&
+      (driverType === "point" ? s.pts[1] === driverId : s.locus.paramId === driverId)
+    );
+    if (existing) {
+      ed.selectGeo(pageIdx, [], [existing.id]);
+      const desc = describeLocus(geo, existing);
+      showToast(`${desc.title} ${desc.sub} đã có sẵn trên bảng!`);
+      return true;
+    }
+
+    const style = ed.shapeStyle || { color: "#e11d48", width: 2.4 };
+    const defaultCol = (!style.color || style.color === "#1a1a1a" || style.color === "#000000") ? "#e11d48" : style.color;
+    const color = opts.color || defaultCol;
+    const width = Number(opts.width) || style.width || 2.4;
+    const dashed = opts.dashed !== undefined ? !!opts.dashed : !!ed.dashed;
+    const samples = Math.max(24, Math.min(720, Number(opts.samples) || 240));
     const min = opts.min !== undefined && opts.min !== "" && Number.isFinite(Number(String(opts.min).replace(",", ".")))
       ? Number(String(opts.min).replace(",", ".")) : undefined;
     const max = opts.max !== undefined && opts.max !== "" && Number.isFinite(Number(String(opts.max).replace(",", ".")))
@@ -548,7 +562,6 @@
       }
     };
 
-    // Verify it actually produces strokes
     const strokes = K._mnLocusStrokes ? K._mnLocusStrokes(geo, sh, K.Tt(geo)) : [];
     if (!strokes.length) {
       showToast("Không tạo được quỹ tích cho cặp đối tượng này (vùng xác định rỗng).");
@@ -561,8 +574,7 @@
     }));
     ed.selectGeo(pageIdx, [], [shId]);
     const desc = describeLocus(getPage(pageIdx).geo, sh);
-    showToast(`Đã tạo ${desc.title} ${desc.sub}!`);
-    if (STATE.open) renderPanel();
+    showToast(`Đã dựng ${desc.title} ${desc.sub}`);
     return true;
   }
 
@@ -579,7 +591,7 @@
 
     if (driverType === "point") {
       if (!isDriverPoint(geo, driverId)) {
-        showToast(`Điểm ${ptName(geo, driverId)} cần nằm trên một đường (đường tròn, đoạn thẳng, đường thẳng...).`);
+        showToast(`Điểm ${ptName(geo, driverId)} cần nằm trên một đường dẫn.`);
         return false;
       }
       if (!shapeObj.pts.some(pid => dependsOn(geo, pid, driverId))) {
@@ -593,10 +605,10 @@
       }
     }
 
-    const color = opts.color || STATE.locusForm.color || "#7c3aed";
-    const width = Number(opts.width) || STATE.locusForm.width || 2.0;
-    const dashed = opts.dashed !== undefined ? !!opts.dashed : !!STATE.locusForm.dashed;
-    const samples = Math.max(6, Math.min(120, Number(opts.samples) || STATE.locusForm.shapeSamples || 28));
+    const color = opts.color || "#7c3aed";
+    const width = Number(opts.width) || 2.0;
+    const dashed = opts.dashed !== undefined ? !!opts.dashed : !!ed.dashed;
+    const samples = Math.max(6, Math.min(120, Number(opts.samples) || 28));
     const min = opts.min !== undefined && opts.min !== "" && Number.isFinite(Number(String(opts.min).replace(",", ".")))
       ? Number(String(opts.min).replace(",", ".")) : undefined;
     const max = opts.max !== undefined && opts.max !== "" && Number.isFinite(Number(String(opts.max).replace(",", ".")))
@@ -627,8 +639,7 @@
     }));
     ed.selectGeo(pageIdx, [], [shId]);
     const desc = describeLocus(getPage(pageIdx).geo, sh);
-    showToast(`Đã tạo ${desc.title} ${desc.sub}!`);
-    if (STATE.open) renderPanel();
+    showToast(`Đã dựng ${desc.title} ${desc.sub}`);
     return true;
   }
 
@@ -641,190 +652,224 @@
         locus: { ...(sh.locus || {}), ...(patchLocus || {}) }
       } : sh)
     }));
-    if (STATE.open) renderPanel();
   }
 
   function deleteLocusShape(pageIdx, locusId) {
-    mutateGeo(pageIdx, geo => ({
+    const K = getKernel();
+    mutateGeo(pageIdx, geo => K && K.c5 ? K.c5(geo, [], [locusId]) : ({
       ...geo,
       shapes: geo.shapes.filter(sh => sh.id !== locusId)
     }));
-    if (STATE.open) renderPanel();
   }
 
-  // Driver point animation (M gliding smoothly along its circle/segment/line/path!)
-  function isPointAnimating(pageIdx, ptId) {
-    return STATE.animPoints.has(`${pageIdx}:${ptId}`);
-  }
+  // ==================== CONTEXT-ONLY SELECTION BAR INTEGRATION ====================
 
-  function togglePointAnim(pageIdx, ptId) {
-    const key = `${pageIdx}:${ptId}`;
-    if (STATE.animPoints.has(key)) {
-      STATE.animPoints.delete(key);
-    } else {
-      const pg = getPage(pageIdx);
-      if (!pg || !isDriverPoint(pg.geo, ptId)) {
-        showToast("Chỉ chạy tự động được điểm nằm trên đường (đường tròn, đoạn thẳng, đường thẳng...).");
-        return;
-      }
-      STATE.animPoints.set(key, { pageIdx, ptId, dir: 1 });
-    }
-    ensureAnimLoop();
-    if (STATE.open) renderPanel();
-  }
-
-  // Live Trace Mode (Vết chuyển động kiểu GSP5)
-  function isPointTraced(pageIdx, ptId) {
-    return STATE.traces.has(`${pageIdx}:${ptId}`);
-  }
-
-  function togglePointTrace(pageIdx, ptId, color) {
-    const key = `${pageIdx}:${ptId}`;
-    const pg = getPage(pageIdx);
-    const K = getKernel();
-    if (STATE.traces.has(key)) {
-      STATE.traces.delete(key);
-      showToast(`Đã tắt vết điểm ${pg ? ptName(pg.geo, ptId) : ""}.`);
-    } else {
-      const pos = pg && K ? K.Tt(pg.geo).get(ptId) : null;
-      STATE.traces.set(key, {
-        pageIdx,
-        ptId,
-        color: color || STATE.locusForm.color || "#e11d48",
-        width: 2.2,
-        pts: pos ? [{ x: pos.x, y: pos.y }] : []
-      });
-      showToast(`Đã bật vết điểm ${pg ? ptName(pg.geo, ptId) : ""} — hãy kéo điểm hoặc chạy chuyển động để xem vết!`);
-    }
+  function getSelectedLocusShape(pageIdx) {
     const ed = getEditor();
-    if (ed) ed.redraw();
-    if (STATE.open) renderPanel();
-  }
-
-  function clearPageTraces(pageIdx, ptId = null) {
-    for (const [k, tr] of STATE.traces.entries()) {
-      if (tr.pageIdx === pageIdx && (!ptId || tr.ptId === ptId)) {
-        tr.pts = [];
-      }
-    }
-    const ed = getEditor();
-    if (ed) ed.redraw();
-    showToast("Đã xóa vết chuyển động.");
-    if (STATE.open) renderPanel();
-  }
-
-  function bakeTraceToStroke(pageIdx, ptId) {
-    const key = `${pageIdx}:${ptId}`;
-    const tr = STATE.traces.get(key);
-    const ed = getEditor();
-    if (!tr || !ed || tr.pts.length < 2) {
-      showToast("Vết chưa đủ điểm để lưu thành nét vẽ.");
-      return;
-    }
-    const newStrokes = [];
-    let chunk = [];
-    const flush = () => {
-      if (chunk.length >= 2) {
-        const flatPts = [];
-        for (const p of chunk) flatPts.push(p.x, p.y, 0.5);
-        newStrokes.push({
-          id: makeId("tr"),
-          kind: "pen",
-          color: tr.color,
-          width: tr.width || 2.4,
-          pts: flatPts
-        });
-      }
-      chunk = [];
-    };
-    for (const p of tr.pts) {
-      if (!p) flush();
-      else chunk.push(p);
-    }
-    flush();
-    if (!newStrokes.length) { showToast("Vết chưa đủ điểm để lưu thành nét vẽ."); return; }
-    const nextDoc = ed.updatePage(pageIdx, pg => ({
-      ...pg,
-      strokes: [...(pg.strokes || []), ...newStrokes]
-    }));
-    ed.commit(nextDoc);
-    tr.pts = [];
-    ed.redraw();
-    ed.emit();
-    showToast("Đã lưu vết chuyển động thành nét vẽ cố định trên bảng!");
-    if (STATE.open) renderPanel();
-  }
-
-  // Smart 1-click Locus button from .sel-bar or Alt+L
-  function onLocusSelectionClick() {
-    ensureUI();
-    const ed = getEditor();
-    const pIdx = currentPageIndex();
+    const pIdx = pageIdx !== undefined ? pageIdx : currentPageIndex();
     const pg = getPage(pIdx);
-    if (!ed || !pg || !pg.geo) { openPanel("locus"); return; }
+    if (!ed || !ed.sel || ed.sel.page !== pIdx || !pg || !pg.geo) return null;
+    if (ed.sel.shapes.size !== 1 || ed.sel.points.size > 0) return null;
+    const [shId] = ed.sel.shapes;
+    return (pg.geo.shapes || []).find(s => s.id === shId && s.kind === "locus") || null;
+  }
+
+  function matchDriverOnShape(geo, drivers, sh) {
+    if (!sh || !Array.isArray(drivers)) return null;
+    const ptDrvs = drivers.filter(d => d.type === "point");
+    const onSh = ptDrvs.find(d =>
+      (sh.pts && sh.pts.includes(d.id)) ||
+      (d.drv && (d.drv.shapeId === sh.id || (d.drv.pts && sh.pts && d.drv.pts.every(p => sh.pts.includes(p)))))
+    );
+    if (onSh) return onSh;
+    if (!sh.pts.some(pid => ptDrvs.some(d => d.id === pid)) && ptDrvs.length === 1) return ptDrvs[0];
+    return null;
+  }
+
+  function resolveSelectionLocusAction(pageIdx) {
+    const ed = getEditor();
+    const pIdx = pageIdx !== undefined ? pageIdx : currentPageIndex();
+    const pg = getPage(pIdx);
+    if (!ed || !ed.sel || ed.sel.page !== pIdx || !pg || !pg.geo) return null;
     const geo = pg.geo;
-    const selPts = ed.sel && ed.sel.page === pIdx ? [...ed.sel.points] : [];
-    const selShapes = ed.sel && ed.sel.page === pIdx
-      ? geo.shapes.filter(s => ed.sel.shapes.has(s.id) && ["segment", "line", "ray", "circle", "polygon"].includes(s.kind))
-      : [];
+
+    // 1. Existing locus curve selected -> adjust resolution inline
+    const selLoc = getSelectedLocusShape(pIdx);
+    if (selLoc) {
+      return { kind: "editLocus", pageIdx: pIdx, locus: selLoc };
+    }
+
+    const carried = ed.sel.carried || new Set();
+    const explicitPts = [...ed.sel.points].filter(id => !carried.has(id) && geo.points[id]);
+    const selShapes = (geo.shapes || []).filter(s => ed.sel.shapes.has(s.id) && ["segment", "line", "ray", "circle", "polygon"].includes(s.kind));
     const activeParams = getSelectedParams(pIdx).filter(p => !p.expr);
 
-    // Case 1: 2 points selected -> auto-detect traced & driver and create immediately!
-    if (selPts.length === 2 && selShapes.length === 0) {
-      const [a, b] = selPts;
+    // 2. Two explicit points selected (traced point + driver point, in either order)
+    if (explicitPts.length === 2 && selShapes.length === 0) {
+      const [a, b] = explicitPts;
       if (dependsOn(geo, a, b) && isDriverPoint(geo, b)) {
-        createPointLocus(pIdx, a, "point", b);
-        return;
+        return { kind: "createPoint", pageIdx: pIdx, tracedId: a, drivers: [{ type: "point", id: b, shortName: ptName(geo, b), label: `Theo điểm ${describeDriverPoint(geo, b)}` }] };
       }
       if (dependsOn(geo, b, a) && isDriverPoint(geo, a)) {
-        createPointLocus(pIdx, b, "point", a);
-        return;
+        return { kind: "createPoint", pageIdx: pIdx, tracedId: b, drivers: [{ type: "point", id: a, shortName: ptName(geo, a), label: `Theo điểm ${describeDriverPoint(geo, a)}` }] };
       }
+      return null;
     }
 
-    // Case 2: 1 point + armed parameter -> instant parametric locus!
-    if (selPts.length === 1 && activeParams.length >= 1) {
-      const pm = activeParams.find(p => pointDependsOnParam(geo, selPts[0], p.id));
+    // 3. 1 explicit point + 1 curve selected (either point + path of driver, OR driver point + dependent shape)
+    if (explicitPts.length === 1 && selShapes.length === 1) {
+      const ptId = explicitPts[0], sh = selShapes[0];
+      const ptDrivers = listValidDriversForPoints(geo, [ptId]);
+      const matchDrv = matchDriverOnShape(geo, ptDrivers, sh);
+      if (matchDrv && !sh.pts.some(pid => dependsOn(geo, pid, ptId))) {
+        return { kind: "createPoint", pageIdx: pIdx, tracedId: ptId, drivers: [matchDrv] };
+      }
+      if (isDriverPoint(geo, ptId) && sh.pts.some(pid => dependsOn(geo, pid, ptId))) {
+        return { kind: "createShape", pageIdx: pIdx, shape: sh, drivers: [{ type: "point", id: ptId, shortName: ptName(geo, ptId), label: `Theo điểm ${describeDriverPoint(geo, ptId)}` }] };
+      }
+      return null;
+    }
+
+    // 4. 1 explicit dependent point selected (and no unrelated shapes)
+    if (explicitPts.length === 1 && selShapes.length === 0) {
+      const ptId = explicitPts[0];
+      if (activeParams.length) {
+        const pm = activeParams.find(p => pointDependsOnParam(geo, ptId, p.id));
+        if (pm) {
+          return { kind: "createPoint", pageIdx: pIdx, tracedId: ptId, drivers: [{ type: "param", id: pm.id, shortName: pm.name, label: `Theo tham số ${pm.name}` }] };
+        }
+      }
+      const drivers = listValidDriversForPoints(geo, [ptId]);
+      if (drivers.length > 0) {
+        return { kind: "createPoint", pageIdx: pIdx, tracedId: ptId, drivers };
+      }
+      return null;
+    }
+
+    // 5. 1 shape selected ONLY when a KaTeX parameter chip is actively armed and drives this shape
+    if (selShapes.length === 1 && explicitPts.length === 0 && activeParams.length > 0) {
+      const sh = selShapes[0];
+      const pm = activeParams.find(p => sh.pts.some(pid => pointDependsOnParam(geo, pid, p.id)));
       if (pm) {
-        createPointLocus(pIdx, selPts[0], "param", pm.id);
-        return;
+        return { kind: "createShape", pageIdx: pIdx, shape: sh, drivers: [{ type: "param", id: pm.id, shortName: pm.name, label: `Theo tham số ${pm.name}` }] };
       }
     }
 
-    // Case 3: 1 shape + 1 driver point -> instant shape family locus!
-    if (selShapes.length === 1 && selPts.length === 1) {
-      const sh = selShapes[0], dId = selPts[0];
-      if (isDriverPoint(geo, dId) && sh.pts.some(pid => dependsOn(geo, pid, dId))) {
-        createShapeLocus(pIdx, sh, "point", dId);
-        return;
-      }
-    }
-
-    // Case 4: 1 point selected with exactly 1 valid movable driver -> instant 1-click locus!
-    if (selPts.length === 1 && selShapes.length === 0) {
-      const drivers = listValidDriversForPoints(geo, [selPts[0]]);
-      if (drivers.length === 1) {
-        createPointLocus(pIdx, selPts[0], drivers[0].type, drivers[0].id);
-        return;
-      }
-      STATE.locusForm.mode = "point";
-      STATE.locusForm.tracedId = selPts[0];
-      if (drivers.length > 0) STATE.locusForm.driverKey = drivers[0].key;
-    } else if (selShapes.length === 1) {
-      STATE.locusForm.mode = "shape";
-      STATE.locusForm.tracedId = selShapes[0].id;
-      const drivers = listValidDriversForPoints(geo, selShapes[0].pts);
-      if (drivers.length === 1) {
-        createShapeLocus(pIdx, selShapes[0], drivers[0].type, drivers[0].id);
-        return;
-      }
-      if (drivers.length > 0) STATE.locusForm.driverKey = drivers[0].key;
-    }
-
-    openPanel("locus");
+    return null;
   }
 
-  // ==================== DIRECT GSP5 TOOL INTEGRATION ====================
+  function canShowLocusInSelBar() {
+    return !!resolveSelectionLocusAction();
+  }
+
+  function getLocusSelBarLabel() {
+    const act = resolveSelectionLocusAction();
+    if (!act) return "Quỹ tích";
+    if (act.kind === "editLocus") {
+      const L = act.locus.locus || {};
+      if (L.mode === "shape") return `Số hình: ${L.samples || 28}`;
+      const s = Number(L.samples) || 240;
+      return `Độ mịn: ${s >= 400 ? "Cao" : s <= 140 ? "Nhanh" : "Chuẩn"}`;
+    }
+    return "Quỹ tích";
+  }
+
+  function getLocusSelBarTitle() {
+    const act = resolveSelectionLocusAction();
+    if (!act) return "Dựng quỹ tích hình học động";
+    if (act.kind === "editLocus") {
+      const pg = getPage(act.pageIdx);
+      const desc = pg ? describeLocus(pg.geo, act.locus) : { title: "Quỹ tích", sub: "" };
+      return `${desc.title} ${desc.sub} — Bấm để đổi độ mịn`;
+    }
+    const pg = getPage(act.pageIdx);
+    const geo = pg && pg.geo;
+    if (act.kind === "createPoint" && geo) {
+      if (act.drivers.length === 1) {
+        return `Dựng ngay quỹ tích điểm ${ptName(geo, act.tracedId)} (${act.drivers[0].label.toLowerCase()})`;
+      }
+      return `Chọn biến dẫn để dựng quỹ tích điểm ${ptName(geo, act.tracedId)}`;
+    }
+    return "Dựng quỹ tích hình học động";
+  }
+
+  function closeLocusQuickPop() {
+    const pop = document.getElementById("mn-locus-quick-pop");
+    if (pop) pop.classList.remove("open");
+  }
+
+  function showLocusDriverPopover(anchorEl, act) {
+    let pop = document.getElementById("mn-locus-quick-pop");
+    if (!pop) {
+      pop = document.createElement("div");
+      pop.id = "mn-locus-quick-pop";
+      pop.addEventListener("pointerdown", e => e.stopPropagation());
+      document.body.appendChild(pop);
+      window.addEventListener("pointerdown", () => closeLocusQuickPop());
+    }
+    const pg = getPage(act.pageIdx);
+    const geo = pg && pg.geo;
+    const tName = geo && act.kind === "createPoint" ? ptName(geo, act.tracedId) : "";
+    pop.innerHTML = `<div class="mn-lqp-title">Quỹ tích điểm ${escapeHtml(tName)}</div>`;
+    for (const d of act.drivers) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mn-lqp-item";
+      btn.textContent = d.label;
+      btn.addEventListener("click", () => {
+        closeLocusQuickPop();
+        if (act.kind === "createPoint") createPointLocus(act.pageIdx, act.tracedId, d.type, d.id);
+        else if (act.kind === "createShape") createShapeLocus(act.pageIdx, act.shape, d.type, d.id);
+      });
+      pop.appendChild(btn);
+    }
+    const rect = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : { left: window.innerWidth / 2 - 100, bottom: 92 };
+    pop.style.left = `${Math.max(12, Math.min(window.innerWidth - 260, Math.round(rect.left)))}px`;
+    pop.style.top = `${Math.round(rect.bottom + 6)}px`;
+    pop.classList.add("open");
+  }
+
+  function onLocusSelectionClick(ev) {
+    closeLocusQuickPop();
+    const act = resolveSelectionLocusAction();
+    if (!act) {
+      const ed = getEditor();
+      if (ed && typeof ed.setTool === "function") {
+        ed.setTool({ k: "geo", t: "locus" });
+        showToast("Đã bật công cụ Quỹ tích — bấm điểm cần tìm quỹ tích rồi bấm điểm chuyển động.");
+      }
+      return;
+    }
+
+    if (act.kind === "editLocus") {
+      const L = act.locus.locus || {};
+      if (L.mode === "shape") {
+        const steps = [16, 28, 48];
+        const cur = Number(L.samples) || 28;
+        const next = steps[(steps.indexOf(cur) + 1) % steps.length] || 28;
+        updateLocusShape(act.pageIdx, act.locus.id, null, { samples: next });
+        showToast(`Đã đổi mật độ họ hình quỹ tích: ${next} đường`);
+      } else {
+        const steps = [240, 480, 120];
+        const cur = Number(L.samples) || 240;
+        const next = steps[(steps.indexOf(cur) + 1) % steps.length] || 240;
+        updateLocusShape(act.pageIdx, act.locus.id, null, { samples: next });
+        showToast(`Đã đổi độ mịn quỹ tích: ${next >= 400 ? "Cao (480 mẫu)" : next <= 140 ? "Nhanh (120 mẫu)" : "Chuẩn (240 mẫu)"}`);
+      }
+      return;
+    }
+
+    if (act.drivers.length === 1) {
+      const d = act.drivers[0];
+      if (act.kind === "createPoint") createPointLocus(act.pageIdx, act.tracedId, d.type, d.id);
+      else if (act.kind === "createShape") createShapeLocus(act.pageIdx, act.shape, d.type, d.id);
+      return;
+    }
+
+    showLocusDriverPopover(ev && ev.currentTarget, act);
+  }
+
+  // ==================== DIRECT TOOL INTEGRATION ====================
 
   // Build Circle (centerId, radius = distParam)
   function constructCircleByParam(ed, pageIdx, centerId, distParam) {
@@ -919,7 +964,7 @@
     if (!pg || !K) return false;
     const geo = pg.geo;
 
-    // 0. Native Quỹ tích (Locus) tool — works BOTH with active KaTeX param (1-click) AND with 2 clicks (point/shape + driver point)!
+    // 0. Native Quỹ tích (Locus) tool — works with active KaTeX param (1-click) AND with 2 clicks (point/shape + driver point or driver path)!
     if (tool === "locus") {
       const armedParam = getSelectedParams(pageIdx).find(p => !p.expr);
       if (armedParam) {
@@ -938,15 +983,22 @@
 
       if (list.length === 0) {
         if (pick.kind === "point") {
+          const drivers = listValidDriversForPoints(geo, [pick.id]);
+          const asDriver = isDriverPoint(geo, pick.id);
+          if (!drivers.length && !asDriver) {
+            showToast(`Điểm ${ptName(geo, pick.id)} là điểm tự do chưa phụ thuộc vào điểm chuyển động nào.`);
+            return true;
+          }
           list.push(pick);
           ed.sel = { page: pageIdx, strokes: new Set(), items: new Set(), points: new Set([pick.id]), shapes: new Set() };
           ed.redraw();
           ed.emit();
-          const drivers = listValidDriversForPoints(geo, [pick.id]);
-          if (isDriverPoint(geo, pick.id) && !drivers.length) {
-            showToast(`Đã chọn điểm dẫn ${ptName(geo, pick.id)} — bấm tiếp điểm phụ thuộc cần vẽ quỹ tích`);
+          if (drivers.length === 1) {
+            showToast(`Đã chọn điểm ${ptName(geo, pick.id)} — bấm điểm dẫn ${drivers[0].shortName} (hoặc đường chứa ${drivers[0].shortName}, hoặc bấm lại ${ptName(geo, pick.id)}) để tạo quỹ tích`);
+          } else if (drivers.length > 1) {
+            showToast(`Đã chọn điểm ${ptName(geo, pick.id)} — bấm tiếp điểm chuyển động dẫn (${drivers.map(d => d.shortName).join(", ")})`);
           } else {
-            showToast(`Đã chọn điểm ${ptName(geo, pick.id)} — bấm tiếp điểm chuyển động dẫn (trên đường tròn, đoạn thẳng, đường thẳng...)`);
+            showToast(`Đã chọn điểm dẫn ${ptName(geo, pick.id)} — bấm tiếp điểm (hoặc đường) phụ thuộc cần tìm quỹ tích`);
           }
           return true;
         }
@@ -955,7 +1007,7 @@
           ed.sel = { page: pageIdx, strokes: new Set(), items: new Set(), points: new Set(), shapes: new Set([pick.c.shape.id]) };
           ed.redraw();
           ed.emit();
-          showToast(`Đã chọn ${describeShapeShort(geo, pick.c.shape)} — bấm tiếp điểm chuyển động dẫn để tạo họ quỹ tích`);
+          showToast(`Đã chọn ${describeShapeShort(geo, pick.c.shape)} — bấm tiếp điểm phụ thuộc hoặc điểm dẫn`);
           return true;
         }
         return true;
@@ -964,11 +1016,16 @@
       const first = list[0];
       ed.picks = null;
 
-      // Two points (auto-detect either order: traced then driver, OR driver then traced!)
+      // Two points (traced + driver in either order, OR clicking the traced point twice when it has 1 unique driver, OR traced + anchor of driver's path!)
       if (first.kind === "point" && pick.kind === "point") {
         const a = first.id, b = pick.id;
         if (a === b) {
-          showToast("Hãy chọn 2 điểm khác nhau: 1 điểm cần vẽ quỹ tích và 1 điểm chuyển động.");
+          const drivers = listValidDriversForPoints(geo, [a]);
+          if (drivers.length === 1) {
+            createPointLocus(pageIdx, a, drivers[0].type, drivers[0].id);
+            return true;
+          }
+          showToast("Hãy bấm tiếp điểm chuyển động dẫn để hoàn tất tạo quỹ tích.");
           return true;
         }
         if (dependsOn(geo, a, b) && isDriverPoint(geo, b)) {
@@ -979,10 +1036,21 @@
           createPointLocus(pageIdx, b, "point", a);
           return true;
         }
+        // Fallback: user clicked traced point A and anchor point B of M's path (e.g. center O of circle (O) that M moves on)
+        const drvForA = listValidDriversForPoints(geo, [a]).filter(d => d.type === "point" && (dependsOn(geo, d.id, b) || (d.drv && d.drv.pts && d.drv.pts.includes(b))));
+        if (drvForA.length === 1) {
+          createPointLocus(pageIdx, a, "point", drvForA[0].id);
+          return true;
+        }
+        const drvForB = listValidDriversForPoints(geo, [b]).filter(d => d.type === "point" && (dependsOn(geo, d.id, a) || (d.drv && d.drv.pts && d.drv.pts.includes(a))));
+        if (drvForB.length === 1) {
+          createPointLocus(pageIdx, b, "point", drvForB[0].id);
+          return true;
+        }
         if (dependsOn(geo, a, b) && !isDriverPoint(geo, b)) {
-          showToast(`Điểm ${ptName(geo, b)} là điểm tự do — hãy đặt ${ptName(geo, b)} lên 1 đường (đường tròn/đoạn/đường thẳng) hoặc bật Vết điểm.`);
+          showToast(`Điểm ${ptName(geo, b)} chưa nằm trên đường dẫn (đường tròn, đoạn thẳng, đường thẳng...).`);
         } else if (dependsOn(geo, b, a) && !isDriverPoint(geo, a)) {
-          showToast(`Điểm ${ptName(geo, a)} là điểm tự do — hãy đặt ${ptName(geo, a)} lên 1 đường (đường tròn/đoạn/đường thẳng) hoặc bật Vết điểm.`);
+          showToast(`Điểm ${ptName(geo, a)} chưa nằm trên đường dẫn (đường tròn, đoạn thẳng, đường thẳng...).`);
         } else {
           showToast(`Hai điểm ${ptName(geo, a)} và ${ptName(geo, b)} không phụ thuộc vào nhau.`);
         }
@@ -990,15 +1058,29 @@
         return true;
       }
 
-      // Curve + Point (either order) -> Shape envelope / family locus
+      // Point + Curve (either order):
+      // 1) If Point P depends on a driver M that moves on Curve C -> create Point Locus of P driven by M!
+      // 2) Else if Curve C depends on driver Point M -> create Shape Envelope of C driven by M!
       const curvePick = first.kind === "curve" ? first : (pick.kind === "curve" ? pick : null);
       const ptPick = first.kind === "point" ? first : (pick.kind === "point" ? pick : null);
       if (curvePick && ptPick && curvePick.c && curvePick.c.shape) {
-        createShapeLocus(pageIdx, curvePick.c.shape, "point", ptPick.id);
+        const sh = curvePick.c.shape, ptId = ptPick.id;
+        const ptDrivers = listValidDriversForPoints(geo, [ptId]);
+        const matchDrv = matchDriverOnShape(geo, ptDrivers, sh);
+        if (matchDrv && !sh.pts.some(pid => dependsOn(geo, pid, ptId))) {
+          createPointLocus(pageIdx, ptId, matchDrv.type, matchDrv.id);
+          return true;
+        }
+        if (isDriverPoint(geo, ptId) && sh.pts.some(pid => dependsOn(geo, pid, ptId))) {
+          createShapeLocus(pageIdx, sh, "point", ptId);
+          return true;
+        }
+        showToast(`Không tìm thấy quan hệ phụ thuộc giữa điểm ${ptName(geo, ptId)} và ${describeShapeShort(geo, sh)}.`);
+        ed.redraw();
         return true;
       }
 
-      showToast("Hãy bấm điểm (hoặc đường) cần vẽ quỹ tích rồi bấm điểm chuyển động.");
+      showToast("Hãy bấm điểm cần tìm quỹ tích rồi bấm điểm chuyển động.");
       ed.redraw();
       return true;
     }
@@ -1252,7 +1334,7 @@
     return true;
   }
 
-  // Hook 3: onToolChange — GSP5 instant-construct when user ALREADY selected point O + param a=2cm and clicks Circle tool, OR selected 2 points and clicks Locus tool!
+  // Hook 3: onToolChange — instant-construct when user ALREADY selected point O + param a=2cm and clicks Circle tool, OR selected 2 points and clicks Locus tool!
   function onToolChange(ed, tool) {
     if (!ed || !tool) return;
     const pageIdx = currentPageIndex();
@@ -1668,71 +1750,12 @@
     if (STATE.open) renderPanel();
   }
 
-  // ==================== PARAMETER & DRIVER POINT ANIMATION LOOP ====================
-
-  function stepDriverPointDef(def, dt, rec) {
-    if (!def) return null;
-    if (def.t === "path") {
-      const closed = def.kind === "circle" || def.kind === "ellipse" || def.kind === "polygon";
-      if (closed) {
-        let k = ((Number(def.k) || 0) + 0.16 * dt) % 1;
-        if (k < 0) k += 1;
-        return { ...def, k };
-      }
-      let dir = rec.dir || 1;
-      let k = (Number(def.k) || 0) + dir * 0.24 * dt;
-      if (k >= 1) { k = 1; dir = -1; }
-      else if (k <= 0) { k = 0; dir = 1; }
-      rec.dir = dir;
-      return { ...def, k };
-    }
-    if (def.t === "on") {
-      const lo = def.seg ? 0 : -1.5;
-      const hi = def.seg ? 1 : 2.5;
-      const span = hi - lo;
-      let dir = rec.dir || 1;
-      let k = (Number(def.k) || 0) + dir * span * 0.24 * dt;
-      if (k >= hi) { k = hi; dir = -1; }
-      else if (k <= lo) { k = lo; dir = 1; }
-      rec.dir = dir;
-      return { ...def, k };
-    }
-    if (def.t === "vec") {
-      const lo = -1.5, hi = 2.5, span = hi - lo;
-      let dir = rec.dir || 1;
-      let k = (Number(def.k) || 0) + dir * span * 0.24 * dt;
-      if (k >= hi) { k = hi; dir = -1; }
-      else if (k <= lo) { k = lo; dir = 1; }
-      rec.dir = dir;
-      return { ...def, k };
-    }
-    if (def.t === "len") {
-      const ang = ((Number(def.ang) || 0) + Math.PI * 2 * 0.16 * dt) % (Math.PI * 2);
-      return { ...def, ang };
-    }
-    if (def.t === "polar") {
-      if (def.fixedDist && !def.fixedAng) {
-        const curAngDeg = ((Number(def.curAngDeg) || 0) + 60 * dt) % 360;
-        return { ...def, curAngDeg };
-      }
-      if (def.fixedAng && !def.fixedDist) {
-        const lo = 25, hi = 320;
-        let dir = rec.dir || 1;
-        let curDistPx = (Number(def.curDistPx) || 120) + dir * (hi - lo) * 0.25 * dt;
-        if (curDistPx >= hi) { curDistPx = hi; dir = -1; }
-        else if (curDistPx <= lo) { curDistPx = lo; dir = 1; }
-        rec.dir = dir;
-        return { ...def, curDistPx };
-      }
-    }
-    return null;
-  }
+  // ==================== PARAMETER ANIMATION LOOP ====================
 
   function ensureAnimLoop() {
     const pg = getPage();
     const anyParamAnim = pg && pg.geo && Array.isArray(pg.geo.params) && pg.geo.params.some(p => p.animating && !p.expr);
-    const anyPtAnim = STATE.animPoints.size > 0;
-    if (!anyParamAnim && !anyPtAnim) {
+    if (!anyParamAnim) {
       if (STATE.rafId) { cancelAnimationFrame(STATE.rafId); STATE.rafId = null; }
       return;
     }
@@ -1746,57 +1769,31 @@
       const list = page && page.geo && Array.isArray(page.geo.params) ? page.geo.params : [];
       const activeParams = list.filter(p => p.animating && !p.expr);
 
-      // Clean up invalid animated points
-      const activePts = [];
-      for (const [k, rec] of STATE.animPoints.entries()) {
-        const rpg = getPage(rec.pageIdx);
-        if (!rpg || !rpg.geo || !rpg.geo.points[rec.ptId] || !isDriverPoint(rpg.geo, rec.ptId)) {
-          STATE.animPoints.delete(k);
-        } else if (rec.pageIdx === pIdx) {
-          activePts.push(rec);
-        }
-      }
+      if (!activeParams.length) { STATE.rafId = null; return; }
 
-      if (!activeParams.length && !STATE.animPoints.size) { STATE.rafId = null; return; }
+      mutateGeo(pIdx, geo => {
+        const nextParams = (geo.params || []).map(p => {
+          if (!p.animating || p.expr) return p;
+          const span = Math.max(0.1, (p.max ?? 10) - (p.min ?? 0));
+          let dir = p.animDir || 1;
+          let nv = (Number(p.value) || 0) + dir * span * 0.22 * dt;
+          if (nv >= p.max) { nv = p.max; dir = -1; }
+          else if (nv <= p.min) { nv = p.min; dir = 1; }
+          nv = Math.round(nv * 1000) / 1000;
+          return { ...p, value: nv, animDir: dir };
+        });
+        return { ...geo, params: nextParams };
+      }, { live: true, refreshSolids: true });
 
-      if (activeParams.length || activePts.length) {
-        mutateGeo(pIdx, geo => {
-          let nextParams = geo.params;
-          if (activeParams.length) {
-            nextParams = (geo.params || []).map(p => {
-              if (!p.animating || p.expr) return p;
-              const span = Math.max(0.1, (p.max ?? 10) - (p.min ?? 0));
-              let dir = p.animDir || 1;
-              let nv = (Number(p.value) || 0) + dir * span * 0.22 * dt;
-              if (nv >= p.max) { nv = p.max; dir = -1; }
-              else if (nv <= p.min) { nv = p.min; dir = 1; }
-              nv = Math.round(nv * 1000) / 1000;
-              return { ...p, value: nv, animDir: dir };
-            });
-          }
-          let nextPoints = geo.points;
-          if (activePts.length) {
-            nextPoints = { ...geo.points };
-            for (const rec of activePts) {
-              const pt = nextPoints[rec.ptId];
-              if (!pt || !pt.def) continue;
-              const nd = stepDriverPointDef(pt.def, dt, rec);
-              if (nd) nextPoints[rec.ptId] = { ...pt, def: nd };
-            }
-          }
-          return { ...geo, params: nextParams, points: nextPoints };
-        }, { live: true, refreshSolids: true });
-
-        const panel = document.getElementById("mn-param-panel");
-        if (panel && panel.classList.contains("open") && STATE.tab === "params" && activeParams.length) {
-          const curList = getParams(pIdx);
-          for (const p of curList) {
-            if (!p.animating) continue;
-            const sl = panel.querySelector(`input.mnp-slider[data-pid="${p.id}"]`);
-            const inp = panel.querySelector(`input.mnp-val-input[data-pid="${p.id}"]`);
-            if (sl) sl.value = String(p.value);
-            if (inp && document.activeElement !== inp) inp.value = fmtNum(p.value, p.unit === "angle" ? 1 : 2);
-          }
+      const panel = document.getElementById("mn-param-panel");
+      if (panel && panel.classList.contains("open") && STATE.tab === "params") {
+        const curList = getParams(pIdx);
+        for (const p of curList) {
+          if (!p.animating) continue;
+          const sl = panel.querySelector(`input.mnp-slider[data-pid="${p.id}"]`);
+          const inp = panel.querySelector(`input.mnp-val-input[data-pid="${p.id}"]`);
+          if (sl) sl.value = String(p.value);
+          if (inp && document.activeElement !== inp) inp.value = fmtNum(p.value, p.unit === "angle" ? 1 : 2);
         }
       }
       STATE.rafId = requestAnimationFrame(tick);
@@ -2335,64 +2332,93 @@
     if (STATE.open) renderPanel();
   }
 
-  // ==================== LIVE TRACE & OPTIONAL EDGE OVERLAY LABELS ====================
+  // ==================== LIVE LOCUS PREVIEW & OPTIONAL EDGE OVERLAY LABELS ====================
 
   function drawOverlay(ctx, geo, coords) {
     if (!geo || !geo.points || !coords) return;
+    const K = getKernel();
+    const ed = getEditor();
 
-    // 1. Always update & render active point Traces (Vết chuyển động) for this page
-    if (STATE.traces.size > 0) {
-      const ed = getEditor();
-      let pageIdx = -1;
-      if (ed && ed.doc && Array.isArray(ed.doc.pages)) {
-        pageIdx = ed.doc.pages.findIndex(pg => pg && pg.geo === geo);
-      }
-      for (const tr of STATE.traces.values()) {
-        if (pageIdx >= 0 && tr.pageIdx !== pageIdx) continue;
-        if (!geo.points[tr.ptId]) continue;
-        const pos = coords.get(tr.ptId);
-        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-          const last = tr.pts[tr.pts.length - 1];
-          if (!last) {
-            tr.pts.push({ x: pos.x, y: pos.y });
-          } else {
-            const d = Math.hypot(pos.x - last.x, pos.y - last.y);
-            if (d >= 1.6) {
-              if (d > 260) tr.pts.push(null); // discontinuity break
-              tr.pts.push({ x: pos.x, y: pos.y });
-              if (tr.pts.length > 4000) tr.pts.shift();
+    // 1. Live locus preview & driver highlight when user is actively using the Quỹ tích (locus) tool
+    if (ed && ed.tool && ed.tool.k === "geo" && ed.tool.t === "locus" && K && typeof K._mnLocusStrokes === "function") {
+      const pickedPtId = ed.picks && Array.isArray(ed.picks.list) && ed.picks.list.length === 1 && ed.picks.list[0].kind === "point"
+        ? ed.picks.list[0].id
+        : null;
+      const hoverPtId = !pickedPtId && ed.hover && ed.hover.point ? ed.hover.point : null;
+      const candId = pickedPtId || hoverPtId;
+      if (candId && geo.points[candId]) {
+        const drivers = listValidDriversForPoints(geo, [candId]);
+        if (drivers.length > 0) {
+          const drv = drivers[0];
+          const previewShape = {
+            id: `_prev_${candId}_${drv.id}`,
+            kind: "locus",
+            pts: drv.type === "point" ? [candId, drv.id] : [candId],
+            locus: {
+              mode: "point",
+              driverType: drv.type,
+              ...(drv.type === "param" ? { paramId: drv.id } : {}),
+              samples: 120
             }
+          };
+          const strokes = K._mnLocusStrokes(geo, previewShape, coords);
+          if (strokes && strokes.length) {
+            ctx.save();
+            ctx.strokeStyle = "#e11d48";
+            ctx.lineWidth = pickedPtId ? 2.2 : 1.7;
+            ctx.globalAlpha = pickedPtId ? 0.55 : 0.35;
+            ctx.setLineDash([7, 5]);
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            for (const st of strokes) {
+              if (!st.pts || st.pts.length < 2) continue;
+              ctx.beginPath();
+              st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+              if (st.closed) ctx.closePath();
+              ctx.stroke();
+            }
+            ctx.restore();
           }
-        }
-        if (tr.pts.length >= 2) {
-          ctx.save();
-          ctx.strokeStyle = tr.color || "#e11d48";
-          ctx.lineWidth = tr.width || 2.2;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.globalAlpha = 0.85;
-          ctx.beginPath();
-          let penDown = false;
-          for (const p of tr.pts) {
-            if (!p) { penDown = false; continue; }
-            if (!penDown) { ctx.moveTo(p.x, p.y); penDown = true; }
-            else ctx.lineTo(p.x, p.y);
-          }
-          ctx.stroke();
-          if (pos) {
-            ctx.globalAlpha = 0.35;
-            ctx.fillStyle = tr.color || "#e11d48";
+
+          // Highlight candidate driver point(s) with a clean target ring + tag so user knows where to click
+          for (const d of drivers) {
+            if (d.type !== "point") continue;
+            const dPos = coords.get(d.id);
+            if (!dPos) continue;
+            ctx.save();
+            ctx.strokeStyle = "#e11d48";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([3, 2.5]);
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, 7, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.arc(dPos.x, dPos.y, 11, 0, Math.PI * 2);
+            ctx.stroke();
+            if (pickedPtId) {
+              const badge = `Điểm dẫn ${d.shortName}`;
+              ctx.setLineDash([]);
+              ctx.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+              const tw = ctx.measureText(badge).width;
+              const bw = tw + 10, bh = 18;
+              const bx = dPos.x - bw / 2, by = dPos.y - 26;
+              ctx.fillStyle = "rgba(255, 241, 242, 0.95)";
+              ctx.strokeStyle = "rgba(225, 29, 72, 0.65)";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 5);
+              else ctx.rect(bx, by, bw, bh);
+              ctx.fill();
+              ctx.stroke();
+              ctx.fillStyle = "#be123c";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(badge, dPos.x, by + bh / 2 + 0.5);
+            }
+            ctx.restore();
           }
-          ctx.restore();
         }
       }
     }
 
     if (!STATE.showLabels) return;
-    const K = getKernel();
     if (!K) return;
     const params = Array.isArray(geo.params) ? geo.params : [];
     const paramById = new Map(params.map(p => [p.id, p]));
@@ -2480,10 +2506,10 @@
         <div class="mnp-header" id="mnp-drag-handle">
           <div class="mnp-title-wrap">
             <span class="mnp-title-icon">t₁</span>
-            <span class="mnp-title">Tham số GSP5</span>
+            <span class="mnp-title">Tham số</span>
           </div>
           <div class="mnp-head-actions">
-            <button type="button" class="mnp-icon-btn primary" id="mnp-btn-new" title="Tạo tham số mới (GSP5)">+ Mới</button>
+            <button type="button" class="mnp-icon-btn primary" id="mnp-btn-new" title="Tạo tham số mới">+ Mới</button>
             <button type="button" class="mnp-icon-btn" id="mnp-btn-labels" title="Bật/Tắt nhãn độ dài & góc trên cạnh">Nhãn</button>
             <button type="button" class="mnp-icon-btn" id="mnp-btn-close" title="Đóng bảng (tham số vẫn hiện dạng KaTeX trên bảng)">✕</button>
           </div>
@@ -2491,7 +2517,6 @@
         <div class="mnp-tabs">
           <button type="button" class="mnp-tab active" data-tab="params">Tham số <span class="mnp-tab-count" id="mnp-cnt-params">0</span></button>
           <button type="button" class="mnp-tab" data-tab="constraints">Ràng buộc <span class="mnp-tab-count" id="mnp-cnt-cons">0</span></button>
-          <button type="button" class="mnp-tab" data-tab="locus">Quỹ tích <span class="mnp-tab-count" id="mnp-cnt-locus">0</span></button>
           <button type="button" class="mnp-tab" data-tab="build">2D/3D</button>
         </div>
         <div class="mnp-body" id="mnp-body"></div>
@@ -2540,7 +2565,7 @@
       bd.innerHTML = `
         <div class="mnp-modal" role="dialog" aria-modal="true">
           <div class="mnp-modal-head">
-            <span id="mnp-modal-title">Tham số mới (GSP5)</span>
+            <span id="mnp-modal-title">Tham số mới</span>
             <button type="button" class="mnp-icon-btn" id="mnp-modal-x">✕</button>
           </div>
           <div class="mnp-modal-body">
@@ -2679,7 +2704,7 @@
     STATE.editingParamId = editId;
     const existing = editId ? params.find(p => p.id === editId) : null;
 
-    bd.querySelector("#mnp-modal-title").textContent = existing ? `Sửa tham số ${existing.name}` : "Tham số mới (GSP5)";
+    bd.querySelector("#mnp-modal-title").textContent = existing ? `Sửa tham số ${existing.name}` : "Tham số mới";
     const nmInp = bd.querySelector("#mnp-m-name");
     const valInp = bd.querySelector("#mnp-m-val");
 
@@ -2824,19 +2849,16 @@
     const geo = pg ? pg.geo : { points: {}, shapes: [], params: [] };
     const params = Array.isArray(geo.params) ? geo.params : [];
     const cons = listAllConstraints(pIdx);
-    const loci = Array.isArray(geo.shapes) ? geo.shapes.filter(s => s.kind === "locus") : [];
 
     panel.querySelector("#mnp-cnt-params").textContent = String(params.length);
     panel.querySelector("#mnp-cnt-cons").textContent = String(cons.length);
-    const cntLocus = panel.querySelector("#mnp-cnt-locus");
-    if (cntLocus) cntLocus.textContent = String(loci.length);
     panel.querySelector("#mnp-btn-labels").classList.toggle("on", STATE.showLabels);
+    if (STATE.tab === "locus") STATE.tab = "params";
     panel.querySelectorAll(".mnp-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === STATE.tab));
 
     const body = panel.querySelector("#mnp-body");
     if (STATE.tab === "params") renderParamsTab(body, pIdx, geo, params);
     else if (STATE.tab === "constraints") renderConstraintsTab(body, pIdx, geo, params, cons);
-    else if (STATE.tab === "locus") renderLocusTab(body, pIdx, geo, params, loci);
     else renderBuildTab(body, pIdx, geo, params);
   }
 
@@ -2847,7 +2869,7 @@
       empty.className = "mnp-empty";
       empty.innerHTML = `
         <div><b>Chưa có tham số nào trên trang này.</b></div>
-        <div style="margin-top:4px">Bấm <b>+ Mới</b> để tạo tham số kiểu GSP5 (hiện dạng KaTeX trên bảng):</div>
+        <div style="margin-top:4px">Bấm <b>+ Mới</b> để tạo tham số mới (hiện dạng KaTeX trên bảng):</div>
         <div class="mnp-chip-row" style="justify-content:center;margin-top:10px">
           <button type="button" class="mnp-chip" data-preset="a">+ a = 2 cm</button>
           <button type="button" class="mnp-chip" data-preset="b">+ b = 3 cm</button>
@@ -2890,7 +2912,7 @@
           </div>
           <div class="mnp-head-actions">
             <button type="button" class="mnp-icon-btn ${isArmed ? "on" : ""}" data-act="arm" title="Chọn tham số này để kết hợp công cụ vẽ">${isArmed ? "✓ Chọn" : "Chọn"}</button>
-            ${!isFormula ? `<button type="button" class="mnp-icon-btn ${p.animating ? "on" : ""}" data-act="anim" title="Chạy tự động tham số (GSP5)">${p.animating ? "⏸" : "▶"}</button>` : ""}
+            ${!isFormula ? `<button type="button" class="mnp-icon-btn ${p.animating ? "on" : ""}" data-act="anim" title="Chạy tự động tham số">${p.animating ? "⏸" : "▶"}</button>` : ""}
             <button type="button" class="mnp-icon-btn" data-act="edit" title="Sửa tham số">✎</button>
             <button type="button" class="mnp-icon-btn" data-act="del" title="Xóa tham số">🗑</button>
           </div>
@@ -2973,7 +2995,7 @@
           <span style="font-weight:600;color:${L.locked ? "#0d9488" : "#64748b"}">${L.locked ? "Đang khóa" : "Tự do"}</span>
         </div>
         <div class="mnp-field">
-          <label>Chọn tham số khoảng cách (GSP5)</label>
+          <label>Chọn tham số khoảng cách</label>
           <select class="mnp-select" id="mnp-cl-param">
             <option value="">-- Nhập số cố định / công thức bên dưới --</option>
             ${distParams.map(p => `<option value="${p.id}" ${L.paramId === p.id ? "selected" : ""}>${escapeHtml(p.name)} = ${fmtNum(evalParamValue(geo, p), 2)}${unitSuffix(p.unit)}</option>`).join("")}
@@ -3021,7 +3043,7 @@
           <span style="font-weight:600;color:${G.locked ? "#0d9488" : "#64748b"}">${G.locked ? "Đang khóa" : "Tự do"}</span>
         </div>
         <div class="mnp-field">
-          <label>Chọn tham số góc (GSP5)</label>
+          <label>Chọn tham số góc</label>
           <select class="mnp-select" id="mnp-ca-param">
             <option value="">-- Nhập số độ cố định / công thức bên dưới --</option>
             ${angleParams.map(p => `<option value="${p.id}" ${G.angParamId === p.id ? "selected" : ""}>${escapeHtml(p.name)} = ${fmtNum(evalParamValue(geo, p), 1)}°</option>`).join("")}
@@ -3124,7 +3146,7 @@
       const tip = document.createElement("div");
       tip.className = "mnp-empty";
       tip.innerHTML = `
-        <b>Cách dùng nhanh kiểu GSP5:</b><br/>
+        <b>Cách dùng nhanh:</b><br/>
         • Bấm chọn <b>a = 2 cm</b> trên bảng + chọn công cụ <b>Đường tròn / Đoạn thẳng</b> → tự vẽ khóa cứng!<br/>
         • Hoặc chọn 1 đoạn thẳng / 2 đoạn chung đỉnh trên bảng để khóa độ dài / góc ngay tại đây.
       `;
@@ -3155,308 +3177,6 @@
           if (ed) ed.selectGeo(pIdx, [c.pointId], []);
         });
         row.querySelector("button").addEventListener("click", () => unlockPoint(pIdx, c.pointId, "all"));
-        listSec.appendChild(row);
-      }
-    }
-    body.appendChild(listSec);
-  }
-
-  function renderLocusTab(body, pIdx, geo, params, loci) {
-    body.innerHTML = "";
-    const ed = getEditor();
-    const lf = STATE.locusForm;
-    const isLocusTool = !!(ed && ed.tool && ed.tool.k === "geo" && ed.tool.t === "locus");
-
-    // 1. Quick direct-canvas tool button
-    const toolBar = document.createElement("div");
-    toolBar.className = "mnp-btn-row";
-    toolBar.innerHTML = `
-      <button type="button" class="mnp-btn ${isLocusTool ? "primary" : ""}" id="mnp-loc-tool">
-        ${isLocusTool ? "✓ Đang bật công cụ Quỹ tích" : "🎯 Chọn công cụ Quỹ tích trên bảng"}
-      </button>
-    `;
-    toolBar.querySelector("#mnp-loc-tool").addEventListener("click", () => {
-      if (ed) ed.setTool({ k: "geo", t: "locus" });
-      renderPanel();
-    });
-    body.appendChild(toolBar);
-
-    // 2. Dynamic Locus Creator Section
-    const creator = document.createElement("div");
-    creator.className = "mnp-section";
-
-    const modeSeg = document.createElement("div");
-    modeSeg.className = "mnp-seg";
-    modeSeg.innerHTML = `
-      <button type="button" class="${lf.mode === "point" ? "active" : ""}" data-lmode="point">➰ Quỹ tích điểm</button>
-      <button type="button" class="${lf.mode === "shape" ? "active" : ""}" data-lmode="shape">🌀 Họ hình (bao hình)</button>
-    `;
-    modeSeg.querySelectorAll("button").forEach(b => {
-      b.addEventListener("click", () => {
-        lf.mode = b.dataset.lmode;
-        lf.tracedId = "";
-        lf.driverKey = "";
-        renderPanel();
-      });
-    });
-    creator.appendChild(modeSeg);
-
-    // Build list of candidate targets
-    let candidates = [];
-    if (lf.mode === "point") {
-      const pts = Object.values(geo.points || {}).filter(p => p && p.show && !p.hidden);
-      candidates = pts.map(p => {
-        const drivers = listValidDriversForPoints(geo, [p.id]);
-        return { id: p.id, label: `Điểm ${ptName(geo, p.id)}${drivers.length ? "" : " (chưa có điểm dẫn)"}`, drivers };
-      });
-      candidates.sort((a, b) => (b.drivers.length > 0 ? 1 : 0) - (a.drivers.length > 0 ? 1 : 0));
-    } else {
-      const shs = (geo.shapes || []).filter(s => !s.hidden && ["segment", "line", "ray", "circle", "polygon"].includes(s.kind));
-      candidates = shs.map(s => {
-        const drivers = listValidDriversForPoints(geo, s.pts || []);
-        return { id: s.id, label: `${describeShapeShort(geo, s)}${drivers.length ? "" : " (chưa có điểm dẫn)"}`, drivers, shape: s };
-      });
-      candidates.sort((a, b) => (b.drivers.length > 0 ? 1 : 0) - (a.drivers.length > 0 ? 1 : 0));
-    }
-
-    // Auto-select from current canvas selection if form hasn't chosen or target disappeared
-    if (!lf.tracedId || !candidates.some(c => c.id === lf.tracedId)) {
-      const selPt = ed && ed.sel && ed.sel.page === pIdx && lf.mode === "point" ? [...ed.sel.points][0] : null;
-      const selSh = ed && ed.sel && ed.sel.page === pIdx && lf.mode === "shape" ? [...ed.sel.shapes][0] : null;
-      const prefId = selPt || selSh;
-      const pref = prefId && candidates.find(c => c.id === prefId && c.drivers.length > 0);
-      const firstValid = candidates.find(c => c.drivers.length > 0);
-      lf.tracedId = (pref || firstValid || candidates[0] || { id: "" }).id;
-    }
-
-    const activeCand = candidates.find(c => c.id === lf.tracedId) || null;
-    const validDrivers = activeCand ? activeCand.drivers : [];
-    if (!lf.driverKey || !validDrivers.some(d => d.key === lf.driverKey)) {
-      lf.driverKey = validDrivers[0] ? validDrivers[0].key : "";
-    }
-
-    const formInner = document.createElement("div");
-    formInner.style.display = "flex";
-    formInner.style.flexDirection = "column";
-    formInner.style.gap = "8px";
-    formInner.innerHTML = `
-      <div class="mnp-field">
-        <label>${lf.mode === "point" ? "Điểm cần vẽ quỹ tích" : "Đường / Hình cần tạo họ"}</label>
-        <select class="mnp-select" id="mnp-loc-target">
-          ${candidates.length
-            ? candidates.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === lf.tracedId ? "selected" : ""}>${escapeHtml(c.label)}</option>`).join("")
-            : `<option value="">-- Chưa có đối tượng phù hợp trên trang --</option>`}
-        </select>
-      </div>
-      <div class="mnp-field">
-        <label>Biến dẫn (Điểm chuyển động hoặc Tham số)</label>
-        <select class="mnp-select" id="mnp-loc-driver">
-          ${validDrivers.length
-            ? validDrivers.map(d => `<option value="${escapeHtml(d.key)}" ${d.key === lf.driverKey ? "selected" : ""}>${escapeHtml(d.label)}</option>`).join("")
-            : `<option value="">-- Chưa có điểm chạy / tham số nào dẫn đối tượng này --</option>`}
-        </select>
-      </div>
-      <div class="mnp-field">
-        <label><span>Màu sắc đường quỹ tích</span><span style="font-weight:500;color:#64748b">${lf.mode === "point" ? `${lf.samples} mẫu` : `${lf.shapeSamples} bản sao`}</span></label>
-        <div class="mnp-color-row" id="mnp-loc-colors">
-          ${LOCUS_COLORS.map(([hex, nm]) => `<button type="button" class="mnp-color-dot ${lf.color === hex ? "active" : ""}" data-col="${hex}" title="${nm}" style="background:${hex}"></button>`).join("")}
-        </div>
-      </div>
-      <div class="mnp-row-2">
-        <div class="mnp-field">
-          <label>${lf.mode === "point" ? "Độ mịn (số mẫu)" : "Số lượng đường"}</label>
-          <select class="mnp-select" id="mnp-loc-samples">
-            ${lf.mode === "point"
-              ? [120, 240, 480].map(n => `<option value="${n}" ${Number(lf.samples) === n ? "selected" : ""}>${n} mẫu ${n === 240 ? "(Chuẩn)" : n === 480 ? "(Siêu mịn)" : "(Nhanh)"}</option>`).join("")
-              : [16, 28, 48, 72].map(n => `<option value="${n}" ${Number(lf.shapeSamples) === n ? "selected" : ""}>${n} đường</option>`).join("")}
-          </select>
-        </div>
-        <div class="mnp-field">
-          <label>Kiểu nét</label>
-          <label class="mnp-check" style="height:31px">
-            <input type="checkbox" id="mnp-loc-dashed" ${lf.dashed ? "checked" : ""} /> Nét đứt
-          </label>
-        </div>
-      </div>
-      <div class="mnp-row-2">
-        <div class="mnp-field">
-          <label>Từ (tùy chọn)</label>
-          <input type="text" class="mnp-input" id="mnp-loc-min" value="${escapeHtml(lf.min)}" placeholder="Tự động" />
-        </div>
-        <div class="mnp-field">
-          <label>Đến (tùy chọn)</label>
-          <input type="text" class="mnp-input" id="mnp-loc-max" value="${escapeHtml(lf.max)}" placeholder="Tự động" />
-        </div>
-      </div>
-      <button type="button" class="mnp-btn primary" id="mnp-loc-create" ${!validDrivers.length ? "disabled" : ""}>✨ Tạo quỹ tích động</button>
-    `;
-
-    formInner.querySelector("#mnp-loc-target").addEventListener("change", e => {
-      lf.tracedId = e.target.value;
-      lf.driverKey = "";
-      renderPanel();
-    });
-    formInner.querySelector("#mnp-loc-driver").addEventListener("change", e => {
-      lf.driverKey = e.target.value;
-    });
-    formInner.querySelectorAll("#mnp-loc-colors .mnp-color-dot").forEach(btn => {
-      btn.addEventListener("click", () => {
-        lf.color = btn.dataset.col;
-        renderPanel();
-      });
-    });
-    formInner.querySelector("#mnp-loc-samples").addEventListener("change", e => {
-      const n = Number(e.target.value);
-      if (lf.mode === "point") lf.samples = n;
-      else lf.shapeSamples = n;
-    });
-    formInner.querySelector("#mnp-loc-dashed").addEventListener("change", e => {
-      lf.dashed = e.target.checked;
-    });
-    formInner.querySelector("#mnp-loc-min").addEventListener("input", e => { lf.min = e.target.value; });
-    formInner.querySelector("#mnp-loc-max").addEventListener("input", e => { lf.max = e.target.value; });
-    formInner.querySelector("#mnp-loc-create").addEventListener("click", () => {
-      if (!activeCand || !lf.driverKey) return;
-      const [prefix, dId] = lf.driverKey.split(":");
-      const dType = prefix === "pm" ? "param" : "point";
-      const opts = {
-        color: lf.color,
-        width: lf.mode === "point" ? 2.4 : 2.0,
-        dashed: lf.dashed,
-        samples: lf.mode === "point" ? lf.samples : lf.shapeSamples,
-        min: lf.min,
-        max: lf.max
-      };
-      if (lf.mode === "point") createPointLocus(pIdx, activeCand.id, dType, dId, opts);
-      else createShapeLocus(pIdx, activeCand.shape, dType, dId, opts);
-    });
-
-    creator.appendChild(formInner);
-
-    if (!validDrivers.length) {
-      const tip = document.createElement("div");
-      tip.className = "mnp-hint";
-      tip.innerHTML = "💡 <b>Mẹo dựng nhanh:</b> Đặt 1 điểm <b>M</b> nằm trên đường tròn / đoạn thẳng / đường thẳng, dựng điểm <b>I</b> phụ thuộc <b>M</b> (VD: trung điểm, chân đường cao, trọng tâm, giao điểm…), rồi bấm <b>Tạo quỹ tích</b>!";
-      creator.appendChild(tip);
-    }
-    body.appendChild(creator);
-
-    // 3. Live Trace Mode (Vết chuyển động kiểu GSP5)
-    const traceSec = document.createElement("div");
-    traceSec.className = "mnp-section";
-    const selPtIds = ed && ed.sel && ed.sel.page === pIdx ? [...ed.sel.points].filter(id => geo.points[id]) : [];
-    const pageTraces = [...STATE.traces.values()].filter(tr => tr.pageIdx === pIdx && geo.points[tr.ptId]);
-
-    traceSec.innerHTML = `
-      <div class="mnp-section-title">
-        <span>✏️ Vết chuyển động (Trace GSP5)</span>
-        ${pageTraces.length ? `<button type="button" class="mnp-icon-btn" id="mnp-tr-clear-all" title="Xóa mọi vết trên trang">🧹 Xóa vết</button>` : ""}
-      </div>
-    `;
-    const clearAllBtn = traceSec.querySelector("#mnp-tr-clear-all");
-    if (clearAllBtn) clearAllBtn.addEventListener("click", () => clearPageTraces(pIdx));
-
-    if (selPtIds.length) {
-      const row = document.createElement("div");
-      row.className = "mnp-chip-row";
-      row.style.marginTop = "0";
-      for (const pid of selPtIds) {
-        const on = isPointTraced(pIdx, pid);
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "mnp-chip" + (on ? " active" : "");
-        btn.textContent = on ? `✓ Đang bật vết ${ptName(geo, pid)}` : `+ Bật vết điểm ${ptName(geo, pid)}`;
-        btn.addEventListener("click", () => togglePointTrace(pIdx, pid, lf.color));
-        row.appendChild(btn);
-      }
-      traceSec.appendChild(row);
-    } else if (!pageTraces.length) {
-      const h = document.createElement("div");
-      h.className = "mnp-hint";
-      h.textContent = "Chọn 1 điểm bất kỳ (kể cả điểm tự do) rồi bật Vết để lưu lại đường đi khi kéo điểm hoặc chạy tham số.";
-      traceSec.appendChild(h);
-    }
-
-    for (const tr of pageTraces) {
-      const item = document.createElement("div");
-      item.className = "mnp-con-item";
-      item.innerHTML = `
-        <div class="mnp-con-info">
-          <div class="mnp-con-main"><span class="mnp-swatch" style="background:${escapeHtml(tr.color)}"></span> Vết điểm ${escapeHtml(ptName(geo, tr.ptId))}</div>
-          <div class="mnp-con-sub">${tr.pts.filter(Boolean).length} điểm đã ghi nhận</div>
-        </div>
-        <div class="mnp-head-actions">
-          <button type="button" class="mnp-icon-btn" data-tact="bake" title="Lưu vết thành nét vẽ cố định trên bảng">💾</button>
-          <button type="button" class="mnp-icon-btn" data-tact="clear" title="Xóa vết của điểm này">🧹</button>
-          <button type="button" class="mnp-icon-btn" data-tact="off" title="Tắt chế độ vết">✕</button>
-        </div>
-      `;
-      item.querySelector('[data-tact="bake"]').addEventListener("click", () => bakeTraceToStroke(pIdx, tr.ptId));
-      item.querySelector('[data-tact="clear"]').addEventListener("click", () => clearPageTraces(pIdx, tr.ptId));
-      item.querySelector('[data-tact="off"]').addEventListener("click", () => togglePointTrace(pIdx, tr.ptId));
-      traceSec.appendChild(item);
-    }
-    body.appendChild(traceSec);
-
-    // 4. Existing Loci List on Current Page
-    const listSec = document.createElement("div");
-    listSec.className = "mnp-section";
-    listSec.innerHTML = `<div class="mnp-section-title"><span>Danh sách quỹ tích trên trang (${loci.length})</span></div>`;
-    if (!loci.length) {
-      const p = document.createElement("div");
-      p.className = "mnp-hint";
-      p.textContent = "Chưa có đường quỹ tích động nào trên trang hiện tại.";
-      listSec.appendChild(p);
-    } else {
-      for (const sh of loci) {
-        const desc = describeLocus(geo, sh);
-        const L = sh.locus || {};
-        const dType = L.driverType === "param" ? "param" : "point";
-        const dId = dType === "param" ? L.paramId : (sh.pts && sh.pts[sh.pts.length - 1]);
-        const isAnim = dType === "param"
-          ? !!(params.find(p => p.id === dId && p.animating))
-          : (dId ? isPointAnimating(pIdx, dId) : false);
-
-        const row = document.createElement("div");
-        row.className = "mnp-con-item";
-        row.innerHTML = `
-          <div class="mnp-con-info">
-            <div class="mnp-con-main">
-              <span class="mnp-swatch" style="background:${escapeHtml(sh.color || "#e11d48")}"></span>
-              ${escapeHtml(desc.title)}
-            </div>
-            <div class="mnp-con-sub">${escapeHtml(desc.sub)} • ${sh.hidden ? "Đang ẩn" : (sh.dashed ? "Nét đứt" : "Nét liền")}</div>
-          </div>
-          <div class="mnp-head-actions">
-            ${dId ? `<button type="button" class="mnp-icon-btn ${isAnim ? "on" : ""}" data-lact="anim" title="${isAnim ? "Dừng chuyển động" : "Chạy tự động biến dẫn trên quỹ tích"}">${isAnim ? "⏸" : "▶"}</button>` : ""}
-            <button type="button" class="mnp-icon-btn" data-lact="color" title="Đổi màu đường quỹ tích">🎨</button>
-            <button type="button" class="mnp-icon-btn ${sh.dashed ? "on" : ""}" data-lact="dash" title="Đổi nét liền / nét đứt">┈</button>
-            <button type="button" class="mnp-icon-btn ${sh.hidden ? "" : "on"}" data-lact="vis" title="${sh.hidden ? "Hiện quỹ tích" : "Ẩn quỹ tích"}">${sh.hidden ? "🙈" : "👁"}</button>
-            <button type="button" class="mnp-icon-btn" data-lact="del" title="Xóa quỹ tích">🗑</button>
-          </div>
-        `;
-        row.querySelector(".mnp-con-info").addEventListener("click", () => {
-          if (ed) ed.selectGeo(pIdx, [], [sh.id]);
-        });
-        const animBtn = row.querySelector('[data-lact="anim"]');
-        if (animBtn) {
-          animBtn.addEventListener("click", () => {
-            if (dType === "param") toggleParamAnim(pIdx, dId);
-            else togglePointAnim(pIdx, dId);
-          });
-        }
-        row.querySelector('[data-lact="color"]').addEventListener("click", () => {
-          const curIdx = LOCUS_COLORS.findIndex(([hex]) => hex.toLowerCase() === String(sh.color || "").toLowerCase());
-          const nextHex = LOCUS_COLORS[(curIdx + 1) % LOCUS_COLORS.length][0];
-          updateLocusShape(pIdx, sh.id, { color: nextHex });
-        });
-        row.querySelector('[data-lact="dash"]').addEventListener("click", () => {
-          updateLocusShape(pIdx, sh.id, { dashed: !sh.dashed });
-        });
-        row.querySelector('[data-lact="vis"]').addEventListener("click", () => {
-          updateLocusShape(pIdx, sh.id, { hidden: !sh.hidden });
-        });
-        row.querySelector('[data-lact="del"]').addEventListener("click", () => deleteLocusShape(pIdx, sh.id));
         listSec.appendChild(row);
       }
     }
@@ -3658,7 +3378,7 @@
   }
 
   function onToolbarClick() {
-    // Bottom toolbar button opens GSP5 "Tham số mới" dialog directly!
+    // Bottom toolbar button opens "Tham số mới" dialog directly!
     openParamModal(null);
   }
 
@@ -3728,7 +3448,7 @@
   }
 
   // Keyboard shortcuts:
-  // - Alt+P: open GSP5 New Parameter dialog
+  // - Alt+P: open New Parameter dialog
   // - Alt+L: create Locus for current selection or open Quỹ tích tab
   // - + / - while a KaTeX parameter chip is selected: nudge value live (just like GSP5!)
   // - Escape: deselect active parameter chip
@@ -3776,6 +3496,9 @@
     toggle: togglePanel,
     onToolbarClick,
     openForSelection,
+    canShowLocusInSelBar,
+    getLocusSelBarLabel,
+    getLocusSelBarTitle,
     onLocusSelectionClick,
     openNewParameter: (unit, val) => openParamModal(null, unit, val),
     drawOverlay,
@@ -3796,17 +3519,11 @@
     buildParametric3D,
     getParams,
     listAllConstraints,
-    // Locus & Trace API
+    // Locus API
     createPointLocus,
     createShapeLocus,
     updateLocusShape,
-    deleteLocusShape,
-    togglePointAnim,
-    isPointAnimating,
-    togglePointTrace,
-    isPointTraced,
-    clearPageTraces,
-    bakeTraceToStroke
+    deleteLocusShape
   };
 
   if (document.readyState === "loading") {
