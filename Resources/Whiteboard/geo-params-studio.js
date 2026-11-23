@@ -2365,56 +2365,24 @@
     if (!geo || !geo.points || !coords) return;
     const K = getKernel();
     const ed = getEditor();
+    const tr = ctx.getTransform ? ctx.getTransform() : null;
+    const dpr = window.devicePixelRatio || 1;
+    const sc = Math.max(0.25, tr ? Math.hypot(tr.a, tr.b) / dpr : 1);
+    const dotR = (ed && typeof ed.dotR === "function") ? ed.dotR() : 5;
     const hiColor = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi() : "#2563eb";
-    const hiSoft = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi(0.24) : "rgba(37, 99, 235, 0.24)";
     const hiMid = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi(0.55) : "rgba(37, 99, 235, 0.55)";
 
-    const drawPillBadge = (x, y, text, bg, border, fg) => {
-      ctx.save();
-      ctx.setLineDash([]);
-      ctx.font = "600 11.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-      const tw = ctx.measureText(text).width;
-      const bw = tw + 12, bh = 20;
-      const bx = x - bw / 2, by = y - bh - 12;
-      ctx.fillStyle = bg;
-      ctx.strokeStyle = border;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 6);
-      else ctx.rect(bx, by, bw, bh);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = fg;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, x, by + bh / 2 + 0.5);
-      ctx.restore();
-    };
-
-    const drawGlowPoint = (pos, color, soft, badgeText, badgeBg, badgeBorder, badgeFg) => {
+    // Clean 1-layer zoom-aware highlight ring (no overlapping text pills covering geometry)
+    const drawGlowPoint = (pos, color, dashed) => {
       if (!pos) return;
       ctx.save();
-      ctx.setLineDash([]);
-      ctx.fillStyle = soft;
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 16, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.setLineDash(dashed ? [3.5 / sc, 2.5 / sc] : []);
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = (dashed ? 1.6 : 2) / sc;
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 10.5, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.4;
+      ctx.arc(pos.x, pos.y, Math.max(6 / sc, dotR + 2.4 / sc), 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-      if (badgeText) {
-        drawPillBadge(pos.x, pos.y, badgeText, badgeBg || "rgba(239, 246, 255, 0.96)", badgeBorder || color, badgeFg || color);
-      }
     };
 
     const drawGlowDriverPath = (drvInfo) => {
@@ -2424,13 +2392,9 @@
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.setLineDash([]);
-        ctx.strokeStyle = hiSoft;
-        ctx.lineWidth = 10;
-        drawFn();
-        ctx.stroke();
         ctx.strokeStyle = hiColor;
-        ctx.globalAlpha = 0.92;
-        ctx.lineWidth = 3.2;
+        ctx.globalAlpha = 0.58;
+        ctx.lineWidth = 3 / sc;
         drawFn();
         ctx.stroke();
         ctx.restore();
@@ -2503,22 +2467,10 @@
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      if (strong) {
-        ctx.strokeStyle = "rgba(225, 29, 72, 0.22)";
-        ctx.lineWidth = 7;
-        ctx.setLineDash([]);
-        for (const st of strokes) {
-          if (!st.pts || st.pts.length < 2) continue;
-          ctx.beginPath();
-          st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-          if (st.closed) ctx.closePath();
-          ctx.stroke();
-        }
-      }
       ctx.strokeStyle = "#e11d48";
-      ctx.lineWidth = strong ? 2.6 : 1.9;
-      ctx.globalAlpha = strong ? 0.85 : 0.45;
-      ctx.setLineDash([7, 5]);
+      ctx.lineWidth = (strong ? 2.1 : 1.6) / sc;
+      ctx.globalAlpha = strong ? 0.82 : 0.45;
+      ctx.setLineDash([6 / sc, 4 / sc]);
       for (const st of strokes) {
         if (!st.pts || st.pts.length < 2) continue;
         ctx.beginPath();
@@ -2529,41 +2481,21 @@
       ctx.restore();
     };
 
-    // 0. Hover highlight from Locus Driver Popover or Constraints list
+    // 0. Hover highlight from Locus Driver Popover or Constraints list (glow only, zero pills!)
     const hh = STATE.hoverHighlight;
     if (hh && (pageIdx === undefined || pageIdx === hh.pageIdx)) {
       if (hh.kind === "locusDriver" && hh.act && hh.driver) {
         const d = hh.driver;
         if (d.type === "point") {
-          const drvInfo = d.drv || resolveDriver(geo, d.id);
-          drawGlowDriverPath(drvInfo);
-          drawGlowPoint(
-            coords.get(d.id),
-            hiColor,
-            hiSoft,
-            `Điểm dẫn ${d.shortName}`,
-            "rgba(239, 246, 255, 0.96)",
-            hiColor,
-            "#1d4ed8"
-          );
+          drawGlowDriverPath(d.drv || resolveDriver(geo, d.id));
+          drawGlowPoint(coords.get(d.id), hiColor, false);
         }
         if (hh.act.kind === "createPoint" && hh.act.tracedId) {
           drawPreviewLocus(hh.act.tracedId, d, true);
-          drawGlowPoint(
-            coords.get(hh.act.tracedId),
-            "#e11d48",
-            "rgba(225, 29, 72, 0.22)",
-            `Điểm ${ptName(geo, hh.act.tracedId)}`,
-            "rgba(255, 241, 242, 0.96)",
-            "#e11d48",
-            "#be123c"
-          );
+          drawGlowPoint(coords.get(hh.act.tracedId), "#e11d48", false);
         }
       } else if (hh.kind === "point" && hh.pointId) {
-        const pos = coords.get(hh.pointId);
-        if (pos) {
-          drawGlowPoint(pos, hiColor, hiSoft, ptName(geo, hh.pointId), "rgba(239, 246, 255, 0.96)", hiColor, "#1d4ed8");
-        }
+        drawGlowPoint(coords.get(hh.pointId), hiColor, false);
       }
     }
 
@@ -2598,21 +2530,7 @@
             const dPos = coords.get(d.id);
             if (!dPos) continue;
             const isActive = d === activeDrv;
-            if (isActive && pickedPtId) {
-              drawGlowPoint(dPos, hiColor, hiSoft, `Điểm dẫn ${d.shortName}`, "rgba(239, 246, 255, 0.96)", hiColor, "#1d4ed8");
-            } else {
-              ctx.save();
-              ctx.strokeStyle = isActive ? hiColor : hiMid;
-              ctx.lineWidth = isActive ? 2.2 : 1.7;
-              ctx.setLineDash([3.5, 2.5]);
-              ctx.beginPath();
-              ctx.arc(dPos.x, dPos.y, 11, 0, Math.PI * 2);
-              ctx.stroke();
-              ctx.restore();
-              if (pickedPtId) {
-                drawPillBadge(dPos.x, dPos.y, `Điểm dẫn ${d.shortName}`, "rgba(248, 250, 252, 0.94)", hiMid, "#1e40af");
-              }
-            }
+            drawGlowPoint(dPos, isActive ? hiColor : hiMid, !(isActive && pickedPtId));
           }
         }
       }
@@ -2633,15 +2551,15 @@
       const tw = ctx.measureText(text).width;
       const padX = 6, h = 20, w = tw + padX * 2;
       const rx = x - w / 2, ry = y - h / 2;
-      ctx.fillStyle = "rgba(240, 253, 250, 0.92)";
-      ctx.strokeStyle = "rgba(13, 148, 136, 0.55)";
+      ctx.fillStyle = "rgba(239, 246, 255, 0.94)";
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.45)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(rx, ry, w, h, 6);
       else ctx.rect(rx, ry, w, h);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = "#0f766e";
+      ctx.fillStyle = "#1d4ed8";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(text, x, y + 0.5);
@@ -2894,7 +2812,7 @@
     prev.style.display = "block";
     if (Number.isFinite(val)) {
       prev.textContent = `Kết quả công thức ≈ ${fmtNum(val, 3)}${unitSuffix(unit)}`;
-      prev.style.color = "#0f766e";
+      prev.style.color = "#1d4ed8";
     } else {
       prev.textContent = "Biểu thức chưa hợp lệ hoặc tham số chưa tồn tại";
       prev.style.color = "#dc2626";
@@ -3196,7 +3114,7 @@
       sec.innerHTML = `
         <div class="mnp-section-title">
           <span>🔒 Khóa ${escapeHtml(L.label)}</span>
-          <span style="font-weight:600;color:${L.locked ? "#0d9488" : "#64748b"}">${L.locked ? "Đang khóa" : "Tự do"}</span>
+          <span style="font-weight:600;color:${L.locked ? "#2563eb" : "#64748b"}">${L.locked ? "Đang khóa" : "Tự do"}</span>
         </div>
         <div class="mnp-field">
           <label>Chọn tham số khoảng cách</label>
@@ -3244,7 +3162,7 @@
       sec.innerHTML = `
         <div class="mnp-section-title">
           <span>📐 Khóa góc ${escapeHtml(G.label)}</span>
-          <span style="font-weight:600;color:${G.locked ? "#0d9488" : "#64748b"}">${G.locked ? "Đang khóa" : "Tự do"}</span>
+          <span style="font-weight:600;color:${G.locked ? "#2563eb" : "#64748b"}">${G.locked ? "Đang khóa" : "Tự do"}</span>
         </div>
         <div class="mnp-field">
           <label>Chọn tham số góc</label>
@@ -3660,7 +3578,7 @@
   // Keyboard shortcuts:
   // - Alt+P: open New Parameter dialog
   // - Alt+L: create Locus for current selection or open Quỹ tích tab
-  // - + / - while a KaTeX parameter chip is selected: nudge value live (just like GSP5!)
+  // - + / - while a KaTeX parameter chip is selected: nudge value live (dynamic geometry)
   // - Escape: deselect active parameter chip
   window.addEventListener("keydown", e => {
     const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();

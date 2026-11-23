@@ -311,43 +311,6 @@
     return sh ? describeShape(geo, sh, !!(it.rev ?? step.rev), !!step.tempHide) : 'Đối tượng';
   }
 
-  function stepSubtitle(geo, step) {
-    if (step.items && step.items.length > 1) {
-      const preview = step.items.slice(0, 4).map(it => {
-        if (it.kind === 'point') return ptName(geo, it.refId);
-        const sh = geo.shapes.find(s => s.id === it.refId);
-        return sh ? sh.pts.map(id => ptName(geo, id)).join('') : '';
-      }).filter(Boolean).join(', ');
-      return `Vẽ đồng thời: ${preview}${step.items.length > 4 ? '…' : ''}`;
-    }
-    const it = (step.items && step.items[0]) || step;
-    if (it.kind === 'point') {
-      const p = geo.points[it.refId];
-      if (!p) return '';
-      const t = p.def.t;
-      if (t === 'inter') {
-        const l1 = `${ptName(geo, p.def.l1[0])}${ptName(geo, p.def.l1[1])}`;
-        const l2 = `${ptName(geo, p.def.l2[0])}${ptName(geo, p.def.l2[1])}`;
-        return step.showGuides !== false
-          ? `Vẽ ${l1} ∩ ${l2} → hiện ${ptName(geo, p.id)} → ẩn 2 đường`
-          : `Giao điểm ${l1} ∩ ${l2} (không vẽ đường phụ)`;
-      }
-      if (t === 'mid') return `Trung điểm ${ptName(geo, p.def.a)}${ptName(geo, p.def.b)}`;
-      if (t === 'on') return `Điểm trên ${ptName(geo, p.def.a)}${ptName(geo, p.def.b)}`;
-      if (t === 'foot') return `Chân đường vuông góc`;
-      return 'Điểm dựng';
-    }
-    const sh = geo.shapes.find(s => s.id === it.refId);
-    if (!sh) return '';
-    if (sh.kind === 'segment' || sh.kind === 'line' || sh.kind === 'ray') {
-      const rev = !!(it.rev ?? step.rev);
-      const a = ptName(geo, rev ? sh.pts[1] : sh.pts[0]);
-      const b = ptName(geo, rev ? sh.pts[0] : sh.pts[1]);
-      return `Chiều vẽ: ${a} ⟶ ${b}${step.tempHide ? ' • Tự ẩn sau khi vẽ' : ''}`;
-    }
-    return (sh.dashed ? 'Nét đứt' : 'Nét liền') + (step.tempHide ? ' • Tự ẩn sau khi vẽ' : '');
-  }
-
   function parseNtTimestamp(id) {
     if (typeof id !== 'string' || id.length < 8) return null;
     const head = id.slice(0, 8);
@@ -754,7 +717,7 @@
             <button class="mn-icon-btn" id="mn-rp-pause-step" title="Tự dừng sau mỗi nét để giảng bài">⏸₁</button>
           </div>
           <div class="mn-rp-scrubber">
-            <span id="mn-rp-step-count" style="font-weight:700;color:#0f766e;min-width:36px;font-variant-numeric:tabular-nums;">0/0</span>
+            <span id="mn-rp-step-count" style="font-weight:700;color:#2563eb;min-width:36px;font-variant-numeric:tabular-nums;">0/0</span>
             <input type="range" id="mn-rp-scrub" min="0" max="0" step="1" value="0" />
           </div>
         </div>
@@ -902,7 +865,7 @@
         ghost.style.width = rowRect.width + 'px';
         ghost.style.left = rowRect.left + 'px';
         ghost.style.top = (ev.clientY - rowRect.height / 2) + 'px';
-        ghost.innerHTML = `<span style="color:#0d9488;">⋮⋮</span><span>${escapeHtml(labelText)}</span>`;
+        ghost.innerHTML = `<span style="color:#2563eb;">⋮⋮</span><span>${escapeHtml(labelText)}</span>`;
         document.body.appendChild(ghost);
       };
 

@@ -1,0 +1,18 @@
+const fs = require('fs');
+const path = require('path');
+
+const target = path.join(__dirname, '..', 'Resources', 'Whiteboard', 'assets', 'index-CTbULhps.js');
+let src = fs.readFileSync(target, 'utf8');
+
+const anchor = 'window.MinNoteGeoParams.getLocusSelBarLabel():"Quỹ tích"]}),(J==null?void 0:J.selectionSolid())';
+const snippet = 'window.MinNoteGeoParams.getLocusSelBarLabel():"Quỹ tích"]}),(window.MinNoteGeoTools&&typeof window.MinNoteGeoTools.canShowInSelBar==="function"&&window.MinNoteGeoTools.canShowInSelBar())&&h.jsxs("button",{"data-mn-gsp-trigger":"1",title:"Đo đạc động, tính toán, tách/ghép điểm, chọn cha/con",onClick:A=>window.MinNoteGeoTools.togglePopover(A),children:[h.jsx("svg",{width:15,height:15,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.85,strokeLinecap:"round",strokeLinejoin:"round",children:[h.jsx("path",{d:"M3 21L21 3"}),h.jsx("path",{d:"M14 4l6 6"}),h.jsx("path",{d:"M9 9l2 2"}),h.jsx("path",{d:"M13 5l2 2"})]})," Đo & Dựng"]}),(J==null?void 0:J.selectionSolid())';
+
+if (src.includes('data-mn-gsp-trigger')) {
+  console.log('[SKIP] Đo & Dựng selection-bar button already patched.');
+} else if (!src.includes(anchor)) {
+  throw new Error('[FAIL] Anchor not found in index-CTbULhps.js');
+} else {
+  src = src.replace(anchor, snippet);
+  fs.writeFileSync(target, src, 'utf8');
+  console.log('[OK] Added native React Đo & Dựng button to selection-bar!');
+}

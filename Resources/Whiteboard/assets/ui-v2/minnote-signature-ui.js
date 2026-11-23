@@ -433,6 +433,7 @@
         t.includes('dựng lại hình') ||
         t === 'tham số' ||
         t === 'quỹ tích' ||
+        t === 'đo & dựng' ||
         t === 'chuyển động' ||
         t === 'đang chạy'
       ) {
@@ -449,6 +450,117 @@
   }
 
   // --------------------------------------------------------------------------
+  // 4. Pen, Fill, Instruments & Main Command Menu Popovers
+  // --------------------------------------------------------------------------
+  function enhanceOtherPopovers(menu) {
+    if (!menu || menu.dataset.mnOtherReady === '1') return;
+    if (menu.classList.contains('mn-studio-pop')) return;
+
+    // Pen Picker Popover
+    if (menu.querySelector('.pp-kinds')) {
+      menu.dataset.mnOtherReady = '1';
+      menu.classList.add('mn-pen-pop');
+      return;
+    }
+
+    // Fill Popover
+    if (menu.querySelector('.fill-opacity')) {
+      menu.dataset.mnOtherReady = '1';
+      menu.classList.add('mn-fill-pop');
+      return;
+    }
+
+    const txt = menu.textContent || '';
+
+    // Instruments Popover (Thước kẻ, Thước đo độ, Ê-ke, Compa, Cất dụng cụ)
+    if (txt.includes('Thước đo độ') && txt.includes('Compa')) {
+      menu.dataset.mnOtherReady = '1';
+      menu.classList.add('mn-inst-pop');
+      menu.querySelectorAll('button').forEach(function (b) {
+        const bt = (b.textContent || '').trim();
+        if (bt.includes('Cất dụng cụ') || bt.toLowerCase().includes('hide instrument')) {
+          b.setAttribute('data-mn-inst-hide', '1');
+        }
+      });
+      return;
+    }
+
+    // Main App Command Menu
+    if (menu.querySelector('.zoom-input') && (txt.includes('Thư viện') || txt.includes('Sổ mới') || txt.includes('Library'))) {
+      menu.dataset.mnOtherReady = '1';
+      menu.classList.add('mn-main-menu');
+      if (!menu.querySelector('.mn-menu-brand-head')) {
+        const head = document.createElement('div');
+        head.className = 'mn-menu-brand-head';
+        head.innerHTML =
+          '<span class="mn-menu-brand-name">MinNote Studio</span>' +
+          '<span class="mn-menu-brand-tag">Đỗ Miinh Math</span>';
+        head.addEventListener('click', function (e) { e.stopPropagation(); });
+        menu.insertBefore(head, menu.firstChild);
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 5. Settings Modal (.dialog.settings) -> Left-Sidebar Navigation Studio!
+  // --------------------------------------------------------------------------
+  function enhanceSettingsDialog(dlg) {
+    if (!dlg || dlg.dataset.mnSetReady === '1') return;
+    const grid = dlg.querySelector('.settings-grid');
+    const body = dlg.querySelector('.dialog-body');
+    if (!grid || !body) return;
+
+    const sections = Array.from(grid.querySelectorAll(':scope > section'));
+    if (sections.length < 2) return;
+
+    dlg.dataset.mnSetReady = '1';
+    dlg.classList.add('mn-set-studio');
+
+    const NAV_META = [
+      { id: '0', icon: '📄', fallback: 'Trang giấy & Khổ' },
+      { id: '1', icon: '📐', fallback: 'Hình vẽ & Đường nét' },
+      { id: '2', icon: '🎛', fallback: 'Môn dạy & Con trỏ' }
+    ];
+
+    const nav = document.createElement('aside');
+    nav.className = 'mn-set-nav';
+    nav.innerHTML =
+      '<div class="mn-set-nav-title">Danh mục cài đặt</div>' +
+      sections.map(function (sec, idx) {
+        const meta = NAV_META[idx] || { id: String(idx), icon: '⚙', fallback: 'Mục ' + (idx + 1) };
+        const h4 = sec.querySelector('h4');
+        const label = idx === 0
+          ? 'Trang giấy & Khổ'
+          : (idx === 1 ? 'Hình vẽ & Nét mặc định' : (idx === 2 ? 'Môn dạy & Con trỏ' : (h4 ? h4.textContent.trim() : meta.fallback)));
+        return '<button type="button" class="mn-set-nav-btn' + (idx === 0 ? ' active' : '') + '" data-mn-set-go="' + idx + '">' +
+          '<span>' + meta.icon + '</span><span>' + label + '</span>' +
+        '</button>';
+      }).join('') +
+      '<div class="mn-set-nav-sep"></div>' +
+      '<button type="button" class="mn-set-nav-btn" data-mn-set-go="all"><span>⊞</span><span>Xem tất cả</span></button>';
+
+    function selectTab(id) {
+      dlg.setAttribute('data-mn-set-tab', id);
+      nav.querySelectorAll('[data-mn-set-go]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-mn-set-go') === id);
+      });
+      sections.forEach(function (sec, idx) {
+        sec.classList.toggle('mn-set-hidden', id !== 'all' && String(idx) !== id);
+      });
+      grid.scrollTop = 0;
+    }
+
+    nav.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-mn-set-go]');
+      if (!btn) return;
+      selectTab(btn.getAttribute('data-mn-set-go'));
+    });
+
+    body.insertBefore(nav, body.firstChild);
+    selectTab('0');
+  }
+
+  // --------------------------------------------------------------------------
   // Lightweight MutationObserver (batched via microtask/rAF)
   // --------------------------------------------------------------------------
   let scheduled = false;
@@ -457,7 +569,11 @@
     const fd = document.querySelector('.dialog.formula-dialog');
     if (fd) enhanceFormulaDialog(fd);
 
+    const sd = document.querySelector('.dialog.settings');
+    if (sd) enhanceSettingsDialog(sd);
+
     document.querySelectorAll('.dropdown-menu.columns').forEach(enhanceStudioPopover);
+    document.querySelectorAll('.dropdown-menu').forEach(enhanceOtherPopovers);
     document.querySelectorAll('.selection-bar').forEach(enhanceSelectionBar);
   }
 

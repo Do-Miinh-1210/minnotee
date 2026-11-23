@@ -41,8 +41,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 9px 12px;
-  background: linear-gradient(135deg, #f0fdfa, #ecfeff);
-  border-bottom: 1px solid rgba(13, 148, 136, 0.18);
+  background: linear-gradient(135deg, #eff6ff, #ecfeff);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.18);
   cursor: move;
 }
 
@@ -52,7 +52,7 @@
   gap: 7px;
   font-size: 13px;
   font-weight: 700;
-  color: #0f766e;
+  color: #1d4ed8;
 }
 
 .mn-mp-head-btns {
@@ -86,13 +86,13 @@
 }
 
 .mn-icon-btn.primary {
-  background: #0d9488;
+  background: #2563eb;
   color: #fff;
-  border-color: #0d9488;
+  border-color: #2563eb;
 }
 
 .mn-icon-btn.primary:hover {
-  background: #0f766e;
+  background: #1d4ed8;
 }
 
 .mn-icon-btn.danger:hover {
@@ -102,9 +102,9 @@
 }
 
 .mn-icon-btn.active {
-  background: #ccfbf1;
-  color: #0f766e;
-  border-color: #5eead4;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
 }
 
 .mn-mp-body {
@@ -146,8 +146,8 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #0d9488;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .mn-pt-dot.paused {
@@ -165,7 +165,7 @@
 
 .mn-speed-row input[type="range"] {
   flex: 1;
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   height: 4px;
   cursor: pointer;
 }
@@ -174,7 +174,7 @@
   min-width: 34px;
   text-align: right;
   font-weight: 700;
-  color: #0f766e;
+  color: #1d4ed8;
   font-variant-numeric: tabular-nums;
 }
 
@@ -197,14 +197,14 @@
 }
 
 .mn-chip:hover {
-  border-color: #0d9488;
-  color: #0f766e;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 
 .mn-chip.on {
-  background: #0d9488;
+  background: #2563eb;
   color: #fff;
-  border-color: #0d9488;
+  border-color: #2563eb;
 }
 
 /* ==================== 2. CONSTRUCTION REPLAY & SCRIPT DRAWER ==================== */
@@ -241,8 +241,8 @@
   justify-content: space-between;
   gap: 6px;
   padding: 8px 11px;
-  background: linear-gradient(135deg, #f0fdfa, #f8fafc);
-  border-bottom: 1px solid rgba(13, 148, 136, 0.16);
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.16);
   cursor: move;
 }
 
@@ -252,7 +252,7 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #0f766e;
+  color: #1d4ed8;
   min-width: 0;
   white-space: nowrap;
 }
@@ -262,34 +262,11 @@
   align-items: center;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(13, 148, 136, 0.14);
-  color: #0f766e;
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
   font-size: 10.5px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.mn-collapse-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 7px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  background: #fff;
-  color: #334155;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.13s ease;
-}
-
-.mn-collapse-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-  border-color: rgba(13, 148, 136, 0.45);
 }
 
 .mn-rp-controls {
@@ -328,59 +305,9 @@
 
 .mn-rp-scrubber input[type="range"] {
   flex: 1;
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   cursor: pointer;
   height: 4px;
-}
-
-.mn-rp-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
-  color: #334155;
-}
-
-.mn-rp-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.mn-rp-check input {
-  accent-color: #0d9488;
-  margin: 0;
-  cursor: pointer;
-}
-
-/* Integrated Step Section Header Bar (replaces 2 bulky preset rows + footer) */
-.mn-rp-steps-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 6px 11px;
-  background: #fff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
-}
-
-.mn-rp-steps-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #334155;
-}
-
-.mn-rp-steps-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .mn-rp-presets-pop {
@@ -430,17 +357,17 @@
 
 .mn-step-item:hover {
   background: #f8fafc;
-  border-color: rgba(13, 148, 136, 0.3);
+  border-color: rgba(37, 99, 235, 0.3);
 }
 
 .mn-step-item.current {
-  background: #f0fdfa;
-  border-color: #0d9488;
-  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.25);
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
 }
 
 .mn-step-item.done {
-  border-left: 3px solid #14b8a6;
+  border-left: 3px solid #3b82f6;
 }
 
 .mn-step-item.disabled {
@@ -448,21 +375,21 @@
 }
 
 .mn-step-item.drag-over {
-  border-top: 2px solid #0d9488;
+  border-top: 2px solid #2563eb;
 }
 
 .mn-step-item.drag-source {
   opacity: 0.35;
-  border: 1.5px dashed #0d9488;
-  background: #f0fdfa;
+  border: 1.5px dashed #2563eb;
+  background: #eff6ff;
 }
 
 .mn-step-item.drag-insert-before {
-  box-shadow: inset 0 3px 0 0 #0d9488;
+  box-shadow: inset 0 3px 0 0 #2563eb;
 }
 
 .mn-step-item.drag-insert-after {
-  box-shadow: inset 0 -3px 0 0 #0d9488;
+  box-shadow: inset 0 -3px 0 0 #2563eb;
 }
 
 .mn-drag-ghost {
@@ -470,9 +397,9 @@
   z-index: 10500;
   pointer-events: none;
   background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid #0d9488;
+  border: 1.5px solid #2563eb;
   border-radius: 10px;
-  box-shadow: 0 14px 32px rgba(13, 148, 136, 0.25);
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.25);
   padding: 6px 10px;
   display: flex;
   align-items: center;
@@ -496,40 +423,11 @@
 
 .mn-step-drag:hover {
   background: #e2e8f0;
-  color: #0f766e;
+  color: #1d4ed8;
 }
 
 .mn-step-drag:active {
   cursor: grabbing;
-}
-
-.mn-save-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid #0d9488;
-  background: #f0fdfa;
-  color: #0f766e;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 0 9px;
-  height: 26px;
-  border-radius: 7px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: all 0.14s ease;
-}
-
-.mn-save-btn:hover {
-  background: #0d9488;
-  color: #fff;
-}
-
-.mn-save-btn.saved {
-  background: #059669;
-  border-color: #059669;
-  color: #fff;
 }
 
 /* ==================== 4. SHEET BAR HIDE / RESTORE CONTROLS ==================== */
@@ -572,7 +470,7 @@
   border: 1px solid rgba(15, 23, 42, 0.14);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(8px);
-  color: #0f766e;
+  color: #1d4ed8;
   font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
@@ -583,8 +481,8 @@
 
 .sheet-restore-pill:hover {
   opacity: 1;
-  background: #f0fdfa;
-  border-color: #0d9488;
+  background: #eff6ff;
+  border-color: #2563eb;
   transform: translateY(-1px);
 }
 
@@ -603,7 +501,7 @@
 }
 
 .mn-step-item.current .mn-step-num {
-  background: #0d9488;
+  background: #2563eb;
   color: #fff;
 }
 
@@ -619,14 +517,6 @@
   font-size: 12.2px;
   font-weight: 600;
   color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mn-step-sub {
-  font-size: 10.5px;
-  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -660,19 +550,8 @@
 }
 
 .mn-mini-btn.on {
-  color: #0d9488;
-  background: #ccfbf1;
-}
-
-.mn-rp-foot {
-  padding: 8px 14px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
-  background: #f8fafc;
-  font-size: 11px;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  color: #2563eb;
+  background: #dbeafe;
 }
 
 /* ==================== 3. COMPACT PRESENTATION PILL ==================== */
@@ -702,9 +581,9 @@
   border: none;
   background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
-  height: 28px;
-  min-width: 28px;
-  padding: 0 9px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -720,12 +599,12 @@
 }
 
 #mn-replay-pill .mn-pill-btn.primary {
-  background: #14b8a6;
-  color: #042f2e;
+  background: #2563eb;
+  color: #ffffff;
 }
 
 #mn-replay-pill .mn-pill-btn.primary:hover {
-  background: #2dd4bf;
+  background: #3b82f6;
 }
 
 #mn-replay-pill .mn-pill-label {
@@ -738,7 +617,6 @@
   text-overflow: ellipsis;
   padding: 0 4px;
 }
-
 
 /* ==================== 5. DARK MODE SUPPORT (html.dark) ==================== */
 html.dark #mn-motion-panel,
@@ -758,11 +636,10 @@ html.dark .mn-rp-head {
 html.dark .mn-mp-title,
 html.dark .mn-rp-title,
 html.dark .mn-speed-val {
-  color: #5eead4;
+  color: #93c5fd;
 }
 
-html.dark .mn-rp-controls,
-html.dark .mn-rp-foot {
+html.dark .mn-rp-controls{
   background: #1e293b;
   border-color: #334155;
   color: #cbd5e1;
@@ -782,23 +659,21 @@ html.dark .mn-step-item {
 
 html.dark .mn-step-item:hover {
   background: #273449;
-  border-color: #0d9488;
+  border-color: #2563eb;
 }
 
 html.dark .mn-step-item.current {
-  background: rgba(13, 148, 136, 0.24);
-  border-color: #14b8a6;
+  background: rgba(37, 99, 235, 0.24);
+  border-color: #3b82f6;
 }
 
 html.dark .mn-pt-badge,
-html.dark .mn-step-label,
-html.dark .mn-rp-meta {
+html.dark .mn-step-label{
   color: #f1f5f9;
 }
 
-html.dark .mn-step-sub,
 html.dark .mn-speed-row,
-html.dark .mn-rp-scrubber {
+html.dark .mn-rp-scrubber{
   color: #94a3b8;
 }
 
@@ -822,8 +697,8 @@ html.dark .mn-chip:hover {
 
 html.dark .mn-icon-btn.primary,
 html.dark .mn-chip.on {
-  background: #0d9488;
-  border-color: #14b8a6;
+  background: #2563eb;
+  border-color: #3b82f6;
   color: #ffffff;
 }
 
@@ -837,20 +712,14 @@ html.dark .mn-mini-btn:hover {
 }
 
 html.dark .mn-mini-btn.on {
-  background: rgba(20, 184, 166, 0.28);
-  color: #5eead4;
-}
-
-html.dark .mn-save-btn {
-  background: rgba(13, 148, 136, 0.24);
-  color: #5eead4;
-  border-color: #14b8a6;
+  background: rgba(59, 130, 246, 0.28);
+  color: #93c5fd;
 }
 
 html.dark .mn-drag-ghost {
   background: #1e293b;
   color: #f8fafc;
-  border-color: #14b8a6;
+  border-color: #3b82f6;
 }
 
 html.dark .sheet-hide-btn {
@@ -866,10 +735,9 @@ html.dark .sheet-hide-btn:hover {
 
 html.dark .sheet-restore-pill {
   background: rgba(15, 23, 42, 0.92);
-  color: #5eead4;
+  color: #93c5fd;
   border-color: #334155;
 }
-
 
 /* ==================== 6. FLAT PLANE SYNC CHECKBOX ==================== */
 .flat-sync-check {
@@ -879,9 +747,9 @@ html.dark .sheet-restore-pill {
   padding: 0 10px;
   height: 30px;
   border-radius: 8px;
-  border: 1px solid rgba(13, 148, 136, 0.28);
-  background: #f0fdfa;
-  color: #0f766e;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #eff6ff;
+  color: #1d4ed8;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -890,7 +758,7 @@ html.dark .sheet-restore-pill {
 }
 
 .flat-sync-check input[type="checkbox"] {
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   width: 14px;
   height: 14px;
   margin: 0;
@@ -898,9 +766,9 @@ html.dark .sheet-restore-pill {
 }
 
 html.dark .flat-sync-check {
-  background: rgba(13, 148, 136, 0.22);
-  border-color: rgba(45, 212, 191, 0.45);
-  color: #5eead4;
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
 }
 
 /* ==================== 7. COLLAPSIBLE MOTION PANEL, MULTI-SCRIPT TABS & COMPACT RUNNER ==================== */
@@ -951,31 +819,14 @@ html.dark .flat-sync-check {
 }
 
 .mn-rp-tab:hover {
-  border-color: #0d9488;
-  color: #0f766e;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 
 .mn-rp-tab.active {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #fff;
-}
-
-.mn-rp-tab-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #94a3b8;
-  flex-shrink: 0;
-}
-
-.mn-rp-tab-dot.playing {
-  background: #22c55e;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
-}
-
-.mn-rp-tab.active .mn-rp-tab-dot.playing {
-  background: #bbf7d0;
 }
 
 .mn-rp-tab-close {
@@ -995,29 +846,6 @@ html.dark .flat-sync-check {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.mn-rp-allbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 7px 14px;
-  background: linear-gradient(135deg, #ecfeff, #f0fdfa);
-  border-bottom: 1px solid rgba(13, 148, 136, 0.2);
-}
-
-.mn-rp-allbar-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #0f766e;
-  white-space: nowrap;
-}
-
-.mn-rp-allbar-btns {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .mn-rp-saved-bar {
   display: flex;
   align-items: center;
@@ -1028,13 +856,6 @@ html.dark .flat-sync-check {
   flex-wrap: wrap;
 }
 
-.mn-rp-saved-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  white-space: nowrap;
-}
-
 .mn-rp-saved-chip {
   display: inline-flex;
   align-items: center;
@@ -1042,9 +863,9 @@ html.dark .flat-sync-check {
   height: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  border: 1px solid rgba(13, 148, 136, 0.28);
-  background: #f0fdfa;
-  color: #0f766e;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #eff6ff;
+  color: #1d4ed8;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -1052,13 +873,13 @@ html.dark .flat-sync-check {
 }
 
 .mn-rp-saved-chip:hover {
-  background: #ccfbf1;
+  background: #dbeafe;
 }
 
 .mn-rp-saved-chip.loaded {
-  background: #0d9488;
+  background: #2563eb;
   color: #fff;
-  border-color: #0d9488;
+  border-color: #2563eb;
 }
 
 .mn-rp-saved-chip span {
@@ -1111,7 +932,7 @@ html.dark .flat-sync-check {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #14b8a6;
+  background: #3b82f6;
   flex-shrink: 0;
 }
 
@@ -1132,18 +953,9 @@ html.dark .mn-rp-tab {
 }
 
 html.dark .mn-rp-tab.active {
-  background: #0d9488;
-  border-color: #14b8a6;
+  background: #2563eb;
+  border-color: #3b82f6;
   color: #fff;
-}
-
-html.dark .mn-rp-allbar {
-  background: linear-gradient(135deg, #134e4a, #0f172a);
-  border-bottom-color: #334155;
-}
-
-html.dark .mn-rp-allbar-label {
-  color: #5eead4;
 }
 
 html.dark .mn-rp-saved-bar {
@@ -1151,25 +963,21 @@ html.dark .mn-rp-saved-bar {
   border-bottom-color: #334155;
 }
 
-html.dark .mn-rp-saved-title {
-  color: #94a3b8;
-}
-
 html.dark .mn-rp-saved-chip {
-  background: rgba(13, 148, 136, 0.22);
-  border-color: rgba(45, 212, 191, 0.35);
-  color: #5eead4;
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #93c5fd;
 }
 
 html.dark .mn-rp-saved-chip.loaded {
-  background: #0d9488;
+  background: #2563eb;
   color: #fff;
 }
 
 .mn-rp-tab-play {
   border: none;
-  background: rgba(13, 148, 136, 0.14);
-  color: #0f766e;
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -1184,7 +992,7 @@ html.dark .mn-rp-saved-chip.loaded {
 }
 
 .mn-rp-tab-play:hover {
-  background: rgba(13, 148, 136, 0.28);
+  background: rgba(37, 99, 235, 0.28);
 }
 
 .mn-rp-tab.active .mn-rp-tab-play {
@@ -1203,9 +1011,9 @@ html.dark .mn-rp-saved-chip.loaded {
   height: 26px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px dashed rgba(13, 148, 136, 0.45);
-  background: rgba(13, 148, 136, 0.06);
-  color: #0f766e;
+  border: 1px dashed rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.06);
+  color: #1d4ed8;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -1215,7 +1023,7 @@ html.dark .mn-rp-saved-chip.loaded {
 
 .mn-rp-saved-toggle:hover,
 .mn-rp-saved-toggle.open {
-  background: rgba(13, 148, 136, 0.16);
+  background: rgba(37, 99, 235, 0.16);
   border-style: solid;
 }
 
@@ -1240,34 +1048,14 @@ html.dark .mn-rp-saved-chip.loaded {
 }
 
 .mn-rp-pill-fig.playing {
-  border-color: rgba(45, 212, 191, 0.7);
-  background: rgba(20, 184, 166, 0.25);
+  border-color: rgba(96, 165, 250, 0.7);
+  background: rgba(59, 130, 246, 0.25);
   color: #99f6e4;
 }
 
-html.dark .mn-collapse-btn {
-  background: #0f172a;
-  border-color: #475569;
-  color: #e2e8f0;
-}
-
-html.dark .mn-collapse-btn:hover {
-  background: #334155;
-  color: #fff;
-}
-
 html.dark .mn-rp-count-badge {
-  background: rgba(45, 212, 191, 0.18);
-  color: #5eead4;
-}
-
-html.dark .mn-rp-steps-bar {
-  background: #0f172a;
-  border-bottom-color: #334155;
-}
-
-html.dark .mn-rp-steps-bar-left {
-  color: #cbd5e1;
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
 }
 
 html.dark .mn-rp-presets-pop {
@@ -1276,9 +1064,9 @@ html.dark .mn-rp-presets-pop {
 }
 
 html.dark .mn-rp-saved-toggle {
-  color: #5eead4;
-  border-color: rgba(45, 212, 191, 0.45);
-  background: rgba(13, 148, 136, 0.14);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(37, 99, 235, 0.14);
 }
 
 /* ==================== ULTRA-COMPACT REPLAY REDESIGN ==================== */
@@ -1305,7 +1093,7 @@ html.dark .mn-rp-saved-toggle {
 #mn-replay-panel .mn-rp-speed-btn {
   min-width: 34px !important;
   font-weight: 700;
-  color: #0f766e;
+  color: #1d4ed8;
   font-variant-numeric: tabular-nums;
 }
 #mn-replay-panel .mn-icon-btn.saved {
@@ -1347,9 +1135,4 @@ html.dark .mn-rp-saved-toggle {
   padding: 4px 8px;
   gap: 5px;
 }
-#mn-replay-pill .mn-pill-btn {
-  height: 26px;
-  min-width: 26px;
-  padding: 0 7px;
-  font-size: 12px;
-}
+

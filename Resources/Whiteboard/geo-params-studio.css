@@ -4,50 +4,6 @@
  * - Full studio panel opens on double-click of any parameter chip or via .sel-bar
  */
 
-/* Selection bar lock & parameter controls */
-.sel-length.mn-len-locked {
-  background: rgba(13, 148, 136, 0.09) !important;
-  border-color: rgba(13, 148, 136, 0.45) !important;
-}
-.mn-len-lock-btn,
-.mn-len-param-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  min-width: 24px;
-  padding: 0 6px;
-  margin-left: 3px;
-  border-radius: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1;
-  transition: all 0.14s ease;
-}
-.mn-len-lock-btn:hover,
-.mn-len-param-btn:hover {
-  background: #f1f5f9;
-  border-color: #0d9488;
-  color: #0f766e;
-}
-.mn-len-lock-btn.on {
-  background: #0d9488;
-  border-color: #0f766e;
-  color: #ffffff;
-}
-.mn-len-param-btn.on {
-  background: #e0f2fe;
-  border-color: #0284c7;
-  color: #0369a1;
-  font-family: "Times New Roman", Georgia, serif;
-  font-style: italic;
-  font-size: 13px;
-}
-
 /* ==================== ON-CANVAS KATEX PARAMETER CHIPS ==================== */
 #mn-param-canvas-layer {
   position: fixed;
@@ -78,18 +34,18 @@
 }
 .mn-katex-param:hover {
   background: rgba(240, 253, 250, 0.78);
-  border-color: rgba(13, 148, 136, 0.35);
+  border-color: rgba(37, 99, 235, 0.35);
 }
 .mn-katex-param.dragging {
   cursor: grabbing;
   background: rgba(240, 253, 250, 0.94);
-  border-color: #0d9488;
+  border-color: #2563eb;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
 }
 .mn-katex-param.selected {
   background: rgba(240, 253, 250, 0.94);
-  border-color: #0d9488;
-  box-shadow: 0 3px 12px rgba(13, 148, 136, 0.24), 0 0 0 2px rgba(13, 148, 136, 0.14);
+  border-color: #2563eb;
+  box-shadow: 0 3px 12px rgba(37, 99, 235, 0.24), 0 0 0 2px rgba(37, 99, 235, 0.14);
 }
 .mn-katex-param .katex {
   font-size: 1em;
@@ -123,7 +79,7 @@
   gap: 8px;
   padding: 6px 11px;
   border-radius: 999px;
-  border: 1px solid rgba(13, 148, 136, 0.38);
+  border: 1px solid rgba(37, 99, 235, 0.38);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -141,8 +97,8 @@
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #ccfbf1;
-  color: #0f766e;
+  background: #dbeafe;
+  color: #1d4ed8;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -167,17 +123,17 @@
   transition: all 0.13s ease;
 }
 .mnp-armed-btn:hover {
-  border-color: #0d9488;
-  color: #0f766e;
-  background: #f0fdfa;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 .mnp-armed-btn.primary {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #ffffff;
 }
 .mnp-armed-btn.primary:hover {
-  background: #0f766e;
+  background: #1d4ed8;
 }
 
 /* ==================== MAIN FLOATING STUDIO PANEL (OPENS ON DBLCLICK) ==================== */
@@ -214,8 +170,8 @@
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
-  background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 100%);
-  border-bottom: 1px solid rgba(13, 148, 136, 0.16);
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.16);
   cursor: move;
   user-select: none;
 }
@@ -229,7 +185,7 @@
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  background: #0d9488;
+  background: #2563eb;
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -272,21 +228,21 @@
 }
 .mnp-icon-btn:hover {
   background: #f1f5f9;
-  border-color: #0d9488;
-  color: #0f766e;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 .mnp-icon-btn.on {
-  background: #ccfbf1;
-  border-color: #0d9488;
-  color: #0f766e;
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 .mnp-icon-btn.primary {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #ffffff;
 }
 .mnp-icon-btn.primary:hover {
-  background: #0f766e;
+  background: #1d4ed8;
 }
 
 /* Tabs */
@@ -320,7 +276,7 @@
 }
 .mnp-tab.active {
   background: #ffffff;
-  color: #0f766e;
+  color: #1d4ed8;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
 }
 .mnp-tab-count {
@@ -331,8 +287,8 @@
   color: #334155;
 }
 .mnp-tab.active .mnp-tab-count {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 /* Body */
@@ -357,11 +313,11 @@
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .mnp-card:hover {
-  border-color: rgba(13, 148, 136, 0.42);
+  border-color: rgba(37, 99, 235, 0.42);
 }
 .mnp-card.focus-highlight {
-  border-color: #0d9488;
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.18);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
 .mnp-card-top {
   display: flex;
@@ -380,11 +336,11 @@
   font-style: italic;
   font-weight: 700;
   font-size: 16px;
-  color: #0f766e;
+  color: #1d4ed8;
   padding: 1px 6px;
   border-radius: 6px;
-  background: #f0fdfa;
-  border: 1px solid rgba(13, 148, 136, 0.25);
+  background: #eff6ff;
+  border: 1px solid rgba(37, 99, 235, 0.25);
 }
 .mnp-unit-tag {
   font-size: 11px;
@@ -396,7 +352,7 @@
 }
 .mnp-bind-tag {
   font-size: 11px;
-  color: #0d9488;
+  color: #2563eb;
   font-weight: 600;
 }
 .mnp-val-row {
@@ -417,8 +373,8 @@
   outline: none;
 }
 .mnp-val-input:focus {
-  border-color: #0d9488;
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.18);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
 .mnp-nudge {
   width: 26px;
@@ -445,7 +401,7 @@
 }
 .mnp-slider {
   flex: 1;
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   height: 5px;
   cursor: pointer;
 }
@@ -484,16 +440,16 @@
 .mnp-chip {
   padding: 4px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(13, 148, 136, 0.28);
-  background: #f0fdfa;
-  color: #0f766e;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #eff6ff;
+  color: #1d4ed8;
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.13s ease;
 }
 .mnp-chip:hover {
-  background: #0d9488;
+  background: #2563eb;
   color: #ffffff;
 }
 
@@ -512,7 +468,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #0f766e;
+  color: #1d4ed8;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -544,8 +500,8 @@
 }
 .mnp-input:focus,
 .mnp-select:focus {
-  border-color: #0d9488;
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.16);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16);
 }
 .mnp-row-2 {
   display: grid;
@@ -567,7 +523,7 @@
   user-select: none;
 }
 .mnp-check input {
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   width: 15px;
   height: 15px;
 }
@@ -597,12 +553,12 @@
   border-color: #94a3b8;
 }
 .mnp-btn.primary {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #ffffff;
 }
 .mnp-btn.primary:hover {
-  background: #0f766e;
+  background: #1d4ed8;
 }
 .mnp-btn.danger {
   color: #dc2626;
@@ -634,7 +590,7 @@
 }
 .mnp-seg button.active {
   background: #ffffff;
-  color: #0f766e;
+  color: #1d4ed8;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
@@ -651,8 +607,8 @@
   font-size: 12.5px;
 }
 .mnp-con-item:hover {
-  border-color: rgba(13, 148, 136, 0.4);
-  background: #f0fdfa;
+  border-color: rgba(37, 99, 235, 0.4);
+  background: #eff6ff;
 }
 .mnp-con-info {
   display: flex;
@@ -693,13 +649,13 @@
   transition: all 0.13s ease;
 }
 .mnp-shape-btn:hover {
-  border-color: #0d9488;
-  background: #f0fdfa;
+  border-color: #2563eb;
+  background: #eff6ff;
 }
 .mnp-shape-btn.active {
-  border-color: #0d9488;
-  background: #ccfbf1;
-  color: #0f766e;
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 /* New Parameter Modal */
@@ -784,7 +740,7 @@
   cursor: pointer;
 }
 .mnp-radio input {
-  accent-color: #0d9488;
+  accent-color: #2563eb;
   width: 15px;
   height: 15px;
 }
@@ -812,11 +768,11 @@
 .mnp-preview-val {
   font-size: 12px;
   font-weight: 600;
-  color: #0f766e;
-  background: #f0fdfa;
+  color: #1d4ed8;
+  background: #eff6ff;
   padding: 5px 9px;
   border-radius: 7px;
-  border: 1px solid rgba(13, 148, 136, 0.22);
+  border: 1px solid rgba(37, 99, 235, 0.22);
 }
 
 /* ==================== COMPACT LOCUS DRIVER POPOVER ==================== */

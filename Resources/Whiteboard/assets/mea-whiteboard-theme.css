@@ -16,15 +16,15 @@
 
   --muted: #64748b !important;
 
-  --accent: #0d9488 !important;         /* MatrixExamAI Primary Emerald Teal */
+  --accent: #2563eb !important;         /* MatrixExamAI Primary Emerald Teal */
 
-  --accent-dark: #0f766e !important;    /* Deep Teal */
+  --accent-dark: #1d4ed8 !important;    /* Deep Teal */
 
-  --accent-hover: #14b8a6 !important;   /* Vibrant Cyan-Teal */
+  --accent-hover: #3b82f6 !important;   /* Vibrant Cyan-Teal */
 
-  --accent-soft: #f0fdfa !important;    /* Soft Teal Hover Tint */
+  --accent-soft: #eff6ff !important;    /* Soft Teal Hover Tint */
 
-  --accent-ring: rgba(13, 148, 136, 0.35) !important;
+  --accent-ring: rgba(37, 99, 235, 0.35) !important;
 
   --line: #e2e8f0 !important;           /* Clean Modern Border */
 
@@ -122,7 +122,7 @@ body {
 
 #mea-header-badge .badge-tag {
 
-  background: linear-gradient(135deg, #0d9488, #0284c7);
+  background: linear-gradient(135deg, #2563eb, #0284c7);
 
   color: #ffffff;
 
@@ -144,7 +144,7 @@ body {
 
   margin-left: auto;
 
-  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%);
 
   color: #ffffff;
 
@@ -166,7 +166,7 @@ body {
 
   gap: 6px;
 
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.4);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
 
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -178,9 +178,9 @@ body {
 
   transform: translateY(-1px);
 
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.55);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.55);
 
-  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #0369a1 100%);
 
 }
 
@@ -379,11 +379,11 @@ body {
 
 .tb.on {
 
-  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+  background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%) !important;
 
   color: #ffffff !important;
 
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35) !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35) !important;
 
   transform: translateY(-1px) !important;
 
@@ -393,7 +393,7 @@ body {
 
 .tb.on:hover {
 
-  background: linear-gradient(135deg, #0f766e 0%, #0369a1 100%) !important;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0369a1 100%) !important;
 
   color: #ffffff !important;
 
@@ -531,7 +531,7 @@ body {
 
   background: #e2e8f0 !important;
 
-  color: #0d9488 !important;
+  color: #2563eb !important;
 
 }
 
@@ -661,9 +661,9 @@ body {
 
   border-radius: 1px !important;
 
-  background: #0d9488 !important;
+  background: #2563eb !important;
 
-  box-shadow: 0 0 4px rgba(13, 148, 136, 0.8) !important;
+  box-shadow: 0 0 4px rgba(37, 99, 235, 0.8) !important;
 
 }
 
@@ -783,7 +783,7 @@ body {
 
 .zoom-apply {
 
-  background: #0d9488 !important;
+  background: #2563eb !important;
 
   color: #ffffff !important;
 
@@ -807,7 +807,7 @@ body {
 
 .zoom-apply:hover {
 
-  background: #0f766e !important;
+  background: #1d4ed8 !important;
 
 }
 
@@ -839,9 +839,9 @@ body {
 
 .menu button:hover {
 
-  background: #f0fdfa !important;
+  background: #eff6ff !important;
 
-  color: #0d9488 !important;
+  color: #2563eb !important;
 
 }
 
@@ -849,9 +849,9 @@ body {
 
 .menu button.checked {
 
-  background: #ccfbf1 !important;
+  background: #dbeafe !important;
 
-  color: #0f766e !important;
+  color: #1d4ed8 !important;
 
   font-weight: 600 !important;
 
@@ -895,9 +895,9 @@ body {
 
 .pages-panel .page-item.current {
 
-  border-color: #0d9488 !important;
+  border-color: #2563eb !important;
 
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.3), 0 4px 12px rgba(13, 148, 136, 0.15) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3), 0 4px 12px rgba(37, 99, 235, 0.15) !important;
 
 }
 
@@ -905,7 +905,7 @@ body {
 
 .pages-panel .page-badge {
 
-  background: #0d9488 !important;
+  background: #2563eb !important;
 
   color: #ffffff !important;
 
@@ -947,11 +947,11 @@ body {
 
 .sheet-tab.active, .sheet-item.active {
 
-  background: #f0fdfa !important;
+  background: #eff6ff !important;
 
-  border-bottom: 2px solid #0d9488 !important;
+  border-bottom: 2px solid #2563eb !important;
 
-  color: #0d9488 !important;
+  color: #2563eb !important;
 
   font-weight: 600 !important;
 
@@ -965,11 +965,11 @@ body {
 
 #mea-header-badge .btn-vectorize-mea {
 
-  background: rgba(13, 148, 136, 0.25) !important;
+  background: rgba(37, 99, 235, 0.25) !important;
 
-  color: #2dd4bf !important;
+  color: #60a5fa !important;
 
-  border: 1px solid rgba(45, 212, 191, 0.4) !important;
+  border: 1px solid rgba(96, 165, 250, 0.4) !important;
 
   padding: 5px 12px !important;
 
@@ -995,11 +995,11 @@ body {
 
 #mea-header-badge .btn-vectorize-mea:hover {
 
-  background: rgba(13, 148, 136, 0.45) !important;
+  background: rgba(37, 99, 235, 0.45) !important;
 
   color: #ffffff !important;
 
-  border-color: #2dd4bf !important;
+  border-color: #60a5fa !important;
 
   transform: translateY(-1px) !important;
 
@@ -1296,9 +1296,9 @@ body.fullscreen-mode #mea-header-badge {
   font-weight: 700 !important;
   font-size: 0.92em !important;
   line-height: 1 !important;
-  color: #0d9488 !important;
-  border: 1.8px solid #0d9488 !important;
-  background: rgba(13, 148, 136, 0.1) !important;
+  color: #2563eb !important;
+  border: 1.8px solid #2563eb !important;
+  background: rgba(37, 99, 235, 0.1) !important;
   vertical-align: middle !important;
   user-select: none !important;
   box-sizing: border-box !important;
@@ -1306,9 +1306,9 @@ body.fullscreen-mode #mea-header-badge {
 
 :root[data-theme="bang"] .nb-opt-badge,
 :root[data-theme="dem"] .nb-opt-badge {
-  color: #5eead4 !important;
-  border-color: #2dd4bf !important;
-  background: rgba(45, 212, 191, 0.15) !important;
+  color: #93c5fd !important;
+  border-color: #60a5fa !important;
+  background: rgba(96, 165, 250, 0.15) !important;
 }
 
 /* Huy hiệu câu hỏi .nb-qs-badge */
@@ -1323,7 +1323,7 @@ body.fullscreen-mode #mea-header-badge {
   font-size: 0.9em !important;
   line-height: 1.25 !important;
   color: #ffffff !important;
-  background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
   border-radius: 6px !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
   vertical-align: 0.06em !important;
@@ -1354,9 +1354,9 @@ body.fullscreen-mode #mea-header-badge {
   font-weight: 600 !important;
   font-size: 0.92em !important;
   border-radius: 6px !important;
-  background: rgba(13, 148, 136, 0.12) !important;
-  color: #0d9488 !important;
-  border: 1.5px solid #0d9488 !important;
+  background: rgba(37, 99, 235, 0.12) !important;
+  color: #2563eb !important;
+  border: 1.5px solid #2563eb !important;
   margin-right: 0.4em !important;
   user-select: none !important;
 }
@@ -1396,7 +1396,7 @@ body.fullscreen-mode #mea-header-badge {
   width: min(920px, 94vw);
   max-height: 88vh;
   overflow: auto;
-  border: 1px solid #0d9488;
+  border: 1px solid #2563eb;
   border-radius: 16px;
   padding: 24px;
   color: #0f172a;
@@ -1531,11 +1531,11 @@ html.dark,
 :root.dark {
   --ink: #f1f5f9 !important;
   --muted: #94a3b8 !important;
-  --accent: #14b8a6 !important;
-  --accent-dark: #2dd4bf !important;
-  --accent-hover: #2dd4bf !important;
-  --accent-soft: rgba(20, 184, 166, 0.16) !important;
-  --accent-ring: rgba(45, 212, 191, 0.4) !important;
+  --accent: #3b82f6 !important;
+  --accent-dark: #60a5fa !important;
+  --accent-hover: #60a5fa !important;
+  --accent-soft: rgba(59, 130, 246, 0.16) !important;
+  --accent-ring: rgba(96, 165, 250, 0.4) !important;
   --line: #334155 !important;
   --surface: #1e293b !important;
   --surface-subtle: #0f172a !important;
@@ -1585,7 +1585,7 @@ html.dark .tb:disabled {
 }
 
 html.dark .tb.on {
-  background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+  background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%) !important;
   color: #ffffff !important;
 }
 
@@ -1609,23 +1609,23 @@ html.dark [role="menu"] {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6) !important;
 }
 
-html.dark .menu button,
+html.dark .menu button:not([style*="background"]),
 html.dark .menu-item,
-html.dark .dropdown-menu button {
+html.dark .dropdown-menu button:not([style*="background"]) {
   color: #e2e8f0 !important;
   background: transparent !important;
 }
 
-html.dark .menu button:hover,
-html.dark .dropdown-menu button:hover {
-  background: rgba(20, 184, 166, 0.16) !important;
-  color: #5eead4 !important;
+html.dark .menu button:not([style*="background"]):hover,
+html.dark .dropdown-menu button:not([style*="background"]):hover {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #93c5fd !important;
 }
 
-html.dark .menu button.checked,
-html.dark .dropdown-menu button.checked {
-  background: rgba(13, 148, 136, 0.3) !important;
-  color: #5eead4 !important;
+html.dark .menu button.checked:not([style*="background"]),
+html.dark .dropdown-menu button.checked:not([style*="background"]) {
+  background: rgba(37, 99, 235, 0.30) !important;
+  color: #93c5fd !important;
 }
 
 html.dark .menu-heading {
@@ -1660,9 +1660,9 @@ html.dark .side-choices button {
 }
 
 html.dark .side-choices button.checked {
-  background: #0d9488 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
-  border-color: #14b8a6 !important;
+  border-color: #3b82f6 !important;
 }
 
 html.dark .pages-panel {
@@ -1686,9 +1686,9 @@ html.dark .sheet-add {
 
 html.dark .sheet-tab.on,
 html.dark .sheet-tab.active {
-  background: rgba(13, 148, 136, 0.28) !important;
-  color: #5eead4 !important;
-  border-bottom-color: #14b8a6 !important;
+  background: rgba(37, 99, 235, 0.28) !important;
+  color: #93c5fd !important;
+  border-bottom-color: #3b82f6 !important;
 }
 
 html.dark .sel-bar,
@@ -1709,8 +1709,8 @@ html.dark .sel-bar button:hover {
 }
 
 html.dark .sel-bar button.on {
-  background: rgba(13, 148, 136, 0.32) !important;
-  color: #5eead4 !important;
+  background: rgba(37, 99, 235, 0.32) !important;
+  color: #93c5fd !important;
 }
 
 html.dark .library,
@@ -1776,9 +1776,9 @@ html.dark .paper-choice {
 }
 
 html.dark .paper-choice.on {
-  background: rgba(13, 148, 136, 0.28) !important;
-  color: #5eead4 !important;
-  border-color: #14b8a6 !important;
+  background: rgba(37, 99, 235, 0.28) !important;
+  color: #93c5fd !important;
+  border-color: #3b82f6 !important;
 }
 
 html.dark .dialog-actions button:not(.primary) {

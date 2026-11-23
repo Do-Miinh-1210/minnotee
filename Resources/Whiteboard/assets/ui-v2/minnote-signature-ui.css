@@ -324,15 +324,15 @@ html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="
 
 html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button:last-child {
   margin-left: auto !important;
-  background: #0f766e !important;
-  border-color: #0f766e !important;
+  background: #2563eb !important;
+  border-color: #2563eb !important;
   color: #ffffff !important;
   font-weight: 600 !important;
 }
 
 html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button:last-child:hover {
-  background: #0d9488 !important;
-  border-color: #0d9488 !important;
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
 }
 
 /* Filtered section hiding */
@@ -1363,4 +1363,1324 @@ html[data-ui="v2"] .formula-dialog .row button.on:not(.problem-swatch) {
   background: #2563eb !important;
   border-color: #2563eb !important;
   color: #ffffff !important;
+}
+
+
+/* ============================================================================
+   4. TOOLBAR PALETTE SWATCHES (Kill leftover green bar + sleek cool-slate tray)
+   ============================================================================ */
+html[data-ui="v2"] .swatch.on::after,
+html[data-ui="v2"] .tb-palette .swatch.on::after {
+  content: none !important;
+  display: none !important;
+}
+
+html[data-ui="v2"] .tb-group.tools > .tb-palette,
+html[data-ui="v2"] .app > header.toolbar > .tb-palette {
+  background: #f1f5f9 !important;
+  border: 1px solid #dbe3ee !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+html[data-ui="v2"].dark .tb-group.tools > .tb-palette,
+html[data-ui="v2"].dark .app > header.toolbar > .tb-palette {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"] .tb-palette .swatch {
+  border-radius: 999px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="v2"] .tb-palette .swatch.on,
+html[data-ui="v2"] .tb-group.tools > .tb-palette .swatch.on {
+  outline: none !important;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #2563eb !important;
+  background: rgba(37, 99, 235, 0.10) !important;
+}
+
+html[data-ui="v2"].dark .tb-palette .swatch.on,
+html[data-ui="v2"].dark .tb-group.tools > .tb-palette .swatch.on {
+  box-shadow: 0 0 0 2px #0f172a, 0 0 0 3.5px #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.20) !important;
+}
+
+/* ============================================================================
+   5. UNIFIED MODERN DIALOGS & LATEX/TIKZ PROBLEM STUDIO (.problem-dialog)
+   ============================================================================ */
+html[data-ui="v2"] .dialog {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -14px rgba(15, 23, 42, 0.34) !important;
+  font-family: var(--v2-font) !important;
+  color: #0f172a !important;
+}
+
+html[data-ui="v2"].dark .dialog {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-ui="v2"] .dialog .dialog-head {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 12px 16px !important;
+}
+
+html[data-ui="v2"].dark .dialog .dialog-head {
+  background: #111827 !important;
+  border-bottom-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .dialog .dialog-actions button.primary {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border-radius: 9px !important;
+  box-shadow: 0 4px 12px -3px rgba(37, 99, 235, 0.48) !important;
+}
+
+html[data-ui="v2"] .dialog .dialog-actions button.primary:hover:not(:disabled) {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .dialog .dialog-actions button:not(.primary) {
+  border-radius: 9px !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"].dark .dialog .dialog-actions button:not(.primary) {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Problem LaTeX / TikZ Studio Dialog */
+html[data-ui="v2"] .problem-dialog .problem-modes {
+  padding: 6px 8px !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  align-items: center !important;
+}
+
+html[data-ui="v2"].dark .problem-dialog .problem-modes {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .problem-dialog .problem-modes > div,
+html[data-ui="v2"] .problem-dialog .problem-modes > span {
+  background: #e2e8f0 !important;
+  padding: 2px !important;
+  border-radius: 9px !important;
+  border: 0 !important;
+  gap: 2px !important;
+  display: inline-flex !important;
+}
+
+html[data-ui="v2"].dark .problem-dialog .problem-modes > div,
+html[data-ui="v2"].dark .problem-dialog .problem-modes > span {
+  background: #1e293b !important;
+}
+
+html[data-ui="v2"] .problem-dialog .problem-modes button {
+  height: 28px !important;
+  padding: 0 13px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #475569 !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .problem-dialog .problem-modes button.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px -1px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .dialog.problem-dialog button.problem-sample.problem-sample.problem-sample.problem-sample.problem-sample {
+  min-height: 28px !important;
+  padding: 3px 11px !important;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 999px !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .dialog.problem-dialog button.problem-sample.problem-sample.problem-sample.problem-sample.problem-sample:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+html[data-ui="v2"] .dialog.problem-dialog button.problem-sample.problem-sample.problem-sample.problem-sample.problem-sample.on {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .dialog.problem-dialog button.problem-sample.problem-sample.problem-sample.problem-sample.problem-sample {
+  background: rgba(37, 99, 235, 0.16) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #93c5fd !important;
+}
+
+html[data-ui="v2"] .problem-dialog textarea.problem-tex {
+  border: 2px solid #93c5fd !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  font-family: "Cascadia Code", ui-monospace, Consolas, monospace !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  padding: 10px 12px !important;
+  outline: none !important;
+}
+
+html[data-ui="v2"] .problem-dialog textarea.problem-tex:focus {
+  border-color: #2563eb !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+}
+
+html[data-ui="v2"].dark .problem-dialog textarea.problem-tex {
+  background: #0b1120 !important;
+  border-color: #3b82f6 !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-ui="v2"] .problem-dialog .problem-swatch {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
+
+html[data-ui="v2"] .problem-dialog .problem-swatch.on {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb !important;
+}
+
+html[data-ui="v2"] .problem-dialog .hex-color,
+html[data-ui="v2"] .problem-dialog input[type="text"] {
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  height: 32px !important;
+}
+
+html[data-ui="v2"] .problem-dialog .hex-color:focus,
+html[data-ui="v2"] .problem-dialog input[type="text"]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+  outline: none !important;
+}
+
+/* ============================================================================
+   6. CLASSROOM STUDIO WIDGETS: TIMER & RANDOM STUDENT PICKER (.class-panel)
+   Completely replaces old lined-paper notebook card + serif/cursive look!
+   ============================================================================ */
+html[data-ui="v2"] .class-panel {
+  background: #ffffff !important;
+  background-image: none !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 22px 52px -14px rgba(15, 23, 42, 0.28), 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+  font-family: var(--v2-font) !important;
+  overflow: hidden;
+}
+
+html[data-ui="v2"].dark .class-panel {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Sleek Modern Studio Header Bar */
+html[data-ui="v2"] .class-panel .class-head {
+  height: 44px !important;
+  padding: 0 8px 0 14px !important;
+  background: linear-gradient(90deg, #f8fafc 0%, #eff6ff 100%) !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-radius: 18px 18px 0 0 !important;
+  gap: 8px !important;
+}
+
+html[data-ui="v2"].dark .class-panel .class-head {
+  background: linear-gradient(90deg, #111827 0%, #172554 100%) !important;
+  border-bottom-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .class-panel .class-icon {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 8px !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+html[data-ui="v2"] .class-panel .class-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+
+html[data-ui="v2"] .class-panel .class-title {
+  font-family: var(--v2-font) !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-size: 13.5px !important;
+  color: #0f172a !important;
+  letter-spacing: -0.01em !important;
+}
+
+html[data-ui="v2"].dark .class-panel .class-title {
+  color: #f8fafc !important;
+}
+
+html[data-ui="v2"] .class-panel .class-tool {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 8px !important;
+  color: #475569 !important;
+}
+
+html[data-ui="v2"] .class-panel .class-tool:hover {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .class-tool {
+  color: #94a3b8 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .class-tool:hover {
+  background: rgba(59, 130, 246, 0.22) !important;
+  color: #93c5fd !important;
+}
+
+/* Remove old 38px notebook red-margin left padding across ALL timer & picker inner blocks! */
+html[data-ui="v2"] .class-panel .timer-body {
+  padding: 16px 16px 8px !important;
+  gap: 14px !important;
+}
+
+html[data-ui="v2"] .class-panel .bicep {
+  width: 96px !important;
+  height: 96px !important;
+}
+
+html[data-ui="v2"] .class-panel .bicep-track {
+  stroke: #e2e8f0 !important;
+  stroke-width: 6 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .bicep-track {
+  stroke: #1e293b !important;
+}
+
+html[data-ui="v2"] .class-panel .bicep-ring {
+  stroke: #2563eb !important;
+  stroke-width: 6 !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-digits {
+  font-family: var(--v2-font) !important;
+  font-weight: 800 !important;
+  font-size: 46px !important;
+  color: #1d4ed8 !important;
+  letter-spacing: -0.03em !important;
+}
+
+html[data-ui="v2"].dark .class-panel .timer-digits {
+  color: #60a5fa !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-motto {
+  font-family: var(--v2-font) !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  margin-top: 2px !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-presets {
+  padding: 8px 16px 6px !important;
+  gap: 6px !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-presets button {
+  min-width: 54px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 9px !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-presets button:hover {
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-presets button.on {
+  border-color: #2563eb !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 8px -2px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"].dark .class-panel .timer-presets button {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .timer-presets button.on {
+  background: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-own input {
+  border: 1.5px dashed #93c5fd !important;
+  border-radius: 9px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  min-height: 30px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .timer-own input {
+  background: #162033 !important;
+  border-color: #3b82f6 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-ui="v2"] .class-panel .timer-own input:focus {
+  border-style: solid !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+}
+
+/* Modern CTA Actions Bar (Timer + Picker) */
+html[data-ui="v2"] .class-panel .class-actions {
+  padding: 10px 16px 14px !important;
+  gap: 8px !important;
+}
+
+html[data-ui="v2"] .class-panel .class-actions button {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="v2"] .class-panel .class-actions button:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+html[data-ui="v2"] .class-panel .class-actions button.class-main {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.55) !important;
+}
+
+html[data-ui="v2"] .class-panel .class-actions button.class-main:hover:not(:disabled) {
+  filter: brightness(1.06) !important;
+}
+
+html[data-ui="v2"].dark .class-panel .class-actions button:not(.class-main) {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Random Student Picker Spotlight Stage */
+html[data-ui="v2"] .class-panel .picker-classes,
+html[data-ui="v2"] .class-panel .picker-stage,
+html[data-ui="v2"] .class-panel .picker-foot,
+html[data-ui="v2"] .class-panel .picker-called {
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-classes {
+  padding-top: 12px !important;
+  gap: 5px !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-classes button {
+  border-radius: 999px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 4px 12px !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-classes button.on {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 8px -2px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-window {
+  height: 74px !important;
+  border: 2px solid #93c5fd !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%) !important;
+  box-shadow: inset 0 2px 10px rgba(37, 99, 235, 0.08) !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-window {
+  background: linear-gradient(180deg, #111827 0%, #172554 100%) !important;
+  border-color: #3b82f6 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-window::before,
+html[data-ui="v2"] .class-panel .picker-window::after {
+  display: none !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-name {
+  height: 74px !important;
+  font-family: var(--v2-font) !important;
+  font-weight: 800 !important;
+  font-size: 26px !important;
+  color: #0f172a !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-name {
+  color: #f8fafc !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-ready {
+  font-family: var(--v2-font) !important;
+  font-size: 16.5px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+}
+
+html[data-ui="v2"] .class-panel.has-winner .picker-window {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px #dbeafe !important;
+}
+
+html[data-ui="v2"] .class-panel.has-winner .picker-name {
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-meme-text {
+  font-family: var(--v2-font) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-tones {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-tones button {
+  color: #475569 !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-tones button.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-called li {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+  border-radius: 999px !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  padding: 2px 9px !important;
+  text-decoration-color: rgba(37, 99, 235, 0.5) !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-called li {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* Random Student Picker — Edit Class Form & Custom Lines */
+html[data-ui="v2"] .class-panel .picker-edit {
+  padding: 14px 16px 4px !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-label {
+  font-family: var(--v2-font) !important;
+  font-style: normal !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: #1d4ed8 !important;
+  margin-bottom: 4px !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-label {
+  color: #60a5fa !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-hint,
+html[data-ui="v2"] .class-panel .picker-lines-empty {
+  font-family: var(--v2-font) !important;
+  font-style: normal !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #64748b !important;
+  margin: 2px 0 8px !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-hint,
+html[data-ui="v2"].dark .class-panel .picker-lines-empty {
+  color: #94a3b8 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-class-name,
+html[data-ui="v2"] .class-panel .picker-edit textarea,
+html[data-ui="v2"] .class-panel .picker-line input {
+  font-family: var(--v2-font) !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  font-size: 13.5px !important;
+  outline: none !important;
+  transition: border-color 0.14s, box-shadow 0.14s, background 0.14s !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-class-name:focus,
+html[data-ui="v2"] .class-panel .picker-edit textarea:focus,
+html[data-ui="v2"] .class-panel .picker-line input:focus {
+  border-color: #2563eb !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-class-name,
+html[data-ui="v2"].dark .class-panel .picker-edit textarea,
+html[data-ui="v2"].dark .class-panel .picker-line input {
+  background: #162033 !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-lines-btn,
+html[data-ui="v2"] .class-panel .picker-add-line {
+  border-color: #93c5fd !important;
+  color: #2563eb !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-count .link {
+  color: #2563eb !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .class-panel .picker-foot {
+  color: #475569 !important;
+  font-size: 12.5px !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-foot {
+  color: #94a3b8 !important;
+}
+
+/* ============================================================================
+   7. PEN PICKER STUDIO POPOVER (.mn-pen-pop)
+   ============================================================================ */
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop {
+  width: 316px !important;
+  box-sizing: border-box !important;
+  padding: 12px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 46px -12px rgba(15, 23, 42, 0.26) !important;
+  overflow-x: hidden !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pen-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #64748b !important;
+  margin: 10px 2px 6px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-label:first-child {
+  margin-top: 0 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-label b {
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-size: 11px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop .pp-label b {
+  background: rgba(37, 99, 235, 0.22) !important;
+  color: #93c5fd !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-kinds {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 4px !important;
+  gap: 4px !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop .pp-kinds {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-kinds button {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0 !important;
+  border-radius: 9px !important;
+  color: #475569 !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-kinds button.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-colors {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop .pp-colors {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-colors button,
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-other {
+  border-radius: 999px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-colors button.on,
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-other.on {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-sample {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop .pp-sample {
+  background: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-pen-pop .pp-check {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: #334155 !important;
+  margin-top: 10px !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-pen-pop .pp-check {
+  color: #cbd5e1 !important;
+}
+
+/* ============================================================================
+   8. FILL POPOVER STUDIO (.mn-fill-pop — 2-column mode cards + opacity pill)
+   ============================================================================ */
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop {
+  width: 288px !important;
+  box-sizing: border-box !important;
+  padding: 10px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  overflow-x: hidden !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-fill-pop {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop > button {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  min-height: 66px !important;
+  padding: 9px 6px !important;
+  margin: 0 !important;
+  gap: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 11px !important;
+  background: #f8fafc !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-fill-pop > button {
+  background: #162033 !important;
+  border-color: #263248 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop > button.checked {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 12px -3px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop > .fill-opacity {
+  grid-column: 1 / -1 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 2px 0 0 !important;
+  padding: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 11px !important;
+  background: #f8fafc !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-fill-pop > .fill-opacity {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop .fill-clear {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  justify-content: center !important;
+  border-radius: 9px !important;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-fill-pop .fill-clear.checked {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #dc2626 !important;
+}
+
+/* ============================================================================
+   9. INSTRUMENTS POPOVER STUDIO (.mn-inst-pop — 2-column visual tile grid)
+   ============================================================================ */
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop {
+  width: 282px !important;
+  box-sizing: border-box !important;
+  padding: 10px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  overflow-x: hidden !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-inst-pop {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop::before {
+  content: "MINNOTE DỤNG CỤ ĐO VẼ";
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #2563eb;
+  padding: 0 2px 5px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 2px;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-inst-pop::before {
+  color: #60a5fa;
+  border-bottom-color: #1f2937;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 62px !important;
+  padding: 8px 6px !important;
+  margin: 0 !important;
+  gap: 5px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 11px !important;
+  background: #f8fafc !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-inst-pop button {
+  background: #162033 !important;
+  border-color: #263248 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button .tool-label {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button.checked {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 12px -3px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button[data-mn-inst-hide="1"] {
+  grid-column: 1 / -1 !important;
+  flex-direction: row !important;
+  min-height: 34px !important;
+  padding: 6px 10px !important;
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #dc2626 !important;
+  margin-top: 2px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button[data-mn-inst-hide="1"] .tool-label {
+  flex-direction: row !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-inst-pop button[data-mn-inst-hide="1"]:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+/* ============================================================================
+   10. MAIN COMMAND MENU (.mn-main-menu)
+   ============================================================================ */
+html[data-ui="v2"] .dropdown-menu.mn-main-menu {
+  width: 278px !important;
+  padding: 8px !important;
+  border-radius: 16px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-main-menu {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+
+.mn-menu-brand-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 8px;
+  margin: -2px -2px 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+html.dark .mn-menu-brand-head {
+  border-bottom-color: #1f2937;
+}
+
+.mn-menu-brand-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+html.dark .mn-menu-brand-name {
+  color: #f8fafc;
+}
+
+.mn-menu-brand-tag {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-main-menu button {
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: 9px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-main-menu kbd {
+  padding: 1px 6px !important;
+  border-radius: 5px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-main-menu kbd {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-main-menu .zoom-input {
+  padding: 6px 8px !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  margin: 4px 0 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-main-menu .zoom-input {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-main-menu .zoom-input button.zoom-apply {
+  background: #2563eb !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================================================
+   11. SETTINGS STUDIO MODAL (.dialog.settings) — LEFT-SIDEBAR NAVIGATION APP!
+   Completely replaces old 3-column NoteRenderer settings wall!
+   ============================================================================ */
+html[data-ui="v2"] .dialog.settings.mn-set-studio {
+  width: min(860px, calc(100vw - 28px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  overflow: hidden !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .dialog-body {
+  display: grid !important;
+  grid-template-columns: 208px minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  min-height: 460px;
+}
+
+.mn-set-nav {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 10px;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+}
+
+html.dark .mn-set-nav {
+  background: #111827;
+  border-right-color: #1f2937;
+}
+
+.mn-set-nav-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  padding: 2px 10px 6px;
+}
+
+.mn-set-nav-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 36px !important;
+  padding: 7px 11px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  text-align: left !important;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s !important;
+}
+
+.mn-set-nav-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.mn-set-nav-btn.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -3px rgba(37, 99, 235, 0.5) !important;
+}
+
+html.dark .mn-set-nav-btn {
+  color: #94a3b8 !important;
+}
+
+html.dark .mn-set-nav-btn:hover {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.mn-set-nav-sep {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 8px 6px;
+}
+
+html.dark .mn-set-nav-sep {
+  background: #1f2937;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .settings-grid {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  padding: 16px 20px !important;
+  overflow-y: auto !important;
+  max-height: calc(100vh - 160px) !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio[data-mn-set-tab="all"] .settings-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .settings-grid > section {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+  gap: 10px !important;
+}
+
+html[data-ui="v2"].dark .dialog.settings.mn-set-studio .settings-grid > section {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .settings-grid > section.mn-set-hidden {
+  display: none !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .settings-grid h4 {
+  color: #1d4ed8 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  padding-bottom: 6px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  margin: 6px 0 4px !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .settings-grid h4:first-child {
+  margin-top: 0 !important;
+}
+
+html[data-ui="v2"].dark .dialog.settings.mn-set-studio .settings-grid h4 {
+  color: #60a5fa !important;
+  border-bottom-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .paper-choice {
+  border-radius: 11px !important;
+  border: 1.5px solid #e2e8f0 !important;
+  background: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .dialog.settings.mn-set-studio .paper-choice {
+  background: #162033 !important;
+  border-color: #263248 !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .paper-choice.on {
+  border-color: #2563eb !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18) !important;
+}
+
+html[data-ui="v2"].dark .dialog.settings.mn-set-studio .paper-choice.on {
+  border-color: #3b82f6 !important;
+  background: rgba(37, 99, 235, 0.24) !important;
+  color: #93c5fd !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Dark Mode top-right Kho Đề pill & Picker dark chips */
+html[data-ui="v2"].dark #tb-btn-questionbank {
+  background: #1d4ed8 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-classes button {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-classes button.on {
+  background: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-tones {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-tones button {
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"].dark .class-panel .picker-tones button.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"] .dialog.settings.mn-set-studio .dialog-actions {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  margin: 0 !important;
+  padding: 12px 20px !important;
+  border-top: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .dialog.settings.mn-set-studio .dialog-actions {
+  background: #0f172a !important;
+  border-top-color: #1f2937 !important;
+}
+
+/* Global range slider Cobalt Blue polish across all popovers & dialogs */
+html[data-ui="v2"] input[type="range"] {
+  accent-color: #2563eb !important;
 }
