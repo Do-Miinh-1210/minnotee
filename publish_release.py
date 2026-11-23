@@ -22,19 +22,25 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.6.8"
-TITLE = "MinNote v0.0.6.8 - Thiết Kế Lại Bảng Kịch Bản Đa Hình Gọn Gàng & Nút Thu Gọn Rõ Ràng 3 Cấp"
-BODY = r"""## MinNote v0.0.6.8 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.7.0"
+TITLE = "MinNote v0.0.7.0 - Bộ Tham Số & Ràng Buộc Hình Học Kiểu GSP5 (2D/3D Chuẩn Tỉ Lệ) & Hạ Nút AI Toán Học"
+BODY = r"""## MinNote v0.0.7.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật **v0.0.6.8** thiết kế lại toàn bộ giao diện **Bảng Kịch Bản Dựng Hình** theo hướng tối giản, tích hợp chạy nhiều hình cùng lúc và bổ sung nút **Thu gọn** rõ ràng ở mọi trạng thái:
+Bản cập nhật lớn **v0.0.7.0** ra mắt **Bộ Tham Số & Ràng Buộc Hình Học Kiểu GSP5** giúp cố định tuyệt đối độ dài, góc, tỉ lệ cho cả hình **2D** và **3D**, đồng thời tinh chỉnh vị trí nút nổi **AI Toán học**:
 
-### 🌟 Điểm Mới Trong Bản v0.0.6.8:
-1. **Nút Thu Gọn Rõ Ràng 3 Cấp**:
-   - Nút **`▾ Thu gọn`** trên thanh tiêu đề bảng kịch bản, nút **`▴ Ẩn bước` / `▾ Hiện bước`** gập gọn bảng còn ~214px, và nút **`─ Thu gọn`** trên thanh chạy nổi thu về viên thuốc mini kéo thả tự do.
-2. **Tích Hợp Chạy Nhiều Hình Gọn Gàng (Bỏ Toàn Bộ Nút Lặp)**:
-   - Gộp điều khiển thành 1 thanh thống nhất **Phát/Dừng tất cả**, mỗi thẻ hình (`S.ABCD`, `S.MNP`…) có sẵn nút **`▶/⏸` riêng từng hình**, nhấp đúp đổi tên, nút **`📂 Đã lưu`** và **`Mẫu ▾`** gập gọn thông minh.
-   - Bấm **`💾 Lưu`** lưu riêng cho tất cả hình đang mở.
-3. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.7.0:
+1. **Hệ Thống Tham Số Kiểu GSP5 (`Tham số GSP5` / `Alt+P`)**:
+   - Hộp thoại **Tham số mới (GSP5)** hỗ trợ đầy đủ 3 đơn vị **Không (tỉ số)**, **Góc (°)**, **Khoảng cách (cm)**, nút chọn tên nhanh (`a, b, c, h, r, α, β, k`) và **nhập công thức liên kết** (VD: `a*sqrt(2)`, `180 - 2*α`, `a*sin(α)`).
+   - Kéo thanh trượt, nhập số trực tiếp hoặc bấm **`▶`** chạy hoạt hình tham số để hình 2D/3D biến đổi mượt mà theo thời gian thực.
+2. **Khóa Cứng Độ Dài, Bán Kính & Số Đo Góc (Không Thể Kéo Lệch)**:
+   - Ngay trên thanh công cụ chọn (`.sel-bar`) cạnh ô **`Độ dài [ ... ] cm`** có nút **`🔒 / 🔓`** khóa cứng độ dài và nút **`fx`** gắn tham số trực tiếp.
+   - Đoạn thẳng đã khóa `2 cm` sẽ **tuyệt đối không thể kéo giãn thành 3 cm** (mặc định chỉ xoay quanh gốc hoặc khóa cứng cả phương); góc đã khóa `60°` chỉ cho trượt đúng dọc tia `60°`.
+3. **Dựng Hình 2D & 3D Chuẩn Tỉ Lệ Theo Tham Số**:
+   - Dựng nhanh **2D**: Đoạn thẳng cố định, Góc chuẩn, Đường tròn bán kính chuẩn, Tam giác (c-g-c & 3 cạnh c-c-c), Hình chữ nhật/vuông, Hình bình hành/thoi.
+   - Dựng nhanh **3D chuẩn tỉ lệ**: Chóp tứ giác đều `S.ABCD`, Chóp HCN `SA ⊥ đáy`, Chóp tam giác `S.ABC`, Hình hộp/Lập phương, Lăng trụ đứng tam giác, Hình nón, Hình trụ — đổi tham số co giãn đúng tỉ lệ 3D, tự cập nhật nét đứt và giữ nguyên ràng buộc ngay cả sau khi **Xoay 3D**, **Tách mặt phẳng**, **Tách thiết diện**.
+4. **Sửa Vị Trí Nút Nổi `✦ AI Toán học`**:
+   - Hạ nút nổi xuống dưới khung chọn (luôn nằm dưới thanh công cụ `.sel-bar` và trên thanh bút ở đáy), không còn che khuất các nút công cụ hình học.
+5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"

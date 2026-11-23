@@ -14,16 +14,16 @@
         display: none;
         align-items: center;
         gap: 6px;
-        padding: 7px 15px;
+        padding: 6px 13px;
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: #ffffff;
         font-family: system-ui, -apple-system, sans-serif;
-        font-size: 13px;
+        font-size: 12.5px;
         font-weight: 600;
         border-radius: 20px;
         box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.2);
         cursor: pointer;
-        z-index: 99999;
+        z-index: 880;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         user-select: none;
       }
@@ -490,7 +490,7 @@
     }
   }
 
-  // 4. Cập nhật vị trí nút nổi
+  // 4. Cập nhật vị trí nút nổi (đặt phía dưới vùng chọn, tuyệt đối không che thanh công cụ)
   function updateFloatingButton() {
     const editor = window.__noteRendererEditor;
     if (!editor || !editor.sel || !editor.sel.strokes || editor.sel.strokes.size === 0) {
@@ -509,28 +509,64 @@
 
     const scrollerRect = editor.scroller.getBoundingClientRect();
     const pageIndex = editor.sel.page;
-    const pageOffset = pageIndex * 1150;
+    const pageOffset = (typeof editor.pageTop === "function")
+      ? editor.pageTop(pageIndex)
+      : (pageIndex * 1150);
 
-    const docX = (box.x0 + box.x1) / 2;
-    const docY = box.y0 + pageOffset;
+    const docMidX = (box.x0 + box.x1) / 2;
+    const docBotY = box.y1 + pageOffset;
 
-    const screenX = scrollerRect.left + docX * editor.zoom - editor.scroller.scrollLeft;
-    const screenY = scrollerRect.top + docY * editor.zoom - editor.scroller.scrollTop - 44;
+    const screenX = scrollerRect.left + docMidX * editor.zoom - editor.scroller.scrollLeft;
+    const screenBotY = scrollerRect.top + docBotY * editor.zoom - editor.scroller.scrollTop;
 
-    btn.style.left = `${Math.max(10, screenX - 55)}px`;
-    btn.style.top = `${Math.max(60, screenY)}px`;
+    // Tính biên trên an toàn: luôn nằm DƯỚI thanh công cụ chọn (.sel-bar) và thanh trên (.toolbar)
+    let minTop = scrollerRect.top + 8;
+    const selBar = document.querySelector(".sel-bar");
+    if (selBar) {
+      const sr = selBar.getBoundingClientRect();
+      if (sr.width > 0 && sr.height > 0) {
+        minTop = Math.max(minTop, sr.bottom + 10);
+      }
+    }
+
+    // Tính biên dưới an toàn: luôn nằm TRÊN thanh công cụ dưới / thanh sheet
+    const btnH = btn.offsetHeight || 34;
+    const btnW = btn.offsetWidth || 122;
+    let maxTop = Math.min(window.innerHeight, scrollerRect.bottom) - btnH - 10;
+    const bottomBars = document.querySelectorAll("aside.tools-bar.side-bottom, .sheet-bar");
+    for (const bar of bottomBars) {
+      const br = bar.getBoundingClientRect();
+      if (br.width > 0 && br.height > 0 && br.top > window.innerHeight * 0.5) {
+        maxTop = Math.min(maxTop, br.top - btnH - 10);
+      }
+    }
+    if (maxTop < minTop) maxTop = minTop;
+
+    // Ưu tiên hạ nút xuống NGAY DƯỚI khung chọn (không bao giờ đè lên .sel-bar ở trên)
+    const desiredTop = screenBotY + 12;
+    const finalTop = Math.max(minTop, Math.min(maxTop, desiredTop));
+    const finalLeft = Math.max(10, Math.min(window.innerWidth - btnW - 10, screenX - btnW / 2));
+
+    btn.style.left = `${Math.round(finalLeft)}px`;
+    btn.style.top = `${Math.round(finalTop)}px`;
     btn.style.display = "flex";
   }
 
   setInterval(updateFloatingButton, 200);
 
-  // Mở menu
+  // Mở menu (tự mở lên trên nếu nút nằm gần đáy màn hình)
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     const rect = btn.getBoundingClientRect();
-    menu.style.left = `${rect.left}px`;
-    menu.style.top = `${rect.bottom + 6}px`;
     menu.style.display = "flex";
+    const menuH = menu.offsetHeight || 140;
+    const menuW = menu.offsetWidth || 260;
+    const left = Math.max(10, Math.min(window.innerWidth - menuW - 10, rect.left));
+    const top = (rect.bottom + 6 + menuH <= window.innerHeight - 10)
+      ? rect.bottom + 6
+      : Math.max(10, rect.top - menuH - 6);
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
   });
 
   window.addEventListener("click", (e) => {
