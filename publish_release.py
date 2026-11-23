@@ -22,26 +22,28 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.7.1"
-TITLE = "MinNote v0.0.7.1 - Tham Số KaTeX Trực Tiếp Trên Bảng & Tự Vẽ Theo Tham Số Kiểu GSP5"
-BODY = r"""## MinNote v0.0.7.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.7.2"
+TITLE = "MinNote v0.0.7.2 - Chức Năng Tạo Quỹ Tích Hình Học Động (Locus & Trace Kiểu GSP5)"
+BODY = r"""## MinNote v0.0.7.2 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật **v0.0.7.1** tinh gọn hoàn toàn giao diện **Tham số GSP5** theo đúng quy trình vẽ hình tự nhiên trên bảng viết:
+Bản cập nhật **v0.0.7.2** chính thức bổ sung **Chức năng Tạo Quỹ Tích Hình Học Động (Locus) & Vết Chuyển Động (Trace)** theo chuẩn **The Geometer's Sketchpad (GSP5)**, phục vụ công tác giảng dạy và giải bài toán quỹ tích toán học:
 
-### 🌟 Điểm Mới Trong Bản v0.0.7.1:
-1. **Đưa Nút Tham Số Vào Thanh Công Cụ & Bỏ Nút Hờ Góc Trái**:
-   - Xóa hoàn toàn nút hờ ở góc dưới bên trái (trên nút `^ Sheet`).
-   - Thêm nút **`Tham số hình học (GSP5)`** (`t=`) trực tiếp vào thanh công cụ ngay cạnh mục **Dựng hình** (hiển thị gọn trên thanh công cụ dưới).
-2. **Tham Số Hiển Thị Dạng Công Thức KaTeX Sạch Đẹp Ngay Trên Bảng**:
-   - Khi tạo tham số (`a = 2 cm`, `α = 60°`, `k = 0,5`…), chỉ hiển thị công thức **KaTeX** tinh gọn ngay trên trang viết, không bung bảng nổi che màn hình.
-   - **Kéo thả** tự do đến bất kỳ vị trí nào trên bảng, **nháy 1 lần** để chọn tham số (hỗ trợ phím `+`/`-` tăng giảm nhanh), và **nháy đúp** vào công thức để mở bảng chỉnh sửa đầy đủ.
-3. **Chọn Tham Số + Công Cụ Vẽ → Tự Động Vẽ Khóa Cứng Kiểu GSP5**:
-   - Chọn `a = 2 cm` + **Đường tròn** → bấm 1 điểm tâm `O` (hoặc chọn sẵn `O`) → tự vẽ đường tròn `(O; R = a)` khóa cứng bán kính.
-   - Chọn `a = 2 cm` + **Đoạn thẳng / Hình vuông / Tam giác đều / Khối 3D** → tự dựng đúng kích thước `a` đã khóa.
-   - Chọn `α = 60°` + **Góc / Phép quay** (hoặc `k` + **Phép vị tự**) → tự dựng góc và phép biến hình liên kết sống với tham số.
-4. **Cố Định Vị Trí Dưới `.selection-bar`**:
-   - Đồng bộ lại vị trí nút **✦ AI Toán học**, công thức KaTeX mặc định và bảng tham số đầy đủ để không bao giờ che thanh chọn `.selection-bar`.
-5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
+### 🌟 Điểm Mới Trong Bản v0.0.7.2:
+1. **Công Cụ Quỹ Tích Trực Tiếp Trên Thanh Công Cụ Dựng Hình (`Alt+L`)**:
+   - Thêm công cụ **Quỹ tích** vào nhóm **Dựng hình** trên thanh công cụ và nút **`Quỹ tích`** trực tiếp trên thanh chọn đối tượng (`.sel-bar`).
+   - Hỗ trợ thao tác 2 lần bấm linh hoạt theo mọi thứ tự: bấm điểm cần tìm quỹ tích trước $\to$ điểm dẫn chuyển động sau, hoặc ngược lại.
+2. **Quỹ Tích Điểm Động Liên Tục Theo Thời Gian Thực**:
+   - Tự động dựng đường quỹ tích toán học mượt mà của điểm phụ thuộc khi điểm dẫn di chuyển trên đường tròn, đoạn thẳng, tia, đường thẳng hoặc đa giác.
+   - Khi dời các điểm gốc hoặc co dãn hình, đường quỹ tích tự động co dãn, cập nhật tức thì.
+   - Tích hợp bộ giải thuật thích ứng thông minh phát hiện tiệm cận và điểm gián đoạn vô cực (không bị nối vạch ngang màn hình).
+3. **Tạo Họ Hình / Bao Hình (Shape Envelope)**:
+   - Hỗ trợ chọn cả một đoạn thẳng, đường thẳng, tia, đường tròn hoặc đa giác kết hợp với điểm chuyển động để sinh ra **họ hình bao** (ví dụ: họ tiếp tuyến của đường tròn/parabol, họ đoạn thẳng đối xứng...).
+4. **Kết Hợp 1-Click Với Tham Số KaTeX Trên Bảng**:
+   - Khi chọn một tham số KaTeX (ví dụ $\alpha = 60^\circ$ hoặc $a = 2\text{ cm}$), chỉ cần bấm công cụ Quỹ tích $\to$ bấm 1 điểm phụ thuộc, MinNote sẽ tự dựng toàn bộ quỹ tích khi tham số biến thiên.
+5. **Chế Độ Chạy Chuyển Động & Vết Điểm (Trace GSP5)**:
+   - Nút chạy tự động (▶ / ⏸) cho điểm dẫn trượt mượt mà dọc quỹ đạo để minh họa trực quan sinh động trong giờ dạy học.
+   - Chế độ **Vết chuyển động** cho phép ghi lại đường đi của bất kỳ điểm nào và nút **`💾 Lưu vết`** để chuyển thành nét vẽ vector cố định trên bảng.
+6. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
