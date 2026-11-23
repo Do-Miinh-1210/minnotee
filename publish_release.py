@@ -22,24 +22,25 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.7.0"
-TITLE = "MinNote v0.0.7.0 - Bộ Tham Số & Ràng Buộc Hình Học Kiểu GSP5 (2D/3D Chuẩn Tỉ Lệ) & Hạ Nút AI Toán Học"
-BODY = r"""## MinNote v0.0.7.0 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
+TAG = "v0.0.7.1"
+TITLE = "MinNote v0.0.7.1 - Tham Số KaTeX Trực Tiếp Trên Bảng & Tự Vẽ Theo Tham Số Kiểu GSP5"
+BODY = r"""## MinNote v0.0.7.1 (Bản Quyền Độc Quyền: admin_matrixexamAI - Gói ULTRA)
 
-Bản cập nhật lớn **v0.0.7.0** ra mắt **Bộ Tham Số & Ràng Buộc Hình Học Kiểu GSP5** giúp cố định tuyệt đối độ dài, góc, tỉ lệ cho cả hình **2D** và **3D**, đồng thời tinh chỉnh vị trí nút nổi **AI Toán học**:
+Bản cập nhật **v0.0.7.1** tinh gọn hoàn toàn giao diện **Tham số GSP5** theo đúng quy trình vẽ hình tự nhiên trên bảng viết:
 
-### 🌟 Điểm Mới Trong Bản v0.0.7.0:
-1. **Hệ Thống Tham Số Kiểu GSP5 (`Tham số GSP5` / `Alt+P`)**:
-   - Hộp thoại **Tham số mới (GSP5)** hỗ trợ đầy đủ 3 đơn vị **Không (tỉ số)**, **Góc (°)**, **Khoảng cách (cm)**, nút chọn tên nhanh (`a, b, c, h, r, α, β, k`) và **nhập công thức liên kết** (VD: `a*sqrt(2)`, `180 - 2*α`, `a*sin(α)`).
-   - Kéo thanh trượt, nhập số trực tiếp hoặc bấm **`▶`** chạy hoạt hình tham số để hình 2D/3D biến đổi mượt mà theo thời gian thực.
-2. **Khóa Cứng Độ Dài, Bán Kính & Số Đo Góc (Không Thể Kéo Lệch)**:
-   - Ngay trên thanh công cụ chọn (`.sel-bar`) cạnh ô **`Độ dài [ ... ] cm`** có nút **`🔒 / 🔓`** khóa cứng độ dài và nút **`fx`** gắn tham số trực tiếp.
-   - Đoạn thẳng đã khóa `2 cm` sẽ **tuyệt đối không thể kéo giãn thành 3 cm** (mặc định chỉ xoay quanh gốc hoặc khóa cứng cả phương); góc đã khóa `60°` chỉ cho trượt đúng dọc tia `60°`.
-3. **Dựng Hình 2D & 3D Chuẩn Tỉ Lệ Theo Tham Số**:
-   - Dựng nhanh **2D**: Đoạn thẳng cố định, Góc chuẩn, Đường tròn bán kính chuẩn, Tam giác (c-g-c & 3 cạnh c-c-c), Hình chữ nhật/vuông, Hình bình hành/thoi.
-   - Dựng nhanh **3D chuẩn tỉ lệ**: Chóp tứ giác đều `S.ABCD`, Chóp HCN `SA ⊥ đáy`, Chóp tam giác `S.ABC`, Hình hộp/Lập phương, Lăng trụ đứng tam giác, Hình nón, Hình trụ — đổi tham số co giãn đúng tỉ lệ 3D, tự cập nhật nét đứt và giữ nguyên ràng buộc ngay cả sau khi **Xoay 3D**, **Tách mặt phẳng**, **Tách thiết diện**.
-4. **Sửa Vị Trí Nút Nổi `✦ AI Toán học`**:
-   - Hạ nút nổi xuống dưới khung chọn (luôn nằm dưới thanh công cụ `.sel-bar` và trên thanh bút ở đáy), không còn che khuất các nút công cụ hình học.
+### 🌟 Điểm Mới Trong Bản v0.0.7.1:
+1. **Đưa Nút Tham Số Vào Thanh Công Cụ & Bỏ Nút Hờ Góc Trái**:
+   - Xóa hoàn toàn nút hờ ở góc dưới bên trái (trên nút `^ Sheet`).
+   - Thêm nút **`Tham số hình học (GSP5)`** (`t=`) trực tiếp vào thanh công cụ ngay cạnh mục **Dựng hình** (hiển thị gọn trên thanh công cụ dưới).
+2. **Tham Số Hiển Thị Dạng Công Thức KaTeX Sạch Đẹp Ngay Trên Bảng**:
+   - Khi tạo tham số (`a = 2 cm`, `α = 60°`, `k = 0,5`…), chỉ hiển thị công thức **KaTeX** tinh gọn ngay trên trang viết, không bung bảng nổi che màn hình.
+   - **Kéo thả** tự do đến bất kỳ vị trí nào trên bảng, **nháy 1 lần** để chọn tham số (hỗ trợ phím `+`/`-` tăng giảm nhanh), và **nháy đúp** vào công thức để mở bảng chỉnh sửa đầy đủ.
+3. **Chọn Tham Số + Công Cụ Vẽ → Tự Động Vẽ Khóa Cứng Kiểu GSP5**:
+   - Chọn `a = 2 cm` + **Đường tròn** → bấm 1 điểm tâm `O` (hoặc chọn sẵn `O`) → tự vẽ đường tròn `(O; R = a)` khóa cứng bán kính.
+   - Chọn `a = 2 cm` + **Đoạn thẳng / Hình vuông / Tam giác đều / Khối 3D** → tự dựng đúng kích thước `a` đã khóa.
+   - Chọn `α = 60°` + **Góc / Phép quay** (hoặc `k` + **Phép vị tự**) → tự dựng góc và phép biến hình liên kết sống với tham số.
+4. **Cố Định Vị Trí Dưới `.selection-bar`**:
+   - Đồng bộ lại vị trí nút **✦ AI Toán học**, công thức KaTeX mặc định và bảng tham số đầy đủ để không bao giờ che thanh chọn `.selection-bar`.
 5. **Bản Quyền Độc Quyền**: Duy nhất `admin_matrixexamAI` gói `ULTRA`.
 """
 

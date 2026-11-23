@@ -1,9 +1,8 @@
 /* MinNote GSP5 Parametric Geometry & Constraints Studio
- * Provides:
- * - GSP5-style "Tham số mới" (New Parameter) modal with None / Angle (°) / Distance (cm) units & formulas
- * - Floating collapsible Parameter & Constraints Studio (#mn-param-panel)
- * - True mathematical locking for lengths, radii, angles, ratios (dragging CANNOT break constraints)
- * - Live 2D & 3D Parametric Shape Builders (compatible with Xoay 3D, Tách mặt phẳng, Tách thiết diện, Tự động nét đứt)
+ * - Native bottom-toolbar button (no corner pill!)
+ * - Parameters appear directly on the whiteboard as clean KaTeX math formulas (e.g. a = 2 cm, α = 60°)
+ * - Single-click KaTeX formula to select/arm -> combine with Circle / Segment / Angle / Rotate / Dilate / Translate to construct automatically!
+ * - Double-click KaTeX formula to open the full Parametric Studio panel (sliders, formulas, animation, constraints, 2D/3D builders)
  */
 (function () {
   "use strict";
@@ -16,12 +15,15 @@
     buildKind2d: "segment",
     buildKind3d: "pyramid4",
     editingParamId: null,
-    showLabels: true,
+    focusedParamId: null,
+    selectedParamIds: [], // active KaTeX param IDs (at most 1 per unit: dist / angle / none)
+    showLabels: false, // keep board ultra-clean like GSP5 by default; user can toggle "Nhãn" in panel
     rafId: null,
     lastAnimTs: 0,
     sliderUndoSaved: false,
     panelPos: null,
     selKey: "",
+    katexKey: "",
     builderVals: {
       a: "4",
       b: "3",
@@ -136,6 +138,87 @@
     }
   }
 
+  function isLibraryOpen() {
+    const lib = document.querySelector(".library");
+    if (!lib) return false;
+    const r = lib.getBoundingClientRect();
+    return r.width > 100 && r.height > 100;
+  }
+
+  // Convert parameter to authentic LaTeX string for KaTeX (e.g. a = 2 cm, \alpha = 60^\circ, t_{1} = 1,5)
+  function paramNameToLatex(name) {
+    const greek = {
+      "α": "\\alpha", "β": "\\beta", "γ": "\\gamma", "δ": "\\delta",
+      "θ": "\\theta", "φ": "\\varphi", "λ": "\\lambda", "π": "\\pi", "ω": "\\omega"
+    };
+    let s = String(name || "a").trim();
+    if (greek[s]) return greek[s];
+    // Convert t[1] -> t_{1}, a1 -> a_{1}
+    const mBracket = /^([A-Za-z\\]+)\[([^\]]+)\]$/.exec(s);
+    if (mBracket) return `${mBracket[1]}_{${mBracket[2]}}`;
+    const mSub = /^([A-Za-z])(\d+)$/.exec(s);
+    if (mSub) return `${mSub[1]}_{${mSub[2]}}`;
+    return s;
+  }
+
+  function paramToLatex(geo, p) {
+    const nm = paramNameToLatex(p.name);
+    const val = evalParamValue(geo, p);
+    const valStr = fmtNum(val, p.unit === "angle" ? 1 : 2).replace(",", "{,}");
+    const unitTex = p.unit === "dist" ? "\\,\\text{cm}" : (p.unit === "angle" ? "^\\circ" : "");
+    if (p.expr && p.expr.trim()) {
+      const exprTex = String(p.expr)
+        .replace(/sqrt\(([^)]+)\)/g, "\\sqrt{$1}")
+        .replace(/\*/g, "\\cdot ")
+        .replace(/α/g, "\\alpha")
+        .replace(/β/g, "\\beta");
+      return `${nm} = ${exprTex} \\approx ${valStr}${unitTex}`;
+    }
+    return `${nm} = ${valStr}${unitTex}`;
+  }
+
+  function paramPlainText(geo, p) {
+    const val = evalParamValue(geo, p);
+    return `${p.name} = ${fmtNum(val, p.unit === "angle" ? 1 : 2)}${unitSuffix(p.unit)}`;
+  }
+
+  // Active selected parameters on current page
+  function getSelectedParams(pageIdx) {
+    const params = getParams(pageIdx);
+    const idSet = new Set(STATE.selectedParamIds);
+    return params.filter(p => idSet.has(p.id));
+  }
+
+  function getActiveParamByUnit(pageIdx, unit) {
+    const sel = getSelectedParams(pageIdx);
+    return sel.find(p => p.unit === unit) || null;
+  }
+
+  function selectParam(pageIdx, paramId, toggle = true) {
+    const params = getParams(pageIdx);
+    const target = params.find(p => p.id === paramId);
+    if (!target) return;
+    const idx = STATE.selectedParamIds.indexOf(paramId);
+    if (idx >= 0) {
+      if (toggle) STATE.selectedParamIds.splice(idx, 1);
+    } else {
+      // Smart per-unit selection: keep 1 active param per unit (so a=2cm and α=60° can be selected together!)
+      STATE.selectedParamIds = STATE.selectedParamIds.filter(id => {
+        const other = params.find(p => p.id === id);
+        return other && other.unit !== target.unit;
+      });
+      STATE.selectedParamIds.push(paramId);
+    }
+    syncArmedBar();
+    renderCanvasChips(true);
+  }
+
+  function clearSelectedParams() {
+    STATE.selectedParamIds = [];
+    syncArmedBar();
+    renderCanvasChips(true);
+  }
+
   // Re-run 3D auto-dash for any solid on the page whose vertices updated
   function refreshSolidsOnGeo(geo) {
     const K = getKernel();
@@ -143,9 +226,7 @@
     let out = geo;
     for (const sh of out.shapes) {
       if (sh.kind === "solid" && sh.solid && sh.solid.faces) {
-        try {
-          out = K.mee(out, sh);
-        } catch (_) {}
+        try { out = K.mee(out, sh); } catch (_) {}
       }
     }
     return out;
@@ -174,6 +255,8 @@
       ed.redraw();
       ed.emit();
     }
+    renderCanvasChips(true);
+    syncArmedBar();
     return true;
   }
 
@@ -186,13 +269,8 @@
       const d = pt && pt.def;
       if (!d) continue;
       if (
-        d.paramId === paramId ||
-        d.distParamId === paramId ||
-        d.angParamId === paramId ||
-        d.kParamId === paramId ||
-        d.xParamId === paramId ||
-        d.yParamId === paramId ||
-        d.zParamId === paramId
+        d.paramId === paramId || d.distParamId === paramId || d.angParamId === paramId ||
+        d.kParamId === paramId || d.xParamId === paramId || d.yParamId === paramId || d.zParamId === paramId
       ) {
         count++;
         continue;
@@ -205,7 +283,6 @@
     return count;
   }
 
-  // Cycle check: does `targetId` depend on `nodeId`?
   function dependsOn(geo, targetId, nodeId) {
     const K = getKernel();
     if (!K || !geo || !geo.points) return false;
@@ -230,7 +307,396 @@
     return (pt && pt.label) || id.slice(0, 4);
   }
 
-  // Detect what constraint targets are currently selected on the whiteboard
+  function isPointUsedByShapesOrDeps(geo, ptId) {
+    const K = getKernel();
+    if (!geo) return false;
+    if (geo.shapes.some(sh => sh.pts && sh.pts.includes(ptId))) return true;
+    for (const other of Object.values(geo.points)) {
+      if (other.id === ptId || !other.def) continue;
+      if (K && K.Om(other.def).includes(ptId)) return true;
+    }
+    return false;
+  }
+
+  // ==================== DIRECT GSP5 TOOL INTEGRATION ====================
+
+  // Build Circle (centerId, radius = distParam)
+  function constructCircleByParam(ed, pageIdx, centerId, distParam) {
+    const pg = getPage(pageIdx);
+    const K = getKernel();
+    if (!pg || !K) return false;
+    const style = ed.shapeStyle || { color: "#1a1a1a", width: 2.4 };
+    const rId = makeId("pt");
+    const cId = makeId("sh");
+    const rPt = {
+      id: rId,
+      def: { t: "len", a: centerId, ang: 0, paramId: distParam.id, lockedAng: false },
+      label: "",
+      show: false
+    };
+    const circ = {
+      id: cId,
+      kind: "circle",
+      pts: [centerId, rId],
+      color: style.color,
+      width: style.width,
+      ...(ed.dashed ? { dashed: true } : {})
+    };
+    ed.picks = null;
+    mutateGeo(pageIdx, geo => ({
+      ...geo,
+      points: { ...geo.points, [rId]: rPt },
+      shapes: [...geo.shapes, circ]
+    }));
+    showToast(`Đã vẽ đường tròn tâm ${ptName(getPage(pageIdx).geo, centerId)}, bán kính ${paramPlainText(getPage(pageIdx).geo, distParam)}`);
+    if (STATE.open) renderPanel();
+    return true;
+  }
+
+  // Build Angle ∠AOB = angParam (and optionally OB = distParam)
+  function constructAngleByParam(ed, pageIdx, A, O, angParam, distParam) {
+    const pg = getPage(pageIdx);
+    const K = getKernel();
+    if (!pg || !K) return false;
+    const coords = K.Tt(pg.geo);
+    const cA = coords.get(A), cO = coords.get(O);
+    if (!cA || !cO) return false;
+    const style = ed.shapeStyle || { color: "#1a1a1a", width: 2.4 };
+    const cm = getCmPx();
+    const nameGen = K.yc(pg.geo);
+    const bId = makeId("pt");
+    const curDistPx = Math.max(40, K.Je(cO, cA));
+    const bPt = {
+      id: bId,
+      def: {
+        t: "polar",
+        o: O,
+        ref: A,
+        fixedAng: true,
+        angParamId: angParam.id,
+        fixedDist: !!distParam,
+        distParamId: distParam ? distParam.id : undefined,
+        curDistPx
+      },
+      label: nameGen(),
+      show: true
+    };
+    const degNow = evalParamValue(pg.geo, angParam);
+    const isRight = Math.abs(Math.abs(degNow) - 90) < 0.05;
+    const newShapes = [];
+    const hasOA = pg.geo.shapes.some(sh => sh.kind === "segment" && sh.pts.includes(O) && sh.pts.includes(A));
+    if (!hasOA) {
+      newShapes.push({ id: makeId("sh"), kind: "segment", pts: [O, A], color: style.color, width: style.width });
+    }
+    newShapes.push({ id: makeId("sh"), kind: "segment", pts: [O, bId], color: style.color, width: style.width, ...(ed.dashed ? { dashed: true } : {}) });
+    newShapes.push({ id: makeId("sh"), kind: isRight ? "right" : "angle", pts: [A, O, bId], color: style.color, width: style.width });
+
+    ed.picks = null;
+    mutateGeo(pageIdx, geo => ({
+      ...geo,
+      cmPx: cm,
+      points: { ...geo.points, [bId]: bPt },
+      shapes: [...geo.shapes, ...newShapes]
+    }));
+    showToast(`Đã dựng góc ∠${ptName(getPage(pageIdx).geo, A)}${ptName(getPage(pageIdx).geo, O)}${bPt.label} = ${paramPlainText(getPage(pageIdx).geo, angParam)}`);
+    if (STATE.open) renderPanel();
+    return true;
+  }
+
+  // Hook 1: geoPick(editor, pageIdx, pick) — intercepts Dựng hình tools when user has selected a KaTeX parameter chip
+  function handleGeoPick(ed, pageIdx, pick) {
+    const tool = ed.tool && ed.tool.k === "geo" ? ed.tool.t : null;
+    if (!tool) return false;
+    const distP = getActiveParamByUnit(pageIdx, "dist");
+    const angP = getActiveParamByUnit(pageIdx, "angle");
+    const numP = getActiveParamByUnit(pageIdx, "none");
+    if (!distP && !angP && !numP) return false;
+
+    const pg = getPage(pageIdx);
+    const K = getKernel();
+    if (!pg || !K) return false;
+    const geo = pg.geo;
+    const style = ed.shapeStyle || { color: "#1a1a1a", width: 2.4 };
+
+    // 1. Circle / CircleRadius + active distance param a -> 1 click center O!
+    if ((tool === "circle" || tool === "circleRadius") && distP && pick.kind === "point") {
+      return constructCircleByParam(ed, pageIdx, pick.id, distP);
+    }
+
+    // 2. Segment + active distance param a -> 2 clicks (A, then direction B) -> locks AB = a!
+    if (tool === "segment" && distP && pick.kind === "point") {
+      if (!ed.picks || ed.picks.page !== pageIdx) ed.picks = { page: pageIdx, list: [] };
+      const list = ed.picks.list;
+      if (list.length === 0) {
+        list.push(pick);
+        ed.sel = { page: pageIdx, strokes: new Set(), items: new Set(), points: new Set([pick.id]), shapes: new Set() };
+        ed.redraw();
+        ed.emit();
+        showToast(`Đã chọn gốc ${ptName(geo, pick.id)} — bấm hướng tiếp theo để vẽ đoạn = ${paramPlainText(geo, distP)}`);
+        return true;
+      }
+      const A = list[0].id;
+      const B = pick.id;
+      if (A === B) return true;
+      const coords = K.Tt(geo);
+      const cA = coords.get(A), cB = coords.get(B);
+      if (!cA || !cB) return false;
+      const ang = Math.atan2(cB.y - cA.y, cB.x - cA.x);
+      const ptB = geo.points[B];
+      const canReuseB = ptB && ptB.def && ptB.def.t === "free" && !isPointUsedByShapesOrDeps(geo, B) && !dependsOn(geo, A, B);
+      const targetId = canReuseB ? B : makeId("pt");
+      const nameGen = K.yc(geo);
+      const lockedDef = {
+        t: "len",
+        a: A,
+        ang,
+        paramId: distP.id,
+        angParamId: angP ? angP.id : undefined,
+        lockedAng: !!angP
+      };
+      const newPt = canReuseB
+        ? { ...ptB, def: lockedDef }
+        : { id: targetId, def: lockedDef, label: nameGen(), show: true };
+      const seg = {
+        id: makeId("sh"),
+        kind: "segment",
+        pts: [A, targetId],
+        color: style.color,
+        width: style.width,
+        ...(ed.dashed ? { dashed: true } : {})
+      };
+      ed.picks = null;
+      mutateGeo(pageIdx, g => ({
+        ...g,
+        points: { ...g.points, [targetId]: newPt },
+        shapes: [...g.shapes, seg]
+      }));
+      ed.selectGeo(pageIdx, [A, targetId], [seg.id]);
+      showToast(`Đã vẽ đoạn ${ptName(getPage(pageIdx).geo, A)}${newPt.label} = ${paramPlainText(getPage(pageIdx).geo, distP)} (đã khóa)`);
+      return true;
+    }
+
+    // 3. Angle / AngleMark + active angle param α -> 1 click on segment OA, OR 2 clicks (A, then vertex O)!
+    if ((tool === "angle" || tool === "angleMark") && angP) {
+      if (pick.kind === "curve" && pick.c && pick.c.kind === "line") {
+        // Segment clicked: anchor vertex at first endpoint, ray ref at second endpoint
+        return constructAngleByParam(ed, pageIdx, pick.c.b, pick.c.a, angP, distP);
+      }
+      if (pick.kind === "point") {
+        if (!ed.picks || ed.picks.page !== pageIdx) ed.picks = { page: pageIdx, list: [] };
+        const list = ed.picks.list;
+        if (list.length === 0) {
+          list.push(pick);
+          ed.sel = { page: pageIdx, strokes: new Set(), items: new Set(), points: new Set([pick.id]), shapes: new Set() };
+          ed.redraw();
+          ed.emit();
+          showToast(`Đã chọn điểm cạnh ${ptName(geo, pick.id)} — bấm tiếp ĐỈNH GÓC để dựng góc ${paramPlainText(geo, angP)}`);
+          return true;
+        }
+        const A = list[0].id;
+        const O = pick.id;
+        if (A === O) return true;
+        return constructAngleByParam(ed, pageIdx, A, O, angP, distP);
+      }
+    }
+
+    // 4. Rotate + active angle param α -> binds angParamId = α.id!
+    if (tool === "rotate" && angP && K.BN) {
+      if (!ed.picks || ed.picks.page !== pageIdx) ed.picks = { page: pageIdx, list: [] };
+      const list = ed.picks.list;
+      if (list.length === 0) {
+        list.push(pick);
+        ed.redraw();
+        showToast(`Đã chọn đối tượng — bấm TÂM QUAY để quay góc ${paramPlainText(geo, angP)}`);
+        return true;
+      }
+      if (pick.kind !== "point") return true;
+      const obj = list[0];
+      const deg = evalParamValue(geo, angP);
+      const res = obj.kind === "point"
+        ? K.BN(geo, [obj.id], [], { t: "rotate", o: pick.id, deg }, () => makeId("pt"))
+        : K.BN(geo, obj.c.shape.pts, [obj.c.shape], { t: "rotate", o: pick.id, deg }, () => makeId("pt"));
+      const boundPts = res.points.map(pt => pt.def && pt.def.t === "rot" ? { ...pt, def: { ...pt.def, angParamId: angP.id } } : pt);
+      ed.picks = null;
+      mutateGeo(pageIdx, g => {
+        const pm = { ...g.points };
+        for (const p of boundPts) pm[p.id] = p;
+        return { ...g, points: pm, shapes: [...g.shapes, ...res.shapes] };
+      });
+      showToast(`Đã quay theo tham số ${paramPlainText(geo, angP)} (tự cập nhật khi đổi góc)`);
+      return true;
+    }
+
+    // 5. Dilate + active scalar param k -> binds kParamId = k.id!
+    if (tool === "dilate" && numP && K.BN) {
+      if (!ed.picks || ed.picks.page !== pageIdx) ed.picks = { page: pageIdx, list: [] };
+      const list = ed.picks.list;
+      if (list.length === 0) {
+        list.push(pick);
+        ed.redraw();
+        showToast(`Đã chọn đối tượng — bấm TÂM VỊ TỰ với tỉ số ${paramPlainText(geo, numP)}`);
+        return true;
+      }
+      if (pick.kind !== "point") return true;
+      const obj = list[0];
+      const kVal = evalParamValue(geo, numP);
+      const res = obj.kind === "point"
+        ? K.BN(geo, [obj.id], [], { t: "dilate", o: pick.id, k: kVal }, () => makeId("pt"))
+        : K.BN(geo, obj.c.shape.pts, [obj.c.shape], { t: "dilate", o: pick.id, k: kVal }, () => makeId("pt"));
+      const boundPts = res.points.map(pt => pt.def && pt.def.t === "rot" ? { ...pt, def: { ...pt.def, kParamId: numP.id } } : pt);
+      ed.picks = null;
+      mutateGeo(pageIdx, g => {
+        const pm = { ...g.points };
+        for (const p of boundPts) pm[p.id] = p;
+        return { ...g, points: pm, shapes: [...g.shapes, ...res.shapes] };
+      });
+      showToast(`Đã vị tự theo tham số ${paramPlainText(geo, numP)}`);
+      return true;
+    }
+
+    // 6. Translate + active dist param a (or scalar k)
+    if (tool === "translate" && (distP || numP) && K.BN) {
+      if (!ed.picks || ed.picks.page !== pageIdx) ed.picks = { page: pageIdx, list: [] };
+      const list = ed.picks.list;
+      if (list.length < 2) {
+        list.push(pick);
+        ed.redraw();
+        return true;
+      }
+      if (pick.kind !== "point") return true;
+      const obj = list[0];
+      const fromPt = list[1].id;
+      const toPt = pick.id;
+      const kVal = numP ? evalParamValue(geo, numP) : 1;
+      const res = obj.kind === "point"
+        ? K.BN(geo, [obj.id], [], { t: "translate", from: fromPt, to: toPt, k: kVal }, () => makeId("pt"))
+        : K.BN(geo, obj.c.shape.pts, [obj.c.shape], { t: "translate", from: fromPt, to: toPt, k: kVal }, () => makeId("pt"));
+      const boundPts = res.points.map(pt => {
+        if (distP) {
+          const origId = pt.def.o || pt.def.a;
+          return { ...pt, def: { t: "vec", o: origId, a: fromPt, b: toPt, k: 1, perp: false, distParamId: distP.id } };
+        }
+        if (numP && pt.def.t === "vec") return { ...pt, def: { ...pt.def, kParamId: numP.id } };
+        return pt;
+      });
+      ed.picks = null;
+      mutateGeo(pageIdx, g => {
+        const pm = { ...g.points };
+        for (const p of boundPts) pm[p.id] = p;
+        return { ...g, points: pm, shapes: [...g.shapes, ...res.shapes] };
+      });
+      showToast(`Đã tịnh tiến theo tham số ${paramPlainText(geo, distP || numP)}`);
+      return true;
+    }
+
+    return false;
+  }
+
+  // Hook 2: handleShapeCreate — intercepts Hình (shape) tools when user has selected a KaTeX parameter chip!
+  function handleShapeCreate(ed, dragObj, fromPt, toPt, ends, extraPts) {
+    const pageIdx = dragObj.page;
+    const distP = getActiveParamByUnit(pageIdx, "dist");
+    const angP = getActiveParamByUnit(pageIdx, "angle");
+    if (!distP) return false;
+
+    const kind = dragObj.t;
+    const supported = ["circle", "segment", "square", "equilateral", "cube", "pyramid4", "cone", "cylinder"];
+    if (!supported.includes(kind)) return false;
+
+    const pg = getPage(pageIdx);
+    const K = getKernel();
+    if (!pg || !K) return false;
+    const style = ed.shapeStyle || { color: "#1a1a1a", width: 2.4 };
+    const nameGen = K.yc(pg.geo);
+    const group = makeId("grp");
+    const pts = [...(extraPts || [])];
+    const shapes = [];
+
+    const mkPt = (def, pref, show = true) => {
+      const id = makeId("pt");
+      pts.push({ id, def, label: pref === null ? "" : nameGen(pref), show: show && pref !== null, group });
+      return id;
+    };
+
+    if (kind === "circle") {
+      const O = (ends && ends.a) || mkPt({ t: "free", x: fromPt.x, y: fromPt.y }, "O");
+      const R = mkPt({ t: "len", a: O, ang: 0, paramId: distP.id, lockedAng: false }, null, false);
+      shapes.push({ id: makeId("sh"), kind: "circle", pts: [O, R], color: style.color, width: style.width, group, ...(ed.dashed ? { dashed: true } : {}) });
+    } else if (kind === "segment") {
+      const A = (ends && ends.a) || mkPt({ t: "free", x: fromPt.x, y: fromPt.y }, "A");
+      const ang = K.Je(fromPt, toPt) > 4 ? Math.atan2(toPt.y - fromPt.y, toPt.x - fromPt.x) : 0;
+      const B = mkPt({ t: "len", a: A, ang, paramId: distP.id, angParamId: angP ? angP.id : undefined, lockedAng: !!angP }, "B");
+      shapes.push({ id: makeId("sh"), kind: "segment", pts: [A, B], color: style.color, width: style.width, group, ...(ed.dashed ? { dashed: true } : {}) });
+    } else if (kind === "square") {
+      const A = mkPt({ t: "free", x: fromPt.x, y: fromPt.y }, "A");
+      const B = mkPt({ t: "len", a: A, ang: 0, paramId: distP.id, lockedAng: false }, "B");
+      const D = mkPt({ t: "rot", c: A, p: B, ang: -90, k: 1 }, "D");
+      const C = mkPt({ t: "sum", a: B, b: D, c: A }, "C");
+      shapes.push({ id: makeId("sh"), kind: "polygon", pts: [A, B, C, D], color: style.color, width: style.width, group });
+    } else if (kind === "equilateral") {
+      const A = mkPt({ t: "free", x: fromPt.x, y: fromPt.y }, "A");
+      const B = mkPt({ t: "len", a: A, ang: 0, paramId: distP.id, lockedAng: false }, "B");
+      const C = mkPt({ t: "rot", c: A, p: B, ang: -60, k: 1 }, "C");
+      shapes.push({ id: makeId("sh"), kind: "polygon", pts: [A, B, C], color: style.color, width: style.width, group });
+    } else if (kind === "cube" || kind === "pyramid4" || kind === "cone" || kind === "cylinder") {
+      const prevA = STATE.builderVals.a, prevB = STATE.builderVals.b, prevH = STATE.builderVals.h, prevR = STATE.builderVals.r, prevAuto = STATE.builderVals.autoCreateParams;
+      STATE.builderVals.a = distP.name;
+      STATE.builderVals.b = distP.name;
+      STATE.builderVals.r = distP.name;
+      const hOther = getParams(pageIdx).find(p => p.unit === "dist" && p.id !== distP.id && (p.name === "h" || p.name.startsWith("h")));
+      STATE.builderVals.h = kind === "cube" ? distP.name : (hOther ? hOther.name : `${distP.name}*1.3`);
+      STATE.builderVals.autoCreateParams = false;
+      buildParametric3D(kind === "cube" ? "box" : kind, fromPt);
+      STATE.builderVals.a = prevA; STATE.builderVals.b = prevB; STATE.builderVals.h = prevH; STATE.builderVals.r = prevR; STATE.builderVals.autoCreateParams = prevAuto;
+      return true;
+    }
+
+    mutateGeo(pageIdx, g => {
+      const pm = { ...g.points };
+      for (const p of pts) pm[p.id] = p;
+      return { ...g, points: pm, shapes: [...g.shapes, ...shapes] };
+    });
+    showToast(`Đã vẽ theo tham số ${paramPlainText(getPage(pageIdx).geo, distP)} (đã khóa cố định)`);
+    return true;
+  }
+
+  // Hook 3: onToolChange — GSP5 instant-construct when user ALREADY selected point O + param a=2cm and clicks Circle tool!
+  function onToolChange(ed, tool) {
+    if (!ed || !tool) return;
+    const pageIdx = currentPageIndex();
+    const distP = getActiveParamByUnit(pageIdx, "dist");
+    const angP = getActiveParamByUnit(pageIdx, "angle");
+    if (!distP && !angP) return;
+
+    // Note: setTool clears ed.sel for non-select tools, so we track lastSelPoints/lastSelShapes!
+    if ((tool.k === "geo" && (tool.t === "circle" || tool.t === "circleRadius")) && distP) {
+      if (STATE._lastSel && STATE._lastSel.page === pageIdx && STATE._lastSel.points.length === 1 && STATE._lastSel.shapes.length === 0) {
+        const centerId = STATE._lastSel.points[0];
+        STATE._lastSel = null;
+        if (getPage(pageIdx)?.geo?.points?.[centerId]) {
+          constructCircleByParam(ed, pageIdx, centerId, distP);
+          return;
+        }
+      }
+      showToast(`Đang dùng ${paramPlainText(getPage(pageIdx).geo, distP)} — bấm 1 điểm tâm O để vẽ ngay đường tròn R = ${distP.name}`);
+    } else if ((tool.k === "geo" && tool.t === "segment") && distP) {
+      showToast(`Đang dùng ${paramPlainText(getPage(pageIdx).geo, distP)} — bấm điểm gốc rồi bấm hướng để vẽ đoạn dài ${distP.name}`);
+    } else if ((tool.k === "geo" && (tool.t === "angle" || tool.t === "angleMark")) && angP) {
+      if (STATE._lastSel && STATE._lastSel.page === pageIdx && STATE._lastSel.shapes.length === 1) {
+        const shId = STATE._lastSel.shapes[0];
+        const sh = getPage(pageIdx)?.geo?.shapes?.find(s => s.id === shId && s.kind === "segment");
+        if (sh) {
+          STATE._lastSel = null;
+          constructAngleByParam(ed, pageIdx, sh.pts[1], sh.pts[0], angP, distP);
+          return;
+        }
+      }
+      showToast(`Đang dùng ${paramPlainText(getPage(pageIdx).geo, angP)} — bấm 1 đoạn thẳng hoặc 2 điểm (cạnh → đỉnh) để dựng góc ${angP.name}`);
+    }
+  }
+
+  // ==================== SELECTION TARGET DETECTION (FOR CONSTRAINTS TAB) ====================
+
   function detectSelectionTargets() {
     const ed = getEditor();
     const K = getKernel();
@@ -242,24 +708,15 @@
     const coords = K.Tt(geo);
     const cm = getCmPx();
 
-    // 1. Length / Radius target
     let length = null;
     if (typeof ed.lengthTarget === "function") {
       const lt = ed.lengthTarget();
       if (lt) {
-        const pFrom = coords.get(lt.from);
-        const pTo = coords.get(lt.to);
+        const pFrom = coords.get(lt.from), pTo = coords.get(lt.to);
         const curCm = pFrom && pTo ? K.Je(pFrom, pTo) / cm : 2;
-        const ptTo = geo.points[lt.to];
-        const d = ptTo && ptTo.def;
+        const ptTo = geo.points[lt.to], d = ptTo && ptTo.def;
         length = {
-          pageIdx,
-          from: lt.from,
-          to: lt.to,
-          radius: !!lt.radius,
-          locked: !!lt.locked,
-          curCm,
-          def: d,
+          pageIdx, from: lt.from, to: lt.to, radius: !!lt.radius, locked: !!lt.locked, curCm, def: d,
           paramId: d ? (d.t === "len" ? d.paramId : d.distParamId) || "" : "",
           expr: d ? (d.t === "len" ? d.expr : d.distExpr) || "" : "",
           lockedAng: !!(d && d.t === "len" && (d.lockedAng || d.angParamId || d.angExpr)),
@@ -268,31 +725,27 @@
       }
     }
 
-    // 2. Angle target (selected angle shape, OR 2 segments sharing a vertex, OR 3 selected points)
     let angle = null;
     const selShapes = geo.shapes.filter(s => ed.sel.shapes.has(s.id));
     const selAngleShape = selShapes.find(s => s.kind === "angle" || s.kind === "right");
-    let tri = null; // [A, O, B]
+    let tri = null;
     if (selAngleShape && selAngleShape.pts.length >= 3) {
       tri = [selAngleShape.pts[0], selAngleShape.pts[1], selAngleShape.pts[2]];
     } else {
       const segs = selShapes.filter(s => s.kind === "segment" && s.pts.length === 2);
       if (segs.length === 2) {
-        const [a1, b1] = segs[0].pts;
-        const [a2, b2] = segs[1].pts;
+        const [a1, b1] = segs[0].pts, [a2, b2] = segs[1].pts;
         if (a1 === a2) tri = [b1, a1, b2];
         else if (a1 === b2) tri = [b1, a1, a2];
         else if (b1 === a2) tri = [a1, b1, b2];
         else if (b1 === b2) tri = [a1, b1, a2];
       } else if (ed.sel.points.size === 3) {
         const arr = [...ed.sel.points];
-        // Prefer a point that is polar-defined as B, or whose o is in arr
-        const polarPt = arr.find(id => geo.points[id] && geo.points[id].def && geo.points[id].def.t === "polar" && arr.includes(geo.points[id].def.o) && arr.includes(geo.points[id].def.ref));
+        const polarPt = arr.find(id => geo.points[id]?.def?.t === "polar" && arr.includes(geo.points[id].def.o) && arr.includes(geo.points[id].def.ref));
         if (polarPt) {
           const d = geo.points[polarPt].def;
           tri = [d.ref, d.o, polarPt];
         } else {
-          // Check if any point is connected by segments to the other two
           let vertex = arr[1];
           for (const cand of arr) {
             const others = arr.filter(x => x !== cand);
@@ -307,14 +760,11 @@
 
     if (tri) {
       let [A, O, B] = tri;
-      // If A is polar around (O, B), flip so B is the constrained arm
-      const pA = geo.points[A], pB = geo.points[B];
+      const pA = geo.points[A];
       if (pA && pA.def && pA.def.t === "polar" && pA.def.o === O && pA.def.ref === B) {
         [A, B] = [B, A];
       } else if (dependsOn(geo, O, B) || dependsOn(geo, A, B)) {
-        if (!dependsOn(geo, O, A) && !dependsOn(geo, B, A)) {
-          [A, B] = [B, A];
-        }
+        if (!dependsOn(geo, O, A) && !dependsOn(geo, B, A)) [A, B] = [B, A];
       }
       const cA = coords.get(A), cO = coords.get(O), cB = coords.get(B);
       if (cA && cO && cB) {
@@ -322,12 +772,10 @@
         const cur = Math.atan2(cB.y - cO.y, cB.x - cO.x);
         let deg = ((base - cur) * 180 / Math.PI) % 360;
         if (deg < 0) deg += 360;
-        const ptB = geo.points[B];
-        const dB = ptB && ptB.def;
+        const ptB = geo.points[B], dB = ptB && ptB.def;
         const isPolar = !!(dB && dB.t === "polar" && dB.o === O && dB.ref === A);
         angle = {
-          pageIdx,
-          A, O, B,
+          pageIdx, A, O, B,
           deg: isPolar && dB.fixedAng ? evalExprOnGeo(geo, dB.angParamId ? (getParams(pageIdx).find(p => p.id === dB.angParamId)?.name || dB.angVal) : (dB.angExpr || dB.angVal), deg) : deg,
           curDeg: deg,
           curDistCm: K.Je(cO, cB) / cm,
@@ -342,18 +790,12 @@
       }
     }
 
-    // 3. Ratio / Transform target (single selected point with def.t === 'on' | 'vec' | 'rot')
     let ratio = null;
     if (ed.sel.points.size === 1) {
       const id = [...ed.sel.points][0];
       const pt = geo.points[id];
       if (pt && pt.def && (pt.def.t === "on" || pt.def.t === "vec" || pt.def.t === "rot")) {
-        ratio = {
-          pageIdx,
-          id,
-          label: ptName(geo, id),
-          def: pt.def
-        };
+        ratio = { pageIdx, id, label: ptName(geo, id), def: pt.def };
       }
     }
 
@@ -390,9 +832,7 @@
       } else {
         const ang = Math.atan2(pTo.y - pFrom.y, pTo.x - pFrom.x);
         nextDef = {
-          t: "len",
-          a: from,
-          ang,
+          t: "len", a: from, ang,
           val: paramId || expr ? undefined : Number(val),
           paramId: paramId || undefined,
           expr: !paramId && expr ? String(expr).trim() : undefined,
@@ -400,17 +840,13 @@
         };
       }
       return {
-        ...geo,
-        cmPx: cm,
-        points: {
-          ...geo.points,
-          [to]: { ...geo.points[to], def: nextDef }
-        }
+        ...geo, cmPx: cm,
+        points: { ...geo.points, [to]: { ...geo.points[to], def: nextDef } }
       };
     }, { refreshSolids: true });
 
     showToast("Đã khóa cố định độ dài!");
-    renderPanel();
+    if (STATE.open) renderPanel();
   }
 
   function unlockPoint(pageIdx, pointId, mode = "all") {
@@ -427,36 +863,25 @@
       if (mode === "angle" && pt.def.t === "polar" && pt.def.fixedDist) {
         const O = coords.get(pt.def.o);
         nd = {
-          t: "len",
-          a: pt.def.o,
+          t: "len", a: pt.def.o,
           ang: O ? Math.atan2(pos.y - O.y, pos.x - O.x) : 0,
-          val: pt.def.distVal,
-          paramId: pt.def.distParamId,
-          expr: pt.def.distExpr,
-          lockedAng: false
+          val: pt.def.distVal, paramId: pt.def.distParamId, expr: pt.def.distExpr, lockedAng: false
         };
       } else if (mode === "dist" && pt.def.t === "polar" && pt.def.fixedAng) {
         const O = coords.get(pt.def.o);
         nd = {
-          ...pt.def,
-          fixedDist: false,
-          distVal: undefined,
-          distParamId: undefined,
-          distExpr: undefined,
+          ...pt.def, fixedDist: false, distVal: undefined, distParamId: undefined, distExpr: undefined,
           curDistPx: O ? K.Je(O, pos) : 120
         };
       } else if (pt.def.t === "on" || pt.def.t === "vec" || pt.def.t === "rot") {
         nd = { ...pt.def };
         delete nd.kParamId; delete nd.kExpr; delete nd.angParamId; delete nd.angExpr; delete nd.distParamId; delete nd.distExpr; delete nd.distVal;
       }
-      return {
-        ...geo,
-        points: { ...geo.points, [pointId]: { ...geo.points[pointId], def: nd } }
-      };
+      return { ...geo, points: { ...geo.points, [pointId]: { ...geo.points[pointId], def: nd } } };
     }, { refreshSolids: true });
 
     showToast("Đã mở khóa ràng buộc.");
-    renderPanel();
+    if (STATE.open) renderPanel();
   }
 
   function applyAngleConstraint({ pageIdx, A, O, B, angVal, angParamId, angExpr, lockDist, distVal, distParamId, distExpr, addMark }) {
@@ -475,10 +900,7 @@
 
     mutateGeo(pageIdx, geo => {
       const nd = {
-        t: "polar",
-        o: O,
-        ref: A,
-        fixedAng: true,
+        t: "polar", o: O, ref: A, fixedAng: true,
         angVal: angParamId || angExpr ? undefined : Number(angVal),
         angParamId: angParamId || undefined,
         angExpr: !angParamId && angExpr ? String(angExpr).trim() : undefined,
@@ -494,27 +916,18 @@
         if (!hasMark) {
           const degNow = K._mnGeoVal(geo, nd.angParamId, nd.angExpr, nd.angVal ?? 60);
           const isRight = Math.abs(Math.abs(degNow) - 90) < 0.05;
-          shapes = [
-            ...shapes,
-            {
-              id: makeId("sh"),
-              kind: isRight ? "right" : "angle",
-              pts: [A, O, B],
-              color: (ed && ed.shapeStyle && ed.shapeStyle.color) || "#1a1a1a",
-              width: (ed && ed.shapeStyle && ed.shapeStyle.width) || 2.2
-            }
-          ];
+          shapes = [...shapes, {
+            id: makeId("sh"), kind: isRight ? "right" : "angle", pts: [A, O, B],
+            color: (ed && ed.shapeStyle && ed.shapeStyle.color) || "#1a1a1a",
+            width: (ed && ed.shapeStyle && ed.shapeStyle.width) || 2.2
+          }];
         }
       }
-      return {
-        ...geo,
-        points: { ...geo.points, [B]: { ...geo.points[B], def: nd } },
-        shapes
-      };
+      return { ...geo, points: { ...geo.points, [B]: { ...geo.points[B], def: nd } }, shapes };
     }, { refreshSolids: true });
 
     showToast("Đã khóa cố định góc!");
-    renderPanel();
+    if (STATE.open) renderPanel();
   }
 
   function applyRatioConstraint({ pageIdx, id, kVal, kParamId, kExpr }) {
@@ -528,22 +941,31 @@
         kParamId: kParamId || undefined,
         kExpr: !kParamId && kExpr ? String(kExpr).trim() : undefined
       };
-      return {
-        ...geo,
-        points: { ...geo.points, [id]: { ...pt, def: nd } }
-      };
+      return { ...geo, points: { ...geo.points, [id]: { ...pt, def: nd } } };
     }, { refreshSolids: true });
     showToast("Đã gắn tham số tỉ số k!");
-    renderPanel();
+    if (STATE.open) renderPanel();
   }
 
   // ==================== PARAMETER CRUD ====================
+
+  function defaultParamPos(pageIdx, count) {
+    const ed = getEditor();
+    if (!ed || !ed.scroller) return { x: 48, y: 92 + count * 46 };
+    const z = ed.zoom || 1;
+    const top = typeof ed.pageTop === "function" ? ed.pageTop(pageIdx) : 0;
+    const visX = Math.max(36, ed.scroller.scrollLeft / z + 36);
+    const visY = Math.max(92, (ed.scroller.scrollTop / z - top) + 92);
+    return { x: Math.round(visX), y: Math.round(visY + count * 46) };
+  }
 
   function upsertParam(pageIdx, paramObj) {
     let savedId = paramObj.id || makeId("pm");
     mutateGeo(pageIdx, geo => {
       const list = Array.isArray(geo.params) ? geo.params.slice() : [];
       const idx = list.findIndex(x => x.id === savedId);
+      const prev = idx >= 0 ? list[idx] : null;
+      const defPos = defaultParamPos(pageIdx, list.length);
       const item = {
         id: savedId,
         name: String(paramObj.name || "t[1]").trim(),
@@ -554,15 +976,23 @@
         step: Number.isFinite(Number(paramObj.step)) && Number(paramObj.step) > 0 ? Number(paramObj.step) : (paramObj.unit === "angle" ? 1 : 0.1),
         expr: paramObj.expr ? String(paramObj.expr).trim() : "",
         animating: !!paramObj.animating,
-        animDir: paramObj.animDir || 1
+        animDir: paramObj.animDir || 1,
+        x: Number.isFinite(paramObj.x) ? paramObj.x : (prev && Number.isFinite(prev.x) ? prev.x : defPos.x),
+        y: Number.isFinite(paramObj.y) ? paramObj.y : (prev && Number.isFinite(prev.y) ? prev.y : defPos.y)
       };
       if (idx >= 0) list[idx] = item;
       else list.push(item);
       return { ...geo, params: list };
     }, { refreshSolids: true });
-    renderPanel();
-    updatePill();
+    if (STATE.open) renderPanel();
     return savedId;
+  }
+
+  function updateParamPosition(pageIdx, paramId, x, y, commit = false) {
+    mutateGeo(pageIdx, geo => {
+      const list = (geo.params || []).map(p => p.id === paramId ? { ...p, x, y } : p);
+      return { ...geo, params: list };
+    }, { live: !commit, emit: commit });
   }
 
   function updateParamValueLive(pageIdx, paramId, newVal, commit = false) {
@@ -589,9 +1019,9 @@
     if (!pg || !K) return;
     const p = (pg.geo.params || []).find(x => x.id === paramId);
     const valNow = p ? evalParamValue(pg.geo, p) : 1;
+    STATE.selectedParamIds = STATE.selectedParamIds.filter(id => id !== paramId);
 
     mutateGeo(pageIdx, geo => {
-      // Bake literal values into any points referencing this deleted param so figures don't jump/break
       const pts = { ...geo.points };
       for (const [id, pt] of Object.entries(pts)) {
         const d = pt.def;
@@ -606,14 +1036,9 @@
         if (d.zParamId === paramId) nd = { ...(nd || d), zParamId: undefined, vz: valNow };
         if (nd) pts[id] = { ...pt, def: nd };
       }
-      return {
-        ...geo,
-        points: pts,
-        params: (geo.params || []).filter(x => x.id !== paramId)
-      };
+      return { ...geo, points: pts, params: (geo.params || []).filter(x => x.id !== paramId) };
     }, { refreshSolids: true });
-    renderPanel();
-    updatePill();
+    if (STATE.open) renderPanel();
   }
 
   // ==================== PARAMETER ANIMATION LOOP ====================
@@ -622,11 +1047,7 @@
     const pg = getPage();
     const anyAnim = pg && pg.geo && Array.isArray(pg.geo.params) && pg.geo.params.some(p => p.animating && !p.expr);
     if (!anyAnim) {
-      if (STATE.rafId) {
-        cancelAnimationFrame(STATE.rafId);
-        STATE.rafId = null;
-      }
-      updatePill();
+      if (STATE.rafId) { cancelAnimationFrame(STATE.rafId); STATE.rafId = null; }
       return;
     }
     if (STATE.rafId) return;
@@ -638,11 +1059,7 @@
       const page = getPage(pIdx);
       const list = page && page.geo && Array.isArray(page.geo.params) ? page.geo.params : [];
       const active = list.filter(p => p.animating && !p.expr);
-      if (!active.length) {
-        STATE.rafId = null;
-        updatePill();
-        return;
-      }
+      if (!active.length) { STATE.rafId = null; return; }
       mutateGeo(pIdx, geo => {
         const nextList = (geo.params || []).map(p => {
           if (!p.animating || p.expr) return p;
@@ -657,7 +1074,6 @@
         return { ...geo, params: nextList };
       }, { live: true, refreshSolids: true });
 
-      // Update live slider & number inputs in DOM without full rebuild
       const panel = document.getElementById("mn-param-panel");
       if (panel && panel.classList.contains("open") && STATE.tab === "params") {
         const curList = getParams(pIdx);
@@ -672,7 +1088,6 @@
       STATE.rafId = requestAnimationFrame(tick);
     };
     STATE.rafId = requestAnimationFrame(tick);
-    updatePill();
   }
 
   function toggleParamAnim(pageIdx, paramId) {
@@ -681,7 +1096,223 @@
       return { ...geo, params: list };
     }, { live: true });
     ensureAnimLoop();
-    renderPanel();
+    if (STATE.open) renderPanel();
+  }
+
+  // ==================== ON-CANVAS KATEX CHIPS LAYER ====================
+
+  function pageToScreen(pageIdx, x, y) {
+    const ed = getEditor();
+    if (!ed || !ed.scroller) return null;
+    const sr = ed.scroller.getBoundingClientRect();
+    const z = ed.zoom || 1;
+    const topOff = typeof ed.pageTop === "function" ? ed.pageTop(pageIdx) : (pageIdx * 1150);
+    return {
+      sx: sr.left + x * z - ed.scroller.scrollLeft,
+      sy: sr.top + (y + topOff) * z - ed.scroller.scrollTop,
+      zoom: z,
+      scrollerRect: sr
+    };
+  }
+
+  function renderLatexInto(el, geo, p) {
+    const tex = paramToLatex(geo, p);
+    if (el.dataset.tex === tex && el.dataset.katexDone === "1") return;
+    el.dataset.tex = tex;
+    const katexApi = window.katex;
+    if (katexApi && typeof katexApi.render === "function") {
+      try {
+        katexApi.render(tex, el, { throwOnError: false, displayMode: false });
+        el.dataset.katexDone = "1";
+        return;
+      } catch (_) {}
+    }
+    el.innerHTML = `<span class="mn-kp-fallback">${escapeHtml(paramPlainText(geo, p))}</span>`;
+    el.dataset.katexDone = "0";
+  }
+
+  function renderCanvasChips(force = false) {
+    const layer = document.getElementById("mn-param-canvas-layer");
+    const ed = getEditor();
+    if (!layer || !ed || !ed.doc || !ed.doc.pages) return;
+
+    if (isLibraryOpen()) {
+      layer.style.display = "none";
+      return;
+    }
+    layer.style.display = "block";
+
+    const selSet = new Set(STATE.selectedParamIds);
+    const keepKeys = new Set();
+
+    ed.doc.pages.forEach((pg, pIdx) => {
+      const params = pg && pg.geo && Array.isArray(pg.geo.params) ? pg.geo.params : [];
+      params.forEach((p, idx) => {
+        const key = `${pIdx}:${p.id}`;
+        const px = Number.isFinite(p.x) ? p.x : 48;
+        const py = Number.isFinite(p.y) ? p.y : (44 + idx * 44);
+        const pos = pageToScreen(pIdx, px, py);
+        if (!pos) return;
+        const sr = pos.scrollerRect;
+        // Skip chips outside visible viewport vertically
+        if (pos.sy < sr.top - 50 || pos.sy > sr.bottom + 20 || pos.sx < sr.left - 240 || pos.sx > sr.right + 40) {
+          return;
+        }
+        keepKeys.add(key);
+
+        let chip = layer.querySelector(`.mn-katex-param[data-key="${key}"]`);
+        if (!chip) {
+          chip = document.createElement("div");
+          chip.className = "mn-katex-param";
+          chip.dataset.key = key;
+          chip.dataset.page = String(pIdx);
+          chip.dataset.pid = p.id;
+          chip.title = "Nháy để chọn tham số (kết hợp Đường tròn / Đoạn thẳng / Góc...) • Nháy đúp để mở bảng chỉnh sửa • Kéo để di chuyển";
+          chip.innerHTML = `<span class="mn-kp-anim-dot"></span><span class="mn-kp-math"></span>`;
+          attachChipInteractions(chip, pIdx, p.id);
+          layer.appendChild(chip);
+        }
+
+        chip.style.left = `${Math.round(pos.sx)}px`;
+        chip.style.top = `${Math.round(pos.sy)}px`;
+        chip.style.transform = `scale(${Math.max(0.7, Math.min(1.5, pos.zoom))})`;
+        chip.classList.toggle("selected", selSet.has(p.id));
+        chip.classList.toggle("animating", !!p.animating);
+
+        const mathSpan = chip.querySelector(".mn-kp-math");
+        renderLatexInto(mathSpan, pg.geo, p);
+      });
+    });
+
+    // Remove chips that no longer exist or scrolled offscreen
+    layer.querySelectorAll(".mn-katex-param").forEach(el => {
+      if (!keepKeys.has(el.dataset.key)) el.remove();
+    });
+    void force;
+  }
+
+  function attachChipInteractions(chip, pageIdx, paramId) {
+    let dragState = null;
+
+    chip.addEventListener("pointerdown", e => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const pg = getPage(pageIdx);
+      const p = pg && pg.geo && (pg.geo.params || []).find(x => x.id === paramId);
+      if (!p) return;
+      const ed = getEditor();
+      dragState = {
+        sx: e.clientX, sy: e.clientY,
+        origX: Number.isFinite(p.x) ? p.x : 48,
+        origY: Number.isFinite(p.y) ? p.y : 44,
+        zoom: (ed && ed.zoom) || 1,
+        moved: false
+      };
+      chip.setPointerCapture(e.pointerId);
+    });
+
+    chip.addEventListener("pointermove", e => {
+      if (!dragState) return;
+      const dx = e.clientX - dragState.sx;
+      const dy = e.clientY - dragState.sy;
+      if (!dragState.moved && Math.hypot(dx, dy) < 5) return;
+      dragState.moved = true;
+      chip.classList.add("dragging");
+      const nx = Math.max(8, Math.round(dragState.origX + dx / dragState.zoom));
+      const ny = Math.max(8, Math.round(dragState.origY + dy / dragState.zoom));
+      updateParamPosition(pageIdx, paramId, nx, ny, false);
+    });
+
+    chip.addEventListener("pointerup", e => {
+      if (!dragState) return;
+      const wasMoved = dragState.moved;
+      const dx = e.clientX - dragState.sx;
+      const dy = e.clientY - dragState.sy;
+      const nx = Math.max(8, Math.round(dragState.origX + dx / dragState.zoom));
+      const ny = Math.max(8, Math.round(dragState.origY + dy / dragState.zoom));
+      chip.classList.remove("dragging");
+      dragState = null;
+      if (wasMoved) {
+        updateParamPosition(pageIdx, paramId, nx, ny, true);
+      } else {
+        selectParam(pageIdx, paramId, true);
+      }
+    });
+
+    chip.addEventListener("dblclick", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      // Keep this parameter selected & open full studio focused on it!
+      if (!STATE.selectedParamIds.includes(paramId)) {
+        selectParam(pageIdx, paramId, false);
+      }
+      STATE.focusedParamId = paramId;
+      openPanel("params");
+    });
+  }
+
+  function syncArmedBar() {
+    const bar = document.getElementById("mn-param-armed-bar");
+    if (!bar) return;
+    const pIdx = currentPageIndex();
+    const pg = getPage(pIdx);
+    const selParams = getSelectedParams(pIdx);
+    if (!selParams.length || isLibraryOpen()) {
+      bar.classList.remove("open");
+      return;
+    }
+    const geo = pg ? pg.geo : { params: [] };
+    const badges = selParams.map(p => `<span class="mnp-armed-badge">${escapeHtml(paramPlainText(geo, p))}</span>`).join("");
+
+    const hasDist = selParams.some(p => p.unit === "dist");
+    const hasAng = selParams.some(p => p.unit === "angle");
+    const hasNum = selParams.some(p => p.unit === "none");
+
+    let hint = "Bấm công cụ ";
+    const tools = [];
+    if (hasDist) tools.push("Đường tròn", "Đoạn thẳng", "Hình vuông");
+    if (hasAng) tools.push("Góc", "Phép quay");
+    if (hasNum) tools.push("Phép vị tự");
+    hint += tools.join(" / ") + " để dựng ngay • Nháy đúp để sửa";
+
+    const targets = detectSelectionTargets();
+    const canQuickBindLen = hasDist && targets.length;
+    const canQuickBindAng = hasAng && targets.angle;
+
+    bar.innerHTML = `
+      ${badges}
+      <span class="mnp-armed-hint">${escapeHtml(hint)}</span>
+      ${canQuickBindLen ? `<button type="button" class="mnp-armed-btn primary" id="mnp-armed-bind-len">🔒 Gắn vào ${escapeHtml(targets.length.label)}</button>` : ""}
+      ${canQuickBindAng ? `<button type="button" class="mnp-armed-btn primary" id="mnp-armed-bind-ang">🔒 Gắn vào ${escapeHtml(targets.angle.label)}</button>` : ""}
+      <button type="button" class="mnp-armed-btn" id="mnp-armed-edit" title="Mở bảng tham số đầy đủ">Bảng đầy đủ</button>
+      <button type="button" class="mnp-armed-btn" id="mnp-armed-clear" title="Bỏ chọn tham số">✕</button>
+    `;
+
+    const bindLenBtn = bar.querySelector("#mnp-armed-bind-len");
+    if (bindLenBtn) {
+      bindLenBtn.addEventListener("click", () => {
+        const dp = getActiveParamByUnit(pIdx, "dist");
+        if (dp && targets.length) {
+          applyLengthConstraint({ pageIdx: targets.length.pageIdx, from: targets.length.from, to: targets.length.to, paramId: dp.id, lockedAng: false });
+        }
+      });
+    }
+    const bindAngBtn = bar.querySelector("#mnp-armed-bind-ang");
+    if (bindAngBtn) {
+      bindAngBtn.addEventListener("click", () => {
+        const ap = getActiveParamByUnit(pIdx, "angle");
+        const dp = getActiveParamByUnit(pIdx, "dist");
+        if (ap && targets.angle) {
+          applyAngleConstraint({
+            pageIdx: targets.angle.pageIdx, A: targets.angle.A, O: targets.angle.O, B: targets.angle.B,
+            angParamId: ap.id, lockDist: !!dp, distParamId: dp ? dp.id : "", addMark: true
+          });
+        }
+      });
+    }
+    bar.querySelector("#mnp-armed-edit").addEventListener("click", () => openPanel("params"));
+    bar.querySelector("#mnp-armed-clear").addEventListener("click", () => clearSelectedParams());
+    bar.classList.add("open");
   }
 
   // ==================== 2D & 3D PARAMETRIC BUILDERS ====================
@@ -696,12 +1327,11 @@
     const cy = (sc.scrollTop + sc.clientHeight * 0.48) / z - top;
     return {
       x: Math.max(120, Math.min(1100, Number.isFinite(cx) ? cx : 420)),
-      y: Math.max(120, Number.isFinite(cy) ? cy : 340)
+      y: Math.max(120, Math.min(1100, Number.isFinite(cy) ? cy : 340))
     };
   }
 
-  // Resolve a builder field (could be a number, existing param name, or expression; optionally auto-creates param)
-  function resolveSpec(geo, paramsOut, rawStr, defaultName, unit, autoCreate) {
+  function resolveSpec(geo, paramsOut, rawStr, defaultName, unit, autoCreate, pageIdx) {
     const K = getKernel();
     const s = String(rawStr || "").trim();
     const existingByName = paramsOut.find(p => p.name === s);
@@ -712,40 +1342,28 @@
     const isPlainNum = s !== "" && Number.isFinite(numVal);
     if (isPlainNum) {
       if (autoCreate) {
-        // Find free name starting from defaultName
         let nm = defaultName;
         const used = new Set(paramsOut.map(p => p.name));
         if (used.has(nm)) {
-          // If an existing param with same name has same unit, reuse? Better create unique name like a1, a2
           let k = 1;
           while (used.has(`${defaultName}${k}`)) k++;
           nm = `${defaultName}${k}`;
         }
         const pid = makeId("pm");
-        const pObj = {
-          id: pid,
-          name: nm,
-          value: numVal,
-          unit,
+        const pos = defaultParamPos(pageIdx, paramsOut.length);
+        paramsOut.push({
+          id: pid, name: nm, value: numVal, unit,
           min: unit === "angle" ? 10 : Math.max(0.5, Math.round(numVal * 0.25 * 10) / 10),
           max: unit === "angle" ? 170 : Math.max(10, Math.round(numVal * 2.5 * 10) / 10),
           step: unit === "angle" ? 1 : 0.1,
-          expr: "",
-          animating: false,
-          animDir: 1
-        };
-        paramsOut.push(pObj);
+          expr: "", animating: false, animDir: 1, x: pos.x, y: pos.y
+        });
         return { paramId: pid, expr: nm, val: numVal };
       }
       return { paramId: undefined, expr: undefined, val: numVal };
     }
-    // Expression referencing existing params (e.g. "a*sqrt(2)")
     const evaled = K ? K._mnEvalExpr(s, K._mnBuildParamEnv({ params: paramsOut })) : NaN;
-    return {
-      paramId: undefined,
-      expr: s,
-      val: Number.isFinite(evaled) ? evaled : (unit === "angle" ? 60 : 3)
-    };
+    return { paramId: undefined, expr: s, val: Number.isFinite(evaled) ? evaled : (unit === "angle" ? 60 : 3) };
   }
 
   function buildParametric2D(kind) {
@@ -764,8 +1382,7 @@
 
     const paramsOut = Array.isArray(pg.geo.params) ? pg.geo.params.slice() : [];
     const nameGen = K.yc(pg.geo);
-    const newPts = [];
-    const newShapes = [];
+    const newPts = [], newShapes = [];
 
     const addPt = (def, preferredLabel, show = true) => {
       const id = makeId("pt");
@@ -779,32 +1396,23 @@
       return id;
     };
 
-    const specA = resolveSpec(pg.geo, paramsOut, v.a, "a", "dist", auto);
-    const specB = (kind !== "segment" && kind !== "circle") ? resolveSpec(pg.geo, paramsOut, v.b, "b", "dist", auto) : null;
-    const specC = (kind === "tri_sss") ? resolveSpec(pg.geo, paramsOut, v.c, "c", "dist", auto) : null;
-    const specR = (kind === "circle") ? resolveSpec(pg.geo, paramsOut, v.r, "r", "dist", auto) : null;
+    const specA = resolveSpec(pg.geo, paramsOut, v.a, "a", "dist", auto, pageIdx);
+    const specB = (kind !== "segment" && kind !== "circle") ? resolveSpec(pg.geo, paramsOut, v.b, "b", "dist", auto, pageIdx) : null;
+    const specC = (kind === "tri_sss") ? resolveSpec(pg.geo, paramsOut, v.c, "c", "dist", auto, pageIdx) : null;
+    const specR = (kind === "circle") ? resolveSpec(pg.geo, paramsOut, v.r, "r", "dist", auto, pageIdx) : null;
     const specAng = (kind === "angle" || kind === "tri_sas" || kind === "parallelogram")
-      ? resolveSpec(pg.geo, paramsOut, v.ang, "α", "angle", auto)
-      : null;
+      ? resolveSpec(pg.geo, paramsOut, v.ang, "α", "angle", auto, pageIdx) : null;
 
     const lenDef = (anchor, spec, angRad, lockedAng = false) => ({
-      t: "len",
-      a: anchor,
-      ang: angRad,
+      t: "len", a: anchor, ang: angRad,
       val: spec.paramId || spec.expr ? undefined : spec.val,
-      paramId: spec.paramId,
-      expr: !spec.paramId ? spec.expr : undefined,
-      lockedAng
+      paramId: spec.paramId, expr: !spec.paramId ? spec.expr : undefined, lockedAng
     });
 
     const polarDef = (O, Ref, angSpec, distSpec, fixedDist = true) => ({
-      t: "polar",
-      o: O,
-      ref: Ref,
-      fixedAng: true,
+      t: "polar", o: O, ref: Ref, fixedAng: true,
       angVal: angSpec.paramId || angSpec.expr ? undefined : angSpec.val,
-      angParamId: angSpec.paramId,
-      angExpr: !angSpec.paramId ? angSpec.expr : undefined,
+      angParamId: angSpec.paramId, angExpr: !angSpec.paramId ? angSpec.expr : undefined,
       fixedDist,
       distVal: fixedDist && !distSpec.paramId && !distSpec.expr ? distSpec.val : undefined,
       distParamId: fixedDist ? distSpec.paramId : undefined,
@@ -823,26 +1431,21 @@
       const O = addPt({ t: "free", x: center.x - (specA.val || 3) * cm * 0.45, y: center.y + 45 }, "O");
       const A = addPt(lenDef(O, specA, 0, false), "A");
       const B = addPt(polarDef(O, A, specAng, specB, true), "B");
-      addSh("segment", [O, A]);
-      addSh("segment", [O, B]);
-      const isRight = Math.abs(Math.abs(specAng.val) - 90) < 0.05;
-      addSh(isRight ? "right" : "angle", [A, O, B]);
+      addSh("segment", [O, A]); addSh("segment", [O, B]);
+      addSh(Math.abs(Math.abs(specAng.val) - 90) < 0.05 ? "right" : "angle", [A, O, B]);
     } else if (kind === "circle") {
       const O = addPt({ t: "free", x: center.x, y: center.y }, "O");
-      const R = addPt(lenDef(O, specR, 0, false), "M");
+      const R = addPt(lenDef(O, specR, 0, false), null, false);
       addSh("circle", [O, R]);
-      addSh("segment", [O, R], { dashed: true, aux: true });
     } else if (kind === "tri_sas") {
       const A = addPt({ t: "free", x: center.x - (specA.val || 4) * cm * 0.5, y: center.y + 60 }, "A");
       const B = addPt(lenDef(A, specA, 0, false), "B");
       const C = addPt(polarDef(A, B, specAng, specB, true), "C");
       addSh("polygon", [A, B, C]);
-      const isRight = Math.abs(Math.abs(specAng.val) - 90) < 0.05;
-      addSh(isRight ? "right" : "angle", [B, A, C]);
+      addSh(Math.abs(Math.abs(specAng.val) - 90) < 0.05 ? "right" : "angle", [B, A, C]);
     } else if (kind === "tri_sss") {
       if (specA.val + specB.val <= specC.val || specA.val + specC.val <= specB.val || specB.val + specC.val <= specA.val) {
-        showToast("3 cạnh không thỏa bất đẳng thức tam giác (a + b > c)!");
-        return;
+        showToast("3 cạnh không thỏa bất đẳng thức tam giác (a + b > c)!"); return;
       }
       const A = addPt({ t: "free", x: center.x - (specA.val || 4) * cm * 0.5, y: center.y + 60 }, "A");
       const B = addPt(lenDef(A, specA, 0, false), "B");
@@ -855,37 +1458,28 @@
       const B = addPt(lenDef(A, specA, 0, false), "B");
       const D = addPt(polarDef(A, B, { val: 90 }, specB, true), "D");
       const C = addPt({ t: "sum", a: B, b: D, c: A }, "C");
-      addSh("polygon", [A, B, C, D]);
-      addSh("right", [B, A, D], { aux: true });
+      addSh("polygon", [A, B, C, D]); addSh("right", [B, A, D], { aux: true });
     } else if (kind === "parallelogram") {
       const A = addPt({ t: "free", x: center.x - (specA.val || 4) * cm * 0.55, y: center.y + 60 }, "A");
       const B = addPt(lenDef(A, specA, 0, false), "B");
       const D = addPt(polarDef(A, B, specAng, specB, true), "D");
       const C = addPt({ t: "sum", a: B, b: D, c: A }, "C");
-      addSh("polygon", [A, B, C, D]);
-      addSh("angle", [B, A, D], { aux: true });
+      addSh("polygon", [A, B, C, D]); addSh("angle", [B, A, D], { aux: true });
     }
 
     mutateGeo(pageIdx, geo => {
       const ptsMap = { ...geo.points };
       for (const p of newPts) ptsMap[p.id] = p;
-      return {
-        ...geo,
-        cmPx: cm,
-        params: paramsOut,
-        points: ptsMap,
-        shapes: [...geo.shapes, ...newShapes]
-      };
+      return { ...geo, cmPx: cm, params: paramsOut, points: ptsMap, shapes: [...geo.shapes, ...newShapes] };
     });
 
     ed.setTool({ k: "geo", t: "move" });
     ed.selectGeo(pageIdx, newPts.filter(p => p.show).map(p => p.id), newShapes.map(s => s.id));
     showToast("Đã dựng hình 2D chuẩn tham số!");
-    renderPanel();
-    updatePill();
+    if (STATE.open) renderPanel();
   }
 
-  function buildParametric3D(kind) {
+  function buildParametric3D(kind, anchorOverride) {
     const ed = getEditor();
     const K = getKernel();
     if (!ed || !K) return;
@@ -893,7 +1487,7 @@
     const pg = getPage(pageIdx);
     if (!pg) return;
     const cm = getCmPx();
-    const center = getViewportCenterOnPage(pageIdx);
+    const center = anchorOverride || getViewportCenterOnPage(pageIdx);
     const v = STATE.builderVals;
     const auto = !!v.autoCreateParams;
     const style = ed.shapeStyle || { color: "#1a1a1a", width: 2.4 };
@@ -902,30 +1496,23 @@
 
     const paramsOut = Array.isArray(pg.geo.params) ? pg.geo.params.slice() : [];
     const nameGen = K.yc(pg.geo);
-    const newPts = [];
-    const newShapes = [];
+    const newPts = [], newShapes = [];
 
-    const specA = (kind !== "cone" && kind !== "cylinder") ? resolveSpec(pg.geo, paramsOut, v.a, "a", "dist", auto) : null;
+    const specA = (kind !== "cone" && kind !== "cylinder") ? resolveSpec(pg.geo, paramsOut, v.a, "a", "dist", auto, pageIdx) : null;
     const specB = (kind === "pyramid4Right" || kind === "pyramid3" || kind === "box" || kind === "prism3")
-      ? resolveSpec(pg.geo, paramsOut, v.b, "b", "dist", auto) : null;
-    const specH = resolveSpec(pg.geo, paramsOut, v.h, "h", "dist", auto);
-    const specR = (kind === "cone" || kind === "cylinder") ? resolveSpec(pg.geo, paramsOut, v.r, "r", "dist", auto) : null;
+      ? resolveSpec(pg.geo, paramsOut, v.b, "b", "dist", auto, pageIdx) : null;
+    const specH = resolveSpec(pg.geo, paramsOut, v.h, "h", "dist", auto, pageIdx);
+    const specR = (kind === "cone" || kind === "cylinder") ? resolveSpec(pg.geo, paramsOut, v.r, "r", "dist", auto, pageIdx) : null;
     const specAng = (kind === "pyramid3" || kind === "prism3")
-      ? resolveSpec(pg.geo, paramsOut, v.ang, "α", "angle", auto) : null;
+      ? resolveSpec(pg.geo, paramsOut, v.ang, "α", "angle", auto, pageIdx) : null;
 
     const ex = (spec, fallback = "0") => spec ? (spec.expr || String(spec.val)) : fallback;
-    const eA = ex(specA, "4");
-    const eB = ex(specB, eA);
-    const eH = ex(specH, "5");
-    const eR = ex(specR, "2.5");
-    const eAng = ex(specAng, "60");
-
+    const eA = ex(specA, "4"), eB = ex(specB, eA), eH = ex(specH, "5"), eR = ex(specR, "2.5"), eAng = ex(specAng, "60");
     const isRound = kind === "cone" || kind === "cylinder";
     const viewMat = isRound ? K.NS : K.wr;
 
-    // Anchor point O (placed so figure sits nicely centered in viewport)
-    const anchorX = center.x - ((specA ? specA.val : (specR ? specR.val * 0.5 : 3)) * cm * 0.55);
-    const anchorY = center.y + ((specH ? specH.val : 4) * cm * 0.45);
+    const anchorX = anchorOverride ? anchorOverride.x : (center.x - ((specA ? specA.val : (specR ? specR.val * 0.5 : 3)) * cm * 0.55));
+    const anchorY = anchorOverride ? anchorOverride.y : (center.y + ((specH ? specH.val : 4) * cm * 0.45));
     const addAnchor = (label) => {
       const id = makeId("pt");
       newPts.push({ id, def: { t: "free", x: anchorX, y: anchorY }, z: 0, label: nameGen(label), show: true, group });
@@ -934,155 +1521,91 @@
     const addP3 = (oId, vx, vy, vz, label, show = true) => {
       const id = makeId("pt");
       newPts.push({
-        id,
-        def: { t: "p3d", o: oId, solidId, vx: String(vx), vy: String(vy), vz: String(vz), view: viewMat },
-        label: label === null ? "" : nameGen(label),
-        show: show && label !== null,
-        group
+        id, def: { t: "p3d", o: oId, solidId, vx: String(vx), vy: String(vy), vz: String(vz), view: viewMat },
+        label: label === null ? "" : nameGen(label), show: show && label !== null, group
       });
       return id;
     };
     const addSeg = (p1, p2, dashed = false, aux = false) => {
       newShapes.push({
-        id: makeId("sh"),
-        kind: "segment",
-        pts: [p1, p2],
-        color: style.color,
-        width: style.width,
-        group,
-        ...(dashed ? { dashed: true } : {}),
-        ...(aux ? { aux: true } : {})
+        id: makeId("sh"), kind: "segment", pts: [p1, p2], color: style.color, width: style.width, group,
+        ...(dashed ? { dashed: true } : {}), ...(aux ? { aux: true } : {})
       });
     };
 
-    let solidShape = null;
-
     if (kind === "pyramid4" || kind === "pyramid4Right") {
-      // Base: B(0,0,0), C(a,0,0), D(a,b,0), A(0,b,0)
       const bExpr = kind === "pyramid4" ? eA : eB;
-      const B = addAnchor("B");
-      const C = addP3(B, eA, "0", "0", "C");
-      const D = addP3(B, eA, bExpr, "0", "D");
-      const A = addP3(B, "0", bExpr, "0", "A");
-      const S = kind === "pyramid4"
-        ? addP3(B, `(${eA})/2`, `(${bExpr})/2`, eH, "S")
-        : addP3(B, "0", bExpr, eH, "S");
-
+      const B = addAnchor("B"), C = addP3(B, eA, "0", "0", "C"), D = addP3(B, eA, bExpr, "0", "D"), A = addP3(B, "0", bExpr, "0", "A");
+      const S = kind === "pyramid4" ? addP3(B, `(${eA})/2`, `(${bExpr})/2`, eH, "S") : addP3(B, "0", bExpr, eH, "S");
       addSeg(B, C); addSeg(C, D); addSeg(S, B); addSeg(S, C); addSeg(S, D);
       addSeg(A, B, true); addSeg(A, D, true); addSeg(S, A, true);
-
       if (kind === "pyramid4") {
         const O = makeId("pt");
         newPts.push({ id: O, def: { t: "mid", a: A, b: C }, label: nameGen("O"), show: true, group });
-        addSeg(A, C, true, true);
-        addSeg(B, D, true, true);
-        addSeg(S, O, true, true);
+        addSeg(A, C, true, true); addSeg(B, D, true, true); addSeg(S, O, true, true);
       } else {
         newShapes.push({ id: makeId("sh"), kind: "right", pts: [S, A, B], color: style.color, width: style.width, group, aux: true });
       }
-      solidShape = {
-        id: solidId, kind: "solid", pts: [B, C, D, A, S],
-        color: style.color, width: style.width, group,
+      newShapes.push({
+        id: solidId, kind: "solid", pts: [B, C, D, A, S], color: style.color, width: style.width, group,
         solid: { of: "pyramid4", view: viewMat, turn: K.Hd, faces: [[0,1,2,3],[4,0,1],[4,1,2],[4,2,3],[4,3,0]] }
-      };
-      newShapes.push(solidShape);
+      });
     } else if (kind === "pyramid3") {
-      // Base triangle ABC: B(0,0,0), C(a,0,0), A(b*cos(α), b*sin(α), 0)
-      const B = addAnchor("B");
-      const C = addP3(B, eA, "0", "0", "C");
-      const ax = `(${eB})*cos(${eAng})`;
-      const ay = `(${eB})*sin(${eAng})`;
+      const B = addAnchor("B"), C = addP3(B, eA, "0", "0", "C");
+      const ax = `(${eB})*cos(${eAng})`, ay = `(${eB})*sin(${eAng})`;
       const A = addP3(B, ax, ay, "0", "A");
-      const S = v.rightBase
-        ? addP3(B, ax, ay, eH, "S")
-        : addP3(B, `((${eA})+(${ax}))/3`, `(${ay})/3`, eH, "S");
-
-      addSeg(B, C); addSeg(B, A); addSeg(C, A, true);
-      addSeg(S, B); addSeg(S, C); addSeg(S, A);
-      if (v.rightBase) {
-        newShapes.push({ id: makeId("sh"), kind: "right", pts: [S, A, B], color: style.color, width: style.width, group, aux: true });
-      }
-      solidShape = {
-        id: solidId, kind: "solid", pts: [B, C, A, S],
-        color: style.color, width: style.width, group,
+      const S = v.rightBase ? addP3(B, ax, ay, eH, "S") : addP3(B, `((${eA})+(${ax}))/3`, `(${ay})/3`, eH, "S");
+      addSeg(B, C); addSeg(B, A); addSeg(C, A, true); addSeg(S, B); addSeg(S, C); addSeg(S, A);
+      if (v.rightBase) newShapes.push({ id: makeId("sh"), kind: "right", pts: [S, A, B], color: style.color, width: style.width, group, aux: true });
+      newShapes.push({
+        id: solidId, kind: "solid", pts: [B, C, A, S], color: style.color, width: style.width, group,
         solid: { of: "pyramid3", view: viewMat, turn: K.Hd, faces: [[0,1,2],[3,0,1],[3,1,2],[3,2,0]] }
-      };
-      newShapes.push(solidShape);
+      });
     } else if (kind === "box") {
-      const A = addAnchor("A");
-      const B = addP3(A, eA, "0", "0", "B");
-      const C = addP3(A, eA, eB, "0", "C");
-      const D = addP3(A, "0", eB, "0", "D");
-      const A1 = addP3(A, "0", "0", eH, "A'");
-      const B1 = addP3(A, eA, "0", eH, "B'");
-      const C1 = addP3(A, eA, eB, eH, "C'");
-      const D1 = addP3(A, "0", eB, eH, "D'");
-
+      const A = addAnchor("A"), B = addP3(A, eA, "0", "0", "B"), C = addP3(A, eA, eB, "0", "C"), D = addP3(A, "0", eB, "0", "D");
+      const A1 = addP3(A, "0", "0", eH, "A'"), B1 = addP3(A, eA, "0", eH, "B'"), C1 = addP3(A, eA, eB, eH, "C'"), D1 = addP3(A, "0", eB, eH, "D'");
       addSeg(A, B); addSeg(B, C); addSeg(C, D, true); addSeg(D, A, true);
       addSeg(A1, B1); addSeg(B1, C1); addSeg(C1, D1); addSeg(D1, A1);
       addSeg(A, A1); addSeg(B, B1); addSeg(C, C1); addSeg(D, D1, true);
-
-      solidShape = {
-        id: solidId, kind: "solid", pts: [A, B, C, D, A1, B1, C1, D1],
-        color: style.color, width: style.width, group,
+      newShapes.push({
+        id: solidId, kind: "solid", pts: [A, B, C, D, A1, B1, C1, D1], color: style.color, width: style.width, group,
         solid: { of: "box", view: viewMat, turn: K.Hd, faces: K.vM }
-      };
-      newShapes.push(solidShape);
+      });
     } else if (kind === "prism3") {
-      const B = addAnchor("B");
-      const C = addP3(B, eA, "0", "0", "C");
-      const ax = `(${eB})*cos(${eAng})`;
-      const ay = `(${eB})*sin(${eAng})`;
+      const B = addAnchor("B"), C = addP3(B, eA, "0", "0", "C");
+      const ax = `(${eB})*cos(${eAng})`, ay = `(${eB})*sin(${eAng})`;
       const A = addP3(B, ax, ay, "0", "A");
-      const B1 = addP3(B, "0", "0", eH, "B'");
-      const C1 = addP3(B, eA, "0", eH, "C'");
-      const A1 = addP3(B, ax, ay, eH, "A'");
-
+      const B1 = addP3(B, "0", "0", eH, "B'"), C1 = addP3(B, eA, "0", eH, "C'"), A1 = addP3(B, ax, ay, eH, "A'");
       addSeg(B, C); addSeg(C, A, true); addSeg(A, B);
       addSeg(B1, C1); addSeg(C1, A1); addSeg(A1, B1);
       addSeg(B, B1); addSeg(C, C1); addSeg(A, A1, true);
-
-      solidShape = {
-        id: solidId, kind: "solid", pts: [B, C, A, B1, C1, A1],
-        color: style.color, width: style.width, group,
+      newShapes.push({
+        id: solidId, kind: "solid", pts: [B, C, A, B1, C1, A1], color: style.color, width: style.width, group,
         solid: { of: "prism3", view: viewMat, turn: K.Hd, faces: K.DN }
-      };
-      newShapes.push(solidShape);
+      });
     } else if (kind === "cone" || kind === "cylinder") {
-      const O = addAnchor("O");
-      const R = addP3(O, eR, "0", "0", "R");
-      const Top = addP3(O, "0", "0", eH, kind === "cone" ? "S" : "O'");
+      const O = addAnchor("O"), R = addP3(O, eR, "0", "0", "R"), Top = addP3(O, "0", "0", eH, kind === "cone" ? "S" : "O'");
       newShapes.push({ id: makeId("sh"), kind, pts: [O, R, Top], color: style.color, width: style.width, group });
-      addSeg(O, R, true, true);
-      addSeg(O, Top, true, true);
-      solidShape = {
-        id: solidId, kind: "solid", pts: [O, R, Top],
-        color: style.color, width: style.width, group,
+      addSeg(O, R, true, true); addSeg(O, Top, true, true);
+      newShapes.push({
+        id: solidId, kind: "solid", pts: [O, R, Top], color: style.color, width: style.width, group,
         solid: { of: kind, view: K.NS, turn: K.Hd }
-      };
-      newShapes.push(solidShape);
+      });
     }
 
     mutateGeo(pageIdx, geo => {
       const ptsMap = { ...geo.points };
       for (const p of newPts) ptsMap[p.id] = p;
-      return {
-        ...geo,
-        cmPx: cm,
-        params: paramsOut,
-        points: ptsMap,
-        shapes: [...geo.shapes, ...newShapes]
-      };
+      return { ...geo, cmPx: cm, params: paramsOut, points: ptsMap, shapes: [...geo.shapes, ...newShapes] };
     }, { refreshSolids: true });
 
     ed.setTool({ k: "geo", t: "move" });
     ed.selectGeo(pageIdx, newPts.filter(p => p.show).map(p => p.id), newShapes.map(s => s.id));
-    showToast("Đã dựng hình 3D chuẩn tỉ lệ tham số! Bạn có thể kéo thanh trượt để đổi kích thước hoặc bấm Xoay 3D.");
-    renderPanel();
-    updatePill();
+    showToast("Đã dựng hình 3D chuẩn tỉ lệ tham số!");
+    if (STATE.open) renderPanel();
   }
 
-  // ==================== ON-CANVAS OVERLAY LABELS ====================
+  // ==================== OPTIONAL EDGE OVERLAY LABELS ====================
 
   function drawOverlay(ctx, geo, coords) {
     if (!STATE.showLabels || !geo || !geo.points || !coords) return;
@@ -1090,7 +1613,6 @@
     if (!K) return;
     const params = Array.isArray(geo.params) ? geo.params : [];
     const paramById = new Map(params.map(p => [p.id, p]));
-    const cm = K._mnGeoCm(geo);
 
     const drawTag = (x, y, text) => {
       ctx.save();
@@ -1116,7 +1638,7 @@
     for (const pt of Object.values(geo.points)) {
       if (!pt || pt.hidden || !pt.def) continue;
       const d = pt.def;
-      if (d.t === "len") {
+      if (d.t === "len" && pt.show) {
         const A = coords.get(d.a), B = coords.get(pt.id);
         if (!A || !B) continue;
         const val = K._mnGeoVal(geo, d.paramId, d.expr, d.val);
@@ -1125,7 +1647,7 @@
         const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
         const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
         drawTag(mx - (dy / L) * 16, my + (dx / L) * 16, label);
-      } else if (d.t === "polar") {
+      } else if (d.t === "polar" && pt.show) {
         const O = coords.get(d.o), R = coords.get(d.ref), B = coords.get(pt.id);
         if (!O || !R || !B) continue;
         if (d.fixedDist) {
@@ -1149,20 +1671,22 @@
         }
       }
     }
-    void cm;
   }
 
-  // ==================== UI DOM CONSTRUCTION ====================
+  // ==================== UI DOM CONSTRUCTION (NO CORNER PILL!) ====================
 
   function ensureUI() {
-    if (!document.getElementById("mn-param-pill")) {
-      const pill = document.createElement("button");
-      pill.id = "mn-param-pill";
-      pill.type = "button";
-      pill.title = "Mở bảng Tham số & Ràng buộc GSP5 (Alt+P)";
-      pill.innerHTML = `<span class="mn-pill-dot"></span><span>Tham số (GSP5)</span><span class="mn-pill-badge">0</span>`;
-      pill.addEventListener("click", () => togglePanel());
-      document.body.appendChild(pill);
+    if (!document.getElementById("mn-param-canvas-layer")) {
+      const layer = document.createElement("div");
+      layer.id = "mn-param-canvas-layer";
+      document.body.appendChild(layer);
+    }
+
+    if (!document.getElementById("mn-param-armed-bar")) {
+      const bar = document.createElement("div");
+      bar.id = "mn-param-armed-bar";
+      bar.addEventListener("pointerdown", e => e.stopPropagation());
+      document.body.appendChild(bar);
     }
 
     if (!document.getElementById("mn-param-panel")) {
@@ -1177,9 +1701,8 @@
           </div>
           <div class="mnp-head-actions">
             <button type="button" class="mnp-icon-btn primary" id="mnp-btn-new" title="Tạo tham số mới (GSP5)">+ Mới</button>
-            <button type="button" class="mnp-icon-btn on" id="mnp-btn-labels" title="Bật/Tắt nhãn độ dài & góc trên hình">Nhãn</button>
-            <button type="button" class="mnp-icon-btn" id="mnp-btn-collapse" title="Thu gọn thành thanh nhỏ">─</button>
-            <button type="button" class="mnp-icon-btn" id="mnp-btn-close" title="Đóng bảng">✕</button>
+            <button type="button" class="mnp-icon-btn" id="mnp-btn-labels" title="Bật/Tắt nhãn độ dài & góc trên cạnh">Nhãn</button>
+            <button type="button" class="mnp-icon-btn" id="mnp-btn-close" title="Đóng bảng (tham số vẫn hiện dạng KaTeX trên bảng)">✕</button>
           </div>
         </div>
         <div class="mnp-tabs">
@@ -1198,7 +1721,6 @@
         const ed = getEditor();
         if (ed) ed.redraw();
       });
-      panel.querySelector("#mnp-btn-collapse").addEventListener("click", () => closePanel());
       panel.querySelector("#mnp-btn-close").addEventListener("click", () => closePanel());
 
       panel.querySelectorAll(".mnp-tab").forEach(btn => {
@@ -1208,7 +1730,6 @@
         });
       });
 
-      // Drag panel by header
       const handle = panel.querySelector("#mnp-drag-handle");
       let drag = null;
       handle.addEventListener("pointerdown", e => {
@@ -1242,12 +1763,12 @@
             <div class="mnp-gsp-eq">
               <div class="mnp-field">
                 <label>Tên</label>
-                <input type="text" class="mnp-input" id="mnp-m-name" placeholder="t[1]" autocomplete="off" spellcheck="false" />
+                <input type="text" class="mnp-input" id="mnp-m-name" placeholder="a" autocomplete="off" spellcheck="false" />
               </div>
               <div class="mnp-gsp-eq-sign">=</div>
               <div class="mnp-field">
                 <label>Giá trị / Công thức</label>
-                <input type="text" class="mnp-input" id="mnp-m-val" placeholder="1,00 hoặc a*sqrt(2)" autocomplete="off" spellcheck="false" />
+                <input type="text" class="mnp-input" id="mnp-m-val" placeholder="2,00 hoặc a*sqrt(2)" autocomplete="off" spellcheck="false" />
               </div>
             </div>
             <div class="mnp-chip-row" id="mnp-name-chips">
@@ -1276,11 +1797,14 @@
                 <input type="text" class="mnp-input" id="mnp-m-step" value="0.1" />
               </div>
             </div>
-            <div class="mnp-hint">Mẹo: Có thể nhập biểu thức theo tham số khác như <b>a*sqrt(2)</b>, <b>a/2</b>, <b>180 - 2*α</b>, <b>a*sin(α)</b>.</div>
+            <div class="mnp-hint">Sau khi bấm <b>OK</b>, tham số hiện gọn dạng công thức KaTeX ngay trên bảng. <b>Bấm 1 lần</b> để chọn kết hợp công cụ vẽ • <b>Nháy đúp</b> để mở bảng đầy đủ.</div>
           </div>
           <div class="mnp-modal-foot">
-            <button type="button" class="mnp-btn" id="mnp-modal-cancel">Hủy</button>
-            <button type="button" class="mnp-btn primary" id="mnp-modal-ok">OK</button>
+            <button type="button" class="mnp-btn" id="mnp-modal-full" title="Mở bảng quản lý tham số & dựng 2D/3D đầy đủ">Bảng đầy đủ</button>
+            <div class="mnp-modal-foot-right">
+              <button type="button" class="mnp-btn" id="mnp-modal-cancel">Hủy</button>
+              <button type="button" class="mnp-btn primary" id="mnp-modal-ok">OK</button>
+            </div>
           </div>
         </div>
       `;
@@ -1288,13 +1812,13 @@
 
       bd.querySelector("#mnp-modal-x").addEventListener("click", closeParamModal);
       bd.querySelector("#mnp-modal-cancel").addEventListener("click", closeParamModal);
+      bd.querySelector("#mnp-modal-full").addEventListener("click", () => { closeParamModal(); openPanel("params"); });
       bd.addEventListener("click", e => { if (e.target === bd) closeParamModal(); });
 
       bd.querySelectorAll("#mnp-name-chips .mnp-chip").forEach(ch => {
         ch.addEventListener("click", () => {
           const nm = ch.dataset.nm;
-          const inp = bd.querySelector("#mnp-m-name");
-          inp.value = nm;
+          bd.querySelector("#mnp-m-name").value = nm;
           if (nm === "α" || nm === "β") setModalUnit("angle");
           else if (nm === "k") setModalUnit("none");
           else setModalUnit("dist");
@@ -1311,13 +1835,13 @@
               bd.querySelector("#mnp-m-max").value = "175";
               bd.querySelector("#mnp-m-step").value = "1";
               const vInp = bd.querySelector("#mnp-m-val");
-              if (vInp.value === "1,00" || vInp.value === "3,00") vInp.value = "60";
+              if (vInp.value === "1,00" || vInp.value === "2,00" || vInp.value === "3,00") vInp.value = "60";
             } else if (u === "dist") {
               bd.querySelector("#mnp-m-min").value = "0.5";
               bd.querySelector("#mnp-m-max").value = "12";
               bd.querySelector("#mnp-m-step").value = "0.1";
               const vInp = bd.querySelector("#mnp-m-val");
-              if (vInp.value === "1,00" || vInp.value === "60") vInp.value = "3,00";
+              if (vInp.value === "1,00" || vInp.value === "60") vInp.value = "2,00";
             } else {
               bd.querySelector("#mnp-m-min").value = "-5";
               bd.querySelector("#mnp-m-max").value = "5";
@@ -1341,10 +1865,7 @@
     const bd = document.getElementById("mn-param-modal-backdrop");
     if (!bd) return;
     const rad = bd.querySelector(`input[name="mnp-unit"][value="${unit}"]`);
-    if (rad) {
-      rad.checked = true;
-      rad.dispatchEvent(new Event("change"));
-    }
+    if (rad) { rad.checked = true; rad.dispatchEvent(new Event("change")); }
   }
 
   function updateModalPreview() {
@@ -1354,10 +1875,7 @@
     const prev = bd.querySelector("#mnp-m-preview");
     const unit = bd.querySelector('input[name="mnp-unit"]:checked')?.value || "none";
     const num = Number(raw.replace(",", "."));
-    if (!raw || Number.isFinite(num)) {
-      prev.style.display = "none";
-      return;
-    }
+    if (!raw || Number.isFinite(num)) { prev.style.display = "none"; return; }
     const pg = getPage();
     const val = evalExprOnGeo(pg ? pg.geo : { params: [] }, raw, NaN);
     prev.style.display = "block";
@@ -1390,11 +1908,12 @@
       bd.querySelector("#mnp-m-max").value = String(existing.max ?? 10);
       bd.querySelector("#mnp-m-step").value = String(existing.step ?? 0.1);
     } else {
-      nmInp.value = nextDefaultParamName(params);
+      const used = new Set(params.map(p => p.name));
+      nmInp.value = !used.has("a") ? "a" : nextDefaultParamName(params);
       const u = presetUnit || "dist";
       const rad = bd.querySelector(`input[name="mnp-unit"][value="${u}"]`);
       if (rad) rad.checked = true;
-      valInp.value = presetVal != null ? fmtNum(presetVal, u === "angle" ? 1 : 2) : (u === "angle" ? "60" : u === "dist" ? "3,00" : "1,00");
+      valInp.value = presetVal != null ? fmtNum(presetVal, u === "angle" ? 1 : 2) : (u === "angle" ? "60" : u === "dist" ? "2,00" : "1,00");
       bd.querySelector("#mnp-m-min").value = u === "angle" ? "5" : u === "dist" ? "0.5" : "-5";
       bd.querySelector("#mnp-m-max").value = u === "angle" ? "175" : u === "dist" ? "12" : "5";
       bd.querySelector("#mnp-m-step").value = u === "angle" ? "1" : "0.1";
@@ -1430,32 +1949,31 @@
     if (!Number.isFinite(numVal)) {
       const pg = getPage();
       const ev = evalExprOnGeo(pg ? pg.geo : { params: [] }, rawVal, NaN);
-      if (!Number.isFinite(ev)) {
-        showToast("Giá trị / công thức không hợp lệ!");
-        return;
-      }
-      value = ev;
-      expr = rawVal;
+      if (!Number.isFinite(ev)) { showToast("Giá trị / công thức không hợp lệ!"); return; }
+      value = ev; expr = rawVal;
     }
 
     const pIdx = currentPageIndex();
-    upsertParam(pIdx, {
+    const isEdit = !!STATE.editingParamId;
+    const savedId = upsertParam(pIdx, {
       id: STATE.editingParamId || undefined,
-      name,
-      value,
-      expr,
-      unit,
+      name, value, expr, unit,
       min: Number.isFinite(min) ? Math.min(min, value) : 0,
       max: Number.isFinite(max) ? Math.max(max, value) : Math.max(10, value * 2),
       step: Number.isFinite(step) && step > 0 ? step : 0.1
     });
 
     closeParamModal();
-    if (!STATE.open) openPanel("params");
-    showToast(`Đã lưu tham số ${name} = ${fmtNum(value, unit === "angle" ? 1 : 2)}${unitSuffix(unit)}`);
+    // Auto-select the newly created KaTeX parameter chip on canvas WITHOUT opening the full floating panel!
+    if (!isEdit) {
+      selectParam(pIdx, savedId, false);
+      showToast(`Đã tạo ${name} = ${fmtNum(value, unit === "angle" ? 1 : 2)}${unitSuffix(unit)} trên bảng! Nháy đúp để sửa hoặc bấm công cụ vẽ để dùng ngay.`);
+    } else {
+      showToast(`Đã cập nhật tham số ${name} = ${fmtNum(value, unit === "angle" ? 1 : 2)}${unitSuffix(unit)}`);
+    }
   }
 
-  // ==================== RENDER PANEL TABS ====================
+  // ==================== RENDER FULL STUDIO PANEL TABS ====================
 
   function listAllConstraints(pageIdx) {
     const pg = getPage(pageIdx);
@@ -1472,11 +1990,11 @@
       if (d.t === "len") {
         const val = K._mnGeoVal(geo, d.paramId, d.expr, d.val);
         const pm = d.paramId ? pMap.get(d.paramId) : null;
+        const circ = geo.shapes.find(s => s.kind === "circle" && s.pts[0] === d.a && s.pts[1] === pt.id);
         list.push({
-          pointId: pt.id,
-          kind: "len",
-          title: `Đoạn ${ptName(geo, d.a)}${ptName(geo, pt.id)} = ${pm ? pm.name : (d.expr || fmtNum(val, 2) + " cm")}`,
-          sub: `${fmtNum(val, 2)} cm • ${d.lockedAng ? "Khóa cứng cả hướng" : "Khóa độ dài (chỉ xoay được)"}`
+          pointId: pt.id, kind: "len",
+          title: `${circ ? `Đường tròn (${ptName(geo, d.a)}) R` : `Đoạn ${ptName(geo, d.a)}${ptName(geo, pt.id)}`} = ${pm ? pm.name : (d.expr || fmtNum(val, 2) + " cm")}`,
+          sub: `${fmtNum(val, 2)} cm • ${d.lockedAng ? "Khóa cứng cả hướng" : "Khóa cố định độ dài"}`
         });
       } else if (d.t === "polar") {
         const parts = [];
@@ -1492,25 +2010,21 @@
         }
         if (parts.length) {
           list.push({
-            pointId: pt.id,
-            kind: "polar",
-            title: parts.join(" & "),
+            pointId: pt.id, kind: "polar", title: parts.join(" & "),
             sub: d.fixedAng && d.fixedDist ? "Khóa cứng góc & độ dài" : (d.fixedAng ? "Khóa góc (chỉ trượt dọc tia)" : "Khóa độ dài")
           });
         }
       } else if (d.t === "p3d" && pt.show) {
         list.push({
-          pointId: pt.id,
-          kind: "p3d",
+          pointId: pt.id, kind: "p3d",
           title: `Đỉnh 3D ${ptName(geo, pt.id)} (${d.vx}, ${d.vy}, ${d.vz})`,
           sub: `Khóa tỉ lệ 3D theo gốc ${ptName(geo, d.o)}`
         });
-      } else if ((d.t === "on" || d.t === "vec" || d.t === "rot") && (d.kParamId || d.kExpr || d.angParamId || d.angExpr)) {
-        const pm = pMap.get(d.kParamId || d.angParamId);
+      } else if ((d.t === "on" || d.t === "vec" || d.t === "rot") && (d.kParamId || d.kExpr || d.angParamId || d.angExpr || d.distParamId)) {
+        const pm = pMap.get(d.kParamId || d.angParamId || d.distParamId);
         list.push({
-          pointId: pt.id,
-          kind: d.t,
-          title: `Điểm ${ptName(geo, pt.id)} theo ${pm ? pm.name : (d.kExpr || d.angExpr)}`,
+          pointId: pt.id, kind: d.t,
+          title: `Điểm ${ptName(geo, pt.id)} theo ${pm ? pm.name : (d.kExpr || d.angExpr || d.distExpr)}`,
           sub: `Ràng buộc ${d.t}`
         });
       }
@@ -1521,7 +2035,6 @@
   function renderPanel() {
     const panel = document.getElementById("mn-param-panel");
     if (!panel) return;
-
     const pIdx = currentPageIndex();
     const pg = getPage(pIdx);
     const geo = pg ? pg.geo : { points: {}, shapes: [], params: [] };
@@ -1530,6 +2043,7 @@
 
     panel.querySelector("#mnp-cnt-params").textContent = String(params.length);
     panel.querySelector("#mnp-cnt-cons").textContent = String(cons.length);
+    panel.querySelector("#mnp-btn-labels").classList.toggle("on", STATE.showLabels);
     panel.querySelectorAll(".mnp-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === STATE.tab));
 
     const body = panel.querySelector("#mnp-body");
@@ -1545,9 +2059,9 @@
       empty.className = "mnp-empty";
       empty.innerHTML = `
         <div><b>Chưa có tham số nào trên trang này.</b></div>
-        <div style="margin-top:4px">Tạo tham số kiểu GSP5 để khóa cố định độ dài, góc hoặc tỉ lệ hình 2D/3D:</div>
+        <div style="margin-top:4px">Bấm <b>+ Mới</b> để tạo tham số kiểu GSP5 (hiện dạng KaTeX trên bảng):</div>
         <div class="mnp-chip-row" style="justify-content:center;margin-top:10px">
-          <button type="button" class="mnp-chip" data-preset="a">+ a = 4 cm</button>
+          <button type="button" class="mnp-chip" data-preset="a">+ a = 2 cm</button>
           <button type="button" class="mnp-chip" data-preset="b">+ b = 3 cm</button>
           <button type="button" class="mnp-chip" data-preset="h">+ h = 5 cm</button>
           <button type="button" class="mnp-chip" data-preset="ang">+ α = 60°</button>
@@ -1557,13 +2071,14 @@
       empty.querySelectorAll("[data-preset]").forEach(btn => {
         btn.addEventListener("click", () => {
           const map = {
-            a: { name: "a", value: 4, unit: "dist", min: 0.5, max: 12, step: 0.1 },
+            a: { name: "a", value: 2, unit: "dist", min: 0.5, max: 12, step: 0.1 },
             b: { name: "b", value: 3, unit: "dist", min: 0.5, max: 12, step: 0.1 },
             h: { name: "h", value: 5, unit: "dist", min: 0.5, max: 14, step: 0.1 },
             ang: { name: "α", value: 60, unit: "angle", min: 5, max: 175, step: 1 },
             k: { name: "k", value: 0.5, unit: "none", min: 0, max: 3, step: 0.05 }
           };
-          upsertParam(pIdx, map[btn.dataset.preset]);
+          const pid = upsertParam(pIdx, map[btn.dataset.preset]);
+          selectParam(pIdx, pid, false);
         });
       });
       body.appendChild(empty);
@@ -1574,8 +2089,9 @@
       const curVal = evalParamValue(geo, p);
       const bindCnt = countParamBindings(geo, p.id);
       const card = document.createElement("div");
-      card.className = "mnp-card";
+      card.className = "mnp-card" + (STATE.focusedParamId === p.id ? " focus-highlight" : "");
       const isFormula = !!(p.expr && p.expr.trim());
+      const isArmed = STATE.selectedParamIds.includes(p.id);
 
       card.innerHTML = `
         <div class="mnp-card-top">
@@ -1585,6 +2101,7 @@
             ${bindCnt ? `<span class="mnp-bind-tag">🔒 ${bindCnt}</span>` : ""}
           </div>
           <div class="mnp-head-actions">
+            <button type="button" class="mnp-icon-btn ${isArmed ? "on" : ""}" data-act="arm" title="Chọn tham số này để kết hợp công cụ vẽ">${isArmed ? "✓ Chọn" : "Chọn"}</button>
             ${!isFormula ? `<button type="button" class="mnp-icon-btn ${p.animating ? "on" : ""}" data-act="anim" title="Chạy tự động tham số (GSP5)">${p.animating ? "⏸" : "▶"}</button>` : ""}
             <button type="button" class="mnp-icon-btn" data-act="edit" title="Sửa tham số">✎</button>
             <button type="button" class="mnp-icon-btn" data-act="del" title="Xóa tham số">🗑</button>
@@ -1607,6 +2124,7 @@
         `}
       `;
 
+      card.querySelector('[data-act="arm"]').addEventListener("click", () => { selectParam(pIdx, p.id, true); renderPanel(); });
       const animBtn = card.querySelector('[data-act="anim"]');
       if (animBtn) animBtn.addEventListener("click", () => toggleParamAnim(pIdx, p.id));
       card.querySelector('[data-act="edit"]').addEventListener("click", () => openParamModal(p.id));
@@ -1657,7 +2175,6 @@
     const angleParams = params.filter(p => p.unit === "angle" || p.unit === "none");
     const scalarParams = params.filter(p => p.unit === "none");
 
-    // 1. Selected length/radius card
     if (targets.length) {
       const L = targets.length;
       const sec = document.createElement("div");
@@ -1691,16 +2208,13 @@
         const paramId = sec.querySelector("#mnp-cl-param").value;
         const raw = sec.querySelector("#mnp-cl-val").value.trim();
         const lockedAng = sec.querySelector("#mnp-cl-lockang").checked;
-        let val = Number(raw.replace(",", "."));
-        let expr = "";
+        let val = Number(raw.replace(",", ".")), expr = "";
         if (!paramId) {
           if (!Number.isFinite(val)) {
             const ev = evalExprOnGeo(geo, raw, NaN);
             if (!Number.isFinite(ev) || ev <= 0) { showToast("Giá trị độ dài không hợp lệ (> 0)!"); return; }
             val = ev; expr = raw;
-          } else if (val <= 0) {
-            showToast("Độ dài phải lớn hơn 0 cm!"); return;
-          }
+          } else if (val <= 0) { showToast("Độ dài phải lớn hơn 0 cm!"); return; }
         }
         applyLengthConstraint({ pageIdx: L.pageIdx, from: L.from, to: L.to, val, paramId, expr, lockedAng });
       });
@@ -1709,7 +2223,6 @@
       body.appendChild(sec);
     }
 
-    // 2. Selected angle card
     if (targets.angle) {
       const G = targets.angle;
       const sec = document.createElement("div");
@@ -1753,17 +2266,14 @@
       const lockDChk = sec.querySelector("#mnp-ca-lockd");
       const distWrap = sec.querySelector("#mnp-ca-dist-wrap");
       lockDChk.addEventListener("change", () => { distWrap.style.display = lockDChk.checked ? "grid" : "none"; });
-
       sec.querySelector("#mnp-ca-apply").addEventListener("click", () => {
         const angParamId = sec.querySelector("#mnp-ca-param").value;
         const rawAng = sec.querySelector("#mnp-ca-val").value.trim();
         let angVal = Number(rawAng.replace(",", ".")), angExpr = "";
-        if (!angParamId) {
-          if (!Number.isFinite(angVal)) {
-            const ev = evalExprOnGeo(geo, rawAng, NaN);
-            if (!Number.isFinite(ev)) { showToast("Số đo góc không hợp lệ!"); return; }
-            angVal = ev; angExpr = rawAng;
-          }
+        if (!angParamId && !Number.isFinite(angVal)) {
+          const ev = evalExprOnGeo(geo, rawAng, NaN);
+          if (!Number.isFinite(ev)) { showToast("Số đo góc không hợp lệ!"); return; }
+          angVal = ev; angExpr = rawAng;
         }
         const lockDist = lockDChk.checked;
         const distParamId = sec.querySelector("#mnp-ca-dparam").value;
@@ -1776,8 +2286,7 @@
         }
         applyAngleConstraint({
           pageIdx: G.pageIdx, A: G.A, O: G.O, B: G.B,
-          angVal, angParamId, angExpr,
-          lockDist, distVal, distParamId, distExpr,
+          angVal, angParamId, angExpr, lockDist, distVal, distParamId, distExpr,
           addMark: sec.querySelector("#mnp-ca-mark").checked
         });
       });
@@ -1786,7 +2295,6 @@
       body.appendChild(sec);
     }
 
-    // 3. Selected ratio point card
     if (targets.ratio) {
       const R = targets.ratio;
       const sec = document.createElement("div");
@@ -1828,15 +2336,13 @@
       const tip = document.createElement("div");
       tip.className = "mnp-empty";
       tip.innerHTML = `
-        <b>Chọn hình trên bảng để khóa ràng buộc:</b><br/>
-        • Chọn <b>1 đoạn thẳng</b> hoặc <b>đường tròn</b> → Khóa độ dài / bán kính<br/>
-        • Chọn <b>2 đoạn chung đỉnh</b>, <b>3 điểm</b> hoặc <b>kí hiệu góc</b> → Khóa số đo góc<br/>
-        • Hoặc chuyển sang tab <b>Dựng 2D/3D</b> để dựng ngay hình có sẵn ràng buộc chuẩn!
+        <b>Cách dùng nhanh kiểu GSP5:</b><br/>
+        • Bấm chọn <b>a = 2 cm</b> trên bảng + chọn công cụ <b>Đường tròn / Đoạn thẳng</b> → tự vẽ khóa cứng!<br/>
+        • Hoặc chọn 1 đoạn thẳng / 2 đoạn chung đỉnh trên bảng để khóa độ dài / góc ngay tại đây.
       `;
       body.appendChild(tip);
     }
 
-    // 4. All active constraints on current page
     const listSec = document.createElement("div");
     listSec.className = "mnp-section";
     listSec.innerHTML = `<div class="mnp-section-title"><span>Danh sách đang khóa trên trang (${cons.length})</span></div>`;
@@ -1871,7 +2377,6 @@
     body.innerHTML = "";
     const v = STATE.builderVals;
 
-    // 2D / 3D Switch
     const seg = document.createElement("div");
     seg.className = "mnp-seg";
     seg.innerHTML = `
@@ -2006,7 +2511,7 @@
 
     const autoChk = document.createElement("label");
     autoChk.className = "mnp-check";
-    autoChk.innerHTML = `<input type="checkbox" ${v.autoCreateParams ? "checked" : ""} /> Tự tạo tham số GSP5 cho các số liệu này (để kéo thanh trượt đổi kích thước sau)`;
+    autoChk.innerHTML = `<input type="checkbox" ${v.autoCreateParams ? "checked" : ""} /> Tự tạo tham số KaTeX trên bảng cho các số liệu này`;
     autoChk.querySelector("input").addEventListener("change", e => { v.autoCreateParams = e.target.checked; });
     form.appendChild(autoChk);
 
@@ -2031,26 +2536,6 @@
       .replace(/"/g, "&quot;");
   }
 
-  function isLibraryOpen() {
-    const lib = document.querySelector(".library");
-    if (!lib) return false;
-    const r = lib.getBoundingClientRect();
-    return r.width > 100 && r.height > 100;
-  }
-
-  function updatePill() {
-    const pill = document.getElementById("mn-param-pill");
-    if (!pill) return;
-    const params = getParams();
-    const anyAnim = params.some(p => p.animating);
-    const hide = STATE.open || isLibraryOpen();
-    pill.style.display = hide ? "none" : "inline-flex";
-    const badge = pill.querySelector(".mn-pill-badge");
-    if (badge) badge.textContent = String(params.length);
-    const dot = pill.querySelector(".mn-pill-dot");
-    if (dot) dot.classList.toggle("anim", anyAnim);
-  }
-
   function openPanel(tab) {
     ensureUI();
     if (tab) STATE.tab = tab;
@@ -2058,9 +2543,9 @@
     const panel = document.getElementById("mn-param-panel");
     if (panel) {
       if (!STATE.panelPos) {
-        const sb = document.querySelector(".sel-bar");
+        const sb = document.querySelector(".selection-bar, .sel-bar");
         const topY = sb && sb.getBoundingClientRect().height > 0
-          ? Math.max(96, Math.round(sb.getBoundingClientRect().bottom + 10))
+          ? Math.max(100, Math.round(sb.getBoundingClientRect().bottom + 10))
           : 100;
         panel.style.top = `${topY}px`;
         panel.style.maxHeight = `calc(100vh - ${topY + 68}px)`;
@@ -2068,19 +2553,23 @@
       panel.classList.add("open");
     }
     renderPanel();
-    updatePill();
   }
 
   function closePanel() {
     STATE.open = false;
+    STATE.focusedParamId = null;
     const panel = document.getElementById("mn-param-panel");
     if (panel) panel.classList.remove("open");
-    updatePill();
   }
 
   function togglePanel() {
     if (STATE.open) closePanel();
     else openPanel();
+  }
+
+  function onToolbarClick() {
+    // Bottom toolbar button opens GSP5 "Tham số mới" dialog directly!
+    openParamModal(null);
   }
 
   function openForSelection(hint) {
@@ -2093,53 +2582,113 @@
     }
   }
 
-  // Watch selection changes so Constraints tab refreshes live when user selects a segment/angle
-  function startSelectionWatcher() {
+  // Keep KaTeX canvas chips synced with scroll, zoom, selection, and document updates
+  function startSyncWatcher() {
+    let scrollerBound = null;
+    const syncPos = () => renderCanvasChips(false);
+
+    window.addEventListener("resize", syncPos, { passive: true });
+
     setInterval(() => {
       const ed = getEditor();
       if (!ed) return;
       ensureUI();
-      updatePill();
-      if (!STATE.open) return;
+
+      // Bind scroller scroll listener once
+      if (ed.scroller && scrollerBound !== ed.scroller) {
+        scrollerBound = ed.scroller;
+        scrollerBound.addEventListener("scroll", syncPos, { passive: true });
+      }
+
+      // Snapshot current selection (so if user selects point O + a=2cm and then clicks Circle tool, onToolChange still knows O!)
+      if (ed.sel && (ed.sel.points.size > 0 || ed.sel.shapes.size > 0)) {
+        STATE._lastSel = {
+          page: ed.sel.page,
+          points: [...ed.sel.points],
+          shapes: [...ed.sel.shapes]
+        };
+      }
+
+      // Drop selectedParamIds that no longer exist on current page
+      const curParams = getParams();
+      const validIds = new Set(curParams.map(p => p.id));
+      const beforeLen = STATE.selectedParamIds.length;
+      STATE.selectedParamIds = STATE.selectedParamIds.filter(id => validIds.has(id));
+      if (STATE.selectedParamIds.length !== beforeLen) syncArmedBar();
+
+      renderCanvasChips(false);
+
       const sel = ed.sel;
       const key = sel
-        ? `${sel.page}|${[...sel.points].join(",")}|${[...sel.shapes].join(",")}|${getParams(sel.page).length}`
-        : `none|${currentPageIndex()}|${getParams().length}`;
+        ? `${sel.page}|${[...sel.points].join(",")}|${[...sel.shapes].join(",")}|${curParams.length}|${STATE.selectedParamIds.join(",")}`
+        : `none|${currentPageIndex()}|${curParams.length}|${STATE.selectedParamIds.join(",")}`;
       if (key !== STATE.selKey) {
         STATE.selKey = key;
-        if (STATE.tab === "constraints" || STATE.tab === "params") {
-          // Avoid wiping active typing input
+        syncArmedBar();
+        if (STATE.open && (STATE.tab === "constraints" || STATE.tab === "params")) {
           const panel = document.getElementById("mn-param-panel");
           if (panel && !panel.contains(document.activeElement)) {
             renderPanel();
           }
         }
       }
-    }, 280);
+    }, 180);
   }
 
-  // Keyboard shortcut: Alt+P opens GSP5 New Parameter dialog (or toggles panel if Shift+Alt+P)
+  // Keyboard shortcuts:
+  // - Alt+P: open GSP5 New Parameter dialog
+  // - + / - while a KaTeX parameter chip is selected: nudge value live (just like GSP5!)
+  // - Escape: deselect active parameter chip
   window.addEventListener("keydown", e => {
+    const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+
     if (e.altKey && !e.ctrlKey && (e.key === "p" || e.key === "P")) {
-      const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea") return;
       e.preventDefault();
       if (e.shiftKey) togglePanel();
       else openParamModal(null);
+      return;
+    }
+
+    if (STATE.selectedParamIds.length > 0 && !e.ctrlKey && !e.altKey) {
+      if (e.key === "Escape") {
+        clearSelectedParams();
+        return;
+      }
+      if (e.key === "+" || e.key === "=" || e.key === "-") {
+        const pIdx = currentPageIndex();
+        const p = getSelectedParams(pIdx)[0];
+        if (p && !p.expr) {
+          e.preventDefault();
+          const step = p.unit === "angle" ? 5 : (p.step || 0.5);
+          const dir = e.key === "-" ? -1 : 1;
+          let nv = Math.round(((Number(p.value) || 0) + dir * step) * 1000) / 1000;
+          if (p.unit === "dist" && nv <= 0.05) nv = 0.05;
+          updateParamValueLive(pIdx, p.id, nv, true);
+          if (STATE.open) renderPanel();
+        }
+      }
     }
   });
 
-  // Public API
   window.MinNoteGeoParams = {
     open: openPanel,
     close: closePanel,
     toggle: togglePanel,
+    onToolbarClick,
     openForSelection,
     openNewParameter: (unit, val) => openParamModal(null, unit, val),
     drawOverlay,
-    // Programmatic API (useful for testing & extensions)
+    // Direct tool hooks called by index-CTbULhps.js
+    handleGeoPick,
+    handleShapeCreate,
+    onToolChange,
+    // Programmatic API
     upsertParam,
     deleteParam,
+    selectParam,
+    clearSelectedParams,
+    getSelectedParams,
     applyLengthConstraint,
     applyAngleConstraint,
     unlockPoint,
@@ -2150,9 +2699,9 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => { ensureUI(); startSelectionWatcher(); });
+    document.addEventListener("DOMContentLoaded", () => { ensureUI(); startSyncWatcher(); });
   } else {
     ensureUI();
-    startSelectionWatcher();
+    startSyncWatcher();
   }
 })();

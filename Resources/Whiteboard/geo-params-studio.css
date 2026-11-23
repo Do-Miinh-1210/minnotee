@@ -1,5 +1,8 @@
-/* MinNote GSP5 Parametric Geometry & Constraints Studio */
-/* Clean teal/slate design matching MinNote's light whiteboard UI */
+/* MinNote GSP5 Parametric Geometry & Constraints Studio
+ * - Clean KaTeX math chips rendered directly on the whiteboard (drag / click to select / dblclick for full panel)
+ * - No floating corner pill; native button lives on the bottom toolbar
+ * - Full studio panel opens on double-click of any parameter chip or via .sel-bar
+ */
 
 /* Selection bar lock & parameter controls */
 .sel-length.mn-len-locked {
@@ -45,59 +48,139 @@
   font-size: 13px;
 }
 
-/* Floating launcher pill (bottom-left above Sheet button, never overlaps sel-bar or pen bar) */
-#mn-param-pill {
+/* ==================== ON-CANVAS KATEX PARAMETER CHIPS ==================== */
+#mn-param-canvas-layer {
   position: fixed;
-  left: 16px;
-  bottom: 98px;
-  z-index: 905;
+  inset: 0;
+  pointer-events: none;
+  z-index: 860;
+  overflow: hidden;
+}
+
+.mn-katex-param {
+  position: fixed;
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(13, 148, 136, 0.32);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: transparent;
   color: #0f172a;
+  font-size: 21px;
+  line-height: 1.25;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  transform-origin: top left;
+  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.mn-katex-param:hover {
+  background: rgba(240, 253, 250, 0.78);
+  border-color: rgba(13, 148, 136, 0.35);
+}
+.mn-katex-param.dragging {
+  cursor: grabbing;
+  background: rgba(240, 253, 250, 0.94);
+  border-color: #0d9488;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+}
+.mn-katex-param.selected {
+  background: rgba(240, 253, 250, 0.94);
+  border-color: #0d9488;
+  box-shadow: 0 3px 12px rgba(13, 148, 136, 0.24), 0 0 0 2px rgba(13, 148, 136, 0.14);
+}
+.mn-katex-param .katex {
+  font-size: 1em;
+  color: #0f172a;
+}
+.mn-katex-param .mn-kp-fallback {
+  font-family: "Times New Roman", Georgia, serif;
+  font-style: italic;
+}
+.mn-katex-param .mn-kp-anim-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+  display: none;
+}
+.mn-katex-param.animating .mn-kp-anim-dot {
+  display: inline-block;
+}
+
+/* Subtle bottom-center armed bar — ONLY shown while user has selected a KaTeX parameter chip */
+#mn-param-armed-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 905;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 148, 136, 0.38);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
+  color: #0f172a;
   backdrop-filter: blur(8px);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+  max-width: calc(100vw - 32px);
 }
-#mn-param-pill:hover {
-  transform: translateY(-1px);
-  border-color: #0d9488;
-  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.2);
+#mn-param-armed-bar.open {
+  display: inline-flex;
 }
-#mn-param-pill .mn-pill-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #0d9488;
-}
-#mn-param-pill .mn-pill-dot.anim {
-  background: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.28);
-}
-#mn-param-pill .mn-pill-badge {
+.mnp-armed-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: #ccfbf1;
   color: #0f766e;
-  font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
+}
+.mnp-armed-hint {
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mnp-armed-btn {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.13s ease;
+}
+.mnp-armed-btn:hover {
+  border-color: #0d9488;
+  color: #0f766e;
+  background: #f0fdfa;
+}
+.mnp-armed-btn.primary {
+  background: #0d9488;
+  border-color: #0d9488;
+  color: #ffffff;
+}
+.mnp-armed-btn.primary:hover {
+  background: #0f766e;
 }
 
-/* Main Floating Studio Panel */
+/* ==================== MAIN FLOATING STUDIO PANEL (OPENS ON DBLCLICK) ==================== */
 #mn-param-panel {
   position: fixed;
   left: 16px;
@@ -270,10 +353,14 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  transition: border-color 0.14s ease;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .mnp-card:hover {
   border-color: rgba(13, 148, 136, 0.42);
+}
+.mnp-card.focus-highlight {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.18);
 }
 .mnp-card-top {
   display: flex;
@@ -629,7 +716,7 @@
   display: flex;
 }
 .mnp-modal {
-  width: 392px;
+  width: 404px;
   max-width: calc(100vw - 24px);
   border-radius: 14px;
   background: #ffffff;
@@ -702,14 +789,19 @@
 }
 .mnp-modal-foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 10px 16px 14px;
   border-top: 1px solid #f1f5f9;
 }
+.mnp-modal-foot-right {
+  display: flex;
+  gap: 8px;
+}
 .mnp-modal-foot .mnp-btn {
   flex: 0 0 auto;
-  min-width: 84px;
+  min-width: 78px;
 }
 .mnp-hint {
   font-size: 11.5px;

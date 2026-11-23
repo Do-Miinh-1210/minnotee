@@ -519,9 +519,9 @@
     const screenX = scrollerRect.left + docMidX * editor.zoom - editor.scroller.scrollLeft;
     const screenBotY = scrollerRect.top + docBotY * editor.zoom - editor.scroller.scrollTop;
 
-    // Tính biên trên an toàn: luôn nằm DƯỚI thanh công cụ chọn (.sel-bar) và thanh trên (.toolbar)
+    // Tính biên trên an toàn: luôn nằm DƯỚI thanh công cụ chọn (.selection-bar) và thanh trên (.toolbar)
     let minTop = scrollerRect.top + 8;
-    const selBar = document.querySelector(".sel-bar");
+    const selBar = document.querySelector(".selection-bar, .sel-bar");
     if (selBar) {
       const sr = selBar.getBoundingClientRect();
       if (sr.width > 0 && sr.height > 0) {
