@@ -24,6 +24,7 @@
     panelPos: null,
     selKey: "",
     katexKey: "",
+    hoverHighlight: null,
     builderVals: {
       a: "4",
       b: "3",
@@ -428,6 +429,8 @@
     }
     for (const id of anc) {
       if (tracedSet.has(id)) continue;
+      const pt = geo.points[id];
+      if (!pt || !pt.show || pt.hidden) continue;
       const drv = resolveDriver(geo, id);
       if (drv) {
         out.push({
@@ -793,9 +796,21 @@
     return "Dựng quỹ tích hình học động";
   }
 
+  function setHoverHighlight(h) {
+    const prev = STATE.hoverHighlight;
+    STATE.hoverHighlight = h || null;
+    if (prev !== STATE.hoverHighlight) {
+      const ed = getEditor();
+      if (ed) ed.redraw();
+    }
+  }
+
   function closeLocusQuickPop() {
     const pop = document.getElementById("mn-locus-quick-pop");
     if (pop) pop.classList.remove("open");
+    if (STATE.hoverHighlight && STATE.hoverHighlight.kind === "locusDriver") {
+      setHoverHighlight(null);
+    }
   }
 
   function showLocusDriverPopover(anchorEl, act) {
@@ -816,6 +831,18 @@
       btn.type = "button";
       btn.className = "mn-lqp-item";
       btn.textContent = d.label;
+      const onEnter = () => {
+        setHoverHighlight({ kind: "locusDriver", pageIdx: act.pageIdx, act, driver: d });
+      };
+      const onLeave = () => {
+        if (STATE.hoverHighlight && STATE.hoverHighlight.driver === d) {
+          setHoverHighlight(null);
+        }
+      };
+      btn.addEventListener("mouseenter", onEnter);
+      btn.addEventListener("focus", onEnter);
+      btn.addEventListener("mouseleave", onLeave);
+      btn.addEventListener("blur", onLeave);
       btn.addEventListener("click", () => {
         closeLocusQuickPop();
         if (act.kind === "createPoint") createPointLocus(act.pageIdx, act.tracedId, d.type, d.id);
@@ -2332,93 +2359,270 @@
     if (STATE.open) renderPanel();
   }
 
-  // ==================== LIVE LOCUS PREVIEW & OPTIONAL EDGE OVERLAY LABELS ====================
+  // ==================== LIVE LOCUS PREVIEW & HOVER HIGHLIGHT OVERLAY (UN-CACHED 60FPS PASS) ====================
 
-  function drawOverlay(ctx, geo, coords) {
+  function drawInteractiveOverlay(ctx, geo, coords, pageIdx) {
     if (!geo || !geo.points || !coords) return;
     const K = getKernel();
     const ed = getEditor();
+    const hiColor = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi() : "#2563eb";
+    const hiSoft = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi(0.24) : "rgba(37, 99, 235, 0.24)";
+    const hiMid = (typeof globalThis.__mnHi === "function") ? globalThis.__mnHi(0.55) : "rgba(37, 99, 235, 0.55)";
 
-    // 1. Live locus preview & driver highlight when user is actively using the Quỹ tích (locus) tool
-    if (ed && ed.tool && ed.tool.k === "geo" && ed.tool.t === "locus" && K && typeof K._mnLocusStrokes === "function") {
-      const pickedPtId = ed.picks && Array.isArray(ed.picks.list) && ed.picks.list.length === 1 && ed.picks.list[0].kind === "point"
-        ? ed.picks.list[0].id
-        : null;
-      const hoverPtId = !pickedPtId && ed.hover && ed.hover.point ? ed.hover.point : null;
-      const candId = pickedPtId || hoverPtId;
-      if (candId && geo.points[candId]) {
-        const drivers = listValidDriversForPoints(geo, [candId]);
-        if (drivers.length > 0) {
-          const drv = drivers[0];
-          const previewShape = {
-            id: `_prev_${candId}_${drv.id}`,
-            kind: "locus",
-            pts: drv.type === "point" ? [candId, drv.id] : [candId],
-            locus: {
-              mode: "point",
-              driverType: drv.type,
-              ...(drv.type === "param" ? { paramId: drv.id } : {}),
-              samples: 120
-            }
-          };
-          const strokes = K._mnLocusStrokes(geo, previewShape, coords);
-          if (strokes && strokes.length) {
-            ctx.save();
-            ctx.strokeStyle = "#e11d48";
-            ctx.lineWidth = pickedPtId ? 2.2 : 1.7;
-            ctx.globalAlpha = pickedPtId ? 0.55 : 0.35;
-            ctx.setLineDash([7, 5]);
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            for (const st of strokes) {
-              if (!st.pts || st.pts.length < 2) continue;
-              ctx.beginPath();
-              st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-              if (st.closed) ctx.closePath();
-              ctx.stroke();
-            }
-            ctx.restore();
+    const drawPillBadge = (x, y, text, bg, border, fg) => {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.font = "600 11.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+      const tw = ctx.measureText(text).width;
+      const bw = tw + 12, bh = 20;
+      const bx = x - bw / 2, by = y - bh - 12;
+      ctx.fillStyle = bg;
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 6);
+      else ctx.rect(bx, by, bw, bh);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = fg;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x, by + bh / 2 + 0.5);
+      ctx.restore();
+    };
+
+    const drawGlowPoint = (pos, color, soft, badgeText, badgeBg, badgeBorder, badgeFg) => {
+      if (!pos) return;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.fillStyle = soft;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 10.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.restore();
+      if (badgeText) {
+        drawPillBadge(pos.x, pos.y, badgeText, badgeBg || "rgba(239, 246, 255, 0.96)", badgeBorder || color, badgeFg || color);
+      }
+    };
+
+    const drawGlowDriverPath = (drvInfo) => {
+      if (!drvInfo) return;
+      const drawStrokeGlow = (drawFn) => {
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.setLineDash([]);
+        ctx.strokeStyle = hiSoft;
+        ctx.lineWidth = 10;
+        drawFn();
+        ctx.stroke();
+        ctx.strokeStyle = hiColor;
+        ctx.globalAlpha = 0.92;
+        ctx.lineWidth = 3.2;
+        drawFn();
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      const kind = drvInfo.kind;
+      const pts = Array.isArray(drvInfo.pts) ? drvInfo.pts : [];
+      if (kind === "circle" && pts.length >= 2) {
+        const pO = coords.get(pts[0]), pR = coords.get(pts[1]);
+        if (pO && pR) {
+          const r = Math.hypot(pR.x - pO.x, pR.y - pO.y);
+          if (r > 1) drawStrokeGlow(() => { ctx.beginPath(); ctx.arc(pO.x, pO.y, r, 0, Math.PI * 2); });
+        }
+      } else if ((kind === "segment" || kind === "line" || kind === "ray" || kind === "vec") && pts.length >= 2) {
+        const pA = coords.get(pts[0]), pB = coords.get(pts[1]);
+        if (pA && pB) {
+          const dx = pB.x - pA.x, dy = pB.y - pA.y, L = Math.hypot(dx, dy);
+          if (L > 1e-4) {
+            const ux = dx / L, uy = dy / L;
+            const ext = kind === "segment" ? 0 : 280;
+            const x0 = kind === "line" || kind === "vec" ? pA.x - ux * ext : pA.x;
+            const y0 = kind === "line" || kind === "vec" ? pA.y - uy * ext : pA.y;
+            const x1 = kind === "segment" ? pB.x : pB.x + ux * ext;
+            const y1 = kind === "segment" ? pB.y : pB.y + uy * ext;
+            drawStrokeGlow(() => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); });
           }
-
-          // Highlight candidate driver point(s) with a clean target ring + tag so user knows where to click
-          for (const d of drivers) {
-            if (d.type !== "point") continue;
-            const dPos = coords.get(d.id);
-            if (!dPos) continue;
-            ctx.save();
-            ctx.strokeStyle = "#e11d48";
-            ctx.lineWidth = 2;
-            ctx.setLineDash([3, 2.5]);
+        }
+      } else if (kind === "polygon" && pts.length >= 3) {
+        const pArr = pts.map(id => coords.get(id)).filter(Boolean);
+        if (pArr.length >= 3) {
+          drawStrokeGlow(() => {
             ctx.beginPath();
-            ctx.arc(dPos.x, dPos.y, 11, 0, Math.PI * 2);
-            ctx.stroke();
-            if (pickedPtId) {
-              const badge = `Điểm dẫn ${d.shortName}`;
-              ctx.setLineDash([]);
-              ctx.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-              const tw = ctx.measureText(badge).width;
-              const bw = tw + 10, bh = 18;
-              const bx = dPos.x - bw / 2, by = dPos.y - 26;
-              ctx.fillStyle = "rgba(255, 241, 242, 0.95)";
-              ctx.strokeStyle = "rgba(225, 29, 72, 0.65)";
-              ctx.lineWidth = 1;
+            pArr.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+            ctx.closePath();
+          });
+        }
+      } else if (kind === "locus" && drvInfo.locusId && K && typeof K._mnLocusStrokes === "function") {
+        const sh = (geo.shapes || []).find(s => s.id === drvInfo.locusId);
+        if (sh) {
+          const stList = K._mnLocusStrokes(geo, sh, coords);
+          if (stList && stList.length) {
+            drawStrokeGlow(() => {
               ctx.beginPath();
-              if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 5);
-              else ctx.rect(bx, by, bw, bh);
-              ctx.fill();
-              ctx.stroke();
-              ctx.fillStyle = "#be123c";
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillText(badge, dPos.x, by + bh / 2 + 0.5);
-            }
-            ctx.restore();
+              for (const st of stList) {
+                if (!st.pts || st.pts.length < 2) continue;
+                st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+                if (st.closed) ctx.closePath();
+              }
+            });
           }
+        }
+      }
+    };
+
+    const drawPreviewLocus = (tracedId, driverObj, strong) => {
+      if (!K || typeof K._mnLocusStrokes !== "function" || !tracedId || !driverObj) return;
+      const previewShape = {
+        id: `_prev_${tracedId}_${driverObj.id}`,
+        kind: "locus",
+        pts: driverObj.type === "point" ? [tracedId, driverObj.id] : [tracedId],
+        locus: {
+          mode: "point",
+          driverType: driverObj.type,
+          ...(driverObj.type === "param" ? { paramId: driverObj.id } : {}),
+          samples: 140
+        }
+      };
+      const strokes = K._mnLocusStrokes(geo, previewShape, coords);
+      if (!strokes || !strokes.length) return;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (strong) {
+        ctx.strokeStyle = "rgba(225, 29, 72, 0.22)";
+        ctx.lineWidth = 7;
+        ctx.setLineDash([]);
+        for (const st of strokes) {
+          if (!st.pts || st.pts.length < 2) continue;
+          ctx.beginPath();
+          st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+          if (st.closed) ctx.closePath();
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = "#e11d48";
+      ctx.lineWidth = strong ? 2.6 : 1.9;
+      ctx.globalAlpha = strong ? 0.85 : 0.45;
+      ctx.setLineDash([7, 5]);
+      for (const st of strokes) {
+        if (!st.pts || st.pts.length < 2) continue;
+        ctx.beginPath();
+        st.pts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        if (st.closed) ctx.closePath();
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
+    // 0. Hover highlight from Locus Driver Popover or Constraints list
+    const hh = STATE.hoverHighlight;
+    if (hh && (pageIdx === undefined || pageIdx === hh.pageIdx)) {
+      if (hh.kind === "locusDriver" && hh.act && hh.driver) {
+        const d = hh.driver;
+        if (d.type === "point") {
+          const drvInfo = d.drv || resolveDriver(geo, d.id);
+          drawGlowDriverPath(drvInfo);
+          drawGlowPoint(
+            coords.get(d.id),
+            hiColor,
+            hiSoft,
+            `Điểm dẫn ${d.shortName}`,
+            "rgba(239, 246, 255, 0.96)",
+            hiColor,
+            "#1d4ed8"
+          );
+        }
+        if (hh.act.kind === "createPoint" && hh.act.tracedId) {
+          drawPreviewLocus(hh.act.tracedId, d, true);
+          drawGlowPoint(
+            coords.get(hh.act.tracedId),
+            "#e11d48",
+            "rgba(225, 29, 72, 0.22)",
+            `Điểm ${ptName(geo, hh.act.tracedId)}`,
+            "rgba(255, 241, 242, 0.96)",
+            "#e11d48",
+            "#be123c"
+          );
+        }
+      } else if (hh.kind === "point" && hh.pointId) {
+        const pos = coords.get(hh.pointId);
+        if (pos) {
+          drawGlowPoint(pos, hiColor, hiSoft, ptName(geo, hh.pointId), "rgba(239, 246, 255, 0.96)", hiColor, "#1d4ed8");
         }
       }
     }
 
+    // 1. Live locus preview & driver highlight when user is actively using the Quỹ tích (locus) tool
+    if (ed && ed.tool && ed.tool.k === "geo" && ed.tool.t === "locus" && K && typeof K._mnLocusStrokes === "function") {
+      const pickedPtId = ed.picks && ed.picks.page === pageIdx && Array.isArray(ed.picks.list) && ed.picks.list.length === 1 && ed.picks.list[0].kind === "point"
+        ? ed.picks.list[0].id
+        : null;
+      const hoverPtId = ed.hover && ed.hover.page === pageIdx && ed.hover.point ? ed.hover.point : null;
+      const hoverShId = ed.hover && ed.hover.page === pageIdx && ed.hover.shape ? ed.hover.shape : null;
+      const candId = pickedPtId || hoverPtId;
+      if (candId && geo.points[candId]) {
+        const drivers = listValidDriversForPoints(geo, [candId]);
+        if (drivers.length > 0) {
+          let activeDrv = drivers[0];
+          if (pickedPtId) {
+            const byPt = hoverPtId && drivers.find(d => d.type === "point" && d.id === hoverPtId);
+            const hoverSh = !byPt && hoverShId ? (geo.shapes || []).find(s => s.id === hoverShId) : null;
+            const bySh = hoverSh ? matchDriverOnShape(geo, drivers, hoverSh) : null;
+            if (byPt) activeDrv = byPt;
+            else if (bySh) activeDrv = bySh;
+          }
+
+          drawPreviewLocus(candId, activeDrv, !!pickedPtId);
+
+          if (pickedPtId && activeDrv.type === "point") {
+            drawGlowDriverPath(activeDrv.drv || resolveDriver(geo, activeDrv.id));
+          }
+
+          for (const d of drivers) {
+            if (d.type !== "point") continue;
+            const dPos = coords.get(d.id);
+            if (!dPos) continue;
+            const isActive = d === activeDrv;
+            if (isActive && pickedPtId) {
+              drawGlowPoint(dPos, hiColor, hiSoft, `Điểm dẫn ${d.shortName}`, "rgba(239, 246, 255, 0.96)", hiColor, "#1d4ed8");
+            } else {
+              ctx.save();
+              ctx.strokeStyle = isActive ? hiColor : hiMid;
+              ctx.lineWidth = isActive ? 2.2 : 1.7;
+              ctx.setLineDash([3.5, 2.5]);
+              ctx.beginPath();
+              ctx.arc(dPos.x, dPos.y, 11, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.restore();
+              if (pickedPtId) {
+                drawPillBadge(dPos.x, dPos.y, `Điểm dẫn ${d.shortName}`, "rgba(248, 250, 252, 0.94)", hiMid, "#1e40af");
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function drawOverlay(ctx, geo, coords) {
+    if (!geo || !geo.points || !coords) return;
     if (!STATE.showLabels) return;
+    const K = getKernel();
     if (!K) return;
     const params = Array.isArray(geo.params) ? geo.params : [];
     const paramById = new Map(params.map(p => [p.id, p]));
@@ -3172,6 +3376,12 @@
           </div>
           <button type="button" class="mnp-icon-btn" title="Mở khóa ràng buộc này">🔓</button>
         `;
+        row.addEventListener("mouseenter", () => {
+          setHoverHighlight({ kind: "point", pageIdx: pIdx, pointId: c.pointId, label: c.title });
+        });
+        row.addEventListener("mouseleave", () => {
+          if (STATE.hoverHighlight && STATE.hoverHighlight.pointId === c.pointId) setHoverHighlight(null);
+        });
         row.querySelector(".mnp-con-info").addEventListener("click", () => {
           const ed = getEditor();
           if (ed) ed.selectGeo(pIdx, [c.pointId], []);
@@ -3502,6 +3712,7 @@
     onLocusSelectionClick,
     openNewParameter: (unit, val) => openParamModal(null, unit, val),
     drawOverlay,
+    drawInteractiveOverlay,
     // Direct tool hooks called by index-CTbULhps.js
     handleGeoPick,
     handleShapeCreate,

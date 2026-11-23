@@ -1,7 +1,8 @@
 /* ============================================================================
-   MinNote Pro Screen Recorder Studio (v0.0.6.6)
-   - Pixel-exact setup & live frame (0px shift, outline strictly outside crop)
-   - Dedicated Storage & Quality Settings modal + Post-Recording Save/Preview
+   MinNote Pro Screen Recorder Studio (v0.0.7.3)
+   - Ultra-clean icon-only floating bar (zero text clutter, zero top tip banner)
+   - Zero-jitter in-place DOM updates (no backdrop/modal rebuild flicker)
+   - Native WPF C# recorder support (zero Chromium sharing bar, WDA_EXCLUDEFROMCAPTURE)
    - Supports Light & Dark themes cleanly (matches Atelier UI v2)
    ============================================================================ */
 
@@ -13,9 +14,9 @@
   --mnrec-ink: #17161d;
   --mnrec-ink-2: #5b5869;
   --mnrec-ink-3: #8a8699;
-  --mnrec-accent: #6c5cf5;
-  --mnrec-accent-dark: #5445d6;
-  --mnrec-accent-soft: rgba(108, 92, 245, 0.11);
+  --mnrec-accent: #2563eb;
+  --mnrec-accent-dark: #1d4ed8;
+  --mnrec-accent-soft: rgba(37, 99, 235, 0.12);
   --mnrec-danger: #ef4444;
   --mnrec-danger-soft: rgba(239, 68, 68, 0.12);
   --mnrec-success: #10b981;
@@ -31,16 +32,16 @@ html.dark .mnrec-root {
   --mnrec-ink: #f3f2f8;
   --mnrec-ink-2: #b5b1c7;
   --mnrec-ink-3: #837f96;
-  --mnrec-accent: #7c6df7;
-  --mnrec-accent-dark: #6354e0;
-  --mnrec-accent-soft: rgba(124, 109, 247, 0.18);
+  --mnrec-accent: #3b82f6;
+  --mnrec-accent-dark: #2563eb;
+  --mnrec-accent-soft: rgba(59, 130, 246, 0.18);
   --mnrec-danger: #f87171;
   --mnrec-danger-soft: rgba(248, 113, 113, 0.16);
   --mnrec-success: #34d399;
   --mnrec-success-soft: rgba(52, 211, 153, 0.16);
 }
 
-/* Invisible DOM element used for W3C Region Capture (CropTarget.fromElement) */
+/* Invisible DOM element used for web fallback Region Capture */
 .mnrec-crop-target {
   position: fixed !important;
   pointer-events: none !important;
@@ -70,65 +71,51 @@ html.dark .mnrec-root {
 .mnrec-area {
   position: fixed;
   box-sizing: border-box;
-  box-shadow: 0 0 0 100vmax rgba(14, 13, 22, 0.50);
-  outline: 2px dashed rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 100vmax rgba(14, 13, 22, 0.44);
+  outline: 1.5px dashed rgba(255, 255, 255, 0.92);
   outline-offset: -1px;
   border: 1.5px solid var(--mnrec-accent);
   cursor: move;
   touch-action: none;
+  will-change: left, top, width, height;
 }
 
-.mnrec-tip,
 .mnrec-size {
   position: absolute;
-  padding: 4px 10px;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(23, 22, 29, 0.80);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  background: rgba(20, 19, 28, 0.68);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
   pointer-events: none;
   white-space: nowrap;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.mnrec-tip {
-  left: 50%;
-  top: 10px;
-  transform: translateX(-50%);
-  max-width: calc(100% - 20px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mnrec-size {
-  right: 10px;
-  bottom: 10px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
 
 .mnrec-handle {
   position: absolute;
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   background: #ffffff;
-  border: 2.5px solid var(--mnrec-accent);
+  border: 2px solid var(--mnrec-accent);
   border-radius: 50%;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.34);
   box-sizing: border-box;
 }
 
-.mnrec-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
-.mnrec-handle.n  { left: calc(50% - 7px); top: -7px; cursor: ns-resize; }
-.mnrec-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
-.mnrec-handle.e  { right: -7px; top: calc(50% - 7px); cursor: ew-resize; }
-.mnrec-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
-.mnrec-handle.s  { left: calc(50% - 7px); bottom: -7px; cursor: ns-resize; }
-.mnrec-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
-.mnrec-handle.w  { left: -7px; top: calc(50% - 7px); cursor: ew-resize; }
+.mnrec-handle.nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.mnrec-handle.n  { left: calc(50% - 6px); top: -6px; cursor: ns-resize; }
+.mnrec-handle.ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.mnrec-handle.e  { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.mnrec-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.mnrec-handle.s  { left: calc(50% - 6px); bottom: -6px; cursor: ns-resize; }
+.mnrec-handle.sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.mnrec-handle.w  { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
 
 .mnrec-area.edge-l .mnrec-handle.nw,
 .mnrec-area.edge-l .mnrec-handle.w,
@@ -143,7 +130,7 @@ html.dark .mnrec-root {
 .mnrec-area.edge-b .mnrec-handle.s,
 .mnrec-area.edge-b .mnrec-handle.se { bottom: 2px; }
 
-/* Live overlay: frame sits at EXACT rect, outline strictly OUTSIDE crop area */
+/* Live overlay (used only for plain browser fallback; WPF uses capture-excluded native windows) */
 .mnrec-live {
   position: fixed;
   inset: 0;
@@ -155,11 +142,10 @@ html.dark .mnrec-root {
   position: fixed;
   box-sizing: border-box;
   border: 0;
-  outline: 3px solid #ef4444;
+  outline: 2.2px solid #ef4444;
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 3px;
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25);
 }
 
 .mnrec-frame.paused {
@@ -167,7 +153,9 @@ html.dark .mnrec-root {
   outline-style: dashed;
 }
 
-/* Floating control bar (setup & live) */
+/* ============================================================================
+   Ultra-compact Icon-Only Floating Control Bar (Setup & Web Live Pill)
+   ============================================================================ */
 .mnrec-bar {
   position: fixed;
   z-index: 960;
@@ -175,188 +163,140 @@ html.dark .mnrec-root {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: max-content;
   max-width: calc(100vw - 24px);
-  padding: 6px 8px;
-  background: var(--mnrec-bg);
+  padding: 5px 6px;
+  background: rgba(255, 255, 255, 0.96);
   color: var(--mnrec-ink);
   border: 1px solid var(--mnrec-border);
-  border-radius: 16px;
-  box-shadow: 0 12px 32px -8px rgba(15, 14, 24, 0.34), 0 2px 8px rgba(15, 14, 24, 0.12);
-  font-size: 13px;
+  border-radius: 999px;
+  box-shadow: 0 10px 28px -8px rgba(15, 14, 24, 0.34), 0 2px 6px rgba(15, 14, 24, 0.10);
   pointer-events: auto;
   user-select: none;
+}
+
+html.dark .mnrec-bar {
+  background: rgba(24, 24, 34, 0.96);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .mnrec-bar button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
   border: 0;
-  border-radius: 10px;
   background: transparent;
-  color: var(--mnrec-ink);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
+  color: var(--mnrec-ink-2);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, transform 80ms;
+  padding: 0;
+  transition: background 0.12s ease, color 0.12s ease, transform 70ms ease;
 }
 
 .mnrec-bar button:active {
-  transform: translateY(1px);
+  transform: scale(0.94);
+}
+
+.mnrec-bar button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
 }
 
 .mnrec-seg {
   display: inline-flex;
-  padding: 3px;
+  padding: 2px;
   gap: 2px;
-  border-radius: 11px;
+  border-radius: 999px;
   background: var(--mnrec-bg-soft);
 }
 
-.mnrec-seg button {
-  height: 28px;
-  padding: 0 10px;
-  color: var(--mnrec-ink-2);
-  border-radius: 8px;
+.mnrec-ico-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  flex: none;
+  position: relative;
 }
 
-.mnrec-seg button.on {
+.mnrec-seg .mnrec-ico-btn {
+  width: 30px;
+  height: 28px;
+}
+
+.mnrec-ico-btn:hover {
+  background: var(--mnrec-bg-soft);
+  color: var(--mnrec-ink);
+}
+
+.mnrec-seg .mnrec-ico-btn:hover {
+  background: rgba(108, 92, 245, 0.08);
+  color: var(--mnrec-ink);
+}
+
+.mnrec-seg .mnrec-ico-btn.on {
   background: var(--mnrec-bg);
   color: var(--mnrec-accent);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
 }
 
-.mnrec-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  color: var(--mnrec-ink-2);
-  cursor: pointer;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.mnrec-switch.on {
+.mnrec-ico-btn.on {
+  background: var(--mnrec-accent-soft);
   color: var(--mnrec-accent);
 }
 
-.mnrec-switch input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
+.mnrec-ico-btn.mic-off {
+  color: var(--mnrec-danger);
+  background: var(--mnrec-danger-soft);
 }
 
-.mnrec-track {
-  position: relative;
-  width: 30px;
-  height: 17px;
+.mnrec-ico-btn.cancel:hover {
+  background: var(--mnrec-danger-soft);
+  color: var(--mnrec-danger);
+}
+
+/* Iconic crimson Record circle button (zero text) */
+.mnrec-btn-rec {
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  background: #c8c5d4;
-  transition: background 0.15s;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 12px -2px rgba(239, 68, 68, 0.65), inset 0 0 0 2.5px rgba(255, 255, 255, 0.28);
   flex: none;
 }
 
-html.dark .mnrec-track {
-  background: #424054;
+.mnrec-btn-rec:hover {
+  background: #dc2626 !important;
+  transform: scale(1.04);
 }
 
-.mnrec-track::after {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 13px;
-  height: 13px;
+.mnrec-btn-rec .mnrec-rec-core {
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  transition: transform 0.15s;
-}
-
-.mnrec-switch.on .mnrec-track {
-  background: var(--mnrec-accent);
-}
-
-.mnrec-switch.on .mnrec-track::after {
-  transform: translateX(13px);
+  display: block;
 }
 
 .mnrec-sep {
   width: 1px;
-  height: 22px;
+  height: 18px;
   background: var(--mnrec-border);
+  margin: 0 2px;
   flex: none;
 }
 
-.mnrec-btn-settings {
-  background: var(--mnrec-bg-soft) !important;
-  color: var(--mnrec-ink) !important;
-  border: 1px solid var(--mnrec-border) !important;
-  padding: 0 11px !important;
-}
-
-.mnrec-btn-settings:hover {
-  background: var(--mnrec-accent-soft) !important;
-  color: var(--mnrec-accent) !important;
-  border-color: rgba(108, 92, 245, 0.35) !important;
-}
-
-.mnrec-badge-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--mnrec-accent-soft);
-  color: var(--mnrec-accent);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.mnrec-btn-ghost {
-  color: var(--mnrec-ink-2) !important;
-}
-
-.mnrec-btn-ghost:hover {
-  background: var(--mnrec-bg-soft) !important;
-  color: var(--mnrec-ink) !important;
-}
-
-.mnrec-btn-start {
-  padding: 0 16px !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-  background: linear-gradient(135deg, #7c3aed, #6c5cf5) !important;
-  box-shadow: 0 4px 14px -3px rgba(108, 92, 245, 0.65);
-}
-
-.mnrec-btn-start:hover {
-  filter: brightness(1.06);
-}
-
-.mnrec-btn-start:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-/* Live pill bar */
+/* Compact icon-only Live pill (web fallback) */
 .mnrec-bar.live {
-  gap: 6px;
-  padding: 5px 6px 5px 12px;
+  gap: 5px;
+  padding: 5px 6px 5px 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #1e1b2e, #31255a);
+  background: rgba(24, 24, 34, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #ffffff;
-  box-shadow: 0 10px 28px -6px rgba(15, 10, 35, 0.65);
+  box-shadow: 0 10px 26px -6px rgba(15, 10, 35, 0.55);
   cursor: grab;
   touch-action: none;
 }
@@ -370,54 +310,48 @@ html.dark .mnrec-track {
 }
 
 .mnrec-bar.live.mini {
-  padding: 0 14px;
-  height: 36px;
+  padding: 0 12px;
+  height: 34px;
   cursor: pointer;
 }
 
-.mnrec-bar.live .mnrec-live-ghost {
-  height: 30px;
+.mnrec-bar.live .mnrec-live-ico {
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
-  color: rgba(255, 255, 255, 0.9);
-  padding: 0 11px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.10);
 }
 
-.mnrec-bar.live .mnrec-live-ghost:hover {
-  background: rgba(255, 255, 255, 0.14);
+.mnrec-bar.live .mnrec-live-ico:hover {
+  background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
 }
 
-.mnrec-bar.live .mnrec-live-stop {
-  height: 30px;
-  border-radius: 999px;
+.mnrec-bar.live .mnrec-live-ico.stop {
   background: #ffffff;
   color: #dc2626;
-  font-weight: 700;
-  padding: 0 14px;
 }
 
-.mnrec-bar.live .mnrec-live-stop:hover {
+.mnrec-bar.live .mnrec-live-ico.stop:hover {
   background: #fee2e2;
 }
 
-.mnrec-bar.live .mnrec-live-small {
-  width: 30px;
-  padding: 0;
+.mnrec-bar.live .mnrec-live-ico.ghost {
+  background: transparent;
+}
+
+.mnrec-bar.live .mnrec-live-ico.ghost:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .mnrec-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ef4444;
   flex: none;
   animation: mnrec-blink 1.2s ease-in-out infinite;
-}
-
-.mnrec-dot.white {
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.28);
-  animation: none;
 }
 
 .mnrec-dot.paused {
@@ -426,18 +360,12 @@ html.dark .mnrec-track {
 }
 
 .mnrec-time {
-  min-width: 48px;
+  min-width: 40px;
+  font-size: 12.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: #ffffff;
-}
-
-.mnrec-square {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: currentColor;
 }
 
 @keyframes mnrec-blink {
@@ -446,20 +374,18 @@ html.dark .mnrec-track {
 }
 
 /* ============================================================================
-   Dedicated Settings & Storage Modal + Post-Record Save Modal
+   Dedicated Settings & Storage Modal + Post-Record Save Modal (Zero Jitter!)
    ============================================================================ */
 .mnrec-backdrop {
   position: fixed;
   inset: 0;
   z-index: 12000;
-  background: rgba(12, 11, 20, 0.56);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  background: rgba(12, 11, 20, 0.52);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 18px;
-  animation: mnrec-fade 0.14s ease-out;
+  animation: mnrec-fade 0.12s ease-out;
 }
 
 @keyframes mnrec-fade {
@@ -468,44 +394,46 @@ html.dark .mnrec-track {
 }
 
 .mnrec-dialog {
-  width: 620px;
+  width: 600px;
   max-width: 96vw;
   max-height: 90vh;
   background: var(--mnrec-bg);
   color: var(--mnrec-ink);
   border: 1px solid var(--mnrec-border);
-  border-radius: 18px;
-  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.45);
+  border-radius: 16px;
+  box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.42);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  contain: layout style;
 }
 
 .mnrec-dialog.save-dialog {
-  width: 680px;
+  width: 660px;
 }
 
 .mnrec-dialog-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--mnrec-border);
   background: var(--mnrec-bg-card);
+  flex: none;
 }
 
 .mnrec-dialog-title {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .mnrec-dialog-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   background: var(--mnrec-accent-soft);
   color: var(--mnrec-accent);
   display: inline-flex;
@@ -513,14 +441,19 @@ html.dark .mnrec-track {
   justify-content: center;
 }
 
+.mnrec-dialog-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .mnrec-close-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: 0;
   background: transparent;
   color: var(--mnrec-ink-2);
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -536,13 +469,14 @@ html.dark .mnrec-track {
 .mnrec-tabs {
   display: flex;
   gap: 4px;
-  padding: 10px 20px 0;
+  padding: 8px 18px 0;
   border-bottom: 1px solid var(--mnrec-border);
   background: var(--mnrec-bg-card);
+  flex: none;
 }
 
 .mnrec-tab {
-  padding: 9px 14px;
+  padding: 8px 13px;
   border: 0;
   border-bottom: 2.5px solid transparent;
   background: transparent;
@@ -566,17 +500,24 @@ html.dark .mnrec-track {
 }
 
 .mnrec-dialog-body {
-  padding: 18px 20px;
+  padding: 16px 18px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+}
+
+/* Fixed consistent body height on Settings modal prevents vertical jump when switching tabs! */
+.mnrec-dialog.settings-dialog .mnrec-dialog-body {
+  height: 410px;
+  min-height: 340px;
+  max-height: calc(90vh - 175px);
 }
 
 .mnrec-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .mnrec-label {
@@ -586,10 +527,11 @@ html.dark .mnrec-track {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .mnrec-hint {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--mnrec-ink-3);
   line-height: 1.45;
 }
@@ -598,8 +540,8 @@ html.dark .mnrec-track {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-radius: 11px;
+  padding: 8px 11px;
+  border-radius: 10px;
   background: var(--mnrec-bg-soft);
   border: 1px solid var(--mnrec-border);
 }
@@ -608,7 +550,7 @@ html.dark .mnrec-track {
   flex: 1;
   min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--mnrec-ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -624,9 +566,9 @@ html.dark .mnrec-track {
 
 .mnrec-input,
 .mnrec-select-box {
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 10px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 9px;
   border: 1px solid var(--mnrec-border);
   background: var(--mnrec-bg-soft);
   color: var(--mnrec-ink);
@@ -641,11 +583,74 @@ html.dark .mnrec-track {
   box-shadow: 0 0 0 3px var(--mnrec-accent-soft);
 }
 
+/* Switch inside settings modal */
+.mnrec-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  position: relative;
+}
+
+.mnrec-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.mnrec-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: #c8c5d4;
+  transition: background 0.14s ease;
+  flex: none;
+}
+
+html.dark .mnrec-track {
+  background: #424054;
+}
+
+.mnrec-track::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.14s ease;
+}
+
+.mnrec-switch.on .mnrec-track {
+  background: var(--mnrec-accent);
+}
+
+.mnrec-switch.on .mnrec-track::after {
+  transform: translateX(14px);
+}
+
+.mnrec-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--mnrec-accent-soft);
+  color: var(--mnrec-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
 /* Option cards grid */
 .mnrec-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 9px;
 }
 
 .mnrec-cards.cols-2 {
@@ -653,16 +658,16 @@ html.dark .mnrec-track {
 }
 
 .mnrec-card {
-  padding: 11px 12px;
-  border-radius: 12px;
+  padding: 10px 11px;
+  border-radius: 11px;
   border: 1.5px solid var(--mnrec-border);
   background: var(--mnrec-bg-card);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
+  transition: border-color 0.12s, background 0.12s;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .mnrec-card:hover {
@@ -676,7 +681,7 @@ html.dark .mnrec-track {
 }
 
 .mnrec-card-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--mnrec-ink);
   display: flex;
@@ -686,7 +691,7 @@ html.dark .mnrec-track {
 }
 
 .mnrec-card-sub {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--mnrec-ink-2);
   line-height: 1.35;
 }
@@ -697,13 +702,13 @@ html.dark .mnrec-track {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 9px;
   border: 1px solid var(--mnrec-border);
   background: var(--mnrec-bg-soft);
   color: var(--mnrec-ink);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -716,20 +721,14 @@ html.dark .mnrec-track {
 }
 
 .mnrec-btn.primary {
-  background: linear-gradient(135deg, #7c3aed, #6c5cf5);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #ffffff;
   border-color: transparent;
-  box-shadow: 0 4px 12px -3px rgba(108, 92, 245, 0.6);
+  box-shadow: 0 4px 12px -3px rgba(37, 99, 235, 0.55);
 }
 
 .mnrec-btn.primary:hover {
   filter: brightness(1.06);
-}
-
-.mnrec-btn.success {
-  background: #10b981;
-  color: #ffffff;
-  border-color: transparent;
 }
 
 .mnrec-btn.danger-ghost {
@@ -743,8 +742,8 @@ html.dark .mnrec-track {
 }
 
 .mnrec-btn.sm {
-  height: 30px;
-  padding: 0 10px;
+  height: 29px;
+  padding: 0 9px;
   font-size: 12px;
   border-radius: 8px;
 }
@@ -760,17 +759,18 @@ html.dark .mnrec-track {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 13px 20px;
+  padding: 12px 18px;
   border-top: 1px solid var(--mnrec-border);
   background: var(--mnrec-bg-card);
+  flex: none;
 }
 
 /* Video history list */
 .mnrec-video-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 310px;
+  gap: 7px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
@@ -779,8 +779,8 @@ html.dark .mnrec-track {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 9px 11px;
+  border-radius: 11px;
   background: var(--mnrec-bg-card);
   border: 1px solid var(--mnrec-border);
 }
@@ -794,7 +794,7 @@ html.dark .mnrec-track {
 }
 
 .mnrec-video-name {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--mnrec-ink);
   overflow: hidden;
@@ -803,7 +803,7 @@ html.dark .mnrec-track {
 }
 
 .mnrec-video-sub {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--mnrec-ink-3);
 }
 
@@ -811,27 +811,27 @@ html.dark .mnrec-track {
   text-align: center;
   padding: 28px 16px;
   color: var(--mnrec-ink-3);
-  font-size: 13px;
+  font-size: 12.5px;
   background: var(--mnrec-bg-soft);
-  border-radius: 12px;
+  border-radius: 11px;
   border: 1px dashed var(--mnrec-border);
 }
 
 /* Preview player in Save modal */
 .mnrec-preview-wrap {
   background: #0d0c14;
-  border-radius: 12px;
+  border-radius: 11px;
   overflow: hidden;
   border: 1px solid var(--mnrec-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  max-height: 300px;
+  max-height: 290px;
 }
 
 .mnrec-preview-video {
   width: 100%;
-  max-height: 300px;
+  max-height: 290px;
   display: block;
   object-fit: contain;
   background: #0d0c14;
@@ -840,18 +840,18 @@ html.dark .mnrec-track {
 .mnrec-meta-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .mnrec-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   background: var(--mnrec-bg-soft);
   border: 1px solid var(--mnrec-border);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--mnrec-ink-2);
 }
@@ -870,24 +870,24 @@ html.dark .mnrec-track {
 }
 
 .mnrec-saved-banner {
-  padding: 14px 16px;
-  border-radius: 12px;
+  padding: 13px 15px;
+  border-radius: 11px;
   background: var(--mnrec-success-soft);
   border: 1px solid rgba(16, 185, 129, 0.35);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
-/* Floating Auto-Save Notification Card (replaces browser downloads flyout) */
+/* Floating Auto-Save Notification Card */
 .mnrec-toast-card {
   position: fixed;
   right: 18px;
   bottom: 22px;
   z-index: 12500;
-  width: 360px;
+  width: 350px;
   max-width: calc(100vw - 32px);
-  padding: 14px 16px;
+  padding: 13px 15px;
   border-radius: 14px;
   background: var(--mnrec-bg);
   color: var(--mnrec-ink);
@@ -895,8 +895,8 @@ html.dark .mnrec-track {
   box-shadow: 0 18px 42px -10px rgba(0, 0, 0, 0.42);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  animation: mnrec-fade 0.18s ease-out;
+  gap: 9px;
+  animation: mnrec-fade 0.16s ease-out;
 }
 
 .mnrec-toggle-row {
@@ -904,16 +904,14 @@ html.dark .mnrec-track {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: 11px;
+  padding: 9px 12px;
+  border-radius: 10px;
   background: var(--mnrec-bg-soft);
   border: 1px solid var(--mnrec-border);
 }
 
 @media (max-width: 640px) {
-  .mnrec-cards {
-    grid-template-columns: 1fr;
-  }
+  .mnrec-cards,
   .mnrec-cards.cols-2 {
     grid-template-columns: 1fr;
   }

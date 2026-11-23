@@ -57,7 +57,7 @@ function _mnIsDriverDef(d){
 function _mnResolveDriver(geo,driverId,baseCoords){
   if(!geo||!geo.points||!driverId)return null;
   const dPt=geo.points[driverId];
-  if(!dPt||!dPt.def)return null;
+  if(!dPt||!dPt.def||!dPt.show||dPt.hidden)return null;
   const d=dPt.def,get=_mnBaseGet(baseCoords||Tt(geo));
   if(d.t==="path"&&!(d.kParamId||d.kExpr)){
     const periodic=d.kind==="circle"||d.kind==="ellipse"||d.kind==="polygon";

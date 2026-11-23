@@ -1,0 +1,1366 @@
+/* ============================================================================
+   MinNote Signature Studio UI (v0.0.7.3)
+   Distinct original visual identity aligned with Đỗ Miinh's MinMath ecosystem:
+   - Crisp Royal Cobalt (#2563EB) + Nordic Slate (#F8FAFC / #FFFFFF / #E2E8F0)
+   - Formula Editor redesigned directly in MinMath Add-in style
+   - Visual Tile Studio popovers for Shapes & Geometry (zero old plain-list look)
+   - Single-row Frosted Floating Selection Action Dock
+   ============================================================================ */
+
+/* ============================================================================
+   1. FLOATING SELECTION CONTEXT DOCK (.selection-bar)
+   ============================================================================ */
+html[data-ui="v2"] .selection-bar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(14px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 14px !important;
+  padding: 4px 6px !important;
+  gap: 2px !important;
+  box-shadow: 0 12px 30px -10px rgba(15, 23, 42, 0.24), 0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  font-family: var(--v2-font) !important;
+  align-items: center !important;
+}
+
+html[data-ui="v2"].dark .selection-bar {
+  background: rgba(17, 24, 39, 0.95) !important;
+  border-color: #334155 !important;
+  box-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.6) !important;
+}
+
+html[data-ui="v2"] .selection-bar button {
+  height: 28px !important;
+  padding: 0 7px !important;
+  gap: 4px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  color: #334155 !important;
+  white-space: nowrap !important;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease !important;
+  border: 1px solid transparent !important;
+}
+
+html[data-ui="v2"].dark .selection-bar button {
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"] .selection-bar button svg {
+  width: 14px !important;
+  height: 14px !important;
+  opacity: 0.86;
+}
+
+html[data-ui="v2"] .selection-bar button:hover:not(:disabled) {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+
+html[data-ui="v2"].dark .selection-bar button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+html[data-ui="v2"] .selection-bar button.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.5) !important;
+}
+
+html[data-ui="v2"] .selection-bar button.on svg {
+  opacity: 1 !important;
+}
+
+/* Signature MinNote feature pills inside selection bar (Replay, Params, Locus, Motion) */
+html[data-ui="v2"] .selection-bar button[data-mn-role="feature"] {
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+  border-color: #dbeafe !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .selection-bar button[data-mn-role="feature"]:hover:not(:disabled) {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+html[data-ui="v2"].dark .selection-bar button[data-mn-role="feature"] {
+  color: #93c5fd !important;
+  background: rgba(37, 99, 235, 0.18) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Subtle divider before clipboard/export group */
+html[data-ui="v2"] .selection-bar button[data-mn-group-start="1"] {
+  margin-left: 4px !important;
+  position: relative;
+}
+
+html[data-ui="v2"] .selection-bar button[data-mn-group-start="1"]::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: #e2e8f0;
+  pointer-events: none;
+}
+
+html[data-ui="v2"].dark .selection-bar button[data-mn-group-start="1"]::before {
+  background: #334155;
+}
+
+/* Crisp Rose Danger Delete button */
+html[data-ui="v2"] .selection-bar button[data-mn-role="danger"] {
+  color: #dc2626 !important;
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  font-weight: 600 !important;
+  margin-left: 3px !important;
+}
+
+html[data-ui="v2"] .selection-bar button[data-mn-role="danger"]:hover:not(:disabled) {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+}
+
+html[data-ui="v2"].dark .selection-bar button[data-mn-role="danger"] {
+  color: #fca5a5 !important;
+  background: rgba(239, 68, 68, 0.14) !important;
+  border-color: rgba(239, 68, 68, 0.32) !important;
+}
+
+html[data-ui="v2"].dark .selection-bar button[data-mn-role="danger"]:hover:not(:disabled) {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+/* ============================================================================
+   2. SHAPES & GEOMETRY VISUAL STUDIO POPOVERS (.mn-studio-pop)
+   Completely replaces old 3/4-column plain text list + stacked purple toggles!
+   ============================================================================ */
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop {
+  columns: auto !important;
+  column-width: auto !important;
+  column-rule: none !important;
+  display: grid !important;
+  padding: 0 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 22px 50px -14px rgba(15, 23, 42, 0.28), 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  max-height: calc(100vh - 92px) !important;
+  font-family: var(--v2-font) !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop {
+  background: #111827 !important;
+  border-color: #334155 !important;
+}
+
+/* Shapes popover width & grid */
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop {
+  width: min(720px, calc(100vw - 24px)) !important;
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+}
+
+/* Geometry popover width & 3-card studio grid */
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop {
+  width: min(840px, calc(100vw - 24px)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding-bottom: 10px !important;
+}
+
+/* Dissolve .menu-stack in Geo popover so HÌNH VẼ spans top full-width cleanly! */
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-stack {
+  display: contents !important;
+}
+
+/* Top Filter Bar (Tất cả | Đường | Hình phẳng | Không gian 3D / Vẽ | Dựng hình | ...) */
+.mn-pop-filter {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px 7px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+html.dark .mn-pop-filter {
+  background: #111827;
+  border-bottom-color: #1f2937;
+}
+
+.mn-pop-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.mn-pop-ftab {
+  display: inline-flex !important;
+  width: auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 26px !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: #475569 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s !important;
+}
+
+.mn-pop-ftab:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.mn-pop-ftab.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px -1px rgba(37, 99, 235, 0.42) !important;
+}
+
+html.dark .mn-pop-ftab {
+  color: #94a3b8 !important;
+}
+
+html.dark .mn-pop-ftab:hover {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.mn-pop-brand {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Row 2: Compact Horizontal Settings Switch Strip (HÌNH VẼ section) */
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 7px 12px !important;
+  margin: 0 !important;
+  background: #f8fafc !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-radius: 0 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] {
+  background: #0f172a !important;
+  border-bottom-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] .menu-heading {
+  display: none !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button {
+  width: auto !important;
+  flex: none !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  margin: 0 !important;
+  gap: 5px !important;
+  border-radius: 999px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button.checked {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button.checked {
+  background: rgba(37, 99, 235, 0.22) !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button:last-child {
+  margin-left: auto !important;
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section[data-mn-sec="options"] button:last-child:hover {
+  background: #0d9488 !important;
+  border-color: #0d9488 !important;
+}
+
+/* Filtered section hiding */
+html[data-ui="v2"] .dropdown-menu.mn-studio-pop .menu-section.mn-sec-hidden {
+  display: none !important;
+}
+
+/* ----- SHAPES POPOVER: Visual Icon-Top Tile Grid (5 columns) ----- */
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding: 10px 12px 6px !important;
+  border: 0 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]):last-child {
+  padding-bottom: 12px !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) .menu-heading {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 0 2px !important;
+  padding: 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  color: #2563eb !important;
+  text-transform: uppercase !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) .menu-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) .menu-heading::after {
+  background: #1f2937;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) button {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 62px !important;
+  padding: 8px 6px 6px !important;
+  margin: 0 !important;
+  gap: 4px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  color: #1e293b !important;
+  text-align: center !important;
+  transition: background 0.12s, border-color 0.12s, transform 0.1s, box-shadow 0.12s !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) button {
+  background: #162033 !important;
+  border-color: #263248 !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) button:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -4px rgba(37, 99, 235, 0.28) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) button.checked {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px -4px rgba(37, 99, 235, 0.45) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) .tool-label {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.22 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) .tool-label svg {
+  width: 22px !important;
+  height: 22px !important;
+  flex-shrink: 0;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) kbd {
+  position: absolute !important;
+  top: 4px !important;
+  right: 5px !important;
+  padding: 1px 4px !important;
+  border-radius: 4px !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #64748b !important;
+  font-size: 9.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .menu-section:not([data-mn-sec="options"]) button.checked kbd {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+
+/* Regular polygon sides input neatly tucked inside its tile */
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides {
+  position: relative !important;
+  display: flex !important;
+  margin: 0 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides input.sides {
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  width: 30px !important;
+  height: 18px !important;
+  padding: 0 2px !important;
+  border-radius: 5px !important;
+  border: 1px solid #93c5fd !important;
+  background: #ffffff !important;
+  color: #1d4ed8 !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+
+/* Pack Geometry Studio cards cleanly with zero empty vertical gap */
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) {
+  align-items: start !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) .menu-section[data-mn-sec="sec-2"],
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) .menu-section[data-mn-sec="sec-3"] {
+  grid-row: span 2 !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section[data-mn-pos="left"] { margin-left: 10px !important; }
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section[data-mn-pos="right"] { margin-right: 10px !important; }
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop[data-mn-filtered="1"] {
+  grid-template-columns: 1fr !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop[data-mn-filtered="1"] .menu-section:not([data-mn-sec="options"]) {
+  margin: 0 10px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop[data-mn-filtered="1"] .menu-section:not([data-mn-sec="options"]) .menu-heading {
+  grid-column: 1 / -1 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) .menu-heading {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 2px 4px 5px !important;
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  color: #1d4ed8 !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 3px !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) .menu-heading {
+  color: #60a5fa !important;
+  border-bottom-color: #1f2937;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button {
+  padding: 6px 8px !important;
+  margin: 0 !important;
+  gap: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  transition: background 0.12s, border-color 0.12s, color 0.12s !important;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button {
+  background: #162033 !important;
+  border-color: #263248 !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button.checked {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px -3px rgba(37, 99, 235, 0.42) !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) .tool-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) .tool-label svg {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 3px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb !important;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+html[data-ui="v2"].dark .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) .tool-label svg {
+  background: rgba(59, 130, 246, 0.16);
+  color: #60a5fa !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button.checked .tool-label svg {
+  background: rgba(255, 255, 255, 0.20) !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) kbd {
+  padding: 1px 5px !important;
+  border-radius: 5px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop .menu-section:not([data-mn-sec="options"]) button.checked kbd {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+
+/* Subtle horizontal margin for first/last column cards in 3-col Geo grid */
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) > .mn-pop-filter,
+html[data-ui="v2"] .dropdown-menu.mn-geo-pop:not([data-mn-filtered="1"]) .menu-section[data-mn-sec="options"] {
+  margin-left: -10px !important;
+  margin-right: -10px !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+/* ============================================================================
+   3. FORMULA EDITOR (.formula-dialog) — AUTHENTIC MINMATH ADD-IN STYLE
+   Modeled directly on M:\IT\AGENT\MinmathAddin (Cobalt Blue, airy labeled
+   symbol cards, top tabs, collapsible LaTeX drawer, shortcut hints, compact mode)
+   ============================================================================ */
+html[data-ui="v2"] .dialog.wide.formula-dialog {
+  width: min(1060px, calc(100vw - 28px)) !important;
+  max-height: calc(100vh - 28px) !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 60px -14px rgba(15, 23, 42, 0.35) !important;
+  font-family: "Segoe UI", var(--v2-font), system-ui, sans-serif !important;
+  overflow: hidden !important;
+}
+
+html[data-ui="v2"].dark .dialog.wide.formula-dialog {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+html[data-ui="v2"] .formula-dialog.mnm-compact {
+  width: min(720px, calc(100vw - 28px)) !important;
+}
+
+/* MinMath Header Bar */
+html[data-ui="v2"] .formula-dialog .dialog-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 8px 14px 0 !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  min-height: 42px !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .dialog-head {
+  background: #0f172a !important;
+  border-bottom-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .formula-dialog.mnm-enhanced .dialog-head > :not(.mnm-head-bar):not(.dialog-close) {
+  display: none !important;
+}
+
+.mnm-head-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mnm-head-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.mnm-head-tab {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 2.5px solid transparent !important;
+  border-radius: 0 !important;
+  padding: 6px 2px 9px !important;
+  margin-bottom: -1px !important;
+  color: #64748b !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s !important;
+}
+
+.mnm-head-tab:hover {
+  color: #0f172a !important;
+}
+
+.mnm-head-tab.active {
+  color: #1d4ed8 !important;
+  border-bottom-color: #2563eb !important;
+}
+
+html.dark .mnm-head-tab {
+  color: #94a3b8 !important;
+}
+html.dark .mnm-head-tab:hover {
+  color: #f1f5f9 !important;
+}
+html.dark .mnm-head-tab.active {
+  color: #60a5fa !important;
+  border-bottom-color: #3b82f6 !important;
+}
+
+.mnm-head-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-bottom: 3px;
+}
+
+.mnm-collapse-btn {
+  margin-left: auto !important;
+  margin-bottom: 4px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  height: 28px !important;
+  padding: 0 11px !important;
+  border-radius: 999px !important;
+  border: 1px solid #dbeafe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mnm-collapse-btn:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+html.dark .mnm-collapse-btn {
+  background: rgba(59, 130, 246, 0.18) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #93c5fd !important;
+}
+
+/* Dialog Body Spacing */
+html[data-ui="v2"] .formula-dialog .dialog-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 10px 14px 12px !important;
+  background: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .dialog-body {
+  background: #0f172a !important;
+}
+
+/* Compact Mode hides palette + quick bar cleanly */
+html[data-ui="v2"] .formula-dialog.mnm-compact .math-palette {
+  display: none !important;
+}
+
+/* Main Palette Container (exact MinMath proportions) */
+html[data-ui="v2"] .formula-dialog .math-palette {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette {
+  height: 296px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .formula-dialog[data-mnm-tab="common"] .palette,
+html[data-ui="v2"] .formula-dialog[data-mnm-tab="keys"] .palette {
+  display: none !important;
+}
+
+/* Left Sidebar: Search Pill + Pinned Common Strip + 2-Column Category Pills */
+html[data-ui="v2"] .formula-dialog .palette-nav {
+  width: 298px !important;
+  padding: 10px !important;
+  gap: 7px !important;
+  background: #ffffff !important;
+  border-right: 1px solid #e5e7eb !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-nav {
+  background: #0f172a !important;
+  border-right-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-search {
+  height: 32px !important;
+  padding: 0 13px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 999px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 12.5px !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-search {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-search:focus {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+}
+
+.mnm-common-pin {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+  border: 1px solid #dbeafe !important;
+  border-radius: 8px !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  text-align: left !important;
+  flex: none;
+  transition: background 0.12s !important;
+}
+
+.mnm-common-pin:hover {
+  background: #dbeafe !important;
+}
+
+html.dark .mnm-common-pin {
+  background: rgba(37, 99, 235, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #93c5fd !important;
+}
+
+/* 2-Column Category Grid (matches MinMath Add-in!) */
+html[data-ui="v2"] .formula-dialog .palette-categories {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 3px 4px !important;
+}
+
+html[data-ui="v2"] .formula-dialog button.palette-category.palette-category {
+  height: 27px !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #374151 !important;
+  gap: 6px !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog button.palette-category.palette-category {
+  color: #cbd5e1 !important;
+}
+
+html[data-ui="v2"] .formula-dialog button.palette-category.palette-category:hover {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog button.palette-category.palette-category:hover {
+  background: #1e293b !important;
+  color: #ffffff !important;
+}
+
+html[data-ui="v2"] .formula-dialog button.palette-category.palette-category.active {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-category-icon {
+  min-width: 20px !important;
+  font-family: "Times New Roman", "Cambria Math", serif !important;
+  font-size: 13px !important;
+}
+
+/* Right Symbol Canvas: Category Heading (::before) + Airy Labeled Cards (::after) */
+html[data-ui="v2"] .formula-dialog .palette-items {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important;
+  align-content: start !important;
+  gap: 7px !important;
+  padding: 10px 12px !important;
+  background: #ffffff !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-items {
+  background: #111827 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-items[data-mnm-cat]::before {
+  content: attr(data-mnm-cat);
+  grid-column: 1 / -1;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 0 2px 3px;
+  line-height: 1.2;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-items[data-mnm-cat]::before {
+  color: #f1f5f9;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-items button.palette-key.palette-key {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 66px !important;
+  padding: 8px 6px 24px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s !important;
+  box-sizing: border-box !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-items button.palette-key.template {
+  height: 76px !important;
+  padding: 8px 6px 24px !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-items button.palette-key.palette-key {
+  background: #162033 !important;
+  border-color: #263248 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-items button.palette-key.palette-key:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 3px 10px -4px rgba(37, 99, 235, 0.30) !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-items button.palette-key.palette-key:hover {
+  background: rgba(59, 130, 246, 0.18) !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Crisp Vietnamese subtitle on EVERY symbol card — zero React conflict! */
+html[data-ui="v2"] .formula-dialog .palette-items button.palette-key[title]::after {
+  content: attr(title);
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #64748b;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-items button.palette-key[title]::after {
+  color: #94a3b8;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-items .palette-key.symbol .ML__latex {
+  font-size: 17px !important;
+}
+
+/* Common Formulas Panel & Shortcuts Tab Panel (exact MinMath style!) */
+.mnm-extra-pane {
+  display: none;
+  height: 296px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+html.dark .mnm-extra-pane {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+html[data-ui="v2"] .formula-dialog[data-mnm-tab="common"] .mnm-extra-pane[data-pane="common"],
+html[data-ui="v2"] .formula-dialog[data-mnm-tab="keys"] .mnm-extra-pane[data-pane="keys"] {
+  display: block;
+}
+
+.mnm-common-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 8px;
+}
+
+.mnm-common-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-height: 76px !important;
+  padding: 10px 8px 8px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s !important;
+}
+
+.mnm-common-card:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+}
+
+html.dark .mnm-common-card {
+  background: #162033 !important;
+  border-color: #263248 !important;
+  color: #f1f5f9 !important;
+}
+
+.mnm-common-math {
+  font-size: 15px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mnm-common-lbl {
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 500;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Shortcuts 3-column sheet (MinMath .ess clone!) */
+.mnm-keys-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mnm-keys-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  padding: 7px 8px;
+  background: #f8fafc;
+}
+
+html.dark .mnm-keys-group {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+.mnm-keys-group h4 {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+html.dark .mnm-keys-group h4 {
+  color: #60a5fa;
+}
+
+.mnm-key-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  gap: 8px !important;
+  padding: 4px 6px !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: #1e293b !important;
+  font-size: 11.5px !important;
+  cursor: pointer;
+  text-align: left !important;
+}
+
+.mnm-key-row:hover {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+html.dark .mnm-key-row {
+  color: #e2e8f0 !important;
+}
+
+.mnm-key-row kbd {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  background: #ffffff;
+  color: #0f172a;
+  font: 600 10.5px/1.4 ui-monospace, Consolas, monospace;
+}
+
+html.dark .mnm-key-row kbd {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+/* Quick-Access Ribbon (exact MinMath clean borderless icon keys inside rounded bar) */
+html[data-ui="v2"] .formula-dialog .palette-quick {
+  padding: 4px 6px !important;
+  gap: 3px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  align-items: center !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .palette-quick {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-quick button.palette-key.palette-key {
+  min-width: 34px !important;
+  height: 36px !important;
+  padding: 2px 5px !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+}
+
+html[data-ui="v2"] .formula-dialog .palette-quick button.palette-key.palette-key:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+}
+
+/* Signature MinMath Live Math-Field with Crisp Sky-Blue Ring (no black browser outline!) */
+html[data-ui="v2"] .formula-dialog .formula-field {
+  min-height: 80px !important;
+  padding: 6px 12px !important;
+  font-size: 30px !important;
+  border: 2px solid #93c5fd !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  outline: none !important;
+  transition: border-color 0.14s, box-shadow 0.14s !important;
+}
+
+html[data-ui="v2"] .formula-dialog .formula-field:focus,
+html[data-ui="v2"] .formula-dialog .formula-field:focus-within {
+  outline: none !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px #dbeafe !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .formula-field {
+  background: #162033 !important;
+  border-color: #3b82f6 !important;
+  color: #f8fafc !important;
+}
+
+html[data-ui="v2"] .formula-dialog.mnm-compact .formula-field {
+  min-height: 54px !important;
+  font-size: 24px !important;
+}
+
+/* Collapsible LaTeX Drawer (Hidden by default just like MinMath!) */
+html[data-ui="v2"] .formula-dialog.mnm-enhanced .dialog-body > label:has(+ textarea.latex),
+html[data-ui="v2"] .formula-dialog.mnm-enhanced .dialog-body > textarea.latex {
+  display: none !important;
+}
+
+html[data-ui="v2"] .formula-dialog.mnm-enhanced.mnm-latex-open .dialog-body > textarea.latex {
+  display: block !important;
+  min-height: 54px !important;
+  padding: 7px 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  font-family: ui-monospace, Consolas, monospace !important;
+  font-size: 13px !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog.mnm-enhanced.mnm-latex-open .dialog-body > textarea.latex {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* MinMath Utility Row (LaTeX toggle, Xoá, Chép LaTeX + compact inline options) */
+.mnm-util-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+
+.mnm-util-link {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 2px 6px !important;
+  border-radius: 999px !important;
+  color: #2563eb !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s !important;
+}
+
+.mnm-util-link:hover {
+  background: #eff6ff !important;
+}
+
+.mnm-util-link.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  padding: 2px 10px !important;
+}
+
+.mnm-util-status {
+  font-size: 11.5px;
+  color: #059669;
+  font-weight: 600;
+}
+
+/* Compact Options Row (.row) */
+html[data-ui="v2"] .formula-dialog .row {
+  gap: 12px !important;
+  padding: 4px 0 2px !important;
+  align-items: center !important;
+  font-size: 12px !important;
+  color: #475569 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .problem-swatch {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  padding: 0 !important;
+  flex: none !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(15, 23, 42, 0.22) !important;
+}
+
+html[data-ui="v2"] .formula-dialog .problem-swatch.on {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb !important;
+}
+
+/* MinMath Footer Buttons with Esc / Enter <kbd> Chips */
+html[data-ui="v2"] .formula-dialog .dialog-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid #f1f5f9 !important;
+}
+
+html[data-ui="v2"].dark .formula-dialog .dialog-actions {
+  border-top-color: #1e293b !important;
+}
+
+html[data-ui="v2"] .formula-dialog .dialog-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: 34px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .dialog-actions button:not(.primary)::after {
+  content: "Esc";
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.08);
+  font: 600 10px/1.3 ui-monospace, Consolas, monospace;
+  color: #64748b;
+}
+
+html[data-ui="v2"] .formula-dialog .dialog-actions button.primary {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -3px rgba(37, 99, 235, 0.50) !important;
+}
+
+html[data-ui="v2"] .formula-dialog .dialog-actions button.primary:hover:not(:disabled) {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+html[data-ui="v2"] .formula-dialog .dialog-actions button.primary::after {
+  content: "Enter";
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.24);
+  font: 600 10px/1.3 ui-monospace, Consolas, monospace;
+  color: #ffffff;
+}
+
+html[data-ui="v2"].dark .formula-dialog .dialog-actions button:not(.primary) {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Segmented [Toán | Văn bản] toggle inside Formula Dialog -> exact MinMath blue (never override color swatches!) */
+html[data-ui="v2"] .formula-dialog .math-mode button.on,
+html[data-ui="v2"] .formula-dialog .row button.on:not(.problem-swatch) {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}

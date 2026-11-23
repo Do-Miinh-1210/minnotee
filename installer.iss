@@ -1,6 +1,6 @@
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.7.3"
+#define MyAppVersion "0.0.7.4"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
@@ -24,7 +24,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
-RestartApplications=no
+RestartApplications=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 SetupLogging=yes
@@ -58,8 +58,27 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Khởi chạy MinNote"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent; Check: ShouldAutoLaunchSilent
 
 [Code]
+function IsVerySilentInstall(): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do begin
+    if CompareText(ParamStr(I), '/VERYSILENT') = 0 then begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function ShouldAutoLaunchSilent(): Boolean;
+begin
+  Result := WizardSilent() and (not IsVerySilentInstall());
+end;
+
 function GetUninstallString(AppIdStr: String): String;
 var
   sUnInstPath: String;

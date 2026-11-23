@@ -15,11 +15,10 @@
   } catch (_) {}
   apply(v === 'v1' ? 'v1' : 'v2');  // chưa chọn gì → Atelier
 
-  /* Màu hiệu ứng chọn / rê chuột / phát lại dựng hình trên canvas (bundle gọi qua móc
-     scripts/apply_highlight_theme_patch.js). v1: xanh ngọc cũ; v2: tím iris của Atelier. */
+  /* Màu hiệu ứng chọn / rê chuột / phát lại dựng hình trên canvas (hệ sinh thái MinNote / MinMath). */
   globalThis.__mnHi = function (alpha) {
     var rgb;
-    if (root.getAttribute('data-ui') === 'v2') rgb = root.classList.contains('dark') ? '148,136,255' : '108,92,245';
+    if (root.getAttribute('data-ui') === 'v2') rgb = root.classList.contains('dark') ? '96,165,250' : '37,99,235';
     else rgb = '13,148,136';
     return (alpha === undefined || alpha === '') ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ',' + alpha + ')';
   };

@@ -33,6 +33,9 @@ namespace MinNote
         private readonly System.Windows.Threading.DispatcherTimer _licenseTimer = new() { Interval = TimeSpan.FromMinutes(10) };
         private WindowState _previousWindowState = WindowState.Normal;
         private WindowStyle _previousWindowStyle = WindowStyle.SingleBorderWindow;
+        private RecorderOverlayController? _recOverlay;
+        private int _nativeRecStopping;
+        private string _nativeRecDocName = "";
 
         public static void Log(string msg)
         {
@@ -66,6 +69,8 @@ namespace MinNote
             Closed += (s, e) =>
             {
                 Log("Window Closed");
+                try { _recOverlay?.Dispose(); } catch { }
+                try { NativeScreenRecorder.Instance.Dispose(); } catch { }
                 try { MininkEmfService.Instance.Dispose(); } catch { }
                 try { VideoRecorderService.Instance.Dispose(); } catch { }
             };
@@ -231,6 +236,11 @@ namespace MinNote
                 WvWhiteboard.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "minnote.app",
                     whiteboardDir,
+                    CoreWebView2HostResourceAccessKind.Allow
+                );
+                WvWhiteboard.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    "minnote-rec.local",
+                    NativeScreenRecorder.GetTempDir(),
                     CoreWebView2HostResourceAccessKind.Allow
                 );
                 Log("SetVirtualHostNameToFolderMapping completed");
@@ -1064,7 +1074,7 @@ namespace MinNote
                                 var settings = VideoRecorderService.Instance.GetSettings();
                                 VideoRecorderService.Instance.EnsureFolderExists(settings.Folder);
                                 var videos = VideoRecorderService.Instance.ListRecentVideos(settings.Folder);
-                                await PostRecResultAsync(reqId, true, new { settings, videos });
+                                await PostRecResultAsync(reqId, true, new { settings, videos, nativeRecorder = true });
                             }
                             catch (Exception exRec)
                             {
@@ -1306,11 +1316,271 @@ namespace MinNote
                             }
                         });
                     }
+                    else if (msgType == "REC_NATIVE_START")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        double cssX = root.TryGetProperty("x", out var xEl) && xEl.TryGetDouble(out var xv) ? xv : 0;
+                        double cssY = root.TryGetProperty("y", out var yEl) && yEl.TryGetDouble(out var yv) ? yv : 0;
+                        double cssW = root.TryGetProperty("w", out var wEl) && wEl.TryGetDouble(out var wv) ? wv : WvWhiteboard.ActualWidth;
+                        double cssH = root.TryGetProperty("h", out var hEl) && hEl.TryGetDouble(out var hv) ? hv : WvWhiteboard.ActualHeight;
+                        string quality = root.TryGetProperty("quality", out var qEl) ? (qEl.GetString() ?? "ultra") : "ultra";
+                        int fps = root.TryGetProperty("fps", out var fpsEl) && fpsEl.TryGetInt32(out var fv) ? fv : 60;
+                        bool mic = !root.TryGetProperty("mic", out var mEl) || mEl.ValueKind != JsonValueKind.False;
+                        bool showCursor = !root.TryGetProperty("showCursor", out var cEl) || cEl.ValueKind != JsonValueKind.False;
+                        _nativeRecDocName = root.TryGetProperty("docName", out var dnEl) ? (dnEl.GetString() ?? "") : "";
+
+                        try
+                        {
+                            var originPx = WvWhiteboard.PointToScreen(new System.Windows.Point(0, 0));
+                            var ps = PresentationSource.FromVisual(WvWhiteboard);
+                            double dpiX = ps?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+                            double dpiY = ps?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+
+                            double maxCssW = Math.Max(64, WvWhiteboard.ActualWidth);
+                            double maxCssH = Math.Max(64, WvWhiteboard.ActualHeight);
+                            double cx = Math.Clamp(cssX, 0, Math.Max(0, maxCssW - 64));
+                            double cy = Math.Clamp(cssY, 0, Math.Max(0, maxCssH - 64));
+                            double cw = Math.Clamp(cssW, 64, maxCssW - cx);
+                            double ch = Math.Clamp(cssH, 64, maxCssH - cy);
+
+                            int sx = (int)Math.Round(originPx.X + cx * dpiX);
+                            int sy = (int)Math.Round(originPx.Y + cy * dpiY);
+                            int sw = Math.Max(64, ((int)Math.Round(cw * dpiX) / 2) * 2);
+                            int sh = Math.Max(64, ((int)Math.Round(ch * dpiY) / 2) * 2);
+
+                            var dipRect = new Rect((originPx.X / dpiX) + cx, (originPx.Y / dpiY) + cy, cw, ch);
+
+                            int vBitrate = quality.ToLowerInvariant() switch
+                            {
+                                "standard" => 8_000_000,
+                                "high" => 16_000_000,
+                                _ => 24_000_000
+                            };
+                            int aBitrate = string.Equals(quality, "standard", StringComparison.OrdinalIgnoreCase) ? 128_000 : 192_000;
+
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    NativeScreenRecorder.Instance.Start(sx, sy, sw, sh, fps, vBitrate, aBitrate, mic, showCursor);
+                                    await Dispatcher.InvokeAsync(() =>
+                                    {
+                                        if (_recOverlay == null)
+                                        {
+                                            _recOverlay = new RecorderOverlayController(this);
+                                            _recOverlay.PauseClicked += () =>
+                                            {
+                                                bool nowPaused = NativeScreenRecorder.Instance.TogglePause();
+                                                _recOverlay?.SetPaused(nowPaused);
+                                                _ = PostRecEventAsync("paused", new { paused = nowPaused });
+                                            };
+                                            _recOverlay.StopClicked += () =>
+                                            {
+                                                _ = StopNativeRecordingAsync(sendEventToJs: true);
+                                            };
+                                        }
+                                        _recOverlay.Show(dipRect);
+                                    });
+                                    Log($"[REC_NATIVE] Started {sw}x{sh} @ {fps}fps (mic={mic}, cursor={showCursor})");
+                                    await PostRecResultAsync(reqId, true, new { started = true, width = sw, height = sh, fps });
+                                }
+                                catch (Exception exRec)
+                                {
+                                    Log($"[REC_NATIVE] Start error: {exRec.Message}");
+                                    await PostRecResultAsync(reqId, false, null, exRec.Message);
+                                }
+                            });
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_NATIVE_PAUSE")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        try
+                        {
+                            bool nowPaused = NativeScreenRecorder.Instance.TogglePause();
+                            _recOverlay?.SetPaused(nowPaused);
+                            await PostRecResultAsync(reqId, true, new { paused = nowPaused });
+                        }
+                        catch (Exception exRec)
+                        {
+                            await PostRecResultAsync(reqId, false, null, exRec.Message);
+                        }
+                    }
+                    else if (msgType == "REC_NATIVE_STOP")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var payload = await StopNativeRecordingAsync(sendEventToJs: false);
+                                await PostRecResultAsync(reqId, true, payload);
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_NATIVE_COMMIT")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string tempPath = root.TryGetProperty("tempPath", out var tpEl) ? (tpEl.GetString() ?? "") : "";
+                        string? fullPath = root.TryGetProperty("fullPath", out var fpEl) ? fpEl.GetString() : null;
+                        string? folder = root.TryGetProperty("folder", out var fEl) ? fEl.GetString() : null;
+                        string? fileName = root.TryGetProperty("fileName", out var fnEl) ? fnEl.GetString() : null;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (finalPath, savedName, sizeBytes) = VideoRecorderService.Instance.CommitTempFile(
+                                    tempPath, fullPath, folder, fileName, "mp4");
+                                var videos = VideoRecorderService.Instance.ListRecentVideos();
+                                Log($"[REC_NATIVE] Committed video: {finalPath} ({sizeBytes} bytes)");
+                                await PostRecResultAsync(reqId, true, new { path = finalPath, fileName = savedName, sizeBytes, videos });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "REC_NATIVE_DISCARD")
+                    {
+                        string reqId = root.TryGetProperty("id", out var idEl) ? (idEl.GetString() ?? "") : "";
+                        string tempPath = root.TryGetProperty("tempPath", out var tpEl) ? (tpEl.GetString() ?? "") : "";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NativeScreenRecorder.DeleteTempFile(tempPath);
+                                await PostRecResultAsync(reqId, true, new { discarded = true });
+                            }
+                            catch (Exception exRec)
+                            {
+                                await PostRecResultAsync(reqId, false, null, exRec.Message);
+                            }
+                        });
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Log($"WebMessage error: {ex.Message}");
+            }
+        }
+
+        private async Task<object?> StopNativeRecordingAsync(bool sendEventToJs)
+        {
+            if (Interlocked.CompareExchange(ref _nativeRecStopping, 1, 0) != 0)
+            {
+                return new { alreadyStopping = true };
+            }
+            try
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    try { _recOverlay?.Close(); } catch { }
+                });
+
+                var res = await NativeScreenRecorder.Instance.StopAsync();
+                if (res == null)
+                {
+                    var empty = new { stopped = true, empty = true };
+                    if (sendEventToJs) await PostRecEventAsync("stopped", empty);
+                    return empty;
+                }
+
+                var settings = VideoRecorderService.Instance.GetSettings();
+                string prefix = string.IsNullOrWhiteSpace(settings.FilePrefix) ? "MinNote" : settings.FilePrefix;
+                string docPart = string.IsNullOrWhiteSpace(_nativeRecDocName)
+                    ? ""
+                    : "_" + VideoRecorderService.SanitizeFileName(_nativeRecDocName);
+                string suggestedBase = $"{prefix}{docPart}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
+
+                object payload;
+                if (string.Equals(settings.SaveMode, "auto", StringComparison.OrdinalIgnoreCase) && res.SizeBytes > 0)
+                {
+                    var (finalPath, savedName, sizeBytes) = VideoRecorderService.Instance.CommitTempFile(
+                        res.TempPath, null, settings.Folder, suggestedBase, "mp4");
+                    var videos = VideoRecorderService.Instance.ListRecentVideos();
+                    Log($"[REC_NATIVE] Auto-saved video: {finalPath} ({sizeBytes} bytes, {res.DurationMs}ms)");
+                    payload = new
+                    {
+                        saved = true,
+                        path = finalPath,
+                        fileName = savedName,
+                        sizeBytes,
+                        durationMs = res.DurationMs,
+                        width = res.Width,
+                        height = res.Height,
+                        fps = res.Fps,
+                        hasAudio = res.HasAudio,
+                        videos
+                    };
+                }
+                else
+                {
+                    Log($"[REC_NATIVE] Stopped -> preview ready: {res.TempPath} ({res.SizeBytes} bytes, {res.DurationMs}ms)");
+                    payload = new
+                    {
+                        saved = false,
+                        tempPath = res.TempPath,
+                        previewUrl = $"https://minnote-rec.local/{Uri.EscapeDataString(res.FileName)}",
+                        suggestedName = suggestedBase,
+                        fileName = res.FileName,
+                        sizeBytes = res.SizeBytes,
+                        durationMs = res.DurationMs,
+                        width = res.Width,
+                        height = res.Height,
+                        fps = res.Fps,
+                        hasAudio = res.HasAudio
+                    };
+                }
+
+                if (sendEventToJs)
+                {
+                    await PostRecEventAsync("stopped", payload);
+                }
+                return payload;
+            }
+            catch (Exception ex)
+            {
+                Log($"[REC_NATIVE] Stop error: {ex.Message}");
+                if (sendEventToJs)
+                {
+                    await PostRecEventAsync("error", new { error = ex.Message });
+                }
+                throw;
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _nativeRecStopping, 0);
+            }
+        }
+
+        private async Task PostRecEventAsync(string eventName, object? data)
+        {
+            try
+            {
+                string payload = JsonSerializer.Serialize(new
+                {
+                    type = "REC_NATIVE_EVENT",
+                    @event = eventName,
+                    data
+                });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"PostRecEventAsync error: {ex.Message}");
             }
         }
 

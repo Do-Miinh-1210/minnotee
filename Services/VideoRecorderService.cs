@@ -350,6 +350,56 @@ namespace MinNote.Services
             }
         }
 
+        public (string FinalPath, string FileName, long SizeBytes) CommitTempFile(
+            string tempPath, string? explicitFullPath, string? folder, string? fileName, string? ext = "mp4")
+        {
+            if (string.IsNullOrWhiteSpace(tempPath) || !File.Exists(tempPath))
+            {
+                throw new FileNotFoundException("Không tìm thấy tệp video tạm để lưu.");
+            }
+            string fullTemp = Path.GetFullPath(tempPath);
+            string allowedTempDir = Path.GetFullPath(NativeScreenRecorder.GetTempDir());
+            if (!fullTemp.StartsWith(allowedTempDir, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("Đường dẫn tệp video tạm không hợp lệ.");
+            }
+
+            string finalPath;
+            if (!string.IsNullOrWhiteSpace(explicitFullPath))
+            {
+                finalPath = Path.GetFullPath(explicitFullPath.Trim());
+                string? parent = Path.GetDirectoryName(finalPath);
+                if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+            }
+            else
+            {
+                string targetFolder = EnsureFolderExists(folder);
+                string extension = string.IsNullOrWhiteSpace(ext) ? "mp4" : ext;
+                string baseName = string.IsNullOrWhiteSpace(fileName)
+                    ? $"{GetSettings().FilePrefix}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}"
+                    : fileName;
+                finalPath = ResolveUniquePath(targetFolder, baseName, extension, allowOverwrite: false);
+            }
+
+            if (File.Exists(finalPath))
+            {
+                File.Delete(finalPath);
+            }
+            try
+            {
+                File.Move(fullTemp, finalPath);
+            }
+            catch (IOException)
+            {
+                // Cross-volume move fallback (e.g. C:\AppData -> D:\Videos)
+                File.Copy(fullTemp, finalPath, overwrite: true);
+                try { File.Delete(fullTemp); } catch { }
+            }
+
+            long size = new FileInfo(finalPath).Length;
+            return (finalPath, Path.GetFileName(finalPath), size);
+        }
+
         public List<RecordedVideoItem> ListRecentVideos(string? folder = null, int maxCount = 25)
         {
             string target = EnsureFolderExists(folder);

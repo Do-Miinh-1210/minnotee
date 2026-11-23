@@ -217,10 +217,11 @@
   let replayPanel = null;
   let replayPill = null;
   let replayViewMode = 'full'; // 'full' | 'pill' | 'mini'
-  let stepsCollapsed = false;
+  let stepsCollapsed = true;   // Mở gọn mặc định; bấm ☰ để mở danh sách bước khi cần sửa
   let presetsOpen = false;
   let savedShelfOpen = false;
   let savedFlashTimer = 0;
+  const SPEED_CYCLE = [0.5, 1, 1.5, 2, 3];
 
   function getActiveReplays(b) {
     if (!b) return [];
@@ -679,14 +680,16 @@
     const btn = replayPanel.querySelector('#mn-rp-save');
     if (!btn) return;
     btn.classList.add('saved');
-    btn.textContent = count > 1 ? `✓ Lưu (${count})` : '✓ Đã lưu!';
+    btn.textContent = '✓';
+    btn.title = count > 1 ? `Đã lưu ${count} kịch bản!` : 'Đã lưu kịch bản!';
     clearTimeout(savedFlashTimer);
     savedFlashTimer = setTimeout(() => {
       if (btn) {
         btn.classList.remove('saved');
-        btn.textContent = '💾 Lưu';
+        btn.textContent = '💾';
+        btn.title = 'Lưu kịch bản riêng cho từng hình đang mở';
       }
-    }, 1800);
+    }, 1500);
   }
 
   function persistScript(b, showFeedback = false, targetReplay = null) {
@@ -728,53 +731,38 @@
       el.innerHTML = `
         <div class="mn-rp-head">
           <div class="mn-rp-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" fill-opacity=".22"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" fill-opacity=".22"/></svg>
             <span id="mn-rp-head-title">Kịch bản</span>
             <span class="mn-rp-count-badge" id="mn-rp-count-badge" style="display:none;"></span>
           </div>
           <div class="mn-mp-head-btns">
-            <button class="mn-save-btn" id="mn-rp-save" title="Lưu kịch bản riêng cho từng hình đang mở">💾 Lưu</button>
-            <button class="mn-collapse-btn" id="mn-rp-collapse" title="Thu gọn bảng thành thanh chạy nổi">▾ Thu gọn</button>
-            <button class="mn-icon-btn danger" id="mn-rp-close" title="Đóng tất cả kịch bản">✕</button>
+            <button class="mn-icon-btn" id="mn-rp-save" title="Lưu kịch bản riêng cho từng hình đang mở">💾</button>
+            <button class="mn-icon-btn" id="mn-rp-steps-toggle" title="Mở / Ẩn danh sách bước để sắp xếp">☰</button>
+            <button class="mn-icon-btn" id="mn-rp-collapse" title="Thu gọn thành thanh nổi siêu gọn">─</button>
+            <button class="mn-icon-btn danger" id="mn-rp-close" title="Đóng kịch bản">✕</button>
           </div>
         </div>
-        <div class="mn-rp-tabs" id="mn-rp-tabs"></div>
+        <div class="mn-rp-tabs" id="mn-rp-tabs" style="display:none;"></div>
         <div class="mn-rp-saved-bar" id="mn-rp-saved-bar" style="display:none;"></div>
         <div class="mn-rp-controls">
           <div class="mn-rp-transport">
             <button class="mn-icon-btn" id="mn-rp-reset" title="Đưa về bước 0">↺</button>
-            <button class="mn-icon-btn" id="mn-rp-prev" title="Bước trước (hình đang chọn)">⏮</button>
-            <button class="mn-icon-btn primary mn-play-btn" id="mn-rp-play">▶ Phát kịch bản</button>
-            <button class="mn-icon-btn" id="mn-rp-next" title="Bước tiếp (hình đang chọn)">⏭</button>
+            <button class="mn-icon-btn" id="mn-rp-prev" title="Bước trước">⏮</button>
+            <button class="mn-icon-btn primary mn-play-btn" id="mn-rp-play" title="Phát / Tạm dừng">▶</button>
+            <button class="mn-icon-btn" id="mn-rp-next" title="Bước tiếp">⏭</button>
+            <button class="mn-icon-btn mn-rp-speed-btn" id="mn-rp-speed-cycle" title="Tốc độ vẽ (bấm để đổi: 0.5× → 1× → 1.5× → 2× → 3×)">1×</button>
+            <button class="mn-icon-btn" id="mn-rp-pause-step" title="Tự dừng sau mỗi nét để giảng bài">⏸₁</button>
           </div>
           <div class="mn-rp-scrubber">
-            <span id="mn-rp-step-count" style="font-weight:700;color:#0f766e;min-width:60px;">Bước 0/0</span>
+            <span id="mn-rp-step-count" style="font-weight:700;color:#0f766e;min-width:36px;font-variant-numeric:tabular-nums;">0/0</span>
             <input type="range" id="mn-rp-scrub" min="0" max="0" step="1" value="0" />
-          </div>
-          <div class="mn-rp-meta">
-            <label class="mn-rp-check" title="Tự động dừng sau mỗi nét để giáo viên giảng bài rồi bấm ⏭ vẽ tiếp">
-              <input type="checkbox" id="mn-rp-pause-between" />
-              <span>Dừng từng bước</span>
-            </label>
-            <div class="mn-speed-presets" style="gap:3px;">
-              ${[0.5, 1, 1.5, 2, 3].map(v => `<button class="mn-chip" data-rp-speed="${v}">${v}×</button>`).join('')}
-            </div>
-          </div>
-        </div>
-        <div class="mn-rp-steps-bar">
-          <div class="mn-rp-steps-bar-left">
-            <span id="mn-rp-steps-title">Danh sách bước (0)</span>
-          </div>
-          <div class="mn-rp-steps-bar-right">
-            <button class="mn-chip" id="mn-rp-presets-toggle" title="Mẫu sắp xếp nhanh & thêm nét ẩn">Mẫu ▾</button>
-            <button class="mn-chip" id="mn-rp-steps-toggle" title="Ẩn / hiện danh sách bước để bảng nhỏ gọn hơn">▴ Ẩn bước</button>
           </div>
         </div>
         <div class="mn-rp-presets-pop" id="mn-rp-presets-pop">
-          <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục đúng thứ tự vẽ hình từ ban đầu">Thứ tự gốc</button>
-          <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khung khối 3D gốc thành Bước 1, tách đường dựng thêm">Khối gốc → Nét thêm</button>
-          <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường phụ đã ẩn (Ctrl+H) vào kịch bản ở chế độ vẽ tạm rồi tự ẩn">+ Nét đã ẩn</button>
-          <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách toàn bộ các nhóm bước thành từng nét riêng lẻ">Tách nhóm</button>
+          <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục thứ tự gốc">Gốc</button>
+          <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khối 3D gốc thành Bước 1">Khối→Nét</button>
+          <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường ẩn vào kịch bản">+Ẩn</button>
+          <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách tất cả nhóm bước">Tách</button>
         </div>
         <div class="mn-rp-list" id="mn-rp-list"></div>
       `;
@@ -807,26 +795,26 @@
       el.querySelector('#mn-rp-scrub').addEventListener('input', (e) => {
         window.MinNoteGeoReplay.jumpTo(parseInt(e.target.value, 10) || 0, true);
       });
-      el.querySelector('#mn-rp-pause-between').addEventListener('change', (e) => {
+      el.querySelector('#mn-rp-pause-step').addEventListener('click', () => {
         const b = getBoard();
         const r = getFocusedReplay(b);
         if (r) {
-          r.pauseBetween = !!e.target.checked;
+          r.pauseBetween = !r.pauseBetween;
           persistScript(b, false, r);
           renderReplayUI();
         }
       });
-      el.querySelectorAll('[data-rp-speed]').forEach(btn => {
-        btn.addEventListener('click', () => window.MinNoteGeoReplay.setSpeed(parseFloat(btn.dataset.rpSpeed)));
-      });
-      el.querySelector('#mn-rp-presets-toggle').addEventListener('click', () => {
-        presetsOpen = !presetsOpen;
-        if (presetsOpen && stepsCollapsed) stepsCollapsed = false;
-        renderReplayUI();
+      el.querySelector('#mn-rp-speed-cycle').addEventListener('click', () => {
+        const b = getBoard();
+        const r = getFocusedReplay(b);
+        if (!r) return;
+        const curIdx = SPEED_CYCLE.findIndex(v => Math.abs(v - (r.speed || 1)) < 0.08);
+        const nextVal = SPEED_CYCLE[(curIdx + 1) % SPEED_CYCLE.length];
+        window.MinNoteGeoReplay.setSpeed(nextVal);
       });
       el.querySelector('#mn-rp-steps-toggle').addEventListener('click', () => {
         stepsCollapsed = !stepsCollapsed;
-        if (stepsCollapsed) presetsOpen = false;
+        presetsOpen = !stepsCollapsed;
         renderReplayUI();
       });
       el.querySelector('#mn-rp-preset-orig').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('orig'));
@@ -1014,56 +1002,52 @@
       replayPill.classList.toggle('mini', replayViewMode === 'mini');
 
       if (replayViewMode === 'mini') {
-        const badgeTxt = isMulti
-          ? (playingCount ? `${playingCount}/${actives.length} hình` : `${actives.length} hình`)
-          : `Bước ${curDisplay}/${total}`;
+        const badgeTxt = isMulti ? `${playingCount}/${actives.length}` : `${curDisplay}/${total}`;
         replayPill.innerHTML = `
-          <span class="mn-pill-grip">⋮⋮</span>
+          <span class="mn-pill-grip" title="Kéo di chuyển">⋮⋮</span>
           <span class="mn-pill-mini-dot ${anyPlaying ? 'playing' : ''}"></span>
           <button class="mn-pill-btn primary" data-pill-act="play" title="${anyPlaying ? 'Tạm dừng' : 'Phát'}">${anyPlaying ? '⏸' : '▶'}</button>
-          <span class="mn-pill-label" style="max-width:120px;">${escapeHtml(badgeTxt)}</span>
-          <button class="mn-pill-btn" data-pill-act="unmini" title="Mở thanh điều khiển">Mở</button>
-          <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản đầy đủ">≡</button>
+          <span class="mn-pill-label" style="max-width:72px;">${escapeHtml(badgeTxt)}</span>
+          <button class="mn-pill-btn" data-pill-act="unmini" title="Hiện thanh nút">⤢</button>
         `;
         return;
       }
 
-      const curSt = activeSteps[Math.min(r.stepIdx, Math.max(0, total - 1))];
       const figChipsHtml = isMulti
         ? actives.slice(0, 4).map((item, idx) => {
             const itTotal = item.steps.filter(s => s.enabled !== false).length;
             const itCur = itTotal ? Math.min(itTotal, item.stepIdx + (item.stepProgress > 0 ? 1 : 0)) : 0;
-            const lbl = item.title || `Hình ${idx + 1}`;
-            return `<button type="button" class="mn-rp-pill-fig ${item.playing ? 'playing' : ''}" data-pill-fig="${escapeHtml(item.id)}" title="Bấm để phát / tạm dừng riêng ${escapeHtml(lbl)}">${item.playing ? '⏸' : '▶'} ${escapeHtml(lbl)} ${itCur}/${itTotal}</button>`;
+            const lbl = item.title || `H${idx + 1}`;
+            return `<button type="button" class="mn-rp-pill-fig ${item.playing ? 'playing' : ''}" data-pill-fig="${escapeHtml(item.id)}" title="${escapeHtml(lbl)}: bấm để phát / dừng riêng">${item.playing ? '⏸' : '▶'} ${escapeHtml(lbl)} ${itCur}/${itTotal}</button>`;
           }).join('')
-        : `<span class="mn-pill-label">${escapeHtml(total ? `Bước ${curDisplay}/${total}${curSt ? ' • ' + stepDisplayLabel(geo, curSt) : ''}` : 'Chưa có nét')}</span>`;
+        : `<span class="mn-pill-label" style="min-width:34px;text-align:center;">${curDisplay}/${total}</span>`;
 
       replayPill.innerHTML = `
-        <span class="mn-pill-grip" title="Kéo để di chuyển thanh chạy">⋮⋮</span>
-        <button class="mn-pill-btn" data-pill-act="reset" title="${isMulti ? 'Đưa tất cả về bước 0' : 'Từ đầu'}">↺</button>
+        <span class="mn-pill-grip" title="Kéo di chuyển">⋮⋮</span>
+        <button class="mn-pill-btn" data-pill-act="reset" title="${isMulti ? 'Về bước 0 tất cả' : 'Về đầu'}">↺</button>
         ${!isMulti ? '<button class="mn-pill-btn" data-pill-act="prev" title="Bước trước">⏮</button>' : ''}
-        <button class="mn-pill-btn primary" data-pill-act="play" title="${isMulti ? (anyPlaying ? 'Tạm dừng tất cả' : 'Phát tất cả cùng lúc') : (r.playing ? 'Tạm dừng' : 'Phát')}">${isMulti ? (anyPlaying ? '⏸' : '▶▶') : (r.playing ? '⏸' : '▶')}</button>
+        <button class="mn-pill-btn primary" data-pill-act="play" title="${isMulti ? (anyPlaying ? 'Tạm dừng tất cả' : 'Phát tất cả') : (r.playing ? 'Tạm dừng' : 'Phát')}">${isMulti ? (anyPlaying ? '⏸' : '▶▶') : (r.playing ? '⏸' : '▶')}</button>
         ${!isMulti ? '<button class="mn-pill-btn" data-pill-act="next" title="Bước tiếp">⏭</button>' : ''}
         ${figChipsHtml}
-        <button class="mn-pill-btn" data-pill-act="mini" title="Thu gọn tối đa">─ Thu gọn</button>
-        <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản đầy đủ">Mở rộng</button>
-        <button class="mn-pill-btn" data-pill-act="close" title="Thoát dựng lại hình">✕</button>
+        <button class="mn-pill-btn" data-pill-act="mini" title="Thu siêu nhỏ">─</button>
+        <button class="mn-pill-btn" data-pill-act="expand" title="Mở bảng kịch bản">☰</button>
+        <button class="mn-pill-btn" data-pill-act="close" title="Đóng">✕</button>
       `;
       return;
     }
 
-    // Full / compact studio panel ('full')
+    // Compact studio panel ('full')
     replayPill.classList.remove('open');
     replayPanel.classList.add('open');
     replayPanel.classList.toggle('steps-hidden', stepsCollapsed);
 
     const headTitle = replayPanel.querySelector('#mn-rp-head-title');
-    if (headTitle) headTitle.textContent = 'Kịch bản';
+    if (headTitle) headTitle.textContent = isMulti ? 'Kịch bản' : (r.title && r.title !== 'Cả trang' ? r.title : 'Kịch bản');
     const countBadge = replayPanel.querySelector('#mn-rp-count-badge');
     if (countBadge) {
       if (isMulti) {
         countBadge.style.display = 'inline-flex';
-        countBadge.textContent = playingCount ? `${playingCount}/${actives.length} ▶` : `${actives.length} hình`;
+        countBadge.textContent = playingCount ? `${playingCount}/${actives.length}` : `${actives.length} hình`;
       } else {
         countBadge.style.display = 'none';
       }
@@ -1073,74 +1057,79 @@
     const savedMap = loadSavedScriptsMap(pg);
     const savedEntries = Object.values(savedMap).filter(e => e && e.key && Array.isArray(e.steps) && e.steps.length);
 
-    // Render integrated multi-figure strip (each chip has per-figure Play/Pause + Select + Close + Saved toggle)
+    // Only show figure tab strip if > 1 figure active OR saved scripts exist
     const tabsEl = replayPanel.querySelector('#mn-rp-tabs');
     if (tabsEl) {
+      const showTabs = isMulti || savedEntries.length > 0;
+      tabsEl.style.display = showTabs ? 'flex' : 'none';
       tabsEl.innerHTML = '';
-      actives.forEach((item, idx) => {
-        const tab = document.createElement('div');
-        tab.className = 'mn-rp-tab' + (item.id === r.id ? ' active' : '');
-        const itemTotal = item.steps.filter(s => s.enabled !== false).length;
-        const itemCur = itemTotal ? Math.min(itemTotal, item.stepIdx + (item.stepProgress > 0 ? 1 : 0)) : 0;
-        const lbl = item.title || `Hình ${idx + 1}`;
-        tab.innerHTML = `
-          <button type="button" class="mn-rp-tab-play" title="${item.playing ? 'Tạm dừng hình này' : 'Phát riêng hình này'}">${item.playing ? '⏸' : '▶'}</button>
-          <span title="${escapeHtml(lbl)} (Nhấp đúp để đổi tên)">${escapeHtml(lbl)} <small style="opacity:.8">(${itemCur}/${itemTotal})</small></span>
-          <button type="button" class="mn-rp-tab-close" title="Đóng riêng hình này">✕</button>
-        `;
-        tab.addEventListener('click', (e) => {
-          if (e.target.closest('.mn-rp-tab-play')) {
-            e.stopPropagation();
-            window.MinNoteGeoReplay.togglePlayScript(item.id);
-            return;
-          }
-          if (e.target.closest('.mn-rp-tab-close')) {
-            e.stopPropagation();
-            window.MinNoteGeoReplay.closeScript(item.id);
-            return;
-          }
-          window.MinNoteGeoReplay.selectScript(item.id);
-        });
-        tab.addEventListener('dblclick', (e) => {
-          if (e.target.closest('button')) return;
-          e.stopPropagation();
-          const nextName = window.prompt('Đặt tên cho kịch bản hình này:', item.title || lbl);
-          if (nextName && nextName.trim()) {
-            item.title = nextName.trim();
-            persistScript(b, false, item);
+      if (showTabs) {
+        if (isMulti) {
+          actives.forEach((item, idx) => {
+            const tab = document.createElement('div');
+            tab.className = 'mn-rp-tab' + (item.id === r.id ? ' active' : '');
+            const itemTotal = item.steps.filter(s => s.enabled !== false).length;
+            const itemCur = itemTotal ? Math.min(itemTotal, item.stepIdx + (item.stepProgress > 0 ? 1 : 0)) : 0;
+            const lbl = item.title || `H${idx + 1}`;
+            tab.innerHTML = `
+              <button type="button" class="mn-rp-tab-play" title="${item.playing ? 'Tạm dừng' : 'Phát riêng'}">${item.playing ? '⏸' : '▶'}</button>
+              <span title="${escapeHtml(lbl)} (Nhấp đúp đổi tên)">${escapeHtml(lbl)} <small style="opacity:.75">${itemCur}/${itemTotal}</small></span>
+              <button type="button" class="mn-rp-tab-close" title="Đóng hình này">✕</button>
+            `;
+            tab.addEventListener('click', (e) => {
+              if (e.target.closest('.mn-rp-tab-play')) {
+                e.stopPropagation();
+                window.MinNoteGeoReplay.togglePlayScript(item.id);
+                return;
+              }
+              if (e.target.closest('.mn-rp-tab-close')) {
+                e.stopPropagation();
+                window.MinNoteGeoReplay.closeScript(item.id);
+                return;
+              }
+              window.MinNoteGeoReplay.selectScript(item.id);
+            });
+            tab.addEventListener('dblclick', (e) => {
+              if (e.target.closest('button')) return;
+              e.stopPropagation();
+              const nextName = window.prompt('Đặt tên cho kịch bản hình này:', item.title || lbl);
+              if (nextName && nextName.trim()) {
+                item.title = nextName.trim();
+                persistScript(b, false, item);
+                renderReplayUI();
+              }
+            });
+            tabsEl.appendChild(tab);
+          });
+        }
+        if (savedEntries.length > 0) {
+          const savedToggle = document.createElement('button');
+          savedToggle.type = 'button';
+          savedToggle.className = 'mn-rp-saved-toggle' + (savedShelfOpen ? ' open' : '');
+          savedToggle.title = 'Mở kịch bản đã lưu trên trang này';
+          savedToggle.textContent = `📂 ${savedEntries.length}`;
+          savedToggle.addEventListener('click', () => {
+            savedShelfOpen = !savedShelfOpen;
             renderReplayUI();
-          }
-        });
-        tabsEl.appendChild(tab);
-      });
-
-      if (savedEntries.length > 0) {
-        const savedToggle = document.createElement('button');
-        savedToggle.type = 'button';
-        savedToggle.className = 'mn-rp-saved-toggle' + (savedShelfOpen ? ' open' : '');
-        savedToggle.title = 'Mở danh sách kịch bản đã lưu trên trang này';
-        savedToggle.textContent = `📂 Đã lưu (${savedEntries.length})`;
-        savedToggle.addEventListener('click', () => {
-          savedShelfOpen = !savedShelfOpen;
-          renderReplayUI();
-        });
-        tabsEl.appendChild(savedToggle);
+          });
+          tabsEl.appendChild(savedToggle);
+        }
       }
     }
 
-    // Expandable Saved Scripts shelf (hidden by default so zero vertical clutter!)
+    // Expandable Saved Scripts shelf
     const savedBar = replayPanel.querySelector('#mn-rp-saved-bar');
     if (savedBar) {
       if (savedShelfOpen && savedEntries.length > 0) {
         savedBar.style.display = 'flex';
-        savedBar.innerHTML = '<span class="mn-rp-saved-title">Bấm để mở song song:</span>';
+        savedBar.innerHTML = '';
         savedEntries.sort((a, b2) => (b2.updatedAt || 0) - (a.updatedAt || 0)).forEach(entry => {
           const isLoaded = actives.some(x => x.page === r.page && (x.scriptKey === entry.key || x.scopeKey === entry.key));
           const chip = document.createElement('div');
           chip.className = 'mn-rp-saved-chip' + (isLoaded ? ' loaded' : '');
           const name = entry.title || (entry.key === 'all' ? 'Cả trang' : 'Hình đã lưu');
-          chip.title = isLoaded ? `Đang mở: ${name}` : `Bấm để mở thêm kịch bản "${name}"`;
-          chip.innerHTML = `<span>${escapeHtml(name)}</span><button type="button" class="mn-rp-saved-del" title="Xóa kịch bản đã lưu này">✕</button>`;
+          chip.title = isLoaded ? `Đang mở: ${name}` : `Mở song song "${name}"`;
+          chip.innerHTML = `<span>${escapeHtml(name)}</span><button type="button" class="mn-rp-saved-del" title="Xóa">✕</button>`;
           chip.addEventListener('click', (e) => {
             if (e.target.closest('.mn-rp-saved-del')) {
               e.stopPropagation();
@@ -1157,36 +1146,36 @@
       }
     }
 
-    // Unified Transport button (Play All when multi, Play Script when single)
+    // Compact unified icon transport bar
     const playBtn = replayPanel.querySelector('#mn-rp-play');
     const resetBtn = replayPanel.querySelector('#mn-rp-reset');
     if (isMulti) {
-      playBtn.textContent = anyPlaying ? `⏸ Dừng tất cả (${playingCount}/${actives.length})` : `▶▶ Phát tất cả (${actives.length})`;
-      resetBtn.title = 'Đưa tất cả hình về bước 0';
+      playBtn.textContent = anyPlaying ? `⏸ ${playingCount}/${actives.length}` : `▶▶`;
+      playBtn.title = anyPlaying ? 'Tạm dừng tất cả' : 'Phát tất cả cùng lúc';
+      resetBtn.title = 'Đưa tất cả về bước 0';
     } else {
-      playBtn.textContent = r.playing ? '⏸ Tạm dừng' : (r.stepIdx >= total - 1 && r.stepProgress >= 1 ? '↺ Phát lại' : '▶ Phát kịch bản');
-      resetBtn.title = 'Về bước đầu tiên (0)';
+      playBtn.textContent = r.playing ? '⏸' : (r.stepIdx >= total - 1 && r.stepProgress >= 1 ? '↺' : '▶');
+      playBtn.title = r.playing ? 'Tạm dừng' : 'Phát kịch bản';
+      resetBtn.title = 'Về bước đầu (0)';
     }
 
-    replayPanel.querySelector('#mn-rp-step-count').textContent = `Bước ${curDisplay}/${total}`;
+    const speedBtn = replayPanel.querySelector('#mn-rp-speed-cycle');
+    if (speedBtn) speedBtn.textContent = `${Number(r.speed || 1)}×`;
+    const pauseStepBtn = replayPanel.querySelector('#mn-rp-pause-step');
+    if (pauseStepBtn) pauseStepBtn.classList.toggle('active', !!r.pauseBetween);
+
+    replayPanel.querySelector('#mn-rp-step-count').textContent = `${curDisplay}/${total}`;
     const scrub = replayPanel.querySelector('#mn-rp-scrub');
     scrub.max = String(total);
     scrub.value = String(curDisplay);
 
-    replayPanel.querySelector('#mn-rp-pause-between').checked = !!r.pauseBetween;
-    replayPanel.querySelectorAll('[data-rp-speed]').forEach(btn => {
-      btn.classList.toggle('on', Math.abs(r.speed - parseFloat(btn.dataset.rpSpeed)) < 0.06);
-    });
-
-    // Steps header bar + presets drawer toggle
-    const stepsTitle = replayPanel.querySelector('#mn-rp-steps-title');
-    if (stepsTitle) stepsTitle.textContent = `${r.title || 'Các bước'} (${total} bước)`;
     const stepsToggle = replayPanel.querySelector('#mn-rp-steps-toggle');
-    if (stepsToggle) stepsToggle.textContent = stepsCollapsed ? '▾ Hiện bước' : '▴ Ẩn bước';
-    const presetsToggle = replayPanel.querySelector('#mn-rp-presets-toggle');
-    if (presetsToggle) presetsToggle.classList.toggle('on', presetsOpen && !stepsCollapsed);
+    if (stepsToggle) {
+      stepsToggle.classList.toggle('active', !stepsCollapsed);
+      stepsToggle.title = stepsCollapsed ? `Mở danh sách ${total} bước để sắp xếp` : 'Ẩn danh sách bước';
+    }
     const presetsPop = replayPanel.querySelector('#mn-rp-presets-pop');
-    if (presetsPop) presetsPop.classList.toggle('open', presetsOpen && !stepsCollapsed);
+    if (presetsPop) presetsPop.classList.toggle('open', !stepsCollapsed);
 
     if (stepsCollapsed) return;
 
@@ -1194,7 +1183,7 @@
     const prevScroll = listEl.scrollTop;
     listEl.innerHTML = '';
     if (!r.steps.length) {
-      listEl.innerHTML = '<div class="mn-rp-empty">Trang này chưa có hình học nào để dựng lại.<br/>Hãy vẽ hình (đoạn thẳng, hình chóp, đường tròn…) rồi mở lại bảng kịch bản!</div>';
+      listEl.innerHTML = '<div class="mn-rp-empty">Chưa có hình học nào để dựng lại.</div>';
       return;
     }
 
@@ -1206,7 +1195,7 @@
       const isDone = isEnabled && (myActiveIdx < r.stepIdx || (myActiveIdx === r.stepIdx && r.stepProgress >= 1));
 
       const row = document.createElement('div');
-      row.className = `mn-step-item${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
+      row.className = `mn-step-item compact${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
       row.dataset.idx = String(rawIdx);
 
       const isShape = st.kind === 'shape';
@@ -1217,21 +1206,18 @@
       const labelText = stepDisplayLabel(geo, st);
 
       row.innerHTML = `
-        <span class="mn-step-drag" title="Kéo thả để đổi thứ tự">⋮⋮</span>
+        <span class="mn-step-drag" title="Kéo để đổi thứ tự">⋮⋮</span>
         <span class="mn-step-num">${isEnabled ? myActiveIdx + 1 : '—'}</span>
         <div class="mn-step-info">
-          <div class="mn-step-label">${escapeHtml(labelText)}</div>
-          <div class="mn-step-sub">${escapeHtml(stepSubtitle(geo, st))}</div>
+          <div class="mn-step-label" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</div>
         </div>
         <div class="mn-step-actions">
-          ${isInterPt ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="${st.showGuides !== false ? 'Đang bật: vẽ 2 đường giao nhau rồi tự ẩn' : 'Đang tắt: chỉ hiện điểm giao'}">✛</button>` : ''}
-          ${isShape ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="${st.tempHide ? 'Vẽ tạm rồi tự ẩn (bấm để giữ nét lại)' : 'Chế độ vẽ tạm rồi tự ẩn sau khi vẽ xong'}">👻</button>` : ''}
-          ${hasDir ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ (A → B thành B → A)">⇄</button>` : ''}
-          ${rawIdx > 0 ? `<button class="mn-mini-btn" data-act="merge" title="Gộp vẽ đồng thời với bước phía trên">⊕</button>` : ''}
-          ${isGroup ? `<button class="mn-mini-btn" data-act="split" title="Tách nhóm thành các bước riêng">⊖</button>` : ''}
-          <button class="mn-mini-btn" data-act="up" title="Đưa lên trước" ${rawIdx === 0 ? 'disabled style="opacity:.3"' : ''}>↑</button>
-          <button class="mn-mini-btn" data-act="down" title="Đưa xuống sau" ${rawIdx === r.steps.length - 1 ? 'disabled style="opacity:.3"' : ''}>↓</button>
-          <button class="mn-mini-btn ${isEnabled ? '' : 'on'}" data-act="toggle" title="${isEnabled ? 'Bỏ qua bước này' : 'Bật lại bước này'}">${isEnabled ? '👁' : '✕'}</button>
+          ${isInterPt ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="Vẽ 2 đường giao nhau rồi ẩn">✛</button>` : ''}
+          ${isShape ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="Vẽ tạm rồi tự ẩn">👻</button>` : ''}
+          ${hasDir ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ">⇄</button>` : ''}
+          ${rawIdx > 0 ? `<button class="mn-mini-btn" data-act="merge" title="Gộp vẽ cùng bước trên">⊕</button>` : ''}
+          ${isGroup ? `<button class="mn-mini-btn on" data-act="split" title="Tách nhóm">⊖</button>` : ''}
+          <button class="mn-mini-btn ${isEnabled ? '' : 'on'}" data-act="toggle" title="${isEnabled ? 'Bỏ qua bước này' : 'Bật lại'}">${isEnabled ? '👁' : '✕'}</button>
         </div>
       `;
 

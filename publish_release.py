@@ -22,9 +22,9 @@ if not GITHUB_TOKEN:
     sys.exit(1)
 
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.7.3"
-TITLE = "MinNote v0.0.7.3 - Tối Giản Công Cụ Quỹ Tích Trực Quan & Bổ Sung Giao Điểm Quỹ Tích Động"
-BODY = open(r"M:\IT\Minnote\release_notes\v0.0.7.3.md", "r", encoding="utf-8").read()
+TAG = "v0.0.7.4"
+TITLE = "MinNote v0.0.7.4 - Giao Diện Cobalt Mới, Soạn Công Thức MinMath, Quay Màn Hình Native, Tự Mở Lại & Phát Sáng Khi Rê Chuột"
+BODY = open(r"M:\IT\Minnote\release_notes\v0.0.7.4.md", "r", encoding="utf-8").read()
 
 SETUP_EXE = r"M:\IT\Minnote\dist\installer\MinNote_Setup.exe"
 

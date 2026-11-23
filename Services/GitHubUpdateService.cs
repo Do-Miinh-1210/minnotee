@@ -22,7 +22,7 @@ public class GitHubUpdateService
 {
     public static GitHubUpdateService Instance { get; } = new();
 
-    public string CurrentVersion { get; set; } = "0.0.7.3";
+    public string CurrentVersion { get; set; } = "0.0.7.4";
     public string GitHubRepo { get; set; } = "Do-Miinh-1210/minnotee";
 
     private readonly HttpClient _httpClient;
@@ -176,13 +176,34 @@ public class GitHubUpdateService
                 }
             }
 
-            // Launch installer and shutdown
-            Process.Start(new ProcessStartInfo
+            // Launch installer and automatically reopen MinNote once installation completes
+            string targetExe = Environment.ProcessPath
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "MinNote", "MinNote.exe");
+
+            var setupProc = Process.Start(new ProcessStartInfo
             {
                 FileName = setupPath,
-                Arguments = "/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+                Arguments = "/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /AUTORELAUNCH",
                 UseShellExecute = true
             });
+
+            if (setupProc != null)
+            {
+                string escapedExe = targetExe.Replace("'", "''");
+                string watcherCmd =
+                    $"Wait-Process -Id {setupProc.Id} -ErrorAction SilentlyContinue; " +
+                    "Start-Sleep -Seconds 2; " +
+                    "if (-not (Get-Process -Name 'MinNote' -ErrorAction SilentlyContinue)) { " +
+                    $"if (Test-Path '{escapedExe}') {{ Start-Process -FilePath '{escapedExe}' }} " +
+                    "}";
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -WindowStyle Hidden -Command \"{watcherCmd}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+            }
 
             Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
             return true;

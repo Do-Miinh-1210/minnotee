@@ -1,21 +1,19 @@
 /* ============================================================================
-   MinNote Pro Screen Recorder Studio (v0.0.6.6)
-   Fixes:
-   1. Pixel-exact camera/crop frame alignment (0px shift between setup & live;
-      W3C Region Capture CropTarget.fromElement + letterbox-aware VideoFrame/Canvas fallback)
-   2. High-clarity video output (native HiDPI resolution, 60 FPS, 24 Mbps Ultra default,
-      H.264 High Profile L5.2 / VP9, videoTrack.contentHint = 'detail', 192 kbps audio)
-   3. Persistent Storage & Recording Settings (folder, quality, FPS, format, mic, cursor,
-      save mode, filename prefix, recent saved videos)
-   4. Native Post-Record Preview & Save modal + Auto-Save card (ZERO browser download UI!)
-   5. Works seamlessly with WebView2 --auto-accept-this-tab-capture (skips browser tab prompt)
+   MinNote Pro Screen Recorder Studio (v0.0.7.3)
+   - Native WPF C# screen + mic recorder (Windows Media Foundation H.264/AAC)
+     -> ZERO browser getDisplayMedia -> ZERO "Sharing this tab" bar!
+     -> Native capture-excluded overlay (WDA_EXCLUDEFROMCAPTURE = 0x11) so red
+        border & floating pill NEVER appear inside recorded video!
+   - Ultra-clean icon-only floating bar (zero text clutter, zero top tip banner)
+   - Zero-jitter in-place DOM updates in Setup & Settings Modal (0 flash/flicker)
+   - Clean browser getDisplayMedia fallback when running outside WPF Desktop
    ============================================================================ */
 (function () {
   'use strict';
 
   const STORAGE_KEY = 'minnote_recorder_studio_settings_v1';
   const MIN_BOX = 80;
-  const CHUNK_BYTES = 1536000; // 1.5 MB (divisible by 3 for zero base64 padding overhead)
+  const CHUNK_BYTES = 1536000;
 
   const DEFAULT_SETTINGS = {
     folder: '',
@@ -72,14 +70,87 @@
   ];
 
   // --------------------------------------------------------------------------
-  // Native WPF WebView2 Bridge (REC_*)
+  // Crisp SVG Icons (Icon-Only UI)
+  // --------------------------------------------------------------------------
+  const SVG = {
+    region:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="4 3"></rect>' +
+        '<path d="M9 9h6v6H9z" fill="currentColor" opacity="0.2" stroke="none"></path>' +
+      '</svg>',
+    whole:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M4 9V6a2 2 0 0 1 2-2h3"></path>' +
+        '<path d="M15 4h3a2 2 0 0 1 2 2v3"></path>' +
+        '<path d="M20 15v3a2 2 0 0 1-2 2h-3"></path>' +
+        '<path d="M9 20H6a2 2 0 0 1-2-2v-3"></path>' +
+      '</svg>',
+    micOn:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="9" y="2" width="6" height="12" rx="3"></rect>' +
+        '<path d="M5 10a7 7 0 0 0 14 0"></path>' +
+        '<line x1="12" y1="19" x2="12" y2="22"></line>' +
+        '<line x1="8" y1="22" x2="16" y2="22"></line>' +
+      '</svg>',
+    micOff:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<line x1="2" y1="2" x2="22" y2="22"></line>' +
+        '<path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"></path>' +
+        '<path d="M5 10v2a7 7 0 0 0 12 5"></path>' +
+        '<path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"></path>' +
+        '<path d="M9 9v3a3 3 0 0 0 5.12 2.12"></path>' +
+        '<line x1="12" y1="19" x2="12" y2="22"></line>' +
+      '</svg>',
+    settings:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"></circle>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>' +
+      '</svg>',
+    close:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+        '<line x1="6" y1="6" x2="18" y2="18"></line>' +
+        '<line x1="18" y1="6" x2="6" y2="18"></line>' +
+      '</svg>',
+    pause:
+      '<svg viewBox="0 0 24 24" fill="currentColor">' +
+        '<rect x="6" y="5" width="4" height="14" rx="1"></rect>' +
+        '<rect x="14" y="5" width="4" height="14" rx="1"></rect>' +
+      '</svg>',
+    play:
+      '<svg viewBox="0 0 24 24" fill="currentColor">' +
+        '<path d="M7 5l12 7-12 7z"></path>' +
+      '</svg>',
+    stop:
+      '<svg viewBox="0 0 24 24" fill="currentColor">' +
+        '<rect x="6" y="6" width="12" height="12" rx="2"></rect>' +
+      '</svg>',
+    mini:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+        '<line x1="5" y1="12" x2="19" y2="12"></line>' +
+      '</svg>',
+    video:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="2" y="5" width="14" height="14" rx="2"></rect>' +
+        '<path d="M16 10l6-3v10l-6-3z"></path>' +
+      '</svg>'
+  };
+
+  // --------------------------------------------------------------------------
+  // Native WPF WebView2 Bridge (REC_* & REC_NATIVE_*)
   // --------------------------------------------------------------------------
   const pendingRpc = new Map();
+  const nativeEventListeners = new Set();
   let rpcSeq = 0;
   let rpcListenerAttached = false;
+  let hostNativeRecorderAvailable = null; // null = unknown (defaults to isNativeHost())
 
   function isNativeHost() {
     return !!(window.__isMinNoteWebView2 && window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function');
+  }
+
+  function useNativeRecorder() {
+    if (!isNativeHost()) return false;
+    return hostNativeRecorderAvailable !== false;
   }
 
   function ensureRpcListener() {
@@ -90,7 +161,16 @@
       if (typeof msg === 'string') {
         try { msg = JSON.parse(msg); } catch (_) { return; }
       }
-      if (!msg || msg.type !== 'REC_RESULT' || !msg.id) return;
+      if (!msg || typeof msg !== 'object') return;
+
+      if (msg.type === 'REC_NATIVE_EVENT') {
+        nativeEventListeners.forEach(function (fn) {
+          try { fn(msg.event, msg.data); } catch (_) {}
+        });
+        return;
+      }
+
+      if (msg.type !== 'REC_RESULT' || !msg.id) return;
       const entry = pendingRpc.get(msg.id);
       if (!entry) return;
       pendingRpc.delete(msg.id);
@@ -144,6 +224,9 @@
     }
     try {
       const res = await callHost('REC_GET_SETTINGS', {}, 15000);
+      if (res && typeof res.nativeRecorder === 'boolean') {
+        hostNativeRecorderAvailable = res.nativeRecorder;
+      }
       if (res && res.settings) {
         cachedSettings = Object.assign({}, DEFAULT_SETTINGS, res.settings);
         saveLocalSettings(cachedSettings);
@@ -220,7 +303,6 @@
     }
   }
 
-  // Fallback download ONLY when running outside WPF WebView2 (plain web browser)
   function fallbackBrowserSave(blob, fileName) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -268,7 +350,6 @@
       }
     }
     if (!raw || !raw.w || !raw.h) return wholeWindowRect();
-    // Strictly intersect with viewport so frame never overflows over bottom/top toolbars
     const x0 = Math.max(0, Math.round(raw.x));
     const y0 = Math.max(0, Math.round(raw.y));
     const x1 = Math.min(window.innerWidth, Math.round(raw.x + raw.w));
@@ -328,7 +409,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Exact Zero-Shift Video Cropping Pipeline
+  // Web-only Fallback Cropping Pipeline (never used on WPF Desktop!)
   // --------------------------------------------------------------------------
   function computeExactCropBox(frameW, frameH, frameX, frameY, rect) {
     const winW = Math.max(1, window.innerWidth);
@@ -337,7 +418,6 @@
     const sy = frameH / winH;
 
     let cx, cy, cw, ch;
-    // Detect aspect-ratio letterboxing or pillarboxing from Chromium tab capture
     if (Math.abs(sx - sy) / Math.max(sx, sy) > 0.015) {
       const scale = Math.min(sx, sy);
       const offX = (frameW - winW * scale) / 2;
@@ -376,7 +456,6 @@
           const box = computeExactCropBox(p.width, p.height, p.x, p.y, rectRef.current);
           controller.enqueue(new VideoFrame(frame, { visibleRect: box }));
         } catch (_) {
-          // Skip malformed frame cleanly
         } finally {
           frame.close();
         }
@@ -440,7 +519,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Auto-Save Floating Notification Card (replaces Edge browser Downloads UI)
+  // Auto-Save Floating Notification Card
   // --------------------------------------------------------------------------
   let activeToastCard = null;
   let activeToastTimer = null;
@@ -471,10 +550,10 @@
         '</div>' +
         '<div class="mnrec-row">' +
           (info.path && isNativeHost()
-            ? '<button class="mnrec-btn primary sm" data-act="play">▶ Phát video</button>' +
-              '<button class="mnrec-btn sm" data-act="reveal">📁 Mở thư mục</button>'
+            ? '<button class="mnrec-btn primary sm" data-act="play">▶ Phát</button>' +
+              '<button class="mnrec-btn sm" data-act="reveal">📁 Thư mục</button>'
             : '') +
-          '<button class="mnrec-btn sm" data-act="settings">⚙ Cài đặt lưu trữ</button>' +
+          '<button class="mnrec-btn sm" data-act="settings">⚙ Cài đặt</button>' +
         '</div>' +
       '</div>';
 
@@ -512,7 +591,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Dedicated Storage & Quality Settings Modal
+  // Dedicated Storage & Quality Settings Modal (Zero-Jitter Shell + In-Place Patch)
   // --------------------------------------------------------------------------
   let settingsModalEl = null;
 
@@ -522,26 +601,50 @@
       settingsModalEl = null;
     }
 
-    await syncSettingsFromHost();
     let draft = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
     let videos = cachedVideos.slice();
     let activeTab = initialTab || 'storage';
     let audioDevices = [];
+    let closed = false;
 
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        const devs = await navigator.mediaDevices.enumerateDevices();
-        audioDevices = devs.filter(function (d) { return d.kind === 'audioinput'; });
-      }
-    } catch (_) {}
-
+    // Build modal shell ONCE (prevents backdrop blur/animation replay & vertical jitter!)
     const root = document.createElement('div');
     root.className = 'mnrec-root';
+    root.innerHTML =
+      '<div class="mnrec-backdrop" data-act="backdrop">' +
+        '<div class="mnrec-dialog settings-dialog" role="dialog" aria-modal="true">' +
+          '<div class="mnrec-dialog-head">' +
+            '<div class="mnrec-dialog-title">' +
+              '<span class="mnrec-dialog-icon">' + SVG.video + '</span>' +
+              '<span>Cài đặt Quay Màn Hình</span>' +
+            '</div>' +
+            '<button class="mnrec-close-btn" data-act="close" title="Đóng (Esc)">✕</button>' +
+          '</div>' +
+          '<div class="mnrec-tabs">' +
+            '<button type="button" class="mnrec-tab" data-tab="storage">Lưu trữ</button>' +
+            '<button type="button" class="mnrec-tab" data-tab="quality">Chất lượng &amp; Âm thanh</button>' +
+            '<button type="button" class="mnrec-tab" data-tab="library"><span>Video đã lưu (<span data-vid-count>' + videos.length + '</span>)</span></button>' +
+          '</div>' +
+          '<div class="mnrec-dialog-body" id="mnrec-settings-body"></div>' +
+          '<div class="mnrec-dialog-foot">' +
+            '<span class="mnrec-hint">' + (useNativeRecorder() ? 'Quay trực tiếp H.264 • Ẩn khung &amp; thanh điều khiển khỏi video.' : 'Chế độ quay trình duyệt web.') + '</span>' +
+            '<div class="mnrec-row">' +
+              '<button class="mnrec-btn" data-act="close">Đóng</button>' +
+              '<button class="mnrec-btn primary" data-act="save">Lưu cài đặt</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
     document.body.appendChild(root);
     settingsModalEl = root;
 
+    const bodyEl = root.querySelector('#mnrec-settings-body');
+    const vidCountEl = root.querySelector('[data-vid-count]');
+
     function closeModal() {
-      document.removeEventListener('keydown', onKey);
+      closed = true;
+      document.removeEventListener('keydown', onKey, true);
       root.remove();
       if (settingsModalEl === root) settingsModalEl = null;
     }
@@ -554,47 +657,93 @@
     }
     document.addEventListener('keydown', onKey, true);
 
-    function render() {
-      const previewFile = buildSuggestedName(draft.filePrefix, '') + '.' + draft.format;
-      let tabHtml = '';
+    function syncTabBar() {
+      root.querySelectorAll('.mnrec-tab[data-tab]').forEach(function (btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === activeTab);
+      });
+      if (vidCountEl) vidCountEl.textContent = String(videos.length);
+    }
+
+    function syncInPlaceSelections() {
+      // Update all cards/switches in place with ZERO innerHTML rebuild -> 0ms flicker!
+      bodyEl.querySelectorAll('.mnrec-card[data-set]').forEach(function (card) {
+        const key = card.getAttribute('data-set');
+        const val = card.getAttribute('data-val');
+        const isOn = key === 'fps' ? (Number(draft[key]) === Number(val)) : (String(draft[key]) === String(val));
+        card.classList.toggle('on', isOn);
+        const selBadge = card.querySelector('[data-selected-badge]');
+        if (selBadge) selBadge.style.display = isOn ? '' : 'none';
+      });
+      const micSwitch = bodyEl.querySelector('[data-switch="mic"]');
+      if (micSwitch) micSwitch.classList.toggle('on', !!draft.mic);
+      const curSwitch = bodyEl.querySelector('[data-switch="showCursor"]');
+      if (curSwitch) curSwitch.classList.toggle('on', !!draft.showCursor);
+      const prevEl = bodyEl.querySelector('[data-preview-file]');
+      if (prevEl) {
+        const fmt = useNativeRecorder() ? 'mp4' : draft.format;
+        prevEl.textContent = 'Ví dụ: ' + buildSuggestedName(draft.filePrefix, '') + '.' + fmt;
+      }
+      const folderEl = bodyEl.querySelector('[data-folder-text]');
+      if (folderEl) {
+        const txt = draft.folder || (isNativeHost() ? 'Videos\\MinNote' : 'Trình duyệt web (Tải về mặc định)');
+        folderEl.textContent = txt;
+        folderEl.title = txt;
+      }
+    }
+
+    function renderTabBody() {
+      if (closed) return;
+      syncTabBar();
+      const fmt = useNativeRecorder() ? 'mp4' : draft.format;
+      const previewFile = buildSuggestedName(draft.filePrefix, '') + '.' + fmt;
 
       if (activeTab === 'storage') {
-        tabHtml =
+        bodyEl.innerHTML =
           '<div class="mnrec-section">' +
             '<div class="mnrec-label"><span>Thư mục lưu video mặc định</span></div>' +
             '<div class="mnrec-folder-box">' +
-              '<span class="mnrec-folder-path" title="' + escapeHtml(draft.folder || 'Thư mục Videos\\MinNote') + '">' +
-                escapeHtml(draft.folder || (isNativeHost() ? 'Đang tải đường dẫn...' : 'Trình duyệt web (Tải về mặc định)')) +
+              '<span class="mnrec-folder-path" data-folder-text title="' + escapeHtml(draft.folder || 'Videos\\MinNote') + '">' +
+                escapeHtml(draft.folder || (isNativeHost() ? 'Videos\\MinNote' : 'Trình duyệt web (Tải về mặc định)')) +
               '</span>' +
               (isNativeHost()
-                ? '<button class="mnrec-btn sm primary" data-act="choose-folder">Chọn thư mục...</button>' +
-                  '<button class="mnrec-btn sm" data-act="open-folder">Mở thư mục</button>'
+                ? '<button class="mnrec-btn sm primary" data-act="choose-folder">Chọn...</button>' +
+                  '<button class="mnrec-btn sm" data-act="open-folder">Mở</button>'
                 : '') +
             '</div>' +
-            '<div class="mnrec-hint">Video quay xong được lưu trực tiếp vào ổ đĩa máy tính, không hiện thanh tải xuống kiểu trình duyệt web.</div>' +
+            '<div class="mnrec-hint">Video được lưu trực tiếp xuống ổ đĩa máy tính.</div>' +
           '</div>' +
 
           '<div class="mnrec-section">' +
             '<div class="mnrec-label"><span>Hành động sau khi dừng quay</span></div>' +
             '<div class="mnrec-cards cols-2">' +
               '<button type="button" class="mnrec-card' + (draft.saveMode === 'panel' ? ' on' : '') + '" data-set="saveMode" data-val="panel">' +
-                '<div class="mnrec-card-title"><span>Mở bảng xem trước &amp; lưu</span>' + (draft.saveMode === 'panel' ? '<span class="mnrec-badge-pill">Đang chọn</span>' : '') + '</div>' +
-                '<div class="mnrec-card-sub">Xem lại ngay video vừa quay, đổi tên file, đổi thư mục hoặc hủy nếu chưa ưng ý.</div>' +
+                '<div class="mnrec-card-title"><span>Xem trước &amp; lưu</span><span class="mnrec-badge-pill" data-selected-badge style="' + (draft.saveMode === 'panel' ? '' : 'display:none') + '">Đang chọn</span></div>' +
+                '<div class="mnrec-card-sub">Xem lại ngay, đổi tên file, đổi thư mục hoặc hủy.</div>' +
               '</button>' +
               '<button type="button" class="mnrec-card' + (draft.saveMode === 'auto' ? ' on' : '') + '" data-set="saveMode" data-val="auto">' +
-                '<div class="mnrec-card-title"><span>Tự động lưu ngay</span>' + (draft.saveMode === 'auto' ? '<span class="mnrec-badge-pill">Đang chọn</span>' : '') + '</div>' +
-                '<div class="mnrec-card-sub">Lưu thẳng vào thư mục đã chọn ngay khi bấm Dừng và hiện thẻ mở nhanh.</div>' +
+                '<div class="mnrec-card-title"><span>Tự động lưu ngay</span><span class="mnrec-badge-pill" data-selected-badge style="' + (draft.saveMode === 'auto' ? '' : 'display:none') + '">Đang chọn</span></div>' +
+                '<div class="mnrec-card-sub">Lưu thẳng vào thư mục đã chọn khi bấm Dừng.</div>' +
               '</button>' +
             '</div>' +
           '</div>' +
 
           '<div class="mnrec-section">' +
-            '<div class="mnrec-label"><span>Tiền tố tên tệp video</span><span class="mnrec-hint">Ví dụ: ' + escapeHtml(previewFile) + '</span></div>' +
+            '<div class="mnrec-label"><span>Tiền tố tên tệp video</span><span class="mnrec-hint" data-preview-file>Ví dụ: ' + escapeHtml(previewFile) + '</span></div>' +
             '<input class="mnrec-input" id="mnrec-prefix-input" type="text" value="' + escapeHtml(draft.filePrefix) + '" placeholder="MinNote hoặc {title}" />' +
-            '<div class="mnrec-hint">Mẹo: Gõ <code>{title}</code> để tự lấy tên sổ ghi chú hiện tại làm tên video.</div>' +
+            '<div class="mnrec-hint">Gõ <code>{title}</code> để tự lấy tên sổ ghi chú hiện tại.</div>' +
           '</div>';
+
+        const prefixInput = bodyEl.querySelector('#mnrec-prefix-input');
+        if (prefixInput) {
+          prefixInput.addEventListener('input', function () {
+            draft.filePrefix = prefixInput.value;
+            const prevEl = bodyEl.querySelector('[data-preview-file]');
+            if (prevEl) prevEl.textContent = 'Ví dụ: ' + buildSuggestedName(draft.filePrefix, '') + '.' + fmt;
+          });
+        }
       } else if (activeTab === 'quality') {
-        tabHtml =
+        const nativeMode = useNativeRecorder();
+        bodyEl.innerHTML =
           '<div class="mnrec-section">' +
             '<div class="mnrec-label"><span>Mức chất lượng hình ảnh</span></div>' +
             '<div class="mnrec-cards">' +
@@ -607,48 +756,54 @@
                 '</button>';
               }).join('') +
             '</div>' +
-            '<div class="mnrec-hint">Chế độ <b>Siêu nét</b> bật độ phân giải thực HiDPI, ưu tiên độ sắc nét chữ &amp; đường kẻ hình học (contentHint: detail) và bitrate 24 Mbps.</div>' +
           '</div>' +
 
-          '<div class="mnrec-row" style="gap:16px;">' +
-            '<div class="mnrec-section" style="flex:1;min-width:210px;">' +
+          '<div class="mnrec-row" style="gap:14px;">' +
+            '<div class="mnrec-section" style="flex:1;min-width:200px;">' +
               '<div class="mnrec-label"><span>Tốc độ khung hình (FPS)</span></div>' +
               '<div class="mnrec-cards cols-2">' +
                 '<button type="button" class="mnrec-card' + (draft.fps === 60 ? ' on' : '') + '" data-set="fps" data-val="60">' +
                   '<div class="mnrec-card-title">60 FPS</div>' +
-                  '<div class="mnrec-card-sub">Siêu mượt cho chuyển động điểm</div>' +
+                  '<div class="mnrec-card-sub">Siêu mượt</div>' +
                 '</button>' +
                 '<button type="button" class="mnrec-card' + (draft.fps === 30 ? ' on' : '') + '" data-set="fps" data-val="30">' +
                   '<div class="mnrec-card-title">30 FPS</div>' +
-                  '<div class="mnrec-card-sub">Tiết kiệm dung lượng</div>' +
+                  '<div class="mnrec-card-sub">Nhẹ dung lượng</div>' +
                 '</button>' +
               '</div>' +
             '</div>' +
 
-            '<div class="mnrec-section" style="flex:1;min-width:210px;">' +
+            '<div class="mnrec-section" style="flex:1;min-width:200px;">' +
               '<div class="mnrec-label"><span>Định dạng đầu ra</span></div>' +
-              '<div class="mnrec-cards cols-2">' +
-                '<button type="button" class="mnrec-card' + (draft.format === 'mp4' ? ' on' : '') + '" data-set="format" data-val="mp4">' +
-                  '<div class="mnrec-card-title">MP4 (H.264)</div>' +
-                  '<div class="mnrec-card-sub">Chuẩn phổ biến nhất</div>' +
-                '</button>' +
-                '<button type="button" class="mnrec-card' + (draft.format === 'webm' ? ' on' : '') + '" data-set="format" data-val="webm">' +
-                  '<div class="mnrec-card-title">WebM (VP9)</div>' +
-                  '<div class="mnrec-card-sub">Nén cao, nhẹ hơn</div>' +
-                '</button>' +
-              '</div>' +
+              (nativeMode
+                ? '<div class="mnrec-cards" style="grid-template-columns:1fr;">' +
+                    '<div class="mnrec-card on" style="cursor:default;">' +
+                      '<div class="mnrec-card-title"><span>MP4 (H.264 phần cứng)</span><span class="mnrec-badge-pill">Mặc định</span></div>' +
+                      '<div class="mnrec-card-sub">Tương thích PowerPoint, Zalo, YouTube</div>' +
+                    '</div>' +
+                  '</div>'
+                : '<div class="mnrec-cards cols-2">' +
+                    '<button type="button" class="mnrec-card' + (draft.format === 'mp4' ? ' on' : '') + '" data-set="format" data-val="mp4">' +
+                      '<div class="mnrec-card-title">MP4 (H.264)</div>' +
+                      '<div class="mnrec-card-sub">Phổ biến nhất</div>' +
+                    '</button>' +
+                    '<button type="button" class="mnrec-card' + (draft.format === 'webm' ? ' on' : '') + '" data-set="format" data-val="webm">' +
+                      '<div class="mnrec-card-title">WebM (VP9)</div>' +
+                      '<div class="mnrec-card-sub">Nén cao</div>' +
+                    '</button>' +
+                  '</div>') +
             '</div>' +
           '</div>' +
 
           '<div class="mnrec-section">' +
             '<div class="mnrec-label"><span>Âm thanh &amp; Con trỏ chuột</span></div>' +
             '<div class="mnrec-toggle-row">' +
-              '<div><div style="font-size:13px;font-weight:600;">Thu tiếng từ micro (192 kbps + lọc nhiễu)</div>' +
-              '<div class="mnrec-hint">Tự động khử tiếng vọng và lọc tạp âm khi giảng bài.</div></div>' +
-              '<label class="mnrec-switch' + (draft.mic ? ' on' : '') + '"><input type="checkbox" id="mnrec-opt-mic"' + (draft.mic ? ' checked' : '') + ' /><span class="mnrec-track"></span></label>' +
+              '<div><div style="font-size:12.5px;font-weight:600;">Thu tiếng từ micro (AAC 192 kbps)</div>' +
+              '<div class="mnrec-hint">Ghi âm giọng giảng đồng bộ cùng hình ảnh.</div></div>' +
+              '<label class="mnrec-switch' + (draft.mic ? ' on' : '') + '" data-switch="mic"><input type="checkbox" id="mnrec-opt-mic"' + (draft.mic ? ' checked' : '') + ' /><span class="mnrec-track"></span></label>' +
             '</div>' +
-            (audioDevices.length > 0
-              ? '<div class="mnrec-row"><span style="font-size:12.5px;font-weight:600;min-width:110px;">Thiết bị micro:</span>' +
+            (!nativeMode && audioDevices.length > 0
+              ? '<div class="mnrec-row"><span style="font-size:12px;font-weight:600;min-width:100px;">Thiết bị micro:</span>' +
                 '<select class="mnrec-select-box" id="mnrec-opt-micdev" style="flex:1;">' +
                   '<option value="">Mặc định của Windows</option>' +
                   audioDevices.map(function (d, idx) {
@@ -658,20 +813,41 @@
                 '</select></div>'
               : '') +
             '<div class="mnrec-toggle-row">' +
-              '<div><div style="font-size:13px;font-weight:600;">Hiển thị con trỏ chuột trong video</div>' +
-              '<div class="mnrec-hint">Giúp học sinh theo dõi vị trí chỉ bút/chuột trên bảng.</div></div>' +
-              '<label class="mnrec-switch' + (draft.showCursor ? ' on' : '') + '"><input type="checkbox" id="mnrec-opt-cursor"' + (draft.showCursor ? ' checked' : '') + ' /><span class="mnrec-track"></span></label>' +
+              '<div><div style="font-size:12.5px;font-weight:600;">Hiển thị con trỏ chuột trong video</div>' +
+              '<div class="mnrec-hint">Hiển thị vị trí chỉ bút/chuột trên bảng viết.</div></div>' +
+              '<label class="mnrec-switch' + (draft.showCursor ? ' on' : '') + '" data-switch="showCursor"><input type="checkbox" id="mnrec-opt-cursor"' + (draft.showCursor ? ' checked' : '') + ' /><span class="mnrec-track"></span></label>' +
             '</div>' +
           '</div>';
+
+        const micChk = bodyEl.querySelector('#mnrec-opt-mic');
+        if (micChk) {
+          micChk.addEventListener('change', function () {
+            draft.mic = !!micChk.checked;
+            syncInPlaceSelections();
+          });
+        }
+        const micDev = bodyEl.querySelector('#mnrec-opt-micdev');
+        if (micDev) {
+          micDev.addEventListener('change', function () {
+            draft.micDeviceId = micDev.value;
+          });
+        }
+        const curChk = bodyEl.querySelector('#mnrec-opt-cursor');
+        if (curChk) {
+          curChk.addEventListener('change', function () {
+            draft.showCursor = !!curChk.checked;
+            syncInPlaceSelections();
+          });
+        }
       } else {
         // Tab: library
-        tabHtml =
+        bodyEl.innerHTML =
           '<div class="mnrec-section">' +
             '<div class="mnrec-row" style="justify-content:space-between;">' +
               '<div class="mnrec-hint" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Thư mục: <b>' + escapeHtml(draft.folder || 'Chưa thiết lập') + '</b></div>' +
               '<div class="mnrec-row">' +
                 '<button class="mnrec-btn sm" data-act="refresh-videos">↻ Làm mới</button>' +
-                (isNativeHost() ? '<button class="mnrec-btn sm" data-act="open-folder">📁 Mở thư mục</button>' : '') +
+                (isNativeHost() ? '<button class="mnrec-btn sm" data-act="open-folder">📁 Mở</button>' : '') +
               '</div>' +
             '</div>' +
             (videos.length === 0
@@ -684,7 +860,7 @@
                         '<div class="mnrec-video-sub">' + formatBytes(v.sizeBytes) + ' • ' + formatDateTime(v.modifiedMs) + ' • ' + escapeHtml((v.ext || 'mp4').toUpperCase()) + '</div>' +
                       '</div>' +
                       '<div class="mnrec-row" style="flex-wrap:nowrap;">' +
-                        '<button class="mnrec-btn sm primary" data-act="play-video" data-path="' + escapeHtml(v.path) + '">▶ Phát</button>' +
+                        '<button class="mnrec-btn sm primary" data-act="play-video" data-path="' + escapeHtml(v.path) + '">▶</button>' +
                         '<button class="mnrec-btn sm" data-act="reveal-video" data-path="' + escapeHtml(v.path) + '" title="Hiển thị trong thư mục">📁</button>' +
                         '<button class="mnrec-btn sm danger-ghost" data-act="delete-video" data-path="' + escapeHtml(v.path) + '" title="Xóa video">✕</button>' +
                       '</div>' +
@@ -692,59 +868,6 @@
                   }).join('') +
                 '</div>') +
           '</div>';
-      }
-
-      root.innerHTML =
-        '<div class="mnrec-backdrop" data-act="backdrop">' +
-          '<div class="mnrec-dialog" role="dialog" aria-modal="true">' +
-            '<div class="mnrec-dialog-head">' +
-              '<div class="mnrec-dialog-title">' +
-                '<span class="mnrec-dialog-icon">🎬</span>' +
-                '<span>Cài đặt Quay Màn Hình &amp; Lưu Trữ</span>' +
-              '</div>' +
-              '<button class="mnrec-close-btn" data-act="close" title="Đóng (Esc)">✕</button>' +
-            '</div>' +
-            '<div class="mnrec-tabs">' +
-              '<button type="button" class="mnrec-tab' + (activeTab === 'storage' ? ' active' : '') + '" data-tab="storage">💾 Lưu trữ</button>' +
-              '<button type="button" class="mnrec-tab' + (activeTab === 'quality' ? ' active' : '') + '" data-tab="quality">✨ Chất lượng &amp; Âm thanh</button>' +
-              '<button type="button" class="mnrec-tab' + (activeTab === 'library' ? ' active' : '') + '" data-tab="library">🎞 Video đã lưu (' + videos.length + ')</button>' +
-            '</div>' +
-            '<div class="mnrec-dialog-body">' + tabHtml + '</div>' +
-            '<div class="mnrec-dialog-foot">' +
-              '<span class="mnrec-hint">Tự động bỏ qua xác nhận tab trình duyệt trên MinNote Desktop.</span>' +
-              '<div class="mnrec-row">' +
-                '<button class="mnrec-btn" data-act="close">Đóng</button>' +
-                '<button class="mnrec-btn primary" data-act="save">Lưu cài đặt</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-      const prefixInput = root.querySelector('#mnrec-prefix-input');
-      if (prefixInput) {
-        prefixInput.addEventListener('input', function () {
-          draft.filePrefix = prefixInput.value;
-        });
-      }
-      const micChk = root.querySelector('#mnrec-opt-mic');
-      if (micChk) {
-        micChk.addEventListener('change', function () {
-          draft.mic = !!micChk.checked;
-          render();
-        });
-      }
-      const micDev = root.querySelector('#mnrec-opt-micdev');
-      if (micDev) {
-        micDev.addEventListener('change', function () {
-          draft.micDeviceId = micDev.value;
-        });
-      }
-      const curChk = root.querySelector('#mnrec-opt-cursor');
-      if (curChk) {
-        curChk.addEventListener('change', function () {
-          draft.showCursor = !!curChk.checked;
-          render();
-        });
       }
     }
 
@@ -755,14 +878,20 @@
       }
       const tabBtn = e.target.closest('[data-tab]');
       if (tabBtn) {
-        activeTab = tabBtn.getAttribute('data-tab');
+        const nextTab = tabBtn.getAttribute('data-tab');
+        if (nextTab === activeTab) return;
+        activeTab = nextTab;
+        // Render immediately from cache for 0ms latency, then silently refresh library
+        renderTabBody();
         if (activeTab === 'library' && isNativeHost()) {
-          try {
-            const r = await callHost('REC_LIST_VIDEOS', { folder: draft.folder });
-            if (r && Array.isArray(r.videos)) videos = r.videos;
-          } catch (_) {}
+          callHost('REC_LIST_VIDEOS', { folder: draft.folder }).then(function (r) {
+            if (!closed && activeTab === 'library' && r && Array.isArray(r.videos)) {
+              videos = r.videos;
+              cachedVideos = r.videos;
+              renderTabBody();
+            }
+          }).catch(function () {});
         }
-        render();
         return;
       }
       const setBtn = e.target.closest('[data-set]');
@@ -770,7 +899,8 @@
         const key = setBtn.getAttribute('data-set');
         const val = setBtn.getAttribute('data-val');
         draft[key] = key === 'fps' ? Number(val) : val;
-        render();
+        // Pure in-place toggle -> ZERO DOM rebuild, ZERO jitter!
+        syncInPlaceSelections();
         return;
       }
       const actBtn = e.target.closest('[data-act]');
@@ -783,7 +913,7 @@
         const saved = await persistSettings(draft);
         if (typeof onChanged === 'function') onChanged(saved);
         if (typeof window.showToast === 'function') {
-          window.showToast('Đã lưu cài đặt quay màn hình & lưu trữ!', 'success');
+          window.showToast('Đã lưu cài đặt quay màn hình!', 'success');
         }
         closeModal();
       } else if (act === 'choose-folder' && isNativeHost()) {
@@ -798,7 +928,8 @@
               cachedVideos = r.videos;
             }
             if (typeof onChanged === 'function') onChanged(cachedSettings);
-            render();
+            syncTabBar();
+            syncInPlaceSelections();
           }
         } catch (err) {
           console.error('[MinNoteRec] choose folder err:', err);
@@ -811,7 +942,7 @@
           if (r && Array.isArray(r.videos)) {
             videos = r.videos;
             cachedVideos = r.videos;
-            render();
+            renderTabBody();
           }
         } catch (_) {}
       } else if (act === 'play-video') {
@@ -828,23 +959,47 @@
           if (r && Array.isArray(r.videos)) {
             videos = r.videos;
             cachedVideos = r.videos;
-            render();
+            renderTabBody();
           }
         } catch (_) {}
       }
     });
 
-    render();
+    // Initial instant render from cache
+    renderTabBody();
+
+    // Background sync from host (only patch changed fields in place — zero flicker!)
+    syncSettingsFromHost().then(function () {
+      if (closed) return;
+      draft = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
+      videos = cachedVideos.slice();
+      syncTabBar();
+      if (activeTab === 'library') renderTabBody();
+      else syncInPlaceSelections();
+    });
+
+    if (!useNativeRecorder()) {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          audioDevices = devs.filter(function (d) { return d.kind === 'audioinput'; });
+          if (!closed && activeTab === 'quality') renderTabBody();
+        }
+      } catch (_) {}
+    }
   }
 
   // --------------------------------------------------------------------------
-  // Dedicated Post-Recording Preview & Save Modal (replaces browser downloads)
+  // Post-Recording Preview & Save Modal (Supports Native Disk Temp + Web Blob)
   // --------------------------------------------------------------------------
   function openPostRecordSaveModal(opts) {
-    // opts: { blob, ext, durationMs, suggestedName, fps, notify, onDone }
-    const blob = opts.blob;
+    // opts: { tempPath?, previewUrl?, blob?, sizeBytes?, ext, durationMs, suggestedName, docName, fps, expectedRes, notify, onDone }
+    const isNativeFile = !!(opts.tempPath && isNativeHost());
+    const blob = opts.blob || null;
     const ext = opts.ext || 'mp4';
-    const previewUrl = URL.createObjectURL(blob);
+    const previewUrl = opts.previewUrl || (blob ? URL.createObjectURL(blob) : '');
+    const ownsObjectUrl = !opts.previewUrl && !!blob;
+    const fileSizeBytes = opts.sizeBytes || (blob ? blob.size : 0);
 
     let fileName = opts.suggestedName || buildSuggestedName(cachedSettings.filePrefix, opts.docName);
     let folder = cachedSettings.folder || '';
@@ -856,11 +1011,66 @@
 
     const root = document.createElement('div');
     root.className = 'mnrec-root';
+    root.innerHTML =
+      '<div class="mnrec-backdrop">' +
+        '<div class="mnrec-dialog save-dialog" role="dialog" aria-modal="true">' +
+          '<div class="mnrec-dialog-head">' +
+            '<div class="mnrec-dialog-title">' +
+              '<span class="mnrec-dialog-icon">' + SVG.video + '</span>' +
+              '<span>Xem Trước &amp; Lưu Video</span>' +
+            '</div>' +
+            '<button class="mnrec-close-btn" id="mnrec-save-close" data-act="discard" title="Đóng">✕</button>' +
+          '</div>' +
+          '<div class="mnrec-dialog-body">' +
+            '<div class="mnrec-preview-wrap">' +
+              '<video class="mnrec-preview-video" src="' + escapeHtml(previewUrl) + '" controls playsinline preload="metadata"></video>' +
+            '</div>' +
+            '<div class="mnrec-meta-chips">' +
+              '<span class="mnrec-chip" data-res-chip>📐 ' + escapeHtml(videoRes || 'Đang đọc...') + '</span>' +
+              '<span class="mnrec-chip">⏱ ' + formatTime(opts.durationMs || 0) + '</span>' +
+              '<span class="mnrec-chip">🎞 ' + (opts.fps || cachedSettings.fps || 60) + ' FPS</span>' +
+              '<span class="mnrec-chip">📦 ' + formatBytes(fileSizeBytes) + '</span>' +
+              '<span class="mnrec-chip">' + escapeHtml(ext.toUpperCase()) + '</span>' +
+            '</div>' +
+            '<div id="mnrec-save-zone"></div>' +
+          '</div>' +
+          '<div class="mnrec-dialog-foot" id="mnrec-save-foot"></div>' +
+        '</div>' +
+      '</div>';
+
     document.body.appendChild(root);
 
-    function finishAndClose() {
+    const vid = root.querySelector('.mnrec-preview-video');
+    const zoneEl = root.querySelector('#mnrec-save-zone');
+    const footEl = root.querySelector('#mnrec-save-foot');
+    const closeBtn = root.querySelector('#mnrec-save-close');
+
+    if (vid) {
+      vid.addEventListener('loadedmetadata', function () {
+        if (vid.videoWidth && vid.videoHeight) {
+          videoRes = vid.videoWidth + ' × ' + vid.videoHeight;
+          const chip = root.querySelector('[data-res-chip]');
+          if (chip) chip.textContent = '📐 ' + videoRes;
+        }
+      });
+    }
+
+    function releaseVideoAndClose(discardTemp) {
       document.removeEventListener('keydown', onKey, true);
-      URL.revokeObjectURL(previewUrl);
+      if (vid) {
+        try {
+          vid.pause();
+          vid.removeAttribute('src');
+          vid.load();
+        } catch (_) {}
+      }
+      if (ownsObjectUrl && previewUrl) {
+        try { URL.revokeObjectURL(previewUrl); } catch (_) {}
+      }
+      if (isNativeFile && opts.tempPath && (discardTemp || savedResult)) {
+        // Safely removes leftover temp copy if File.Move fell back to File.Copy
+        callHost('REC_NATIVE_DISCARD', { tempPath: opts.tempPath }, 10000).catch(function () {});
+      }
       root.remove();
       if (typeof opts.onDone === 'function') opts.onDone(savedResult);
     }
@@ -868,19 +1078,100 @@
     function onKey(e) {
       if (e.key === 'Escape' && !saving) {
         e.stopPropagation();
-        if (savedResult) finishAndClose();
+        if (savedResult) releaseVideoAndClose(false);
       }
     }
     document.addEventListener('keydown', onKey, true);
+
+    function renderActionZone() {
+      if (closeBtn) {
+        closeBtn.setAttribute('data-act', savedResult ? 'done' : 'discard');
+        closeBtn.disabled = saving;
+      }
+
+      if (savedResult) {
+        zoneEl.innerHTML =
+          '<div class="mnrec-saved-banner">' +
+            '<div style="font-size:13.5px;font-weight:700;color:var(--mnrec-success);">✓ Đã lưu video thành công!</div>' +
+            '<div class="mnrec-folder-path" style="white-space:normal;word-break:break-all;">' + escapeHtml(savedResult.path || savedResult.fileName) + '</div>' +
+            '<div class="mnrec-row">' +
+              (savedResult.path && isNativeHost()
+                ? '<button class="mnrec-btn primary sm" data-act="play">▶ Phát video</button>' +
+                  '<button class="mnrec-btn sm" data-act="reveal">📁 Mở thư mục</button>'
+                : '') +
+            '</div>' +
+          '</div>';
+        footEl.innerHTML =
+          '<button class="mnrec-btn" data-act="open-settings">⚙ Cài đặt</button>' +
+          '<button class="mnrec-btn primary" data-act="done">Hoàn tất</button>';
+        return;
+      }
+
+      let html =
+        '<div class="mnrec-section">' +
+          '<div class="mnrec-label"><span>Tên tệp video</span></div>' +
+          '<div class="mnrec-row">' +
+            '<input class="mnrec-input" id="mnrec-save-name" style="flex:1;" type="text" value="' + escapeHtml(fileName) + '" ' + (saving ? 'disabled' : '') + ' />' +
+            '<span class="mnrec-chip">.' + escapeHtml(ext) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mnrec-section" style="margin-top:10px;">' +
+          '<div class="mnrec-label"><span>Thư mục lưu trữ</span></div>' +
+          '<div class="mnrec-folder-box">' +
+            '<span class="mnrec-folder-path" title="' + escapeHtml(folder) + '">' + escapeHtml(folder || 'Videos\\MinNote') + '</span>' +
+            (isNativeHost()
+              ? '<button class="mnrec-btn sm" data-act="change-folder" ' + (saving ? 'disabled' : '') + '>Đổi...</button>'
+              : '') +
+          '</div>' +
+        '</div>';
+
+      if (saving) {
+        html +=
+          '<div class="mnrec-section" style="margin-top:10px;">' +
+            '<div class="mnrec-label"><span>Đang lưu video...</span><span data-pct>' + progress + '%</span></div>' +
+            '<div class="mnrec-progress-bar"><div class="mnrec-progress-fill" style="width:' + progress + '%;"></div></div>' +
+          '</div>';
+      }
+      if (errorMsg) {
+        html += '<div style="color:var(--mnrec-danger);font-size:12px;font-weight:600;margin-top:8px;">⚠ ' + escapeHtml(errorMsg) + '</div>';
+      }
+
+      zoneEl.innerHTML = html;
+      footEl.innerHTML =
+        '<button class="mnrec-btn danger-ghost" data-act="discard" ' + (saving ? 'disabled' : '') + '>Hủy bỏ</button>' +
+        '<div class="mnrec-row">' +
+          (isNativeHost() ? '<button class="mnrec-btn" data-act="save-as" ' + (saving ? 'disabled' : '') + '>Lưu nơi khác...</button>' : '') +
+          '<button class="mnrec-btn primary" data-act="save-now" ' + (saving ? 'disabled' : '') + '>' + (saving ? 'Đang lưu...' : 'Lưu video') + '</button>' +
+        '</div>';
+
+      const nameInput = zoneEl.querySelector('#mnrec-save-name');
+      if (nameInput) {
+        nameInput.addEventListener('input', function () {
+          fileName = nameInput.value;
+        });
+      }
+    }
 
     async function doSave(explicitFullPath) {
       if (saving) return;
       saving = true;
       errorMsg = '';
-      progress = 2;
-      render();
+      progress = 20;
+      renderActionZone();
       try {
-        if (isNativeHost()) {
+        if (isNativeFile) {
+          const res = await callHost('REC_NATIVE_COMMIT', {
+            tempPath: opts.tempPath,
+            fullPath: explicitFullPath || '',
+            folder: folder,
+            fileName: fileName
+          }, 30000);
+          if (res && Array.isArray(res.videos)) cachedVideos = res.videos;
+          savedResult = res;
+          if (typeof opts.notify === 'function') {
+            opts.notify('Đã lưu video: ' + (res.fileName || (fileName + '.' + ext)));
+          }
+        } else if (isNativeHost() && blob) {
           const res = await writeBlobNatively(blob, {
             fullPath: explicitFullPath || '',
             folder: folder,
@@ -888,8 +1179,8 @@
             ext: ext
           }, function (pct) {
             progress = pct;
-            const fill = root.querySelector('.mnrec-progress-fill');
-            const pctTxt = root.querySelector('[data-pct]');
+            const fill = zoneEl.querySelector('.mnrec-progress-fill');
+            const pctTxt = zoneEl.querySelector('[data-pct]');
             if (fill) fill.style.width = pct + '%';
             if (pctTxt) pctTxt.textContent = pct + '%';
           });
@@ -897,7 +1188,7 @@
           if (typeof opts.notify === 'function') {
             opts.notify('Đã lưu video: ' + (res.fileName || (fileName + '.' + ext)));
           }
-        } else {
+        } else if (blob) {
           const finalName = fileName.replace(/[\\/:*?"<>|]/g, '_') + '.' + ext;
           fallbackBrowserSave(blob, finalName);
           savedResult = { fileName: finalName, path: '', sizeBytes: blob.size };
@@ -906,109 +1197,7 @@
         errorMsg = String((err && err.message) || err || 'Lỗi lưu video.');
       } finally {
         saving = false;
-        render();
-      }
-    }
-
-    function render() {
-      const sizeStr = formatBytes(blob.size);
-      const durStr = formatTime(opts.durationMs || 0);
-
-      let bodyHtml =
-        '<div class="mnrec-preview-wrap">' +
-          '<video class="mnrec-preview-video" src="' + previewUrl + '" controls playsinline preload="metadata"></video>' +
-        '</div>' +
-        '<div class="mnrec-meta-chips">' +
-          '<span class="mnrec-chip" data-res-chip>📐 ' + escapeHtml(videoRes || 'Đang đọc...') + '</span>' +
-          '<span class="mnrec-chip">⏱ ' + durStr + '</span>' +
-          '<span class="mnrec-chip">🎞 ' + (opts.fps || cachedSettings.fps || 60) + ' FPS</span>' +
-          '<span class="mnrec-chip">📦 ' + sizeStr + '</span>' +
-          '<span class="mnrec-chip">' + escapeHtml(ext.toUpperCase()) + '</span>' +
-        '</div>';
-
-      if (savedResult) {
-        bodyHtml +=
-          '<div class="mnrec-saved-banner">' +
-            '<div style="font-size:14px;font-weight:700;color:var(--mnrec-success);">✓ Đã lưu video thành công!</div>' +
-            '<div class="mnrec-folder-path" style="white-space:normal;word-break:break-all;">' + escapeHtml(savedResult.path || savedResult.fileName) + '</div>' +
-            '<div class="mnrec-row">' +
-              (savedResult.path && isNativeHost()
-                ? '<button class="mnrec-btn primary" data-act="play">▶ Phát video ngay</button>' +
-                  '<button class="mnrec-btn" data-act="reveal">📁 Mở thư mục chứa file</button>'
-                : '') +
-            '</div>' +
-          '</div>';
-      } else {
-        bodyHtml +=
-          '<div class="mnrec-section">' +
-            '<div class="mnrec-label"><span>Tên tệp video</span></div>' +
-            '<div class="mnrec-row">' +
-              '<input class="mnrec-input" id="mnrec-save-name" style="flex:1;" type="text" value="' + escapeHtml(fileName) + '" ' + (saving ? 'disabled' : '') + ' />' +
-              '<span class="mnrec-chip">.' + escapeHtml(ext) + '</span>' +
-            '</div>' +
-          '</div>' +
-          '<div class="mnrec-section">' +
-            '<div class="mnrec-label"><span>Thư mục lưu trữ</span></div>' +
-            '<div class="mnrec-folder-box">' +
-              '<span class="mnrec-folder-path" title="' + escapeHtml(folder) + '">' + escapeHtml(folder || 'Thư mục Videos\\MinNote') + '</span>' +
-              (isNativeHost()
-                ? '<button class="mnrec-btn sm" data-act="change-folder" ' + (saving ? 'disabled' : '') + '>Đổi thư mục...</button>'
-                : '') +
-            '</div>' +
-          '</div>';
-
-        if (saving) {
-          bodyHtml +=
-            '<div class="mnrec-section">' +
-              '<div class="mnrec-label"><span>Đang ghi video xuống ổ đĩa...</span><span data-pct>' + progress + '%</span></div>' +
-              '<div class="mnrec-progress-bar"><div class="mnrec-progress-fill" style="width:' + progress + '%;"></div></div>' +
-            '</div>';
-        }
-        if (errorMsg) {
-          bodyHtml += '<div style="color:var(--mnrec-danger);font-size:12.5px;font-weight:600;">⚠ ' + escapeHtml(errorMsg) + '</div>';
-        }
-      }
-
-      const footHtml = savedResult
-        ? '<button class="mnrec-btn" data-act="open-settings">⚙ Cài đặt lưu trữ</button>' +
-          '<button class="mnrec-btn primary" data-act="done">Hoàn tất</button>'
-        : '<button class="mnrec-btn danger-ghost" data-act="discard" ' + (saving ? 'disabled' : '') + '>🗑 Hủy bản quay</button>' +
-          '<div class="mnrec-row">' +
-            (isNativeHost() ? '<button class="mnrec-btn" data-act="save-as" ' + (saving ? 'disabled' : '') + '>Lưu nơi khác...</button>' : '') +
-            '<button class="mnrec-btn primary" data-act="save-now" ' + (saving ? 'disabled' : '') + '>' + (saving ? 'Đang lưu...' : '💾 Lưu video') + '</button>' +
-          '</div>';
-
-      root.innerHTML =
-        '<div class="mnrec-backdrop">' +
-          '<div class="mnrec-dialog save-dialog" role="dialog" aria-modal="true">' +
-            '<div class="mnrec-dialog-head">' +
-              '<div class="mnrec-dialog-title">' +
-                '<span class="mnrec-dialog-icon">🎥</span>' +
-                '<span>Xem Trước &amp; Lưu Video Quay Màn Hình</span>' +
-              '</div>' +
-              '<button class="mnrec-close-btn" data-act="' + (savedResult ? 'done' : 'discard') + '" ' + (saving ? 'disabled' : '') + ' title="Đóng">✕</button>' +
-            '</div>' +
-            '<div class="mnrec-dialog-body">' + bodyHtml + '</div>' +
-            '<div class="mnrec-dialog-foot">' + footHtml + '</div>' +
-          '</div>' +
-        '</div>';
-
-      const vid = root.querySelector('.mnrec-preview-video');
-      if (vid) {
-        vid.addEventListener('loadedmetadata', function () {
-          if (vid.videoWidth && vid.videoHeight) {
-            videoRes = vid.videoWidth + ' × ' + vid.videoHeight;
-            const chip = root.querySelector('[data-res-chip]');
-            if (chip) chip.textContent = '📐 ' + videoRes;
-          }
-        });
-      }
-
-      const nameInput = root.querySelector('#mnrec-save-name');
-      if (nameInput) {
-        nameInput.addEventListener('input', function () {
-          fileName = nameInput.value;
-        });
+        renderActionZone();
       }
     }
 
@@ -1016,8 +1205,10 @@
       const btn = e.target.closest('[data-act]');
       if (!btn || saving) return;
       const act = btn.getAttribute('data-act');
-      if (act === 'done' || act === 'discard') {
-        finishAndClose();
+      if (act === 'done') {
+        releaseVideoAndClose(false);
+      } else if (act === 'discard') {
+        releaseVideoAndClose(true);
       } else if (act === 'save-now') {
         await doSave('');
       } else if (act === 'save-as' && isNativeHost()) {
@@ -1028,7 +1219,7 @@
           }
         } catch (err) {
           errorMsg = String((err && err.message) || err);
-          render();
+          renderActionZone();
         }
       } else if (act === 'change-folder' && isNativeHost()) {
         try {
@@ -1037,7 +1228,7 @@
             folder = r.folder;
             cachedSettings.folder = r.folder;
             saveLocalSettings(cachedSettings);
-            render();
+            renderActionZone();
           }
         } catch (_) {}
       } else if (act === 'play' && savedResult && savedResult.path) {
@@ -1049,11 +1240,11 @@
       }
     });
 
-    render();
+    renderActionZone();
   }
 
   // --------------------------------------------------------------------------
-  // Main Screen Recorder Controller (mounted inside jne React wrapper)
+  // Main Screen Recorder Controller (Zero-Jitter Setup + Native C# Capture)
   // --------------------------------------------------------------------------
   function mountRecorder(hostEl, props) {
     const onClose = props.onClose || function () {};
@@ -1064,7 +1255,6 @@
     const fixMp4 = props.fixMp4;
     const docName = props.name || '';
 
-    // Initialize rect from saved fractions or exact board-scroller area
     let rect = clampRect(
       saved && saved.w
         ? { x: saved.x * window.innerWidth, y: saved.y * window.innerHeight, w: saved.w * window.innerWidth, h: saved.h * window.innerHeight }
@@ -1084,118 +1274,19 @@
     let activeRec = null;
     let cropTargetEl = null;
     let destroyed = false;
-    let userEditedRect = false;
-
-    // Pre-warmed displayStream in WPF WebView2:
-    // WebView2 displays a 44px top "Sharing this tab" infobar when getDisplayMedia starts,
-    // which shrinks window.innerHeight by 44px and shifts the bottom toolbar upward.
-    // Pre-acquiring the stream during setup (zero dialog thanks to --auto-accept-this-tab-capture)
-    // settles the 44px layout BEFORE the user frames the camera -> 0px jump when clicking Start!
-    let prewarmedStream = null;
-    let prewarmedCursor = null;
-    let prewarmPromise = null;
-
-    function stopPrewarmedStream() {
-      if (prewarmedStream) {
-        try { prewarmedStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
-        prewarmedStream = null;
-        prewarmedCursor = null;
-      }
-    }
-
-    function buildDisplayConstraints(settings) {
-      const preset = QUALITY_PRESETS[settings.quality] || QUALITY_PRESETS.ultra;
-      const targetFps = settings.fps === 30 ? 30 : 60;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const captureScale = preset.scaleMode === 'standard'
-        ? 1
-        : (preset.scaleMode === 'high' ? Math.min(dpr, 1.5) : dpr);
-      const idealW = even(Math.max(window.innerWidth * captureScale, 640));
-      const idealH = even(Math.max(window.innerHeight * captureScale, 360));
-      return {
-        preset: preset,
-        targetFps: targetFps,
-        dpr: dpr,
-        captureScale: captureScale,
-        idealW: idealW,
-        idealH: idealH,
-        media: {
-          video: {
-            width: { ideal: idealW },
-            height: { ideal: idealH },
-            frameRate: { ideal: targetFps, max: targetFps },
-            displaySurface: 'browser',
-            cursor: settings.showCursor ? 'always' : 'never'
-          },
-          audio: false,
-          preferCurrentTab: true,
-          selfBrowserSurface: 'include',
-          surfaceSwitching: 'exclude'
-        }
-      };
-    }
-
-    function prewarmDisplayStream() {
-      if (!isNativeHost() || destroyed || prewarmedStream || prewarmPromise) return;
-      const settings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
-      const cfg = buildDisplayConstraints(settings);
-      prewarmPromise = navigator.mediaDevices.getDisplayMedia(cfg.media).then(function (stream) {
-        prewarmPromise = null;
-        if (destroyed || phase !== 'select') {
-          try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
-          return null;
-        }
-        prewarmedStream = stream;
-        prewarmedCursor = !!settings.showCursor;
-        const vt = stream.getVideoTracks()[0];
-        if (vt) {
-          try { vt.contentHint = 'detail'; } catch (_) {}
-          vt.addEventListener('ended', function () {
-            if (prewarmedStream === stream) {
-              prewarmedStream = null;
-              prewarmedCursor = null;
-            }
-          });
-        }
-        // Re-clamp rect cleanly once WebView2's 44px top infobar settles (if user hasn't dragged yet)
-        setTimeout(function () {
-          if (destroyed || phase !== 'select') return;
-          if (!userEditedRect) {
-            const pr = safePageRect(props.pageRect);
-            rect = clampRect(
-              saved && saved.w
-                ? { x: saved.x * window.innerWidth, y: saved.y * window.innerHeight, w: saved.w * window.innerWidth, h: saved.h * window.innerHeight }
-                : pr
-            );
-            // Never overlap bottom toolbar on initial open
-            if (rect.y + rect.h > pr.y + pr.h) {
-              rect = clampRect({ x: rect.x, y: Math.max(0, pr.y + pr.h - rect.h), w: rect.w, h: Math.min(rect.h, pr.h) });
-            }
-            liveRectRef.current = rect;
-            render();
-          }
-        }, 120);
-        return stream;
-      }).catch(function () {
-        prewarmPromise = null;
-        return null;
-      });
-    }
+    let nativeEventUnsub = null;
+    let setupDomBuilt = false;
 
     const root = document.createElement('div');
     root.className = 'mnrec-root';
-    // Mount directly on document.body (outside .app CSS Grid) to guarantee zero layout interference
     document.body.appendChild(root);
 
-    // Pre-warm stream silently on WPF WebView2 so viewport height is already stable during setup
-    prewarmDisplayStream();
-
-    // Sync settings from C# host asynchronously
+    // Sync settings from C# host quietly (only patches button state in place, ZERO DOM rebuild!)
     syncSettingsFromHost().then(function (res) {
       if (destroyed) return;
       if (res && res.settings && phase === 'select') {
         micOn = !!res.settings.mic;
-        render();
+        syncSetupUI();
       }
     });
 
@@ -1215,14 +1306,13 @@
       if (phase === 'select') {
         rect = clampRect(rect);
         liveRectRef.current = rect;
-        render();
-      } else if (phase === 'rec') {
-        // Keep live frame clamped inside viewport
+        syncSetupUI();
+      } else if (phase === 'rec' && !useNativeRecorder()) {
         const clamped = clampRect(liveRectRef.current);
         liveRectRef.current = clamped;
         rect = clamped;
         updateCropTargetStyle(clamped);
-        render();
+        renderWebLive();
       }
     }
     window.addEventListener('resize', onWindowResize);
@@ -1260,454 +1350,37 @@
     }
 
     function getBarAnchor(r) {
-      const top = r.y >= 64
-        ? r.y - 58
-        : (r.y + r.h + 64 <= window.innerHeight ? r.y + r.h + 10 : r.y + 10);
+      const top = r.y >= 56
+        ? r.y - 52
+        : (r.y + r.h + 56 <= window.innerHeight ? r.y + r.h + 10 : r.y + 10);
       return { left: Math.round(window.innerWidth / 2), top: Math.round(top) };
     }
 
-    async function startRecording() {
-      if (phase !== 'select') return;
-
-      // 1. Freeze exact rect IMMEDIATELY so pointer events cannot shift it!
-      let lockedRect = clampRect({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-      const prBefore = safePageRect(props.pageRect);
-      const wasAboveBottomBar = (lockedRect.y + lockedRect.h) <= (prBefore.y + prBefore.h + 4);
-      const ihBefore = window.innerHeight;
-
-      rect = lockedRect;
-      liveRectRef.current = lockedRect;
-      phase = 'starting';
-      syncStopRef();
-      remember(Object.assign({}, saved, {
-        x: lockedRect.x / window.innerWidth,
-        y: lockedRect.y / window.innerHeight,
-        w: lockedRect.w / window.innerWidth,
-        h: lockedRect.h / window.innerHeight,
-        mic: micOn
-      }));
-      persistSettings({ mic: micOn });
-
-      // Remove setup dim overlay BEFORE display capture begins so frame 0 is crystal clear!
-      const targetEl = ensureCropTarget(lockedRect);
-      render();
-      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
-
-      const settings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
-      const cfg = buildDisplayConstraints(settings);
-      const preset = cfg.preset;
-      const targetFps = cfg.targetFps;
-      const dpr = cfg.dpr;
-      const captureScale = cfg.captureScale;
-
-      const audioCtx = micOn ? new AudioContext() : null;
-      let displayStream = null;
-
-      // Reuse pre-warmed stream if available & live (0ms layout shift, 0ms banner jump!)
-      if (prewarmPromise) {
-        try { await prewarmPromise; } catch (_) {}
-      }
-      if (prewarmedStream) {
-        const pTrack = prewarmedStream.getVideoTracks()[0];
-        const cursorMatches = prewarmedCursor === !!settings.showCursor;
-        if (pTrack && pTrack.readyState === 'live' && cursorMatches) {
-          displayStream = prewarmedStream;
-          prewarmedStream = null;
-          prewarmedCursor = null;
-          try {
-            await pTrack.applyConstraints({
-              width: { ideal: cfg.idealW },
-              height: { ideal: cfg.idealH },
-              frameRate: { ideal: targetFps, max: targetFps }
-            });
-          } catch (_) {}
-        } else {
-          stopPrewarmedStream();
-        }
-      }
-
-      if (!displayStream) {
-        try {
-          displayStream = await navigator.mediaDevices.getDisplayMedia(cfg.media);
-        } catch (err) {
-          if (audioCtx) audioCtx.close().catch(function () {});
-          removeCropTarget();
-          phase = 'select';
-          syncStopRef();
-          render();
-          notify('Không thể bắt đầu quay màn hình.');
-          return;
-        }
-        // Fallback safety: if getDisplayMedia caused a viewport shrink (e.g. non-prewarmed infobar),
-        // keep the frame cleanly above the bottom toolbar instead of dropping onto it!
-        await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
-        if (window.innerHeight < ihBefore) {
-          const prAfter = safePageRect(props.pageRect);
-          if (wasAboveBottomBar && lockedRect.y + lockedRect.h > prAfter.y + prAfter.h) {
-            const overflow = (lockedRect.y + lockedRect.h) - (prAfter.y + prAfter.h);
-            lockedRect = clampRect({
-              x: lockedRect.x,
-              y: Math.max(prAfter.y, lockedRect.y - overflow),
-              w: lockedRect.w,
-              h: Math.min(lockedRect.h, prAfter.h)
-            });
-          } else {
-            lockedRect = clampRect(lockedRect);
-          }
-          rect = lockedRect;
-          liveRectRef.current = lockedRect;
-          updateCropTargetStyle(lockedRect);
-          render();
-        }
-      }
-
-      // Hint encoder to preserve sharp math lines, grid, and small labels
-      const videoTrack = displayStream.getVideoTracks()[0];
-      if (videoTrack) {
-        try { videoTrack.contentHint = 'detail'; } catch (_) {}
-      }
-
-      // Optional microphone stream
-      let micStream = null;
-      if (micOn) {
-        try {
-          const audioConstraints = {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 48000
-          };
-          if (settings.micDeviceId) {
-            audioConstraints.deviceId = { ideal: settings.micDeviceId };
-          }
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
-        } catch (_) {
-          notify('Không mở được micro: video sẽ không có tiếng.');
-        }
-      }
-
-      // 2. Exact zero-shift cropping:
-      //    Priority 1: W3C Region Capture (CropTarget.fromElement) -> compositor-level native pixel crop
-      //    Priority 2: Letterbox-aware VideoFrame / Canvas crop fallback
-      let cropPipeline = null;
-      let finalVideoStream = null;
-      const wholeWin = rectsEqual(lockedRect, wholeWindowRect());
-
-      if (wholeWin) {
-        finalVideoStream = new MediaStream([videoTrack]);
-      } else {
-        let regionCropped = false;
-        if (videoTrack && typeof window.CropTarget !== 'undefined' && typeof window.CropTarget.fromElement === 'function' && typeof videoTrack.cropTo === 'function') {
-          try {
-            const cropTarget = await window.CropTarget.fromElement(targetEl);
-            await videoTrack.cropTo(cropTarget);
-            regionCropped = true;
-            // Wait until compositor delivers the cropped frame resolution so frame 0 has no avc1 resolution switch
-            const expW = even(lockedRect.w * captureScale);
-            const expH = even(lockedRect.h * captureScale);
-            const deadline = Date.now() + 450;
-            while (Date.now() < deadline) {
-              const st = typeof videoTrack.getSettings === 'function' ? videoTrack.getSettings() : null;
-              if (st && st.width && st.height && Math.abs(st.width - expW) <= 24 && Math.abs(st.height - expH) <= 24) {
-                break;
-              }
-              await new Promise(function (r) { setTimeout(r, 35); });
-            }
-            await new Promise(function (r) { setTimeout(r, 50); });
-          } catch (cropErr) {
-            console.warn('[MinNoteRec] Region Capture fallback:', cropErr);
-            regionCropped = false;
-          }
-        }
-
-        if (regionCropped) {
-          finalVideoStream = new MediaStream([videoTrack]);
-        } else {
-          cropPipeline = createVideoFrameCropper(displayStream, liveRectRef)
-            || await createCanvasCropper(displayStream, liveRectRef, targetFps);
-          finalVideoStream = cropPipeline.stream;
-        }
-      }
-
-      // Attach audio track
-      if (micStream && audioCtx) {
-        try {
-          await audioCtx.resume();
-          const dest = audioCtx.createMediaStreamDestination();
-          audioCtx.createMediaStreamSource(micStream).connect(dest);
-          dest.stream.getAudioTracks().forEach(function (t) { finalVideoStream.addTrack(t); });
-        } catch (_) {
-          try { audioCtx.close(); } catch (__) {}
-        }
-      } else if (audioCtx) {
-        try { audioCtx.close(); } catch (_) {}
-      }
-
-      // 3. Configure MediaRecorder with high-clarity codec & bitrate
-      const mimeType = pickMimeType(settings.format);
-      const recOpts = {
-        videoBitsPerSecond: preset.videoBps,
-        audioBitsPerSecond: preset.audioBps
-      };
-      if (mimeType) recOpts.mimeType = mimeType;
-
-      let recorder;
-      try {
-        recorder = new MediaRecorder(finalVideoStream, recOpts);
-      } catch (_) {
-        recorder = new MediaRecorder(finalVideoStream, mimeType ? { mimeType: mimeType } : {});
-      }
-
-      const chunks = [];
-      recorder.ondataavailable = function (ev) {
-        if (ev.data && ev.data.size > 0) chunks.push(ev.data);
-      };
-
-      let startTick = Date.now();
-      let accMs = 0;
-      let cleanedUp = false;
-
-      const timerId = window.setInterval(function () {
-        elapsedMs = accMs + (recorder.state === 'recording' ? Date.now() - startTick : 0);
-        const timeEl = root.querySelector('.mnrec-time');
-        if (timeEl && phase === 'rec') timeEl.textContent = formatTime(elapsedMs);
-      }, 200);
-
-      function cleanupStreams() {
-        if (cleanedUp) return;
-        cleanedUp = true;
-        window.clearInterval(timerId);
-        if (cropPipeline) {
-          try { cropPipeline.stop(); } catch (_) {}
-        }
-        try {
-          displayStream.getTracks().forEach(function (t) { t.stop(); });
-        } catch (_) {}
-        if (micStream) {
-          try { micStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
-        }
-        if (audioCtx) {
-          try { audioCtx.close(); } catch (_) {}
-        }
-        removeCropTarget();
-        activeRec = null;
-      }
-
-      recorder.onstop = async function () {
-        const finalDuration = accMs + (paused ? 0 : Math.max(0, Date.now() - startTick));
-        cleanupStreams();
-        phase = 'saving';
-        syncStopRef();
-        render();
-
-        const isMp4 = mimeType.startsWith('video/mp4');
-        const ext = isMp4 ? 'mp4' : 'webm';
-        try {
-          let outBlob = new Blob(chunks, { type: mimeType || 'video/webm' });
-          // Run MinNote's MP4 moov/faststart fixer for instant seeking & duration metadata
-          if (isMp4 && typeof fixMp4 === 'function' && outBlob.size > 0 && outBlob.size <= 350 * 1024 * 1024) {
-            try {
-              const fixedParts = fixMp4(new Uint8Array(await outBlob.arrayBuffer()));
-              if (fixedParts) {
-                outBlob = new Blob(fixedParts, { type: outBlob.type });
-              }
-            } catch (mp4Err) {
-              console.warn('[MinNoteRec] MP4 faststart skip:', mp4Err);
-            }
-          }
-
-          const latestSettings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
-          const suggested = buildSuggestedName(latestSettings.filePrefix, docName);
-          const expectedRes = even(lockedRect.w * dpr) + ' × ' + even(lockedRect.h * dpr);
-
-          if (latestSettings.saveMode === 'auto' && isNativeHost()) {
-            const res = await writeBlobNatively(outBlob, {
-              folder: latestSettings.folder,
-              fileName: suggested,
-              ext: ext
-            });
-            showSavedNotificationCard({
-              fileName: res.fileName || (suggested + '.' + ext),
-              path: res.path || '',
-              sizeBytes: res.sizeBytes || outBlob.size,
-              resolution: expectedRes
-            });
-            onClose();
-          } else {
-            // Close live overlay cleanly, then present dedicated Preview & Save modal
-            root.innerHTML = '';
-            openPostRecordSaveModal({
-              blob: outBlob,
-              ext: ext,
-              durationMs: finalDuration,
-              suggestedName: suggested,
-              docName: docName,
-              fps: targetFps,
-              expectedRes: expectedRes,
-              notify: notify,
-              onDone: function () {
-                onClose();
-              }
-            });
-          }
-        } catch (saveErr) {
-          notify('Lỗi lưu video: ' + String((saveErr && saveErr.message) || saveErr));
-          onClose();
-        }
-      };
-
-      if (videoTrack) {
-        videoTrack.addEventListener('ended', function () {
-          if (recorder.state !== 'inactive') recorder.stop();
-        });
-      }
-
-      activeRec = {
-        stop: function () {
-          if (recorder.state !== 'inactive') recorder.stop();
-        },
-        togglePause: function () {
-          if (recorder.state === 'recording') {
-            recorder.pause();
-            accMs += Date.now() - startTick;
-            paused = true;
-          } else if (recorder.state === 'paused') {
-            recorder.resume();
-            startTick = Date.now();
-            paused = false;
-          }
-          render();
-        }
-      };
-
-      recorder.start(500);
-      phase = 'rec';
-      paused = false;
-      elapsedMs = 0;
-      syncStopRef();
-      render();
-    }
-
     // ------------------------------------------------------------------------
-    // Render setup overlay / live overlay
+    // Persistent Zero-Jitter Icon-Only Setup Overlay
     // ------------------------------------------------------------------------
-    function render() {
-      if (destroyed) return;
-      const r = rect;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-      if (phase === 'starting') {
-        // Completely clear dim mask & setup handles so first captured frame is 100% clean
-        root.innerHTML =
-          '<div class="mnrec-live">' +
-            '<div class="mnrec-frame" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;"></div>' +
-          '</div>';
-        return;
-      }
-
-      if (phase === 'rec' || phase === 'saving') {
-        const anchor = getBarAnchor(r);
-        const barStyle = barPos
-          ? 'left:' + Math.max(4, Math.min(Math.round(barPos.x * window.innerWidth), window.innerWidth - 180)) + 'px;top:' + Math.max(4, Math.min(Math.round(barPos.y * window.innerHeight), window.innerHeight - 48)) + 'px;'
-          : 'left:' + anchor.left + 'px;top:' + anchor.top + 'px;';
-
-        root.innerHTML =
-          '<div class="mnrec-live">' +
-            '<div class="mnrec-frame' + (paused ? ' paused' : '') + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;"></div>' +
-            '<div class="mnrec-bar live' + (minimized ? ' mini' : '') + (barPos ? ' moved' : '') + '" id="mnrec-live-bar" style="' + barStyle + '">' +
-              (!minimized ? '<span style="opacity:0.55;margin-right:2px;font-size:12px;">⋮⋮</span>' : '') +
-              '<span class="mnrec-dot' + (paused ? ' paused' : '') + '"></span>' +
-              '<span class="mnrec-time">' + (phase === 'saving' ? 'Đang xử lý...' : formatTime(elapsedMs)) + '</span>' +
-              (phase === 'rec' && !minimized
-                ? '<button type="button" class="mnrec-live-ghost" data-act="pause">' + (paused ? '▶ Quay tiếp' : '⏸ Tạm dừng') + '</button>' +
-                  '<button type="button" class="mnrec-live-stop" data-act="stop"><span class="mnrec-square"></span> Dừng</button>' +
-                  '<button type="button" class="mnrec-live-ghost mnrec-live-small" data-act="mini" title="Thu nhỏ thanh quay">—</button>'
-                : '') +
-            '</div>' +
-          '</div>';
-
-        const bar = root.querySelector('#mnrec-live-bar');
-        if (bar) {
-          bar.addEventListener('pointerdown', function (e) {
-            if (e.target.closest('button')) return;
-            const br = bar.getBoundingClientRect();
-            try { bar.setPointerCapture(e.pointerId); } catch (_) {}
-            barDragState = { sx: e.clientX, sy: e.clientY, left: br.left, top: br.top, moved: false };
-          });
-          bar.addEventListener('pointermove', function (e) {
-            if (!barDragState) return;
-            const dx = e.clientX - barDragState.sx;
-            const dy = e.clientY - barDragState.sy;
-            if (!barDragState.moved && Math.hypot(dx, dy) < 5) return;
-            barDragState.moved = true;
-            const br = bar.getBoundingClientRect();
-            const nx = Math.max(4, Math.min(barDragState.left + dx, window.innerWidth - br.width - 4));
-            const ny = Math.max(4, Math.min(barDragState.top + dy, window.innerHeight - br.height - 4));
-            barPos = { x: nx / window.innerWidth, y: ny / window.innerHeight };
-            bar.classList.add('moved');
-            bar.style.left = Math.round(nx) + 'px';
-            bar.style.top = Math.round(ny) + 'px';
-          });
-          const endBarDrag = function () {
-            if (!barDragState) return;
-            const wasMoved = barDragState.moved;
-            barDragState = null;
-            if (wasMoved && barPos) {
-              remember(Object.assign({}, saved, { barX: barPos.x, barY: barPos.y, mini: minimized }));
-            } else if (!wasMoved && minimized) {
-              minimized = false;
-              remember(Object.assign({}, saved, { mini: false }));
-              render();
-            }
-          };
-          bar.addEventListener('pointerup', endBarDrag);
-          bar.addEventListener('pointercancel', endBarDrag);
-        }
-        return;
-      }
-
-      // Setup phase ('select')
-      const pr = safePageRect(props.pageRect);
-      const wr = wholeWindowRect();
-      const isPage = rectsEqual(r, pr);
-      const isWhole = rectsEqual(r, wr);
-      const anchor = getBarAnchor(r);
-      const preset = QUALITY_PRESETS[cachedSettings.quality] || QUALITY_PRESETS.ultra;
-      const curFps = cachedSettings.fps === 30 ? 30 : 60;
+    function buildSetupDom() {
+      setupDomBuilt = true;
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
-
-      const edgeCls =
-        (r.x < 8 ? ' edge-l' : '') +
-        (r.y < 8 ? ' edge-t' : '') +
-        (r.x + r.w > window.innerWidth - 8 ? ' edge-r' : '') +
-        (r.y + r.h > window.innerHeight - 8 ? ' edge-b' : '');
-
       root.innerHTML =
         '<div class="mnrec-select" id="mnrec-select-overlay">' +
-          '<div class="mnrec-area' + edgeCls + '" id="mnrec-area" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;">' +
-            '<span class="mnrec-tip">Kéo để chọn vùng quay • Kéo khung để dời • Kéo góc để đổi cỡ</span>' +
-            '<span class="mnrec-size">' + even(r.w * dpr) + ' × ' + even(r.h * dpr) + ' px</span>' +
+          '<div class="mnrec-area" id="mnrec-area">' +
+            '<span class="mnrec-size" id="mnrec-size"></span>' +
             handles.map(function (h) {
               return '<span class="mnrec-handle ' + h + '" data-handle="' + h + '"></span>';
             }).join('') +
           '</div>' +
-          '<div class="mnrec-bar" id="mnrec-setup-bar" style="left:' + anchor.left + 'px;top:' + anchor.top + 'px;">' +
+          '<div class="mnrec-bar" id="mnrec-setup-bar">' +
             '<div class="mnrec-seg">' +
-              '<button type="button" class="' + (isPage ? 'on' : '') + '" data-act="preset-page">Vùng trang viết</button>' +
-              '<button type="button" class="' + (isWhole ? 'on' : '') + '" data-act="preset-whole">Cả cửa sổ</button>' +
+              '<button type="button" class="mnrec-ico-btn" data-act="preset-page" title="Vùng trang viết" aria-label="Vùng trang viết">' + SVG.region + '</button>' +
+              '<button type="button" class="mnrec-ico-btn" data-act="preset-whole" title="Cả cửa sổ" aria-label="Cả cửa sổ">' + SVG.whole + '</button>' +
             '</div>' +
-            '<label class="mnrec-switch' + (micOn ? ' on' : '') + '" data-act="toggle-mic-wrap">' +
-              '<input type="checkbox" id="mnrec-bar-mic"' + (micOn ? ' checked' : '') + ' />' +
-              '<span class="mnrec-track"></span>' +
-              '<span>Micro</span>' +
-            '</label>' +
-            '<button type="button" class="mnrec-btn-settings" data-act="open-settings" title="Cài đặt thư mục lưu trữ, chất lượng video, FPS và danh sách video đã lưu">' +
-              '<span>⚙ Cài đặt &amp; Lưu trữ</span>' +
-              '<span class="mnrec-badge-pill">' + preset.label + ' • ' + curFps + 'fps</span>' +
-            '</button>' +
             '<span class="mnrec-sep"></span>' +
-            '<button type="button" class="mnrec-btn-ghost" data-act="cancel">Hủy</button>' +
-            '<button type="button" class="mnrec-btn-start" data-act="start"><span class="mnrec-dot white"></span> Bắt đầu quay</button>' +
+            '<button type="button" class="mnrec-ico-btn" id="mnrec-btn-mic" data-act="toggle-mic" title="Bật/tắt micro" aria-label="Micro">' + SVG.micOn + '</button>' +
+            '<button type="button" class="mnrec-ico-btn" id="mnrec-btn-settings" data-act="open-settings" title="Cài đặt quay &amp; lưu trữ" aria-label="Cài đặt">' + SVG.settings + '</button>' +
+            '<span class="mnrec-sep"></span>' +
+            '<button type="button" class="mnrec-ico-btn cancel" data-act="cancel" title="Hủy (Esc)" aria-label="Hủy">' + SVG.close + '</button>' +
+            '<button type="button" class="mnrec-btn-rec" data-act="start" title="Bắt đầu quay" aria-label="Bắt đầu quay"><span class="mnrec-rec-core"></span></button>' +
           '</div>' +
         '</div>';
 
@@ -1715,14 +1388,6 @@
       const bar = root.querySelector('#mnrec-setup-bar');
       if (bar) {
         bar.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-      }
-      const barMic = root.querySelector('#mnrec-bar-mic');
-      if (barMic) {
-        barMic.addEventListener('change', function () {
-          micOn = !!barMic.checked;
-          persistSettings({ mic: micOn });
-          render();
-        });
       }
 
       if (overlay) {
@@ -1746,7 +1411,6 @@
 
         overlay.addEventListener('pointermove', function (e) {
           if (!dragState || phase !== 'select') return;
-          userEditedRect = true;
           const dx = e.clientX - dragState.sx;
           const dy = e.clientY - dragState.sy;
           const f = dragState.from;
@@ -1779,59 +1443,527 @@
             rect = clampRect({ x: x, y: y, w: w, h: h });
           }
           liveRectRef.current = rect;
-
-          // Update geometry smoothly without rebuilding DOM on every mousemove
-          const areaEl = root.querySelector('#mnrec-area');
-          const sizeEl = root.querySelector('.mnrec-size');
-          const sbar = root.querySelector('#mnrec-setup-bar');
-          if (areaEl) {
-            areaEl.style.left = rect.x + 'px';
-            areaEl.style.top = rect.y + 'px';
-            areaEl.style.width = rect.w + 'px';
-            areaEl.style.height = rect.h + 'px';
-            areaEl.classList.toggle('edge-l', rect.x < 8);
-            areaEl.classList.toggle('edge-t', rect.y < 8);
-            areaEl.classList.toggle('edge-r', rect.x + rect.w > window.innerWidth - 8);
-            areaEl.classList.toggle('edge-b', rect.y + rect.h > window.innerHeight - 8);
-          }
-          if (sizeEl) {
-            sizeEl.textContent = even(rect.w * dpr) + ' × ' + even(rect.h * dpr) + ' px';
-          }
-          if (sbar) {
-            const a = getBarAnchor(rect);
-            sbar.style.left = a.left + 'px';
-            sbar.style.top = a.top + 'px';
-          }
+          syncSetupUI();
         });
 
         const endDrag = function () {
           if (!dragState) return;
           dragState = null;
-          render();
+          syncSetupUI();
         };
         overlay.addEventListener('pointerup', endDrag);
         overlay.addEventListener('pointercancel', endDrag);
       }
+
+      syncSetupUI();
     }
 
+    function syncSetupUI() {
+      if (destroyed || phase !== 'select') return;
+      if (!setupDomBuilt) {
+        buildSetupDom();
+        return;
+      }
+      const r = rect;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const pr = safePageRect(props.pageRect);
+      const wr = wholeWindowRect();
+      const isPage = rectsEqual(r, pr);
+      const isWhole = rectsEqual(r, wr);
+      const anchor = getBarAnchor(r);
+      const preset = QUALITY_PRESETS[cachedSettings.quality] || QUALITY_PRESETS.ultra;
+      const curFps = cachedSettings.fps === 30 ? 30 : 60;
+
+      const areaEl = root.querySelector('#mnrec-area');
+      const sizeEl = root.querySelector('#mnrec-size');
+      const barEl = root.querySelector('#mnrec-setup-bar');
+      const pageBtn = root.querySelector('[data-act="preset-page"]');
+      const wholeBtn = root.querySelector('[data-act="preset-whole"]');
+      const micBtn = root.querySelector('#mnrec-btn-mic');
+      const setBtn = root.querySelector('#mnrec-btn-settings');
+
+      if (areaEl) {
+        areaEl.style.left = r.x + 'px';
+        areaEl.style.top = r.y + 'px';
+        areaEl.style.width = r.w + 'px';
+        areaEl.style.height = r.h + 'px';
+        areaEl.classList.toggle('edge-l', r.x < 8);
+        areaEl.classList.toggle('edge-t', r.y < 8);
+        areaEl.classList.toggle('edge-r', r.x + r.w > window.innerWidth - 8);
+        areaEl.classList.toggle('edge-b', r.y + r.h > window.innerHeight - 8);
+      }
+      if (sizeEl) {
+        sizeEl.textContent = even(r.w * dpr) + ' × ' + even(r.h * dpr);
+      }
+      if (barEl) {
+        barEl.style.left = anchor.left + 'px';
+        barEl.style.top = anchor.top + 'px';
+      }
+      if (pageBtn) pageBtn.classList.toggle('on', isPage);
+      if (wholeBtn) wholeBtn.classList.toggle('on', isWhole);
+      if (micBtn) {
+        micBtn.classList.toggle('on', micOn);
+        micBtn.classList.toggle('mic-off', !micOn);
+        micBtn.innerHTML = micOn ? SVG.micOn : SVG.micOff;
+        micBtn.title = micOn ? 'Micro: Đang bật (bấm để tắt)' : 'Micro: Đã tắt (bấm để bật)';
+      }
+      if (setBtn) {
+        setBtn.title = 'Cài đặt quay & lưu trữ (' + preset.label + ' • ' + curFps + 'fps)';
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // Native C# Screen Recording Flow (ZERO Sharing Bar, Capture-Excluded UI!)
+    // ------------------------------------------------------------------------
+    async function startNativeRecording(lockedRect, settings) {
+      let handledStop = false;
+
+      function cleanupNativeListener() {
+        if (nativeEventUnsub) {
+          nativeEventUnsub();
+          nativeEventUnsub = null;
+        }
+      }
+
+      function handleNativeStopped(data) {
+        if (handledStop) return;
+        handledStop = true;
+        cleanupNativeListener();
+        activeRec = null;
+        phase = 'saving';
+        syncStopRef();
+
+        if (!data || data.empty) {
+          onClose();
+          return;
+        }
+
+        const resStr = (data.width && data.height) ? (data.width + ' × ' + data.height) : '';
+        if (data.saved) {
+          if (Array.isArray(data.videos)) cachedVideos = data.videos;
+          showSavedNotificationCard({
+            fileName: data.fileName || 'MinNote.mp4',
+            path: data.path || '',
+            sizeBytes: data.sizeBytes || 0,
+            resolution: resStr
+          });
+          onClose();
+          return;
+        }
+
+        if (data.tempPath && data.previewUrl) {
+          openPostRecordSaveModal({
+            tempPath: data.tempPath,
+            previewUrl: data.previewUrl,
+            sizeBytes: data.sizeBytes || 0,
+            ext: 'mp4',
+            durationMs: data.durationMs || 0,
+            suggestedName: data.suggestedName || buildSuggestedName(settings.filePrefix, docName),
+            docName: docName,
+            fps: data.fps || settings.fps || 60,
+            expectedRes: resStr,
+            notify: notify,
+            onDone: function () {
+              onClose();
+            }
+          });
+          return;
+        }
+
+        onClose();
+      }
+
+      // Completely wipe setup overlay DOM so WebView2 canvas is 100% spotless on frame 0!
+      setupDomBuilt = false;
+      root.innerHTML = '';
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+
+      ensureRpcListener();
+      const onNativeEvent = function (evName, data) {
+        if (destroyed) return;
+        if (evName === 'paused' && data) {
+          paused = !!data.paused;
+        } else if (evName === 'stopped') {
+          handleNativeStopped(data);
+        } else if (evName === 'error') {
+          cleanupNativeListener();
+          activeRec = null;
+          notify('Lỗi quay màn hình: ' + ((data && data.error) || 'Không xác định'));
+          onClose();
+        }
+      };
+      nativeEventListeners.add(onNativeEvent);
+      nativeEventUnsub = function () { nativeEventListeners.delete(onNativeEvent); };
+
+      try {
+        await callHost('REC_NATIVE_START', {
+          x: lockedRect.x,
+          y: lockedRect.y,
+          w: lockedRect.w,
+          h: lockedRect.h,
+          quality: settings.quality || 'ultra',
+          fps: settings.fps === 30 ? 30 : 60,
+          mic: !!micOn,
+          showCursor: settings.showCursor !== false,
+          docName: docName
+        }, 20000);
+      } catch (err) {
+        cleanupNativeListener();
+        phase = 'select';
+        syncStopRef();
+        buildSetupDom();
+        notify('Không thể bắt đầu quay màn hình: ' + String((err && err.message) || err));
+        return;
+      }
+
+      activeRec = {
+        stop: function () {
+          if (handledStop) return;
+          callHost('REC_NATIVE_STOP', {}, 25000).then(function (data) {
+            if (data && !data.alreadyStopping) {
+              handleNativeStopped(data);
+            }
+          }).catch(function (err) {
+            cleanupNativeListener();
+            notify('Lỗi dừng quay: ' + String((err && err.message) || err));
+            onClose();
+          });
+        },
+        togglePause: function () {
+          callHost('REC_NATIVE_PAUSE', {}, 10000).then(function (r) {
+            if (r) paused = !!r.paused;
+          }).catch(function () {});
+        }
+      };
+
+      phase = 'rec';
+      paused = false;
+      elapsedMs = 0;
+      syncStopRef();
+    }
+
+    // ------------------------------------------------------------------------
+    // Web Browser Fallback Live Pill (Icon-Only)
+    // ------------------------------------------------------------------------
+    function renderWebLive() {
+      if (destroyed) return;
+      const r = rect;
+      if (phase === 'starting') {
+        setupDomBuilt = false;
+        root.innerHTML = '';
+        return;
+      }
+      if (phase !== 'rec' && phase !== 'saving') return;
+
+      setupDomBuilt = false;
+      const anchor = getBarAnchor(r);
+      const barStyle = barPos
+        ? 'left:' + Math.max(4, Math.min(Math.round(barPos.x * window.innerWidth), window.innerWidth - 160)) + 'px;top:' + Math.max(4, Math.min(Math.round(barPos.y * window.innerHeight), window.innerHeight - 44)) + 'px;'
+        : 'left:' + anchor.left + 'px;top:' + anchor.top + 'px;';
+
+      root.innerHTML =
+        '<div class="mnrec-live">' +
+          '<div class="mnrec-frame' + (paused ? ' paused' : '') + '" style="left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;"></div>' +
+          '<div class="mnrec-bar live' + (minimized ? ' mini' : '') + (barPos ? ' moved' : '') + '" id="mnrec-live-bar" style="' + barStyle + '">' +
+            (!minimized ? '<span style="opacity:0.5;font-size:11px;margin-right:1px;">⋮⋮</span>' : '') +
+            '<span class="mnrec-dot' + (paused ? ' paused' : '') + '"></span>' +
+            '<span class="mnrec-time">' + (phase === 'saving' ? '...' : formatTime(elapsedMs)) + '</span>' +
+            (phase === 'rec' && !minimized
+              ? '<button type="button" class="mnrec-live-ico" data-act="pause" title="' + (paused ? 'Tiếp tục quay' : 'Tạm dừng quay') + '">' + (paused ? SVG.play : SVG.pause) + '</button>' +
+                '<button type="button" class="mnrec-live-ico stop" data-act="stop" title="Dừng quay">' + SVG.stop + '</button>' +
+                '<button type="button" class="mnrec-live-ico ghost" data-act="mini" title="Thu gọn">' + SVG.mini + '</button>'
+              : '') +
+          '</div>' +
+        '</div>';
+
+      const bar = root.querySelector('#mnrec-live-bar');
+      if (bar) {
+        bar.addEventListener('pointerdown', function (e) {
+          if (e.target.closest('button')) return;
+          const br = bar.getBoundingClientRect();
+          try { bar.setPointerCapture(e.pointerId); } catch (_) {}
+          barDragState = { sx: e.clientX, sy: e.clientY, left: br.left, top: br.top, moved: false };
+        });
+        bar.addEventListener('pointermove', function (e) {
+          if (!barDragState) return;
+          const dx = e.clientX - barDragState.sx;
+          const dy = e.clientY - barDragState.sy;
+          if (!barDragState.moved && Math.hypot(dx, dy) < 5) return;
+          barDragState.moved = true;
+          const br = bar.getBoundingClientRect();
+          const nx = Math.max(4, Math.min(barDragState.left + dx, window.innerWidth - br.width - 4));
+          const ny = Math.max(4, Math.min(barDragState.top + dy, window.innerHeight - br.height - 4));
+          barPos = { x: nx / window.innerWidth, y: ny / window.innerHeight };
+          bar.classList.add('moved');
+          bar.style.left = Math.round(nx) + 'px';
+          bar.style.top = Math.round(ny) + 'px';
+        });
+        const endBarDrag = function () {
+          if (!barDragState) return;
+          const wasMoved = barDragState.moved;
+          barDragState = null;
+          if (wasMoved && barPos) {
+            remember(Object.assign({}, saved, { barX: barPos.x, barY: barPos.y, mini: minimized }));
+          } else if (!wasMoved && minimized) {
+            minimized = false;
+            remember(Object.assign({}, saved, { mini: false }));
+            renderWebLive();
+          }
+        };
+        bar.addEventListener('pointerup', endBarDrag);
+        bar.addEventListener('pointercancel', endBarDrag);
+      }
+    }
+
+    async function startWebFallbackRecording(lockedRect, settings) {
+      const preset = QUALITY_PRESETS[settings.quality] || QUALITY_PRESETS.ultra;
+      const targetFps = settings.fps === 30 ? 30 : 60;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const captureScale = preset.scaleMode === 'standard' ? 1 : (preset.scaleMode === 'high' ? Math.min(dpr, 1.5) : dpr);
+      const idealW = even(Math.max(window.innerWidth * captureScale, 640));
+      const idealH = even(Math.max(window.innerHeight * captureScale, 360));
+
+      const targetEl = ensureCropTarget(lockedRect);
+      renderWebLive();
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+
+      const audioCtx = micOn ? new AudioContext() : null;
+      let displayStream = null;
+      try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: idealW },
+            height: { ideal: idealH },
+            frameRate: { ideal: targetFps, max: targetFps },
+            displaySurface: 'browser',
+            cursor: settings.showCursor ? 'always' : 'never'
+          },
+          audio: false,
+          preferCurrentTab: true,
+          selfBrowserSurface: 'include',
+          surfaceSwitching: 'exclude'
+        });
+      } catch (_) {
+        if (audioCtx) audioCtx.close().catch(function () {});
+        removeCropTarget();
+        phase = 'select';
+        syncStopRef();
+        buildSetupDom();
+        notify('Không thể bắt đầu quay màn hình.');
+        return;
+      }
+
+      const videoTrack = displayStream.getVideoTracks()[0];
+      if (videoTrack) {
+        try { videoTrack.contentHint = 'detail'; } catch (_) {}
+      }
+
+      let micStream = null;
+      if (micOn) {
+        try {
+          const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 };
+          if (settings.micDeviceId) audioConstraints.deviceId = { ideal: settings.micDeviceId };
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+        } catch (_) {
+          notify('Không mở được micro: video sẽ không có tiếng.');
+        }
+      }
+
+      let cropPipeline = null;
+      let finalVideoStream = null;
+      const wholeWin = rectsEqual(lockedRect, wholeWindowRect());
+
+      if (wholeWin) {
+        finalVideoStream = new MediaStream([videoTrack]);
+      } else {
+        let regionCropped = false;
+        if (videoTrack && typeof window.CropTarget !== 'undefined' && typeof window.CropTarget.fromElement === 'function' && typeof videoTrack.cropTo === 'function') {
+          try {
+            const cropTarget = await window.CropTarget.fromElement(targetEl);
+            await videoTrack.cropTo(cropTarget);
+            regionCropped = true;
+          } catch (_) {
+            regionCropped = false;
+          }
+        }
+        if (regionCropped) {
+          finalVideoStream = new MediaStream([videoTrack]);
+        } else {
+          cropPipeline = createVideoFrameCropper(displayStream, liveRectRef)
+            || await createCanvasCropper(displayStream, liveRectRef, targetFps);
+          finalVideoStream = cropPipeline.stream;
+        }
+      }
+
+      if (micStream && audioCtx) {
+        try {
+          await audioCtx.resume();
+          const dest = audioCtx.createMediaStreamDestination();
+          audioCtx.createMediaStreamSource(micStream).connect(dest);
+          dest.stream.getAudioTracks().forEach(function (t) { finalVideoStream.addTrack(t); });
+        } catch (_) {
+          try { audioCtx.close(); } catch (__) {}
+        }
+      } else if (audioCtx) {
+        try { audioCtx.close(); } catch (_) {}
+      }
+
+      const mimeType = pickMimeType(settings.format);
+      const recOpts = { videoBitsPerSecond: preset.videoBps, audioBitsPerSecond: preset.audioBps };
+      if (mimeType) recOpts.mimeType = mimeType;
+
+      let recorder;
+      try {
+        recorder = new MediaRecorder(finalVideoStream, recOpts);
+      } catch (_) {
+        recorder = new MediaRecorder(finalVideoStream, mimeType ? { mimeType: mimeType } : {});
+      }
+
+      const chunks = [];
+      recorder.ondataavailable = function (ev) {
+        if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+      };
+
+      let startTick = Date.now();
+      let accMs = 0;
+      let cleanedUp = false;
+
+      const timerId = window.setInterval(function () {
+        elapsedMs = accMs + (recorder.state === 'recording' ? Date.now() - startTick : 0);
+        const timeEl = root.querySelector('.mnrec-time');
+        if (timeEl && phase === 'rec') timeEl.textContent = formatTime(elapsedMs);
+      }, 200);
+
+      function cleanupStreams() {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        window.clearInterval(timerId);
+        if (cropPipeline) try { cropPipeline.stop(); } catch (_) {}
+        try { displayStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+        if (micStream) try { micStream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+        if (audioCtx) try { audioCtx.close(); } catch (_) {}
+        removeCropTarget();
+        activeRec = null;
+      }
+
+      recorder.onstop = async function () {
+        const finalDuration = accMs + (paused ? 0 : Math.max(0, Date.now() - startTick));
+        cleanupStreams();
+        phase = 'saving';
+        syncStopRef();
+        renderWebLive();
+
+        const isMp4 = mimeType.startsWith('video/mp4');
+        const ext = isMp4 ? 'mp4' : 'webm';
+        try {
+          let outBlob = new Blob(chunks, { type: mimeType || 'video/webm' });
+          if (isMp4 && typeof fixMp4 === 'function' && outBlob.size > 0 && outBlob.size <= 350 * 1024 * 1024) {
+            try {
+              const fixedParts = fixMp4(new Uint8Array(await outBlob.arrayBuffer()));
+              if (fixedParts) outBlob = new Blob(fixedParts, { type: outBlob.type });
+            } catch (_) {}
+          }
+
+          const latestSettings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
+          const suggested = buildSuggestedName(latestSettings.filePrefix, docName);
+          const expectedRes = even(lockedRect.w * dpr) + ' × ' + even(lockedRect.h * dpr);
+
+          root.innerHTML = '';
+          openPostRecordSaveModal({
+            blob: outBlob,
+            ext: ext,
+            durationMs: finalDuration,
+            suggestedName: suggested,
+            docName: docName,
+            fps: targetFps,
+            expectedRes: expectedRes,
+            notify: notify,
+            onDone: function () { onClose(); }
+          });
+        } catch (saveErr) {
+          notify('Lỗi lưu video: ' + String((saveErr && saveErr.message) || saveErr));
+          onClose();
+        }
+      };
+
+      if (videoTrack) {
+        videoTrack.addEventListener('ended', function () {
+          if (recorder.state !== 'inactive') recorder.stop();
+        });
+      }
+
+      activeRec = {
+        stop: function () {
+          if (recorder.state !== 'inactive') recorder.stop();
+        },
+        togglePause: function () {
+          if (recorder.state === 'recording') {
+            recorder.pause();
+            accMs += Date.now() - startTick;
+            paused = true;
+          } else if (recorder.state === 'paused') {
+            recorder.resume();
+            startTick = Date.now();
+            paused = false;
+          }
+          renderWebLive();
+        }
+      };
+
+      recorder.start(500);
+      phase = 'rec';
+      paused = false;
+      elapsedMs = 0;
+      syncStopRef();
+      renderWebLive();
+    }
+
+    async function startRecording() {
+      if (phase !== 'select') return;
+      const lockedRect = clampRect({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+      rect = lockedRect;
+      liveRectRef.current = lockedRect;
+      phase = 'starting';
+      syncStopRef();
+
+      remember(Object.assign({}, saved, {
+        x: lockedRect.x / window.innerWidth,
+        y: lockedRect.y / window.innerHeight,
+        w: lockedRect.w / window.innerWidth,
+        h: lockedRect.h / window.innerHeight,
+        mic: micOn
+      }));
+      persistSettings({ mic: micOn });
+
+      const settings = Object.assign({}, DEFAULT_SETTINGS, cachedSettings);
+      if (useNativeRecorder()) {
+        await startNativeRecording(lockedRect, settings);
+      } else {
+        await startWebFallbackRecording(lockedRect, settings);
+      }
+    }
+
+    // Unified click delegation (ZERO innerHTML rebuild on setup clicks!)
     root.addEventListener('click', function (e) {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       const act = btn.getAttribute('data-act');
       if (act === 'preset-page') {
-        userEditedRect = true;
         rect = safePageRect(props.pageRect);
         liveRectRef.current = rect;
-        render();
+        syncSetupUI();
       } else if (act === 'preset-whole') {
-        userEditedRect = true;
         rect = wholeWindowRect();
         liveRectRef.current = rect;
-        render();
+        syncSetupUI();
+      } else if (act === 'toggle-mic') {
+        micOn = !micOn;
+        persistSettings({ mic: micOn });
+        syncSetupUI();
       } else if (act === 'open-settings') {
         openSettingsModal('storage', function (updated) {
           if (updated) micOn = !!updated.mic;
-          render();
+          syncSetupUI();
         });
       } else if (act === 'cancel') {
         onClose();
@@ -1844,22 +1976,25 @@
       } else if (act === 'mini') {
         minimized = true;
         remember(Object.assign({}, saved, { mini: true }));
-        render();
+        renderWebLive();
       }
     });
 
     syncStopRef();
-    render();
+    buildSetupDom();
 
     return {
       unmount: function () {
         destroyed = true;
         window.removeEventListener('resize', onWindowResize);
         window.removeEventListener('keydown', onKeyDown);
+        if (nativeEventUnsub) {
+          nativeEventUnsub();
+          nativeEventUnsub = null;
+        }
         if (activeRec) {
           try { activeRec.stop(); } catch (_) {}
         }
-        stopPrewarmedStream();
         removeCropTarget();
         if (stopRef) stopRef.current = null;
         root.remove();
@@ -1920,7 +2055,6 @@
     }
   };
 
-  // Pre-sync settings quietly once WebView2 is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { syncSettingsFromHost(); });
   } else {

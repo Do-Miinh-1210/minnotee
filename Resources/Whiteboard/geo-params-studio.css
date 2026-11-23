@@ -864,9 +864,11 @@
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.mn-lqp-item:hover {
-  background: #f0fdfa;
-  color: #0f766e;
+.mn-lqp-item:hover,
+.mn-lqp-item:focus-visible {
+  background: #eff6ff;
+  color: #1d4ed8;
+  outline: none;
 }
 html.dark #mn-locus-quick-pop,
 .dark #mn-locus-quick-pop {
@@ -879,7 +881,10 @@ html.dark .mn-lqp-item,
   color: #e2e8f0;
 }
 html.dark .mn-lqp-item:hover,
-.dark .mn-lqp-item:hover {
-  background: rgba(13, 148, 136, 0.22);
-  color: #5eead4;
+.dark .mn-lqp-item:hover,
+html.dark .mn-lqp-item:focus-visible,
+.dark .mn-lqp-item:focus-visible {
+  background: rgba(37, 99, 235, 0.24);
+  color: #93c5fd;
+  outline: none;
 }
