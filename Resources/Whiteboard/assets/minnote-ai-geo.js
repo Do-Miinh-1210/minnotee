@@ -1366,7 +1366,7 @@ SCHEMA "ops":
       const nw = img.naturalWidth || img.width || 0;
       const nh = img.naturalHeight || img.height || 0;
       if (nw > 0 && nh > 0) {
-        const maxDim = 1600;
+        const maxDim = 1200;
         const scale = Math.min(1, maxDim / Math.max(nw, nh));
         const w = Math.max(1, Math.round(nw * scale));
         const h = Math.max(1, Math.round(nh * scale));
@@ -1377,9 +1377,9 @@ SCHEMA "ops":
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0, w, h);
-        const useJpeg = (w * h) > 490000;
+        const useJpeg = (w * h) > 320000;
         const mime = useJpeg ? 'image/jpeg' : 'image/png';
-        const dataUrl = useJpeg ? canvas.toDataURL('image/jpeg', 0.90) : canvas.toDataURL('image/png');
+        const dataUrl = useJpeg ? canvas.toDataURL('image/jpeg', 0.88) : canvas.toDataURL('image/png');
         return {
           dataUrl,
           base64: dataUrl.replace(/^data:[^;]+;base64,/i, ''),
@@ -1564,6 +1564,7 @@ SCHEMA "ops":
       modSel.addEventListener('change', async () => {
         const nextModel = modSel.value;
         if (!nextModel) return;
+        modalState.autoSwitchedFromModel = '';
         modalState.selectedModel = nextModel;
         updateModalSpeedHint();
         if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.request === 'function' && modalState.selectedProvider) {
@@ -1683,14 +1684,56 @@ SCHEMA "ops":
     });
   }
 
+  function isHeavyAntigravityModelForImage(mod) {
+    const m = String(mod || '').trim();
+    return /(?:^|-)(?:high|xhigh)$/i.test(m) || /orchestrator|^gpt-oss|^claude-opus/i.test(m);
+  }
+
+  function autoSwitchAntigravityModelForImage() {
+    if (modalState.selectedProvider !== 'Antigravity' || !modalState.imgBase64) return false;
+    const cur = modalState.selectedModel || '';
+    if (!isHeavyAntigravityModelForImage(cur)) return false;
+
+    const targetFastModel = 'gemini-3.8-flash-low';
+    modalState.autoSwitchedFromModel = cur;
+    modalState.selectedModel = targetFastModel;
+
+    const bd = document.getElementById('mn-ai-geo-backdrop');
+    const modSel = bd && bd.querySelector('#mn-ag-model-select');
+    if (modSel) {
+      let hasOpt = Array.from(modSel.options).some(o => o.value === targetFastModel);
+      if (!hasOpt) {
+        const opt = document.createElement('option');
+        opt.value = targetFastModel;
+        opt.textContent = targetFastModel;
+        modSel.insertBefore(opt, modSel.firstChild);
+      }
+      modSel.value = targetFastModel;
+    }
+
+    if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.request === 'function') {
+      window.MinNoteMeaSync.request('MEA_SAVE_AI_CONFIG', {
+        provider: 'Antigravity',
+        model: targetFastModel,
+        keyEdited: false,
+        clearKey: false
+      }, 10000).catch(() => {});
+    }
+    updateModalSpeedHint();
+    return true;
+  }
+
   function updateModalSpeedHint() {
     const bd = document.getElementById('mn-ai-geo-backdrop');
     const hintEl = bd && bd.querySelector('#mn-ag-model-hint');
     if (!hintEl) return;
     const prov = modalState.selectedProvider || '';
     const mod = modalState.selectedModel || '';
-    if (prov === 'Antigravity' && (/(?:^|-)(?:high|xhigh)$/i.test(mod) || /orchestrator/i.test(mod))) {
-      hintEl.textContent = `⚡ Đã bật chế độ Tăng tốc Đọc ảnh cho ${mod}: tự động tối ưu luồng suy luận cùng dòng model để dựng hình trong ~45–60 giây (không bị timeout).`;
+    if (prov === 'Antigravity' && modalState.autoSwitchedFromModel && mod === 'gemini-3.8-flash-low') {
+      hintEl.textContent = `⚡ Đã tự động chuyển từ ${modalState.autoSwitchedFromModel} sang gemini-3.8-flash-low để đọc ảnh đề bài siêu tốc (~40 giây, chống treo timeout 4m0s).`;
+      hintEl.style.display = 'block';
+    } else if (prov === 'Antigravity' && isHeavyAntigravityModelForImage(mod)) {
+      hintEl.textContent = `⚡ Đã bật chế độ Tăng tốc Đọc ảnh cho ${mod}: tự động định tuyến sang gemini-3.8-flash-low khi có ảnh để dựng hình trong ~40 giây (không bị timeout).`;
       hintEl.style.display = 'block';
     } else if (prov === 'DeepSeek') {
       hintEl.textContent = '💡 DeepSeek API chỉ đọc đề bằng chữ; để dựng hình từ ảnh, hãy chọn Antigravity, Google Gemini, OpenAI hoặc 9Router.';
@@ -1727,7 +1770,9 @@ SCHEMA "ops":
         modSel.appendChild(opt);
       });
     }
-    updateModalSpeedHint();
+    if (!autoSwitchAntigravityModelForImage()) {
+      updateModalSpeedHint();
+    }
   }
 
   async function syncModalAiSelector() {
@@ -1809,6 +1854,7 @@ SCHEMA "ops":
     dz.classList.add('has-img');
     bd.querySelector('#mn-ag-thumb').src = dataUrl;
     bd.querySelector('#mn-ag-img-badge').textContent = modalState.imgSourceLabel;
+    autoSwitchAntigravityModelForImage();
   }
 
   function attachImageFile(file, badgeText) {
@@ -1832,9 +1878,11 @@ SCHEMA "ops":
     modalState.imgBase64 = '';
     modalState.imgMime = 'image/png';
     modalState.imgSourceLabel = '';
+    modalState.autoSwitchedFromModel = '';
     const bd = ensureModal();
     bd.querySelector('#mn-ag-dropzone').classList.remove('has-img');
     bd.querySelector('#mn-ag-thumb').removeAttribute('src');
+    updateModalSpeedHint();
   }
 
   function updateTikzPreviewStats() {

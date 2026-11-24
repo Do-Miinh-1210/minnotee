@@ -2130,42 +2130,41 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
 
             if (hasImage)
             {
-                if (m.StartsWith("gemini-4-neon", StringComparison.OrdinalIgnoreCase) ||
-                    m.Equals("gemini-pro-orchestrator-neon", StringComparison.OrdinalIgnoreCase))
-                    return "gemini-4-neon-low";
+                // Heavy reasoning tiers (-xhigh / -high / orchestrator / opus / non-vision gpt-oss)
+                // stall on Turn 2 after read_file in agy CLI. Route directly to the fastest vision tier.
+                if (m.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase) ||
+                    m.EndsWith("-high", StringComparison.OrdinalIgnoreCase) ||
+                    m.Contains("orchestrator", StringComparison.OrdinalIgnoreCase) ||
+                    m.StartsWith("gpt-oss", StringComparison.OrdinalIgnoreCase) ||
+                    m.StartsWith("claude-opus", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "gemini-3.8-flash-low";
+                }
 
-                if (m.StartsWith("gemini-4-argon", StringComparison.OrdinalIgnoreCase) ||
-                    m.Equals("gemini-pro-orchestrator-argon", StringComparison.OrdinalIgnoreCase))
+                if (m.StartsWith("gemini-3.8-flash", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-3.8-flash-low";
+
+                if (m.StartsWith("gemini-4-argon", StringComparison.OrdinalIgnoreCase))
                     return "gemini-4-argon-low";
 
-                if (m.StartsWith("gemini-4-carbon", StringComparison.OrdinalIgnoreCase) ||
-                    m.Equals("gemini-pro-orchestrator", StringComparison.OrdinalIgnoreCase))
+                if (m.StartsWith("gemini-4-neon", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-4-neon-low";
+
+                if (m.StartsWith("gemini-4-carbon", StringComparison.OrdinalIgnoreCase))
                     return "gemini-4-carbon-low";
 
                 if (m.StartsWith("gemini-4-hydrogen", StringComparison.OrdinalIgnoreCase))
                     return "gemini-4-hydrogen-low";
 
-                if (m.StartsWith("gemini-3.8-flash", StringComparison.OrdinalIgnoreCase))
-                    return "gemini-3.8-flash-low";
-
-                if (m.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase))
-                    return "claude-opus-5-5-low";
-
                 if (m.StartsWith("claude-sonnet-5-5", StringComparison.OrdinalIgnoreCase))
                     return "claude-sonnet-5-5-low";
-
-                if (m.StartsWith("gpt-oss", StringComparison.OrdinalIgnoreCase))
-                    return "gemini-3.8-flash-low";
-
-                if (m.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase))
-                    return m[..^6] + "-low";
-                if (m.EndsWith("-high", StringComparison.OrdinalIgnoreCase))
-                    return m[..^5] + "-low";
             }
             else
             {
                 if (m.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase))
-                    return m[..^6] + "-medium";
+                    return m[..^6] + "-low";
+                if (m.EndsWith("-high", StringComparison.OrdinalIgnoreCase))
+                    return m[..^5] + "-medium";
             }
 
             return m;
@@ -2252,7 +2251,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 {
                     ct.ThrowIfCancellationRequested();
                     string candidateModel = candidates[attempt];
-                    int printTimeoutSec = attempt == 0 ? 105 : 90;
+                    int printTimeoutSec = attempt == 0 ? 85 : 80;
 
                     var args = new[]
                     {
