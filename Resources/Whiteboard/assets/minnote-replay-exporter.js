@@ -577,19 +577,18 @@
   }
 
   // ============================================================================
-  // 3. SELF-CONTAINED FAST ANIMATED GIF89a ENCODER (Median-Cut + RGB555 LUT + LZW)
+  // 3. HIGH-PRECISION ANIMATED GIF89a ENCODER (24-bit Cache + Adaptive Palette + Lossless Dirty-Rect Delta LZW)
   // ============================================================================
   function buildMedianCutPalette(samplesRgb, maxColors) {
-    // Seed key UI/diagram colors so clean lines, white/dark bg & accents stay exact
+    // Seed crisp 16-step grayscale anti-aliasing ramp + dark Slate + math accent anchors
+    // so thin geometry strokes, dashed edges, and italic Times New Roman labels stay razor-sharp!
     const fixed = [
-      [255, 255, 255],
-      [15, 23, 42],
-      [0, 0, 0],
-      [37, 99, 235],
-      [13, 148, 136],
-      [220, 38, 38],
-      [248, 250, 252],
-      [148, 163, 184]
+      [255, 255, 255], [248, 250, 252], [240, 240, 240], [224, 224, 224],
+      [204, 204, 204], [184, 184, 184], [160, 160, 160], [136, 136, 136],
+      [112, 112, 112], [88, 88, 88],    [64, 64, 64],    [42, 42, 42],
+      [24, 24, 24],    [0, 0, 0],
+      [15, 23, 42],    [30, 41, 59],    [51, 65, 85],    [148, 163, 184], [226, 232, 240],
+      [37, 99, 235],   [56, 189, 248],  [13, 148, 136],  [220, 38, 38],   [22, 163, 74]
     ];
     const targetBuckets = Math.max(16, maxColors - fixed.length);
 
@@ -636,7 +635,6 @@
       if (bestIdx < 0) break;
       const bx = boxes.splice(bestIdx, 1)[0];
       const ch = bx.ch;
-      // Counting sort by selected channel (O(n)!)
       const hist = new Uint32Array(256);
       for (let i = bx.start; i < bx.end; i++) hist[samplesRgb[indices[i] * 3 + ch]]++;
       const half = (bx.end - bx.start) >> 1;
@@ -645,7 +643,6 @@
         acc += hist[v];
         if (acc >= half) { splitVal = v; break; }
       }
-      // Partition in-place around splitVal
       let l = bx.start, r = bx.end - 1;
       while (l <= r) {
         while (l <= r && samplesRgb[indices[l] * 3 + ch] <= splitVal) l++;
@@ -663,10 +660,16 @@
 
     const pal = new Uint8Array(256 * 3);
     let p = 0;
-    for (const c of fixed) {
-      pal[p * 3] = c[0]; pal[p * 3 + 1] = c[1]; pal[p * 3 + 2] = c[2];
+    const seen = new Set();
+    const addColor = (r, g, b) => {
+      if (p >= 256) return;
+      const k = (r << 16) | (g << 8) | b;
+      if (seen.has(k)) return;
+      seen.add(k);
+      pal[p * 3] = r; pal[p * 3 + 1] = g; pal[p * 3 + 2] = b;
       p++;
-    }
+    };
+    for (const c of fixed) addColor(c[0], c[1], c[2]);
     for (const bx of boxes) {
       if (p >= 256) break;
       let sr = 0, sg = 0, sb = 0;
@@ -675,46 +678,68 @@
         const idx = indices[i] * 3;
         sr += samplesRgb[idx]; sg += samplesRgb[idx + 1]; sb += samplesRgb[idx + 2];
       }
-      pal[p * 3] = Math.round(sr / n);
-      pal[p * 3 + 1] = Math.round(sg / n);
-      pal[p * 3 + 2] = Math.round(sb / n);
-      p++;
+      addColor(Math.round(sr / n), Math.round(sg / n), Math.round(sb / n));
     }
-    return pal;
+    return { palette: pal, usedCount: Math.max(1, p) };
   }
 
-  function buildRgb555Lut(palette) {
-    const lut = new Uint8Array(32768);
-    for (let r5 = 0; r5 < 32; r5++) {
-      const r = (r5 << 3) | (r5 >> 2);
-      for (let g5 = 0; g5 < 32; g5++) {
-        const g = (g5 << 3) | (g5 >> 2);
-        for (let b5 = 0; b5 < 32; b5++) {
-          const b = (b5 << 3) | (b5 >> 2);
-          let best = 0;
-          let bestD = 1e9;
-          for (let i = 0; i < 256; i++) {
-            const dr = r - palette[i * 3];
-            const dg = g - palette[i * 3 + 1];
-            const db = b - palette[i * 3 + 2];
-            const d = dr * dr * 2 + dg * dg * 4 + db * db;
-            if (d < bestD) { bestD = d; best = i; if (d === 0) break; }
-          }
-          lut[(r5 << 10) | (g5 << 5) | b5] = best;
-        }
+  function createExactColorMapper(palette, usedCount) {
+    const cache = new Map();
+    const count = Math.min(256, Math.max(1, usedCount || 256));
+    return function lookup(r, g, b) {
+      const key = (r << 16) | (g << 8) | b;
+      const hit = cache.get(key);
+      if (hit !== undefined) return hit;
+      let best = 0;
+      let bestD = 1e9;
+      for (let i = 0; i < count; i++) {
+        const dr = r - palette[i * 3];
+        const dg = g - palette[i * 3 + 1];
+        const db = b - palette[i * 3 + 2];
+        // Redmean-weighted perceptual distance (crisp grayscale & skin tones!)
+        const rMean = (r + palette[i * 3]) >> 1;
+        const d = ((512 + rMean) * dr * dr >> 8) + 4 * dg * dg + ((767 - rMean) * db * db >> 8);
+        if (d < bestD) { bestD = d; best = i; if (d === 0) break; }
+      }
+      if (cache.size < 65536) cache.set(key, best);
+      return best;
+    };
+  }
+
+  function mapRectRgbaToIndices(rgba, width, x0, y0, rw, rh, lookup) {
+    const out = new Uint8Array(rw * rh);
+    let dst = 0;
+    for (let y = y0; y < y0 + rh; y++) {
+      let src = (y * width + x0) * 4;
+      for (let x = 0; x < rw; x++, src += 4) {
+        out[dst++] = lookup(rgba[src], rgba[src + 1], rgba[src + 2]);
       }
     }
-    return lut;
+    return out;
   }
 
-  function mapRgbaToIndices(rgba, lut) {
-    const n = rgba.length >> 2;
-    const out = new Uint8Array(n);
-    for (let i = 0, j = 0; i < n; i++, j += 4) {
-      const key = ((rgba[j] & 0xF8) << 7) | ((rgba[j + 1] & 0xF8) << 2) | (rgba[j + 2] >> 3);
-      out[i] = lut[key];
+  function computeDirtyRect(prevRgba, currRgba, width, height) {
+    let minX = width, minY = height, maxX = -1, maxY = -1;
+    const prev32 = new Uint32Array(prevRgba.buffer, prevRgba.byteOffset, prevRgba.byteLength >> 2);
+    const curr32 = new Uint32Array(currRgba.buffer, currRgba.byteOffset, currRgba.byteLength >> 2);
+    for (let y = 0; y < height; y++) {
+      const row = y * width;
+      let rowMin = -1, rowMax = -1;
+      for (let x = 0; x < width; x++) {
+        if (prev32[row + x] !== curr32[row + x]) {
+          if (rowMin < 0) rowMin = x;
+          rowMax = x;
+        }
+      }
+      if (rowMin >= 0) {
+        if (y < minY) minY = y;
+        maxY = y;
+        if (rowMin < minX) minX = rowMin;
+        if (rowMax > maxX) maxX = rowMax;
+      }
     }
-    return out;
+    if (maxX < 0) return null; // Identical frame!
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   }
 
   function lzwEncodeGif(indices) {
@@ -804,25 +829,51 @@
     return new Uint8Array(out);
   }
 
-  function encodeGif89a(width, height, rgbaFrames, opts) {
-    const fps = Math.max(4, Math.min(50, (opts && opts.fps) || 20));
-    const delayCs = Math.max(2, Math.round(100 / fps));
-    const loop = opts ? opts.loop !== false : true;
+  function samplePaletteFromFrames(width, height, rgbaFrames) {
+    // Foreground-weighted sampling across up to 12 frames so thin lines, labels, dots & hand tones
+    // get full adaptive 256-color accuracy instead of being drowned out by solid background pixels!
+    const totalPx = width * height;
+    const sampleStep = Math.max(1, Math.floor(totalPx / 7500));
+    const pickCount = Math.min(12, rgbaFrames.length);
+    const samples = [];
+    // Detect dominant background pixel from top-left corner of frame 0
+    const f0 = rgbaFrames[0];
+    const bgR = f0 ? f0[0] : 255, bgG = f0 ? f0[1] : 255, bgB = f0 ? f0[2] : 255;
 
-    // Sample pixels from up to 6 evenly spaced frames for adaptive palette
-    const sampleStep = Math.max(1, Math.floor((width * height) / 4500));
-    const sampleIndices = [];
-    const pickCount = Math.min(6, rgbaFrames.length);
     for (let k = 0; k < pickCount; k++) {
       const fi = Math.min(rgbaFrames.length - 1, Math.round((k / Math.max(1, pickCount - 1)) * (rgbaFrames.length - 1)));
       const rgba = rgbaFrames[fi];
+      let bgSkip = 0;
       for (let p = 0; p < rgba.length; p += sampleStep * 4) {
-        sampleIndices.push(rgba[p], rgba[p + 1], rgba[p + 2]);
+        const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
+        const isBg = Math.abs(r - bgR) <= 4 && Math.abs(g - bgG) <= 4 && Math.abs(b - bgB) <= 4;
+        if (isBg) {
+          if ((bgSkip++ & 15) === 0) samples.push(r, g, b);
+        } else {
+          samples.push(r, g, b);
+        }
+      }
+      // Fine scan around non-bg strokes on final frame & middle frame for crisp edge anti-aliasing
+      if (k === pickCount - 1 || k === (pickCount >> 1)) {
+        const fineStep = Math.max(1, Math.floor(sampleStep / 3));
+        for (let p = 0; p < rgba.length && samples.length < 180000; p += fineStep * 4) {
+          const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
+          if (Math.abs(r - bgR) > 6 || Math.abs(g - bgG) > 6 || Math.abs(b - bgB) > 6) {
+            samples.push(r, g, b);
+          }
+        }
       }
     }
+    return buildMedianCutPalette(new Uint8Array(samples), 256);
+  }
 
-    const palette = buildMedianCutPalette(new Uint8Array(sampleIndices), 256);
-    const lut = buildRgb555Lut(palette);
+  function encodeGif89a(width, height, rgbaFrames, opts) {
+    const fps = Math.max(4, Math.min(50, (opts && opts.fps) || 30));
+    const delayCs = Math.max(2, Math.round(100 / fps));
+    const loop = opts ? opts.loop !== false : true;
+
+    const { palette, usedCount } = samplePaletteFromFrames(width, height, rgbaFrames);
+    const lookup = createExactColorMapper(palette, usedCount);
 
     const chunks = [];
     const pushBytes = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
@@ -847,30 +898,128 @@
       ]);
     }
 
-    const lastDelayCs = Math.min(200, Math.max(delayCs, 110)); // Hold final frame ~1.1s so viewer reads finished figure
+    const lastDelayCs = Math.min(200, Math.max(delayCs, 110)); // Hold final frame ~1.1s
 
+    // Collapse identical consecutive frames & encode tight dirty sub-rectangles (100% lossless!)
+    const planned = [];
     for (let fi = 0; fi < rgbaFrames.length; fi++) {
       const d = fi === rgbaFrames.length - 1 ? lastDelayCs : delayCs;
-      // Graphic Control Extension
+      if (fi === 0) {
+        planned.push({ fi, rect: { x: 0, y: 0, w: width, h: height }, delayCs: d });
+      } else {
+        const dirty = computeDirtyRect(rgbaFrames[fi - 1], rgbaFrames[fi], width, height);
+        if (!dirty && planned.length > 0) {
+          planned[planned.length - 1].delayCs = Math.min(600, planned[planned.length - 1].delayCs + d);
+        } else {
+          planned.push({ fi, rect: dirty || { x: 0, y: 0, w: width, h: height }, delayCs: d });
+        }
+      }
+    }
+
+    for (let pi = 0; pi < planned.length; pi++) {
+      const item = planned[pi];
+      const d = item.delayCs;
+      const rc = item.rect;
       pushBytes([
         0x21, 0xF9, 0x04,
-        0x04, // disposal = 1 (do not dispose), no transparency
+        0x04, // disposal = 1 (keep previous pixels for lossless delta overlays!)
         d & 0xFF, (d >> 8) & 0xFF,
         0x00, 0x00
       ]);
-      // Image Descriptor
       pushBytes([
         0x2C,
-        0x00, 0x00, 0x00, 0x00,
-        width & 0xFF, (width >> 8) & 0xFF,
-        height & 0xFF, (height >> 8) & 0xFF,
+        rc.x & 0xFF, (rc.x >> 8) & 0xFF,
+        rc.y & 0xFF, (rc.y >> 8) & 0xFF,
+        rc.w & 0xFF, (rc.w >> 8) & 0xFF,
+        rc.h & 0xFF, (rc.h >> 8) & 0xFF,
         0x00
       ]);
-      const indexed = mapRgbaToIndices(rgbaFrames[fi], lut);
+      const indexed = mapRectRgbaToIndices(rgbaFrames[item.fi], width, rc.x, rc.y, rc.w, rc.h, lookup);
       pushBytes(lzwEncodeGif(indexed));
     }
 
     pushBytes([0x3B]); // Trailer
+
+    let totalLen = 0;
+    for (const c of chunks) totalLen += c.length;
+    const out = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+      out.set(c, offset);
+      offset += c.length;
+    }
+    return out;
+  }
+
+  async function encodeGif89aAsync(width, height, rgbaFrames, opts, onEncodeProgress, cancelSignal) {
+    const fps = Math.max(4, Math.min(50, (opts && opts.fps) || 30));
+    const delayCs = Math.max(2, Math.round(100 / fps));
+    const loop = opts ? opts.loop !== false : true;
+
+    const { palette, usedCount } = samplePaletteFromFrames(width, height, rgbaFrames);
+    const lookup = createExactColorMapper(palette, usedCount);
+
+    const chunks = [];
+    const pushBytes = (arr) => chunks.push(arr instanceof Uint8Array ? arr : new Uint8Array(arr));
+
+    pushBytes([
+      0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
+      width & 0xFF, (width >> 8) & 0xFF,
+      height & 0xFF, (height >> 8) & 0xFF,
+      0xF7, 0x00, 0x00
+    ]);
+    pushBytes(palette);
+
+    if (loop) {
+      pushBytes([
+        0x21, 0xFF, 0x0B,
+        0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
+        0x03, 0x01, 0x00, 0x00, 0x00
+      ]);
+    }
+
+    const lastDelayCs = Math.min(200, Math.max(delayCs, 110));
+    const planned = [];
+    for (let fi = 0; fi < rgbaFrames.length; fi++) {
+      const d = fi === rgbaFrames.length - 1 ? lastDelayCs : delayCs;
+      if (fi === 0) {
+        planned.push({ fi, rect: { x: 0, y: 0, w: width, h: height }, delayCs: d });
+      } else {
+        const dirty = computeDirtyRect(rgbaFrames[fi - 1], rgbaFrames[fi], width, height);
+        if (!dirty && planned.length > 0) {
+          planned[planned.length - 1].delayCs = Math.min(600, planned[planned.length - 1].delayCs + d);
+        } else {
+          planned.push({ fi, rect: dirty || { x: 0, y: 0, w: width, h: height }, delayCs: d });
+        }
+      }
+    }
+
+    for (let pi = 0; pi < planned.length; pi++) {
+      if (cancelSignal && cancelSignal.cancelled) throw new Error('Đã hủy xuất GIF.');
+      const item = planned[pi];
+      const d = item.delayCs;
+      const rc = item.rect;
+      pushBytes([
+        0x21, 0xF9, 0x04, 0x04,
+        d & 0xFF, (d >> 8) & 0xFF, 0x00, 0x00
+      ]);
+      pushBytes([
+        0x2C,
+        rc.x & 0xFF, (rc.x >> 8) & 0xFF,
+        rc.y & 0xFF, (rc.y >> 8) & 0xFF,
+        rc.w & 0xFF, (rc.w >> 8) & 0xFF,
+        rc.h & 0xFF, (rc.h >> 8) & 0xFF,
+        0x00
+      ]);
+      const indexed = mapRectRgbaToIndices(rgbaFrames[item.fi], width, rc.x, rc.y, rc.w, rc.h, lookup);
+      pushBytes(lzwEncodeGif(indexed));
+      if (onEncodeProgress && (pi % 4 === 0 || pi === planned.length - 1)) {
+        onEncodeProgress(pi + 1, planned.length);
+      }
+      if (pi % 6 === 5) await new Promise((r) => setTimeout(r, 0));
+    }
+
+    pushBytes([0x3B]);
 
     let totalLen = 0;
     for (const c of chunks) totalLen += c.length;
@@ -966,16 +1115,38 @@
     return frames;
   }
 
+  const QUALITY_PRESETS = {
+    '720p':  { label: 'HD 720p',       baseScale: 1.75, minLong: 960,  maxLong: 1280, maxGifLong: 1280, maxScale: 3.5, videoBps: 10000000 },
+    '1080p': { label: 'Full HD 1080p', baseScale: 2.5,  minLong: 1440, maxLong: 1920, maxGifLong: 1920, maxScale: 4.5, videoBps: 20000000 },
+    '2k':    { label: '2K (1440p)',    baseScale: 3.25, minLong: 2048, maxLong: 2560, maxGifLong: 2400, maxScale: 5.5, videoBps: 36000000 },
+    '4k':    { label: '4K Ultra HD',   baseScale: 4.5,  minLong: 2880, maxLong: 3840, maxGifLong: 2880, maxScale: 7.0, videoBps: 56000000 }
+  };
+
+  function getQualityPreset(quality) {
+    return QUALITY_PRESETS[quality] || QUALITY_PRESETS['1080p'];
+  }
+
+  function computeVideoBitrate(quality, fps) {
+    const preset = getQualityPreset(quality);
+    const fpsFactor = fps >= 55 ? 1.35 : (fps >= 45 ? 1.25 : (fps >= 30 ? 1.12 : 1.0));
+    return Math.min(72000000, Math.round(preset.videoBps * fpsFactor));
+  }
+
   function computeCanvasDims(bbox, opts) {
-    const padding = Number.isFinite(opts.padding) ? opts.padding : 36;
+    const o = opts || {};
+    const padding = Number.isFinite(o.padding) ? o.padding : 36;
     const srcW = bbox.w + padding * 2;
     const srcH = bbox.h + padding * 2;
-    const maxDim = opts.quality === '1080p' ? 1280 : (opts.quality === '720p' ? 880 : 960);
-    const baseScale = opts.quality === '1080p' ? 2.0 : 1.5;
-    const scale = Math.min(baseScale, maxDim / Math.max(srcW, srcH));
-    // Ensure even dimensions for H.264/VP9 video encoders
-    const outW = Math.max(160, Math.round((srcW * scale) / 2) * 2);
-    const outH = Math.max(120, Math.round((srcH * scale) / 2) * 2);
+    const preset = getQualityPreset(o.quality || '1080p');
+    const isGif = o.fmt === 'gif';
+    const maxDim = isGif ? preset.maxGifLong : preset.maxLong;
+    const rawLong = Math.max(1, srcW, srcH);
+    // Guarantee sharp minimum resolution even for compact diagrams while respecting upper ceiling
+    let scale = Math.max(preset.baseScale, preset.minLong / rawLong);
+    scale = Math.min(scale, maxDim / rawLong, preset.maxScale);
+    // Ensure even dimensions for H.264/VP9 4:2:0 video encoders
+    const outW = Math.max(240, Math.round((srcW * scale) / 2) * 2);
+    const outH = Math.max(180, Math.round((srcH * scale) / 2) * 2);
     return {
       outW,
       outH,
@@ -983,6 +1154,15 @@
       offsetX: -bbox.minX + padding,
       offsetY: -bbox.minY + padding
     };
+  }
+
+  function findPrimarySolidId(geo, replay) {
+    const shapes = (geo && geo.shapes) || [];
+    const scope = replay && replay.scopeShapes;
+    const scoped = scope ? shapes.find((s) => s.kind === 'solid' && scope.has(s.id)) : null;
+    if (scoped) return scoped.id;
+    const any = shapes.find((s) => s.kind === 'solid');
+    return any ? any.id : null;
   }
 
   function drawSingleExportFrame(canvas, ctx, context, frameSpec, dims, opts) {
@@ -993,6 +1173,8 @@
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     paintExportBackground(ctx, outW, outH, bgMode, scale);
 
     ctx.scale(scale, scale);
@@ -1003,7 +1185,9 @@
       const res = board.renderReplayExportFrame(ctx, replay, frameSpec.stepIdx, frameSpec.progress, {
         bgMode,
         orbitAngle: frameSpec.kind === 'orbit' ? frameSpec.angle : 0,
-        showHand: false // We paint calibrated hand right after so sizing is exact!
+        orbitSolidId: frameSpec.kind === 'orbit' ? (opts.orbitSolidId || findPrimarySolidId(geo, replay)) : null,
+        showHand: false,
+        showHandCursor: false // Prevent double-hand draw; calibrated HiDPI hand is painted below
       });
       if (res && res.tip) tip = res.tip;
       else if (board._replayTip && board._replayTip.active) tip = Object.assign({}, board._replayTip);
@@ -1038,17 +1222,22 @@
   }
 
   async function saveExportedBytes(bytes, fileName, ext, mime) {
-    if (window.MinNoteMeaSync && window.MinNoteMeaSync.isDesktopBridge()) {
-      const base64Data = uint8ToBase64(bytes);
-      const res = await window.MinNoteMeaSync.request('SAVE_MEDIA_FILE', {
-        fileName,
-        ext,
-        base64Data
-      }, 60000);
-      if (res && !res.cancelled) {
-        toast(`✓ Đã lưu tệp ${res.fileName || fileName}!`);
+    // Use native Save dialog via WebView2 bridge (up to ~28MB JSON payload); larger 4K clips fallback cleanly to direct download
+    if (bytes.length <= 28 * 1024 * 1024 && window.MinNoteMeaSync && window.MinNoteMeaSync.isDesktopBridge()) {
+      try {
+        const base64Data = uint8ToBase64(bytes);
+        const res = await window.MinNoteMeaSync.request('SAVE_MEDIA_FILE', {
+          fileName,
+          ext,
+          base64Data
+        }, 180000);
+        if (res && !res.cancelled) {
+          toast(`✓ Đã lưu tệp ${res.fileName || fileName}!`);
+        }
+        return res;
+      } catch (ipcErr) {
+        console.warn('[ReplayExporter] SAVE_MEDIA_FILE fallback to direct download:', ipcErr);
       }
-      return res;
     }
     const blob = new Blob([bytes], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -1058,21 +1247,24 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    setTimeout(() => URL.revokeObjectURL(url), 6000);
     toast(`✓ Đã tải xuống ${fileName}!`);
     return { path: fileName, sizeBytes: bytes.length };
   }
 
   async function exportGif(replayArg, opts, onProgress, cancelSignal) {
     const o = Object.assign({
+      fmt: 'gif',
       background: 'white',
-      quality: '720p',
-      fps: 20,
+      quality: '1080p',
+      fps: 30,
       padding: 36,
       showHand: true,
       orbit360: false,
       loop: true
-    }, opts || {});
+    }, opts || {}, { fmt: 'gif' });
+    // GIF89a centisecond delay ceiling = 50 FPS (2cs per frame)
+    const gifFps = Math.max(4, Math.min(50, o.fps || 30));
 
     const ctxObj = resolveExportContext(replayArg);
     if (!ctxObj) throw new Error('Không tìm thấy hình học hoặc kịch bản dựng hình để xuất GIF.');
@@ -1084,11 +1276,13 @@
       }
     }
 
-    const hasSolid = (ctxObj.geo.shapes || []).some((s) => s.kind === 'solid');
+    const solidId = findPrimarySolidId(ctxObj.geo, ctxObj.replay);
+    const hasSolid = !!solidId;
+    o.orbitSolidId = solidId;
     const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, 32);
+    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
     const dims = computeCanvasDims(bbox, o);
-    const schedule = buildFrameSchedule(ctxObj.replay, o.fps, o.orbit360 && hasSolid);
+    const schedule = buildFrameSchedule(ctxObj.replay, gifFps, o.orbit360 && hasSolid);
 
     const canvas = document.createElement('canvas');
     canvas.width = dims.outW;
@@ -1101,33 +1295,43 @@
       drawSingleExportFrame(canvas, ctx, ctxObj, schedule[i], dims, o);
       const imgData = ctx.getImageData(0, 0, dims.outW, dims.outH);
       rgbaFrames.push(new Uint8Array(imgData.data));
-      if (onProgress) onProgress(Math.round(((i + 1) / schedule.length) * 75), `Đang vẽ khung ${i + 1}/${schedule.length}...`, canvas);
-      if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
+      if (onProgress) onProgress(Math.round(((i + 1) / schedule.length) * 65), `Đang vẽ khung ${i + 1}/${schedule.length} (${dims.outW}×${dims.outH}px)...`, canvas);
+      if (i % 3 === 0) await new Promise((r) => setTimeout(r, 0));
     }
 
     if (cancelSignal && cancelSignal.cancelled) throw new Error('Đã hủy xuất GIF.');
-    if (onProgress) onProgress(82, 'Đang nén ảnh động GIF89a (256 màu LZW)...', canvas);
+    if (onProgress) onProgress(68, 'Đang tạo bảng màu chuẩn 256 màu & nén GIF89a siêu nét...', canvas);
     await new Promise((r) => setTimeout(r, 10));
 
-    const gifBytes = encodeGif89a(dims.outW, dims.outH, rgbaFrames, { fps: o.fps, loop: o.loop });
-    if (onProgress) onProgress(96, 'Đang lưu tệp .gif...', canvas);
+    const gifBytes = await encodeGif89aAsync(dims.outW, dims.outH, rgbaFrames, { fps: gifFps, loop: o.loop }, (done, tot) => {
+      if (onProgress) {
+        const pct = 68 + Math.round((done / Math.max(1, tot)) * 28);
+        onProgress(pct, `Đang nén GIF89a không suy hao khung ${done}/${tot}...`, canvas);
+      }
+    }, cancelSignal);
+    if (onProgress) onProgress(97, 'Đang lưu tệp .gif...', canvas);
 
     const safeTitle = String(ctxObj.replay.title || 'minnote-replay').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36) || 'minnote-replay';
-    const fileName = `${safeTitle}_${Date.now().toString(36)}.gif`;
+    const fileName = `${safeTitle}_${o.quality}_${Date.now().toString(36)}.gif`;
     const saveRes = await saveExportedBytes(gifBytes, fileName, '.gif', 'image/gif');
-    if (onProgress) onProgress(100, `Hoàn tất! (${(gifBytes.length / 1024).toFixed(1)} KB)`, canvas);
-    return { bytes: gifBytes, width: dims.outW, height: dims.outH, frames: rgbaFrames.length, fileName, saveRes };
+    const sizeLabel = gifBytes.length >= 1048576
+      ? `${(gifBytes.length / 1048576).toFixed(2)} MB`
+      : `${(gifBytes.length / 1024).toFixed(1)} KB`;
+    if (onProgress) onProgress(100, `Hoàn tất GIF ${dims.outW}×${dims.outH}px @ ${gifFps} FPS (${sizeLabel})`, canvas);
+    return { bytes: gifBytes, width: dims.outW, height: dims.outH, fps: gifFps, frames: rgbaFrames.length, fileName, saveRes };
   }
 
   async function exportVideo(replayArg, opts, onProgress, cancelSignal) {
     const o = Object.assign({
+      fmt: 'video',
       background: 'white',
-      quality: '720p',
-      fps: 24,
+      quality: '1080p',
+      fps: 60,
       padding: 36,
       showHand: true,
       orbit360: false
-    }, opts || {});
+    }, opts || {}, { fmt: 'video' });
+    const vidFps = Math.max(12, Math.min(60, o.fps || 30));
 
     if (typeof MediaRecorder === 'undefined') {
       throw new Error('Trình duyệt không hỗ trợ MediaRecorder — hãy chọn xuất GIF động.');
@@ -1143,66 +1347,134 @@
       }
     }
 
-    const hasSolid = (ctxObj.geo.shapes || []).some((s) => s.kind === 'solid');
+    const solidId = findPrimarySolidId(ctxObj.geo, ctxObj.replay);
+    const hasSolid = !!solidId;
+    o.orbitSolidId = solidId;
     const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, 32);
+    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
     const dims = computeCanvasDims(bbox, o);
-    const schedule = buildFrameSchedule(ctxObj.replay, o.fps, o.orbit360 && hasSolid);
+    const schedule = buildFrameSchedule(ctxObj.replay, vidFps, o.orbit360 && hasSolid);
 
     const canvas = document.createElement('canvas');
     canvas.width = dims.outW;
     canvas.height = dims.outH;
     const ctx = canvas.getContext('2d');
 
+    // Native 'video/mp4' lets Chromium/WebView2 auto-negotiate optimal H.264 profile/level for 1080p/2K/4K without Media Foundation rejection!
     const mimeCandidates = [
-      'video/mp4;codecs=avc1.42E01E',
       'video/mp4',
-      'video/webm;codecs=vp9',
       'video/webm;codecs=vp8',
-      'video/webm'
-    ];
-    const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-    const ext = mimeType.includes('mp4') ? '.mp4' : '.webm';
+      'video/webm',
+      'video/mp4;codecs=avc1.4d402a',
+      'video/mp4;codecs=avc1.640028',
+      'video/webm;codecs=vp9'
+    ].filter((m) => MediaRecorder.isTypeSupported(m));
+    if (!mimeCandidates.length) mimeCandidates.push('video/webm');
+    const videoBps = computeVideoBitrate(o.quality, vidFps);
 
-    const stream = canvas.captureStream(o.fps);
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: o.quality === '1080p' ? 4500000 : 2600000 });
-    const chunks = [];
-    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-
-    const stopPromise = new Promise((resolve) => { recorder.onstop = resolve; });
-    recorder.start(100);
-
-    const frameMs = 1000 / o.fps;
-    for (let i = 0; i < schedule.length; i++) {
-      if (cancelSignal && cancelSignal.cancelled) {
-        try { recorder.stop(); } catch (_) {}
-        throw new Error('Đã hủy xuất Video.');
+    async function recordWithMime(mimeType, preferManualFrame) {
+      // Paint frame 0 before starting MediaRecorder so encoder initializes on valid geometry pixels
+      if (schedule.length > 0) {
+        drawSingleExportFrame(canvas, ctx, ctxObj, schedule[0], dims, o);
       }
-      const t0 = performance.now();
-      drawSingleExportFrame(canvas, ctx, ctxObj, schedule[i], dims, o);
-      if (onProgress) onProgress(Math.round(((i + 1) / schedule.length) * 92), `Đang ghi video ${i + 1}/${schedule.length} khung...`, canvas);
-      const elapsed = performance.now() - t0;
-      const wait = Math.max(4, frameMs - elapsed);
-      await new Promise((r) => setTimeout(r, wait));
+
+      let stream = null;
+      let videoTrack = null;
+      let manualFramePush = false;
+      if (preferManualFrame) {
+        try {
+          stream = canvas.captureStream(0);
+          videoTrack = stream.getVideoTracks()[0] || null;
+          manualFramePush = !!(videoTrack && typeof videoTrack.requestFrame === 'function');
+        } catch (_) {
+          manualFramePush = false;
+        }
+      }
+      if (!manualFramePush) {
+        if (stream) stream.getTracks().forEach((tr) => tr.stop());
+        stream = canvas.captureStream(vidFps);
+        videoTrack = stream.getVideoTracks()[0] || null;
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: videoBps });
+      const chunks = [];
+      let recError = null;
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      recorder.onerror = (e) => { recError = (e && e.error) || new Error('Lỗi bộ mã hóa video'); };
+
+      const stopPromise = new Promise((resolve) => { recorder.onstop = resolve; });
+      recorder.start(150);
+
+      const frameMs = 1000 / vidFps;
+      const startClock = performance.now();
+      for (let i = 0; i < schedule.length; i++) {
+        if (cancelSignal && cancelSignal.cancelled) {
+          try { if (recorder.state !== 'inactive') recorder.stop(); } catch (_) {}
+          stream.getTracks().forEach((tr) => tr.stop());
+          throw new Error('Đã hủy xuất Video.');
+        }
+        drawSingleExportFrame(canvas, ctx, ctxObj, schedule[i], dims, o);
+        if (manualFramePush && videoTrack) {
+          try { videoTrack.requestFrame(); } catch (_) {}
+        }
+        if (onProgress && (i % 2 === 0 || i === schedule.length - 1)) {
+          onProgress(
+            Math.round(((i + 1) / schedule.length) * 92),
+            `Đang ghi video ${dims.outW}×${dims.outH}px @ ${vidFps} FPS (${i + 1}/${schedule.length})...`,
+            canvas
+          );
+        }
+        const targetAt = startClock + (i + 1) * frameMs;
+        const wait = Math.max(2, targetAt - performance.now());
+        await new Promise((r) => setTimeout(r, wait));
+      }
+
+      // Flush final frame cleanly before stopping MediaRecorder
+      await new Promise((r) => setTimeout(r, Math.max(120, Math.round(frameMs * 3))));
+      if (recorder.state !== 'inactive') {
+        recorder.stop();
+        await stopPromise;
+      }
+      stream.getTracks().forEach((tr) => tr.stop());
+
+      const blob = new Blob(chunks, { type: mimeType });
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      return { buf, mimeType, recError };
     }
 
-    recorder.stop();
-    await stopPromise;
-    stream.getTracks().forEach((tr) => tr.stop());
+    let usedMime = mimeCandidates[0];
+    let recOut = await recordWithMime(usedMime, usedMime === 'video/mp4');
+    // Automatic resilient fallback if primary codec ever produces an empty stream
+    if (recOut.buf.length < 512 && mimeCandidates.length > 1) {
+      for (let ci = 1; ci < mimeCandidates.length; ci++) {
+        if (cancelSignal && cancelSignal.cancelled) throw new Error('Đã hủy xuất Video.');
+        usedMime = mimeCandidates[ci];
+        if (onProgress) onProgress(5, `Chuyển sang bộ mã dự phòng ${usedMime}...`, canvas);
+        recOut = await recordWithMime(usedMime, false);
+        if (recOut.buf.length >= 512) break;
+      }
+    }
+    if (recOut.buf.length < 256) {
+      throw new Error('Không thể ghi luồng video ở độ phân giải này — hãy thử chọn 2K/1080p hoặc xuất GIF động.');
+    }
 
-    const blob = new Blob(chunks, { type: mimeType });
-    const buf = new Uint8Array(await blob.arrayBuffer());
+    const mimeType = recOut.mimeType;
+    const ext = mimeType.includes('mp4') ? '.mp4' : '.webm';
+    const buf = recOut.buf;
     const safeTitle = String(ctxObj.replay.title || 'minnote-replay').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36) || 'minnote-replay';
-    const fileName = `${safeTitle}_${Date.now().toString(36)}${ext}`;
+    const fileName = `${safeTitle}_${o.quality}_${vidFps}fps_${Date.now().toString(36)}${ext}`;
     const saveRes = await saveExportedBytes(buf, fileName, ext, mimeType);
-    if (onProgress) onProgress(100, `Hoàn tất video ${ext.toUpperCase()} (${(buf.length / 1024).toFixed(1)} KB)`, canvas);
-    return { bytes: buf, width: dims.outW, height: dims.outH, mimeType, fileName, saveRes };
+    const sizeLabel = buf.length >= 1048576
+      ? `${(buf.length / 1048576).toFixed(2)} MB`
+      : `${(buf.length / 1024).toFixed(1)} KB`;
+    if (onProgress) onProgress(100, `Hoàn tất video ${ext.toUpperCase()} ${dims.outW}×${dims.outH}px @ ${vidFps} FPS (${sizeLabel})`, canvas);
+    return { bytes: buf, width: dims.outW, height: dims.outH, fps: vidFps, bitrate: videoBps, mimeType, fileName, saveRes };
   }
 
   function captureCurrentGeoPng(opts) {
     const ctxObj = resolveExportContext(null);
     if (!ctxObj) return '';
-    const o = Object.assign({ background: 'white', quality: '720p', padding: 32, showHand: false }, opts || {});
+    const o = Object.assign({ fmt: 'video', background: 'white', quality: '1080p', padding: 32, showHand: false }, opts || {});
     const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
     const bbox = computeTightBBox(ctxObj.geo, coords, null, null, 30);
     const dims = computeCanvasDims(bbox, o);
@@ -1262,8 +1534,10 @@
             <div class="mn-v80-field">
               <div class="mn-v80-label">Chất lượng / Độ phân giải</div>
               <div class="mn-v80-pill-row" id="mn-rpexp-qual">
-                <button type="button" class="mn-v80-pill active" data-val="720p">720p (1.5×)</button>
-                <button type="button" class="mn-v80-pill" data-val="1080p">1080p (2× nét)</button>
+                <button type="button" class="mn-v80-pill" data-val="720p">720p</button>
+                <button type="button" class="mn-v80-pill active" data-val="1080p">1080p HD</button>
+                <button type="button" class="mn-v80-pill" data-val="2k">2K QHD</button>
+                <button type="button" class="mn-v80-pill" data-val="4k">4K UHD</button>
               </div>
             </div>
 
@@ -1272,8 +1546,10 @@
               <div style="display:flex;gap:8px;align-items:center;">
                 <select id="mn-rpexp-fps" class="mn-v80-select" style="flex:1;">
                   <option value="15">15 FPS (Nhẹ nhất)</option>
-                  <option value="24" selected>24 FPS (Mượt chuẩn)</option>
-                  <option value="30">30 FPS (Siêu mượt)</option>
+                  <option value="24">24 FPS (Mượt chuẩn)</option>
+                  <option value="30" selected>30 FPS (Mượt cao)</option>
+                  <option value="50">50 FPS (Siêu mượt — GIF)</option>
+                  <option value="60">60 FPS (Siêu mượt — Video)</option>
                 </select>
                 <input type="number" id="mn-rpexp-pad" class="mn-v80-input" value="36" min="12" max="120" step="4" style="width:88px;" title="Lề cắt (px)" />
               </div>
@@ -1319,8 +1595,8 @@
     const readOpts = () => {
       const fmt = el.querySelector('#mn-rpexp-fmt .mn-v80-pill.active')?.dataset.val || 'gif';
       const background = el.querySelector('#mn-rpexp-bg .mn-v80-pill.active')?.dataset.val || 'white';
-      const quality = el.querySelector('#mn-rpexp-qual .mn-v80-pill.active')?.dataset.val || '720p';
-      const fps = parseInt(el.querySelector('#mn-rpexp-fps').value, 10) || 24;
+      const quality = el.querySelector('#mn-rpexp-qual .mn-v80-pill.active')?.dataset.val || '1080p';
+      const fps = parseInt(el.querySelector('#mn-rpexp-fps').value, 10) || 30;
       const padding = parseInt(el.querySelector('#mn-rpexp-pad').value, 10) || 36;
       const showHand = !!el.querySelector('#mn-rpexp-hand').checked;
       const orbit360 = !!el.querySelector('#mn-rpexp-orbit').checked;
@@ -1338,18 +1614,31 @@
         return;
       }
       const o = readOpts();
+      const hasSolid = !!findPrimarySolidId(ctxObj.geo, ctxObj.replay);
       const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-      const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, 32);
+      const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
       const dims = computeCanvasDims(bbox, o);
+      // Render crisp preview at capped display resolution so modal opens instantaneously even at 4K!
+      const prevMax = 960;
+      const prevRatio = Math.min(1, prevMax / Math.max(dims.outW, dims.outH));
+      const prevDims = Object.assign({}, dims, {
+        outW: Math.max(160, Math.round(dims.outW * prevRatio)),
+        outH: Math.max(120, Math.round(dims.outH * prevRatio)),
+        scale: dims.scale * prevRatio
+      });
       const c = document.createElement('canvas');
-      c.width = dims.outW;
-      c.height = dims.outH;
+      c.width = prevDims.outW;
+      c.height = prevDims.outH;
       const c2 = c.getContext('2d');
       const activeSteps = (ctxObj.replay.steps || []).filter((s) => s.enabled !== false);
-      drawSingleExportFrame(c, c2, ctxObj, { kind: 'step', stepIdx: Math.max(0, activeSteps.length - 1), progress: 1, lifted: false }, dims, Object.assign({}, o, { showHand: false }));
+      drawSingleExportFrame(c, c2, ctxObj, { kind: 'step', stepIdx: Math.max(0, activeSteps.length - 1), progress: 1, lifted: false }, prevDims, Object.assign({}, o, { showHand: false }));
       box.innerHTML = '';
       box.appendChild(c);
-      info.textContent = `Khung cắt sát hình: ${dims.outW}×${dims.outH}px • ${activeSteps.length} bước dựng`;
+      const effFps = o.fmt === 'gif' ? Math.min(50, o.fps) : o.fps;
+      const qualMeta = o.fmt === 'video'
+        ? `${Math.round(computeVideoBitrate(o.quality, effFps) / 1000000)} Mbps`
+        : '256 màu chuẩn nét';
+      info.textContent = `Đầu ra: ${dims.outW}×${dims.outH}px • ${effFps} FPS • ${qualMeta} • ${activeSteps.length} bước dựng`;
     };
 
     ['#mn-rpexp-fmt', '#mn-rpexp-bg', '#mn-rpexp-qual'].forEach((sel) => {
@@ -1362,7 +1651,9 @@
         });
       });
     });
+    el.querySelector('#mn-rpexp-fps').addEventListener('change', refreshPreview);
     el.querySelector('#mn-rpexp-pad').addEventListener('change', refreshPreview);
+    el.querySelector('#mn-rpexp-orbit').addEventListener('change', refreshPreview);
 
     const close = () => {
       if (activeCancel) activeCancel.cancelled = true;
@@ -1439,6 +1730,10 @@
     exportVideo,
     captureCurrentGeoPng,
     encodeGif89a,
+    encodeGif89aAsync,
+    computeCanvasDims,
+    computeVideoBitrate,
+    QUALITY_PRESETS,
     computeTightBBox
   };
 })();
