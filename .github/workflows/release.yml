@@ -65,6 +65,7 @@ jobs:
             $ErrorActionPreference = 'Continue'
             $relJson = gh release view $tag --json assets 2>$null
             $relExit = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
             $ErrorActionPreference = $prevPref
             if ($relExit -eq 0 -and $relJson) {
               $relObj = $relJson | ConvertFrom-Json
@@ -91,6 +92,7 @@ jobs:
           "should_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "app_version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit 0
 
       - name: Cài đặt .NET 10 SDK
         if: steps.check.outputs.should_release == 'true'
@@ -173,6 +175,7 @@ jobs:
           $ErrorActionPreference = 'Continue'
           gh release view $tag *> $null
           $releaseExists = ($LASTEXITCODE -eq 0)
+          $global:LASTEXITCODE = 0
           $ErrorActionPreference = $prevPref
 
           if ($releaseExists) {
