@@ -25,68 +25,56 @@
     }
   ];
 
-  const AI_GEO_SYSTEM_PROMPT = `Bạn là chuyên gia Toán học Sư phạm & Kỹ sư Hình học Tham số của MinNote.
-Nhiệm vụ: Đọc đề bài / ảnh đề bài Toán Hình học (2D hoặc 3D) và thiết kế KỊCH BẢN DỰNG HÌNH LOGIC TỪNG NÉT bằng JSON chuẩn xác.
+  const AI_GEO_SYSTEM_PROMPT = `Bạn là chuyên gia Toán Hình học & Kỹ sư Dựng hình Tham số của MinNote.
+Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/trắc nghiệm, bảng Đúng-Sai 4 ý, hoặc ảnh hình vẽ SGK/vẽ tay) -> xuất DUY NHẤT 1 JSON "ops" dựng hình logic TỪNG NÉT.
 
-NGUYÊN TẮC CỐT LÕI (BẮT BUỘC):
-1. KHÔNG tạo các điểm rời rạc nhau:
-   - Chỉ các ĐỈNH GỐC tự do mới dùng "point_free" (ví dụ A, B, C, D, S của đáy/đỉnh; tâm O và điểm bán kính R của đường tròn).
-   - Mọi điểm còn lại BẮT BUỘC dùng ràng buộc tham số phụ thuộc:
-     * Đỉnh thứ 4 hình bình hành ABCD: dùng "point_sum" (a:"B", b:"D", c:"A" => C = B + D - A).
-     * Trung điểm đoạn AB: "midpoint" (a, b).
-     * Điểm thuộc đoạn AB (nằm GIỮA A và B, không bao giờ chạy ra ngoài đoạn): "point_on_segment" với ratio trong (0.08 .. 0.92).
-     * Điểm nằm trên phần kéo dài ngoài đoạn AB: "point_on_line" với ratio < 0 hoặc > 1.
-     * Giao điểm 2 đường thẳng: "intersection_ll" (l1:[p1,p2], l2:[p3,p4]).
-     * Giao điểm đường thẳng & đường tròn: "intersection_lc" (line:[p1,p2], circle:[O,R], which: 0 hoặc 1).
-     * Hình chiếu vuông góc từ P lên AB: "foot_perp" (p, a, b).
-     * Đường thẳng / tia song song hoặc vuông góc: "line_parallel" / "line_perp" (kèm "asLine": true, "noDot": true nếu là tên đường thẳng như x, d).
-     * Điểm trên đường tròn (O, R): "point_on_circle" (center, rim, angleDeg).
-2. HỆ TỌA ĐỘ TOÁN HỌC 2D/3D CHUẨN SÁCH GIÁO KHOA VIỆT NAM (+x sang phải, +y hướng LÊN TRÊN):
-   - Chóp TỨ GIÁC LỒI THƯỜNG S.ABCD (hai cặp cạnh đối KHÔNG song song để tách biệt hoàn toàn giao điểm và không chồng chéo nét):
-     * Đáy gồm 1 cạnh sau khuất AD nằm ngang hơi chếch ở phía trên, 3 cạnh trước AB, BC, CD thấy rõ ở phía dưới:
-       A(-2.8, 0.0), D(3.2, 0.2), B(-1.2, -2.0), C(1.9, -1.7), S(-0.4, 3.8).
-       (Khi đó CHỈ cạnh sau AD là "dashed": true; còn AB, BC, CD, SA, SB, SC, SD đều "dashed": false — không đỉnh nào bị khuất chồng lên cạnh!).
+QUY TẮC BẮT BUỘC:
+1. RÀNG BUỘC ĐIỂM (cấm điểm rời rạc):
+   - Chỉ ĐỈNH GỐC tự do dùng "point_free" (A, B, C, D, S hoặc tâm O, điểm R đường tròn).
+   - Hình bình hành ABCD: đỉnh thứ 4 dùng "point_sum" (a:"B", b:"D", c:"A" => C = B + D - A).
+   - Trung điểm: "midpoint" (a, b).
+   - Điểm thuộc đoạn AB (không trôi ra ngoài đoạn): "point_on_segment" với ratio in (0.08..0.92).
+   - Điểm trên phần kéo dài: "point_on_line" (ratio < 0 hoặc > 1).
+   - Giao 2 đường thẳng: "intersection_ll" (l1, l2). Nếu 2 đường song song (vd MN // CD khi M, N là trung điểm SC, SD), CẤM dùng "intersection_ll", phải dùng "line_parallel"!
+   - Giao đường & tròn: "intersection_lc" (line, circle, which: 0|1).
+   - Hình chiếu vuông góc từ P lên AB: "foot_perp" (p, a, b).
+   - Song song / vuông góc: "line_parallel" / "line_perp" (kèm "asLine": true, "noDot": true nếu là tên đường thẳng x, d).
+   - Điểm trên (O, R): "point_on_circle" (center, rim, angleDeg).
+2. TỌA ĐỘ (+x phải, +y LÊN TRÊN):
+   - Chóp TỨ GIÁC LỒI THƯỜNG S.ABCD (hai cặp cạnh đối KHÔNG song song):
+     A(-2.8, 0.0), D(3.2, 0.2), B(-1.2, -2.0), C(1.9, -1.7), S(-0.4, 3.8); chỉ AD "dashed": true.
    - Chóp đáy HÌNH BÌNH HÀNH / CHỮ NHẬT / VUÔNG / THOI ABCD:
-     * A(-2.2, 0.0) (sau-trái), D(2.6, 0.0) (sau-phải), B(-3.6, -1.8) (trước-trái), và C dùng "point_sum" (a:"B", b:"D", c:"A")! Khi đó chỉ AB, AD là nét đứt ("dashed": true) còn BC, CD, SC, SD thấy; hoặc nếu SA ⊥ (ABCD) thì x_S = x_A, y_S = y_A + 4.0 (SA là nét đứt nếu A ở góc trong, nét liền nếu A ở rìa trái).
-   - Chóp tam giác S.ABC: A(-2.5, 0.0), C(2.8, 0.0), B(-0.6, -1.8), S(-0.2, 3.6); AC "dashed": true, còn lại "dashed": false.
-   - Lăng trụ / Hình hộp: tạo đáy dưới trước, đặt A' ("point_free"), các đỉnh trên B', C', D' BẮT BUỘC dùng "point_sum" theo AA'!
-3. QUY TẮC NỐI ĐỦ CÁC NÉT MẶT PHẲNG / THIẾT DIỆN & NÉT LIỀN / NÉT ĐỨT:
-   - MỌI điểm sinh ra (trung điểm M, N, giao điểm O, K, I, E...) đều phải được NỐI ĐẦY ĐỦ với các đỉnh cùng mặt phẳng/thiết diện, TUYỆT ĐỐI KHÔNG để điểm trơ trọi:
-     * Khi xác định mặt phẳng (PQR) hoặc thiết diện (vd tìm I = SD ∩ (ABM)): PHẢI nối đủ tất cả các cạnh tạo nên mặt phẳng và thiết diện đó (vd AM, BM, BI qua K cắt SD tại I, AI, MI — hoặc dùng lệnh "connect_polygon").
-     * Khi xét mặt phẳng (AMN): PHẢI nối đủ AM, AN, MN.
-   - QUY TẮC NÉT KHUẤT ("dashed": true) / NÉT THẤY ("dashed": false):
-     * Cạnh khuất sau đáy (AD hoặc AB, AD), đường chéo đáy (AC, BD), đường cao bên trong khối (SO, SH), các đoạn nối đi XUYÊN TRONG LÒNG CHÓP hoặc nằm trên mặt khuất sau (vd AM, AN, NK, BI, AI trên mặt khuất SAD) -> "dashed": true.
-     * Cạnh bao ngoài khối và đoạn nằm trên các mặt trước nhìn thấy (sbc/scd: BM, MI, MN...) -> "dashed": false.
-     * ĐƯỜNG THẲNG / GIAO TUYẾN (ví dụ Ax // CD của (AMN) ∩ (ABCD)):
-       * Dùng "line_parallel" với "asLine": true, "noDot": true, "label": "x" (không vẽ chấm điểm dày trên chữ x!), kẻ vượt ra ngoài khối chóp; phần nằm bên trong khối chóp sẽ tự chia nét đứt và phần thò ra ngoài khối chóp tự chia nét liền!
-  4. ĐỊNH DẠNG ĐƯỜNG VÀ ĐIỂM THEO MẶC ĐỊNH CỦA APP:
-     - KHÔNG tự ý gán màu sắc sặc sỡ ("color") hay độ dày ("width") tùy tiện lên các nét dựng hình — hãy để hệ thống tự áp dụng đúng màu nét và độ dày nét mặc định đang cài trong MinNote (chỉ thêm "color" và "explicitColor": true nếu người dùng yêu cầu rõ màu sắc riêng trong đề bài).
-     - Các đường phụ (đường chéo AC/BD, đường cao, kí hiệu góc vuông...) nên gắn "aux": true để đồng bộ với tính năng Ẩn/Hiện nét phụ của app.
-  5. TRÌNH TỰ DỰNG TỪNG BƯỚC LOGIC ("ops"):
-     - (1) Đỉnh đáy -> (2) Cạnh đáy -> (3) Đỉnh chóp S & các cạnh bên -> (4) Đường chéo & trung điểm theo đề bài (AC, BD, O, M, N) -> (5) Nét phụ từng câu a, b, c (kết nối đầy đủ các cạnh mặt phẳng/thiết diện, "connect_polygon").
-     - QUAN TRỌNG VỀ ĐƯỜNG SONG SONG: Nếu M, N là trung điểm SC, SD suy ra MN // CD -> TUYỆT ĐỐI KHÔNG dùng "intersection_ll" cho MN và CD mà phải dùng "line_parallel" qua A song song CD!
-     - Luôn chỉ trả về DUY NHẤT 1 JSON object hợp lệ (không viết văn bản thừa bên ngoài JSON).
+     A(-2.2, 0.0), D(2.6, 0.0), B(-3.6, -1.8), C = point_sum(B, D, A); chỉ AB, AD "dashed": true. Nếu SA ⊥ (ABCD): S(-2.2, 4.0) (SA "dashed": true nếu bên trong).
+   - Chóp tam giác S.ABC: A(-2.5, 0.0), C(2.8, 0.0), B(-0.6, -1.8), S(-0.2, 3.6); chỉ AC "dashed": true.
+   - Lăng trụ / Hình hộp: dựng đáy dưới trước, đặt A' bằng "point_free", các đỉnh B', C', D' dùng "point_sum" theo AA'.
+3. NỐI ĐỦ NÉT MẶT PHẲNG / THIẾT DIỆN & NÉT LIỀN / ĐỨT:
+   - Mọi điểm sinh ra (M, N, O, K, I, H...) PHẢI được nối đầy đủ bằng "segment" hoặc "connect_polygon", không để điểm trơ trọi.
+   - Nét khuất đáy, đường chéo đáy, đường cao trong khối, nét xuyên lòng chóp / mặt sau -> "dashed": true; cạnh bao ngoài & mặt trước -> "dashed": false.
+   - Đường thẳng giao tuyến song song (Ax // CD): "line_parallel" với "asLine": true, "noDot": true, "label": "x", "aux": true.
+4. STYLE & ĐẦU RA GỌN NHANH:
+   - KHÔNG tự ý thêm "color" hay "width" (trừ khi đề bài yêu cầu màu riêng -> kèm "explicitColor": true). Gắn "aux": true cho đường chéo/đường cao/nét phụ/kí hiệu góc vuông.
+   - Thứ tự ops: (1) Đỉnh gốc -> (2) Cạnh đáy -> (3) Đỉnh S & cạnh bên -> (4) Trung điểm / đường chéo giả thiết -> (5) Nét phụ gợi ý các câu hỏi.
+   - Trả về DUY NHẤT 1 JSON súc tích, không viết lời giải thích ngoài JSON.
 
-SCHEMA CÁC LỆNH "ops":
-- {"op":"point_free","id":"A","label":"A","x":-2.8,"y":0,"step":"Chấm đỉnh đáy A"}
-- {"op":"point_sum","id":"C","label":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C để ABCD là hình bình hành"}
-- {"op":"midpoint","id":"M","label":"M","a":"S","b":"C","step":"Lấy trung điểm M của đoạn SC"}
-- {"op":"point_on_segment","id":"N","label":"N","a":"S","b":"D","ratio":0.35,"step":"Lấy điểm N trên đoạn SD"}
-- {"op":"point_on_line","id":"E","label":"E","a":"C","b":"D","ratio":1.4,"step":"Lấy điểm E trên đường thẳng CD"}
-- {"op":"intersection_ll","id":"O","label":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true,"step":"Xác định giao điểm O = AC ∩ BD"}
-- {"op":"intersection_lc","id":"K","label":"K","line":["A","O"],"circle":["O","B"],"which":0,"step":"Xác định giao điểm với đường tròn"}
-- {"op":"foot_perp","id":"H","label":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB tại H"}
-- {"op":"circle","center":"O","rim":"R","dashed":false,"step":"Vẽ đường tròn tâm O"}
-- {"op":"point_on_circle","id":"B","label":"B","center":"O","rim":"R","angleDeg":125,"step":"Lấy điểm B trên đường tròn (O)"}
-- {"op":"line_parallel","id":"x","label":"x","through":"A","a":"C","b":"D","k":1.2,"asLine":true,"bothSides":false,"noDot":true,"aux":true,"step":"Kẻ giao tuyến Ax // CD"}
-- {"op":"line_perp","id":"q","label":"q","through":"A","a":"O","b":"A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Kẻ đường thẳng vuông góc"}
-- {"op":"segment","a":"A","b":"D","dashed":true,"step":"Vẽ cạnh khuất AD (nét đứt)"}
-- {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(15, 23, 42, 0.06)","step":"Hoàn thiện thiết diện ABMI"}
-- {"op":"line","a":"S","b":"O","dashed":true,"aux":true,"step":"Đường thẳng SO"}
-- {"op":"ray","a":"A","b":"M","dashed":false,"aux":true,"step":"Tia AM"}
-- {"op":"right_angle","a":"S","v":"A","b":"B","aux":true,"step":"Kí hiệu góc vuông tại A"}
+SCHEMA "ops":
+- {"op":"point_free","id":"A","label":"A","x":-2.8,"y":0,"step":"Chấm đỉnh A"}
+- {"op":"point_sum","id":"C","label":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C"}
+- {"op":"midpoint","id":"M","label":"M","a":"S","b":"C","step":"Trung điểm M của SC"}
+- {"op":"point_on_segment","id":"N","label":"N","a":"S","b":"D","ratio":0.35,"step":"Điểm N trên đoạn SD"}
+- {"op":"point_on_line","id":"E","label":"E","a":"C","b":"D","ratio":1.4,"step":"Điểm E trên CD kéo dài"}
+- {"op":"intersection_ll","id":"O","label":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true,"step":"Giao điểm O = AC ∩ BD"}
+- {"op":"intersection_lc","id":"K","label":"K","line":["A","O"],"circle":["O","B"],"which":0,"step":"Giao điểm với đường tròn"}
+- {"op":"foot_perp","id":"H","label":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB"}
+- {"op":"circle","center":"O","rim":"R","dashed":false,"step":"Đường tròn (O)"}
+- {"op":"point_on_circle","id":"B","label":"B","center":"O","rim":"R","angleDeg":125,"step":"Điểm B trên (O)"}
+- {"op":"line_parallel","id":"x","label":"x","through":"A","a":"C","b":"D","k":1.2,"asLine":true,"bothSides":false,"noDot":true,"aux":true,"step":"Giao tuyến Ax // CD"}
+- {"op":"line_perp","id":"q","label":"q","through":"A","a":"O","b":"A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Đường thẳng vuông góc"}
+- {"op":"segment","a":"A","b":"D","dashed":true,"step":"Cạnh khuất AD"}
+- {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(15, 23, 42, 0.06)","step":"Thiết diện ABMI"}
+- {"op":"line"|"ray","a":"S","b":"O","dashed":true,"aux":true,"step":"Đường phụ SO"}
+- {"op":"right_angle","a":"S","v":"A","b":"B","aux":true,"step":"Góc vuông tại A"}
 - {"op":"angle_mark","a":"B","v":"A","b":"C","n":1,"aux":true,"step":"Kí hiệu góc"}
-- {"op":"polygon_fill","pts":["A","M","N"],"fill":"rgba(15, 23, 42, 0.06)","step":"Tô nhạt thiết diện (AMN)"}`;
+- {"op":"polygon_fill","pts":["A","M","N"],"fill":"rgba(15, 23, 42, 0.06)","step":"Tô mặt (AMN)"}`;
 
   // ==========================================================================
   // 1. TIKZ & GENERAL GEOMETRY CONSTRAINT REFINER (__mnRefineTikzConstraints)
@@ -1365,30 +1353,51 @@ SCHEMA CÁC LỆNH "ops":
     return { pageIdx: b.sel.page, item: it };
   }
 
-  async function dataUrlFromImageSrc(src) {
+  async function normalizeImageToDataUrl(src) {
     if (!src) return null;
-    if (/^data:([^;]+);base64,/i.test(src)) {
+    try {
+      const img = new Image();
+      if (!/^data:/i.test(src)) img.crossOrigin = 'anonymous';
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = src;
+      });
+      const nw = img.naturalWidth || img.width || 0;
+      const nh = img.naturalHeight || img.height || 0;
+      if (nw > 0 && nh > 0) {
+        const maxDim = 1600;
+        const scale = Math.min(1, maxDim / Math.max(nw, nh));
+        const w = Math.max(1, Math.round(nw * scale));
+        const h = Math.max(1, Math.round(nh * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const useJpeg = (w * h) > 490000;
+        const mime = useJpeg ? 'image/jpeg' : 'image/png';
+        const dataUrl = useJpeg ? canvas.toDataURL('image/jpeg', 0.90) : canvas.toDataURL('image/png');
+        return {
+          dataUrl,
+          base64: dataUrl.replace(/^data:[^;]+;base64,/i, ''),
+          mimeType: mime,
+          width: w,
+          height: h
+        };
+      }
+    } catch {}
+    if (/^data:([^;]+);base64,(.+)$/i.test(src)) {
       const m = /^data:([^;]+);base64,(.+)$/i.exec(src);
       return m ? { dataUrl: src, base64: m[2], mimeType: m[1] } : null;
     }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-      img.src = src;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width || 800;
-    canvas.height = img.naturalHeight || img.height || 600;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    const dataUrl = canvas.toDataURL('image/png');
-    return {
-      dataUrl,
-      base64: dataUrl.replace(/^data:[^;]+;base64,/i, ''),
-      mimeType: 'image/png'
-    };
+    return null;
+  }
+
+  async function dataUrlFromImageSrc(src) {
+    return normalizeImageToDataUrl(src);
   }
 
   // ==========================================================================
@@ -1398,11 +1407,16 @@ SCHEMA CÁC LỆNH "ops":
     open: false,
     tab: 'ai', // 'ai' | 'tikz'
     busy: false,
+    busyTimer: 0,
+    busyStartedAt: 0,
     imgDataUrl: '',
     imgBase64: '',
     imgMime: 'image/png',
     imgSourceLabel: '',
-    anchorBox: null
+    anchorBox: null,
+    selectedProvider: '',
+    selectedModel: '',
+    aiCfg: null
   };
 
   function ensureModal() {
@@ -1440,6 +1454,12 @@ SCHEMA CÁC LỆNH "ops":
         <div class="mn-ag-body">
           <!-- TAB 1: AI GENERATOR -->
           <div id="mn-ag-pane-ai" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="mn-ag-model-bar" id="mn-ag-model-bar">
+              <span class="mn-ag-provider-pill" id="mn-ag-provider-badge">AI</span>
+              <select class="mn-ag-model-select" id="mn-ag-model-select" title="Chọn nhanh model AI để dựng hình"></select>
+            </div>
+            <div class="mn-ag-model-hint" id="mn-ag-model-hint" style="display:none;"></div>
+
             <div class="mn-ag-dropzone" id="mn-ag-dropzone" tabindex="0">
               <input type="file" id="mn-ag-file" accept="image/*" style="display:none;" />
               <div class="mn-ag-drop-empty">
@@ -1527,13 +1547,37 @@ SCHEMA CÁC LỆNH "ops":
     });
 
     bd.querySelector('#mn-ag-open-keys').addEventListener('click', () => {
-      if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.openSettingsModal === 'function') {
-        window.MinNoteMeaSync.openSettingsModal();
-      } else if (typeof window.toggleQuestionBankModal === 'function') {
-        closeModal();
+      closeModal();
+      if (typeof window.openMinNoteMeaSettings === 'function' && window.openMinNoteMeaSettings()) {
+        return;
+      }
+      if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.openSettingsModal === 'function' && window.MinNoteMeaSync.openSettingsModal()) {
+        return;
+      }
+      if (typeof window.toggleQuestionBankModal === 'function') {
         window.toggleQuestionBankModal();
       }
     });
+
+    const modSel = bd.querySelector('#mn-ag-model-select');
+    if (modSel) {
+      modSel.addEventListener('change', async () => {
+        const nextModel = modSel.value;
+        if (!nextModel) return;
+        modalState.selectedModel = nextModel;
+        updateModalSpeedHint();
+        if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.request === 'function' && modalState.selectedProvider) {
+          try {
+            await window.MinNoteMeaSync.request('MEA_SAVE_AI_CONFIG', {
+              provider: modalState.selectedProvider,
+              model: nextModel,
+              keyEdited: false,
+              clearKey: false
+            }, 10000);
+          } catch {}
+        }
+      });
+    }
 
     bd.querySelectorAll('[data-ag-tab]').forEach(btn => {
       btn.addEventListener('click', () => setTab(btn.dataset.agTab));
@@ -1639,16 +1683,106 @@ SCHEMA CÁC LỆNH "ops":
     });
   }
 
+  function updateModalSpeedHint() {
+    const bd = document.getElementById('mn-ai-geo-backdrop');
+    const hintEl = bd && bd.querySelector('#mn-ag-model-hint');
+    if (!hintEl) return;
+    const prov = modalState.selectedProvider || '';
+    const mod = modalState.selectedModel || '';
+    if (prov === 'Antigravity' && (/(?:^|-)(?:high|xhigh)$/i.test(mod) || /orchestrator/i.test(mod))) {
+      hintEl.textContent = '💡 Model suy luận sâu qua Antigravity CLI thường mất ~1–2 phút; muốn nhanh hơn hãy chọn gemini-3.8-flash-medium.';
+      hintEl.style.display = 'block';
+    } else if (prov === 'DeepSeek') {
+      hintEl.textContent = '💡 DeepSeek API chỉ đọc đề bằng chữ; để dựng hình từ ảnh, hãy chọn Antigravity, Google Gemini, OpenAI hoặc 9Router.';
+      hintEl.style.display = 'block';
+    } else {
+      hintEl.textContent = '';
+      hintEl.style.display = 'none';
+    }
+  }
+
+  function applyModalModelConfig(cfg) {
+    const bd = document.getElementById('mn-ai-geo-backdrop');
+    if (!bd || !cfg) return;
+    modalState.aiCfg = cfg;
+    const prov = cfg.provider || 'Google Gemini';
+    modalState.selectedProvider = prov;
+    const badge = bd.querySelector('#mn-ag-provider-badge');
+    const modSel = bd.querySelector('#mn-ag-model-select');
+    if (badge) badge.textContent = prov;
+    const map = cfg.modelsByProvider || {};
+    const list = Array.isArray(map[prov]) ? map[prov].slice() : [];
+    const curModel = modalState.selectedModel && list.includes(modalState.selectedModel)
+      ? modalState.selectedModel
+      : (cfg.model || list[0] || '');
+    if (curModel && !list.includes(curModel)) list.unshift(curModel);
+    modalState.selectedModel = curModel;
+    if (modSel) {
+      modSel.innerHTML = '';
+      list.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === curModel) opt.selected = true;
+        modSel.appendChild(opt);
+      });
+    }
+    updateModalSpeedHint();
+  }
+
+  async function syncModalAiSelector() {
+    if (!window.MinNoteMeaSync || typeof window.MinNoteMeaSync.request !== 'function') return;
+    try {
+      const cfg = await window.MinNoteMeaSync.request('MEA_GET_AI_CONFIG', {}, 10000);
+      if (!modalState.open || !cfg) return;
+      modalState.selectedModel = cfg.model || '';
+      applyModalModelConfig(cfg);
+      const prov = cfg.provider || '';
+      const shouldRefreshLive = ((prov === 'Antigravity' && cfg.antigravityInstalled) || prov === '9Router') &&
+        window.MinNoteMeaSync.isDesktopBridge && window.MinNoteMeaSync.isDesktopBridge();
+      if (shouldRefreshLive) {
+        const ref = await window.MinNoteMeaSync.request('MEA_REFRESH_MODELS', { provider: prov }, 20000);
+        if (modalState.open && ref && Array.isArray(ref.models) && ref.models.length && modalState.selectedProvider === prov) {
+          cfg.modelsByProvider = cfg.modelsByProvider || {};
+          cfg.modelsByProvider[prov] = ref.models;
+          applyModalModelConfig(cfg);
+        }
+      }
+    } catch {}
+  }
+
+  function clearBusyTimer() {
+    if (modalState.busyTimer) {
+      clearInterval(modalState.busyTimer);
+      modalState.busyTimer = 0;
+    }
+  }
+
   function setBusy(isBusy) {
     modalState.busy = !!isBusy;
     const bd = ensureModal();
     const runBtn = bd.querySelector('#mn-ag-run-ai');
     const tikzBtn = bd.querySelector('#mn-ag-run-tikz');
-    if (runBtn) {
-      runBtn.disabled = isBusy;
-      runBtn.textContent = isBusy ? '⏳ AI đang phân tích & dựng...' : '✨ Tư duy & Dựng từng nét';
+    const modSel = bd.querySelector('#mn-ag-model-select');
+    clearBusyTimer();
+    if (isBusy) {
+      modalState.busyStartedAt = Date.now();
+      if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.textContent = '⏳ AI đang phân tích & dựng... (0s)';
+      }
+      modalState.busyTimer = setInterval(() => {
+        if (!modalState.busy) { clearBusyTimer(); return; }
+        const sec = Math.max(1, Math.floor((Date.now() - modalState.busyStartedAt) / 1000));
+        const rb = document.querySelector('#mn-ag-run-ai');
+        if (rb) rb.textContent = `⏳ AI đang phân tích & dựng... (${sec}s)`;
+      }, 1000);
+    } else if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.textContent = '✨ Tư duy & Dựng từng nét';
     }
     if (tikzBtn) tikzBtn.disabled = isBusy;
+    if (modSel) modSel.disabled = isBusy;
   }
 
   function setTab(tabName) {
@@ -1679,10 +1813,16 @@ SCHEMA CÁC LỆNH "ops":
 
   function attachImageFile(file, badgeText) {
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const dataUrl = String((ev.target && ev.target.result) || '');
-      const m = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
-      if (m) attachImageData(dataUrl, m[2], m[1], badgeText);
+      const normalized = await normalizeImageToDataUrl(dataUrl);
+      if (normalized) {
+        const resSuffix = (normalized.width && normalized.height) ? ` (${normalized.width}×${normalized.height})` : '';
+        attachImageData(normalized.dataUrl, normalized.base64, normalized.mimeType, (badgeText || 'Ảnh sẵn sàng') + resSuffix);
+      } else {
+        const m = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
+        if (m) attachImageData(dataUrl, m[2], m[1], badgeText);
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -1763,9 +1903,11 @@ SCHEMA CÁC LỆNH "ops":
 
     try {
       const aiRes = await window.MinNoteMeaSync.executeAiPrompt(userPrompt, AI_GEO_SYSTEM_PROMPT, {
+        provider: modalState.selectedProvider || undefined,
+        model: modalState.selectedModel || undefined,
         imageBase64: hasImg ? modalState.imgBase64 : undefined,
         imageMimeType: hasImg ? modalState.imgMime : undefined,
-        timeoutMs: 90000
+        timeoutMs: 260000
       });
       clearTimeout(stageTimer);
       setStage(2);
@@ -1986,12 +2128,16 @@ SCHEMA CÁC LỆNH "ops":
     if (opts.imageSrc) {
       try {
         const parsed = await dataUrlFromImageSrc(opts.imageSrc);
-        if (parsed) attachImageData(parsed.dataUrl, parsed.base64, parsed.mimeType, opts.imageSourceLabel || 'Ảnh từ mục đang chọn');
+        if (parsed) {
+          const resSuffix = (parsed.width && parsed.height) ? ` (${parsed.width}×${parsed.height})` : '';
+          attachImageData(parsed.dataUrl, parsed.base64, parsed.mimeType, (opts.imageSourceLabel || 'Ảnh từ mục đang chọn') + resSuffix);
+        }
       } catch {
         // Non-fatal if image fails cross-origin fetch
       }
     }
 
+    syncModalAiSelector();
     bd.classList.add('open');
     setTimeout(() => {
       if (modalState.tab === 'tikz' && tikzTa) tikzTa.focus();

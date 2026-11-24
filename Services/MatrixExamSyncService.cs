@@ -428,6 +428,8 @@ namespace MinNote.Services
         private readonly ConcurrentDictionary<string, long> _lastSelfWriteTicks = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, Timer> _debounceTimers = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, string> _emfPngCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, (List<string> Models, DateTime UtcAt)> _cachedLiveModels = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan LiveModelCacheTtl = TimeSpan.FromMinutes(15);
 
         private FileSystemWatcher? _configWatcher;
         private readonly List<FileSystemWatcher> _qbWatchers = new();
@@ -453,44 +455,103 @@ namespace MinNote.Services
             ["Google Gemini"] = new()
             {
                 "gemini-2.5-flash",
-                "gemini-3.8-flash",
-                "gemini-3.6-flash",
-                "gemini-3.5-flash-lite",
-                "gemini-3.1-pro-preview"
+                "gemini-2.5-pro",
+                "gemini-2.5-flash-lite",
+                "gemini-3-flash-preview",
+                "gemini-3.1-pro-preview",
+                "gemini-3.1-flash-lite-preview",
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-lite",
+                "gemini-2.0-flash-exp",
+                "gemini-1.5-pro",
+                "gemini-1.5-flash"
             },
             ["Antigravity"] = new()
             {
                 "gemini-3.8-flash-medium",
                 "gemini-3.8-flash-high",
                 "gemini-3.8-flash-low",
+                "gemini-4-neon-medium",
                 "gemini-4-neon-high",
-                "claude-sonnet-5-5-medium"
+                "gemini-4-neon-low",
+                "gemini-4-neon-xhigh",
+                "gemini-4-carbon-medium",
+                "gemini-4-carbon-high",
+                "gemini-4-carbon-low",
+                "gemini-4-argon-medium",
+                "gemini-4-argon-high",
+                "gemini-4-argon-low",
+                "gemini-4-hydrogen-medium",
+                "gemini-4-hydrogen-high",
+                "gemini-4-hydrogen-low",
+                "gemini-4-hydrogen-xhigh",
+                "gemini-pro-orchestrator-neon",
+                "gemini-pro-orchestrator",
+                "gemini-pro-orchestrator-argon",
+                "claude-sonnet-5-5-medium",
+                "claude-sonnet-5-5-high",
+                "claude-sonnet-5-5-low",
+                "claude-opus-5-5-medium",
+                "claude-opus-5-5-high",
+                "claude-opus-5-5-low",
+                "gpt-oss-120b-medium"
             },
             ["9Router"] = new()
             {
-                "ag/gemini-3.8-flash",
+                "ag/gemini-3.8-flash-medium",
                 "ag/gemini-3.8-flash-high",
-                "ag/gemini-3.7-flash-high",
-                "ag/claude-sonnet-5-5",
-                "gemini-3.8-flash"
+                "ag/gemini-3.8-flash-low",
+                "ag/gemini-3.8-flash",
+                "ag/gemini-4-carbon-medium",
+                "ag/gemini-4-carbon-high",
+                "ag/gemini-4-argon-medium",
+                "ag/gemini-4-argon-high",
+                "ag/claude-sonnet-5-5-medium",
+                "ag/claude-sonnet-5-5-high",
+                "ag/claude-opus-5-5-medium",
+                "ag/claude-sonnet-4-6",
+                "ag/claude-opus-4-6-thinking",
+                "ag/gemini-3.1-pro-high",
+                "ag/gpt-oss-120b-medium",
+                "anthropic/claude-sonnet-4-20250514",
+                "anthropic/claude-opus-4-20250514",
+                "openai/gpt-4o",
+                "deepseek/deepseek-chat"
             },
             ["Anthropic Claude"] = new()
             {
-                "claude-sonnet-5",
                 "claude-sonnet-4-6",
+                "claude-opus-4-6",
+                "claude-sonnet-4-5",
+                "claude-opus-4-5",
+                "claude-haiku-4-5",
+                "claude-sonnet-4-20250514",
+                "claude-opus-4-20250514",
+                "claude-3-7-sonnet-latest",
+                "claude-3-5-sonnet-latest",
+                "claude-3-5-haiku-latest",
+                "claude-sonnet-5",
                 "claude-opus-5"
             },
             ["DeepSeek"] = new()
             {
-                "deepseek-v4.1-flash",
+                "deepseek-chat",
                 "deepseek-reasoner",
-                "deepseek-chat"
+                "deepseek-v4.1-flash"
             },
             ["OpenAI GPT"] = new()
             {
-                "gpt-4.5",
+                "gpt-5.2",
+                "gpt-5",
+                "gpt-5-mini",
+                "gpt-4.1",
+                "gpt-4.1-mini",
+                "gpt-4.1-nano",
                 "gpt-4o",
-                "gpt-4o-mini"
+                "gpt-4o-mini",
+                "o3",
+                "o4-mini",
+                "gpt-4.5"
             }
         };
 
@@ -875,7 +936,17 @@ namespace MinNote.Services
 
             foreach (var prov in SupportedProviders)
             {
-                var list = DefaultModelsByProvider.TryGetValue(prov, out var defs) ? new List<string>(defs) : new List<string>();
+                var list = new List<string>();
+                if (_cachedLiveModels.TryGetValue(prov, out var cached) &&
+                    (DateTime.UtcNow - cached.UtcAt) <= LiveModelCacheTtl &&
+                    cached.Models.Count > 0)
+                {
+                    list.AddRange(cached.Models);
+                }
+                else if (DefaultModelsByProvider.TryGetValue(prov, out var defs))
+                {
+                    list.AddRange(defs);
+                }
                 if (string.Equals(prov, cfg.Provider, StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrWhiteSpace(cfg.Model) &&
                     !list.Contains(cfg.Model, StringComparer.OrdinalIgnoreCase))
@@ -1067,17 +1138,24 @@ namespace MinNote.Services
 
         #region AI Execution (All 6 Providers + Multi-Key Rotation + 9Router -> Gemini Fallback)
 
-        public async Task<(List<string> Models, bool Live, string? Note)> RefreshModelsAsync(string? provider = null, CancellationToken ct = default)
+        public Task<(List<string> Models, bool Live, string? Note)> RefreshModelsAsync(string? provider = null, CancellationToken ct = default) =>
+            RefreshModelsAsync(provider, overrideRawKeys: null, ct);
+
+        public async Task<(List<string> Models, bool Live, string? Note)> RefreshModelsAsync(
+            string? provider,
+            string? overrideRawKeys,
+            CancellationToken ct = default)
         {
             var cfg = ReadInternalConfig();
             string targetProv = string.IsNullOrWhiteSpace(provider) ? cfg.Provider : NormalizeProviderName(provider);
+            var defaults = DefaultModelsByProvider.TryGetValue(targetProv, out var d) ? new List<string>(d) : new List<string>();
 
             if (string.Equals(targetProv, "9Router", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
                     using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
+                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(4));
                     using var response = await SharedHttp.GetAsync("http://localhost:20128/v1/models", timeoutCts.Token).ConfigureAwait(false);
                     if (response.IsSuccessStatusCode)
                     {
@@ -1085,17 +1163,19 @@ namespace MinNote.Services
                         using var doc = JsonDocument.Parse(body);
                         if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
                         {
-                            var list = new List<string>();
+                            var rawList = new List<string>();
                             foreach (var item in data.EnumerateArray())
                             {
                                 if (item.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(idProp.GetString()))
                                 {
-                                    list.Add(idProp.GetString()!.Trim());
+                                    rawList.Add(idProp.GetString()!.Trim());
                                 }
                             }
-                            if (list.Count > 0)
+                            if (rawList.Count > 0)
                             {
-                                return (list.Distinct(StringComparer.OrdinalIgnoreCase).ToList(), true, $"Tìm thấy {list.Count} mô hình đang chạy trên 9Router (cổng 20128).");
+                                var sorted = Sort9RouterModels(rawList);
+                                _cachedLiveModels[targetProv] = (sorted, DateTime.UtcNow);
+                                return (sorted, true, $"Tìm thấy {sorted.Count} mô hình đang chạy trên 9Router (cổng 20128).");
                             }
                         }
                     }
@@ -1105,7 +1185,7 @@ namespace MinNote.Services
                     Debug.WriteLine($"[MatrixExamSyncService] Fetch 9Router models notice: {ex.Message}");
                 }
 
-                return (new List<string>(DefaultModelsByProvider["9Router"]), false, "9Router chưa chạy trên cổng 20128 — đang hiển thị danh sách mặc định.");
+                return (defaults, false, "9Router chưa chạy trên cổng 20128 — đang hiển thị danh sách mặc định.");
             }
 
             if (IsAntigravityProvider(targetProv))
@@ -1120,37 +1200,273 @@ namespace MinNote.Services
                             new[] { "models" },
                             string.Empty,
                             Path.GetTempPath(),
-                            TimeSpan.FromSeconds(15),
+                            TimeSpan.FromSeconds(20),
                             ct).ConfigureAwait(false);
 
                         if (!timedOut && !string.IsNullOrWhiteSpace(stdout))
                         {
                             var models = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                                .Where(line => line.Contains('\t'))
-                                .Select(line => line.Split('\t')[0].Trim())
+                                .Select(line =>
+                                {
+                                    string t = line.Trim();
+                                    if (t.Contains('\t')) return t.Split('\t')[0].Trim();
+                                    int sp = t.IndexOf(' ');
+                                    return sp > 0 ? t[..sp].Trim() : t;
+                                })
                                 .Where(id => SafeModelIdRegex.IsMatch(id))
                                 .Distinct(StringComparer.OrdinalIgnoreCase)
                                 .ToList();
 
                             if (models.Count > 0)
                             {
+                                _cachedLiveModels[targetProv] = (models, DateTime.UtcNow);
                                 return (models, true, $"Tìm thấy {models.Count} mô hình khả dụng từ Antigravity CLI.");
                             }
                         }
-                        return (new List<string>(DefaultModelsByProvider["Antigravity"]), false,
+                        return (defaults, false,
                             string.IsNullOrWhiteSpace(stderr) ? "Không đọc được danh sách từ agy — đang dùng danh sách mặc định." : stderr.Trim());
                     }
                     catch (Exception ex)
                     {
-                        return (new List<string>(DefaultModelsByProvider["Antigravity"]), false, ex.Message);
+                        return (defaults, false, ex.Message);
                     }
                 }
 
-                return (new List<string>(DefaultModelsByProvider["Antigravity"]), false, "Chưa tìm thấy agy.exe — đang hiển thị danh sách mặc định.");
+                return (defaults, false, "Chưa tìm thấy agy.exe — đang hiển thị danh sách mặc định.");
             }
 
-            var defaults = DefaultModelsByProvider.TryGetValue(targetProv, out var d) ? new List<string>(d) : new List<string>();
-            return (defaults, false, null);
+            string apiKey = ResolveFirstProviderKey(cfg, targetProv, overrideRawKeys);
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                return (defaults, false, $"Đang dùng danh sách chuẩn ({defaults.Count} model). Nhập API Key nếu muốn tải danh sách trực tiếp từ {targetProv}.");
+            }
+
+            try
+            {
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(8));
+
+                if (string.Equals(targetProv, "Google Gemini", StringComparison.OrdinalIgnoreCase))
+                {
+                    string url = $"https://generativelanguage.googleapis.com/v1beta/models?key={Uri.EscapeDataString(apiKey)}&pageSize=100";
+                    using var response = await SharedHttp.GetAsync(url, timeoutCts.Token).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+                        using var doc = JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("models", out var modelsArr) && modelsArr.ValueKind == JsonValueKind.Array)
+                        {
+                            var found = new List<string>();
+                            foreach (var m in modelsArr.EnumerateArray())
+                            {
+                                bool canGen = false;
+                                if (m.TryGetProperty("supportedGenerationMethods", out var gm) && gm.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var item in gm.EnumerateArray())
+                                    {
+                                        if (string.Equals(item.GetString(), "generateContent", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            canGen = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!canGen) continue;
+                                if (m.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String)
+                                {
+                                    string id = (nEl.GetString() ?? string.Empty).Trim();
+                                    if (id.StartsWith("models/", StringComparison.OrdinalIgnoreCase))
+                                        id = id.Substring(7);
+                                    if (!string.IsNullOrWhiteSpace(id) &&
+                                        !id.Contains("embedding", StringComparison.OrdinalIgnoreCase) &&
+                                        !id.Contains("aqa", StringComparison.OrdinalIgnoreCase) &&
+                                        !id.Contains("imagen", StringComparison.OrdinalIgnoreCase) &&
+                                        !id.Contains("veo", StringComparison.OrdinalIgnoreCase) &&
+                                        !id.Contains("learnlm", StringComparison.OrdinalIgnoreCase) &&
+                                        !id.StartsWith("gemma-2", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        found.Add(id);
+                                    }
+                                }
+                            }
+                            if (found.Count > 0)
+                            {
+                                var sorted = SortGeminiModels(found);
+                                _cachedLiveModels[targetProv] = (sorted, DateTime.UtcNow);
+                                return (sorted, true, $"Tìm thấy {sorted.Count} mô hình Google Gemini.");
+                            }
+                        }
+                    }
+                }
+                else if (string.Equals(targetProv, "OpenAI GPT", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var reqMsg = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
+                    reqMsg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                    using var response = await SharedHttp.SendAsync(reqMsg, timeoutCts.Token).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+                        using var doc = JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+                        {
+                            var found = new List<string>();
+                            foreach (var m in dataArr.EnumerateArray())
+                            {
+                                string id = m.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String ? (idEl.GetString() ?? string.Empty).Trim() : string.Empty;
+                                if (string.IsNullOrEmpty(id)) continue;
+                                bool allowedPrefix = id.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase) ||
+                                                     id.StartsWith("o1", StringComparison.OrdinalIgnoreCase) ||
+                                                     id.StartsWith("o3", StringComparison.OrdinalIgnoreCase) ||
+                                                     id.StartsWith("o4", StringComparison.OrdinalIgnoreCase) ||
+                                                     id.StartsWith("chatgpt-", StringComparison.OrdinalIgnoreCase);
+                                bool excluded = id.Contains("audio", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("realtime", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("transcribe", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("tts", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("whisper", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("embedding", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("dall-e", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("moderation", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("search", StringComparison.OrdinalIgnoreCase) ||
+                                                id.Contains("instruct", StringComparison.OrdinalIgnoreCase);
+                                if (allowedPrefix && !excluded) found.Add(id);
+                            }
+                            if (found.Count > 0)
+                            {
+                                var sorted = found.Distinct(StringComparer.OrdinalIgnoreCase)
+                                                  .OrderByDescending(id => id, StringComparer.OrdinalIgnoreCase)
+                                                  .ToList();
+                                _cachedLiveModels[targetProv] = (sorted, DateTime.UtcNow);
+                                return (sorted, true, $"Tìm thấy {sorted.Count} mô hình OpenAI GPT.");
+                            }
+                        }
+                    }
+                }
+                else if (string.Equals(targetProv, "Anthropic Claude", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var reqMsg = new HttpRequestMessage(HttpMethod.Get, "https://api.anthropic.com/v1/models");
+                    reqMsg.Headers.Add("x-api-key", apiKey);
+                    reqMsg.Headers.Add("anthropic-version", "2023-06-01");
+                    using var response = await SharedHttp.SendAsync(reqMsg, timeoutCts.Token).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+                        using var doc = JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+                        {
+                            var found = new List<string>();
+                            foreach (var m in dataArr.EnumerateArray())
+                            {
+                                string id = m.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String ? (idEl.GetString() ?? string.Empty).Trim() : string.Empty;
+                                if (!string.IsNullOrEmpty(id)) found.Add(id);
+                            }
+                            if (found.Count > 0)
+                            {
+                                var dedup = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                                _cachedLiveModels[targetProv] = (dedup, DateTime.UtcNow);
+                                return (dedup, true, $"Tìm thấy {dedup.Count} mô hình Anthropic Claude.");
+                            }
+                        }
+                    }
+                }
+                else if (string.Equals(targetProv, "DeepSeek", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var reqMsg = new HttpRequestMessage(HttpMethod.Get, "https://api.deepseek.com/v1/models");
+                    reqMsg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                    using var response = await SharedHttp.SendAsync(reqMsg, timeoutCts.Token).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+                        using var doc = JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+                        {
+                            var found = new List<string>();
+                            foreach (var m in dataArr.EnumerateArray())
+                            {
+                                string id = m.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String ? (idEl.GetString() ?? string.Empty).Trim() : string.Empty;
+                                if (!string.IsNullOrEmpty(id)) found.Add(id);
+                            }
+                            if (found.Count > 0)
+                            {
+                                var dedup = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                                _cachedLiveModels[targetProv] = (dedup, DateTime.UtcNow);
+                                return (dedup, true, $"Tìm thấy {dedup.Count} mô hình DeepSeek.");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MatrixExamSyncService] RefreshModels({targetProv}) notice: {ex.Message}");
+            }
+
+            return (defaults, false, $"Không tải được danh sách trực tiếp từ {targetProv} — đang dùng {defaults.Count} mô hình mặc định.");
+        }
+
+        private static string ResolveFirstProviderKey(InternalAiConfig cfg, string provider, string? overrideRawKeys)
+        {
+            string raw = string.Empty;
+            if (!string.IsNullOrWhiteSpace(overrideRawKeys) && !overrideRawKeys.Contains("••••", StringComparison.Ordinal))
+            {
+                raw = overrideRawKeys;
+            }
+            else if (cfg.KeysByProvider.TryGetValue(provider, out var stored) && !string.IsNullOrWhiteSpace(stored))
+            {
+                raw = stored;
+            }
+            else
+            {
+                raw = provider switch
+                {
+                    "Google Gemini" => Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY") ?? string.Empty,
+                    "9Router" => Environment.GetEnvironmentVariable("NINEROUTER_API_KEY") ?? Environment.GetEnvironmentVariable("NINEROUTER_KEY") ?? TryRead9RouterLocalKey(),
+                    "OpenAI GPT" => Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? string.Empty,
+                    "Anthropic Claude" => Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? string.Empty,
+                    "DeepSeek" => Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY") ?? string.Empty,
+                    _ => string.Empty
+                };
+            }
+            return SplitKeys(raw).FirstOrDefault() ?? string.Empty;
+        }
+
+        private static List<string> Sort9RouterModels(IEnumerable<string> models)
+        {
+            static int Rank(string id)
+            {
+                if (id.StartsWith("ag/gemini-3.8", StringComparison.OrdinalIgnoreCase)) return 0;
+                if (id.StartsWith("ag/gemini-4", StringComparison.OrdinalIgnoreCase)) return 1;
+                if (id.StartsWith("ag/claude", StringComparison.OrdinalIgnoreCase)) return 2;
+                if (id.StartsWith("ag/", StringComparison.OrdinalIgnoreCase)) return 3;
+                if (id.StartsWith("gemini", StringComparison.OrdinalIgnoreCase)) return 4;
+                if (id.Contains("claude", StringComparison.OrdinalIgnoreCase)) return 5;
+                if (id.Contains("gpt-", StringComparison.OrdinalIgnoreCase) || id.StartsWith("openai/", StringComparison.OrdinalIgnoreCase)) return 6;
+                if (id.Contains("deepseek", StringComparison.OrdinalIgnoreCase)) return 7;
+                if (id.Contains("qwen", StringComparison.OrdinalIgnoreCase)) return 8;
+                return 9;
+            }
+            return models
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(Rank)
+                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<string> SortGeminiModels(IEnumerable<string> models)
+        {
+            static int Rank(string id)
+            {
+                if (id.StartsWith("gemini-3", StringComparison.OrdinalIgnoreCase)) return 0;
+                if (id.StartsWith("gemini-2.5", StringComparison.OrdinalIgnoreCase)) return 1;
+                if (id.StartsWith("gemini-2.0", StringComparison.OrdinalIgnoreCase)) return 2;
+                if (id.StartsWith("gemini-1.5", StringComparison.OrdinalIgnoreCase)) return 3;
+                return 4;
+            }
+            return models
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(Rank)
+                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         public async Task<MeaTestConnectionResult> TestConnectionAsync(
@@ -1163,7 +1479,7 @@ namespace MinNote.Services
             string targetProv = string.IsNullOrWhiteSpace(overrideProvider)
                 ? ReadInternalConfig().Provider
                 : NormalizeProviderName(overrideProvider);
-            timeoutCts.CancelAfter(IsAntigravityProvider(targetProv) ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(30));
+            timeoutCts.CancelAfter(IsAntigravityProvider(targetProv) ? TimeSpan.FromSeconds(110) : TimeSpan.FromSeconds(30));
 
             var res = await ExecutePromptAsync(
                 prompt: "1+1=? Trả lời ngắn gọn số.",
@@ -1495,7 +1811,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             var payloadDict = new Dictionary<string, object>
             {
                 ["contents"] = new[] { new { role = "user", parts = parts.ToArray() } },
-                ["generationConfig"] = new { temperature = 0.2, maxOutputTokens = 8192 }
+                ["generationConfig"] = new { temperature = 0.2, maxOutputTokens = 16384 }
             };
             if (!string.IsNullOrWhiteSpace(systemPrompt))
             {
@@ -1518,6 +1834,10 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                         var sb = new StringBuilder();
                         foreach (var p in pArr.EnumerateArray())
                         {
+                            if (p.TryGetProperty("thought", out var thEl) && thEl.ValueKind == JsonValueKind.True)
+                            {
+                                continue;
+                            }
                             if (p.TryGetProperty("text", out var tEl) && tEl.ValueKind == JsonValueKind.String)
                             {
                                 sb.Append(tEl.GetString());
@@ -1568,7 +1888,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             var payloadDict = new Dictionary<string, object>
             {
                 ["model"] = model,
-                ["max_tokens"] = 4096,
+                ["max_tokens"] = 8192,
                 ["messages"] = new object[] { new { role = "user", content = userContent } }
             };
             if (!string.IsNullOrWhiteSpace(systemPrompt))
@@ -1621,6 +1941,11 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
         private static async Task<(bool Ok, string Text, string Error, bool ShouldRotate, bool TryNextModel, bool IsOffline)> CallOpenAiCompatibleOnceAsync(
             string provider, string endpoint, string apiKey, string model, string prompt, string? systemPrompt, string imageBase64, string imageMimeType, CancellationToken ct)
         {
+            if (string.Equals(provider, "DeepSeek", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(imageBase64))
+            {
+                return (false, string.Empty, "DeepSeek API hiện chỉ hỗ trợ văn bản, chưa hỗ trợ đọc ảnh trực tiếp. Hãy chọn Antigravity, Google Gemini, OpenAI GPT, Anthropic Claude hoặc 9Router để dựng hình từ ảnh.", false, false, false);
+            }
+
             object userContent = string.IsNullOrEmpty(imageBase64)
                 ? prompt
                 : new object[]
@@ -1636,14 +1961,27 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             }
             messages.Add(new { role = "user", content = userContent });
 
-            var reqBody = new
+            bool isOpenAiReasoningOrGpt5 = string.Equals(provider, "OpenAI GPT", StringComparison.OrdinalIgnoreCase) &&
+                (model.StartsWith("o1", StringComparison.OrdinalIgnoreCase) ||
+                 model.StartsWith("o3", StringComparison.OrdinalIgnoreCase) ||
+                 model.StartsWith("o4", StringComparison.OrdinalIgnoreCase) ||
+                 model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase));
+
+            var reqBody = new Dictionary<string, object>
             {
-                model,
-                temperature = 0.2,
-                max_tokens = 8192,
-                stream = false,
-                messages = messages.ToArray()
+                ["model"] = model,
+                ["stream"] = false,
+                ["messages"] = messages.ToArray()
             };
+            if (isOpenAiReasoningOrGpt5)
+            {
+                reqBody["max_completion_tokens"] = 16384;
+            }
+            else
+            {
+                reqBody["temperature"] = 0.2;
+                reqBody["max_tokens"] = 8192;
+            }
 
             try
             {
@@ -1790,17 +2128,35 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 Directory.CreateDirectory(workDir);
                 var sb = new StringBuilder();
                 sb.AppendLine("Bạn được ứng dụng MinNote gọi như một mô hình trả lời trực tiếp.")
-                  .AppendLine("Viết toàn bộ kết quả ngay trong tin nhắn trả lời. Không lập kế hoạch, không tạo hay sửa tệp, không chạy lệnh, không hỏi lại.");
+                  .AppendLine("Chỉ viết kết quả súc tích ngay trong tin nhắn trả lời. Không lập kế hoạch, không tạo hay sửa tệp, không chạy lệnh terminal, không hỏi lại.");
                 if (!string.IsNullOrWhiteSpace(systemPrompt))
                 {
                     sb.AppendLine().AppendLine("Hướng dẫn hệ thống:").AppendLine(systemPrompt.Trim());
                 }
                 if (!string.IsNullOrEmpty(imageBase64))
                 {
-                    string ext = imageMimeType.Contains("jpeg", StringComparison.OrdinalIgnoreCase) || imageMimeType.Contains("jpg", StringComparison.OrdinalIgnoreCase) ? ".jpg" : ".png";
+                    string mimeLow = (imageMimeType ?? string.Empty).ToLowerInvariant();
+                    string ext = mimeLow.Contains("jpeg") || mimeLow.Contains("jpg") ? ".jpg"
+                               : (mimeLow.Contains("webp") ? ".webp"
+                               : (mimeLow.Contains("gif") ? ".gif" : ".png"));
                     string imgPath = Path.Combine(workDir, "image_1" + ext);
-                    File.WriteAllBytes(imgPath, Convert.FromBase64String(imageBase64));
-                    sb.AppendLine().AppendLine("Ảnh đính kèm (đọc tệp để xem):").AppendLine(imgPath);
+                    try
+                    {
+                        File.WriteAllBytes(imgPath, Convert.FromBase64String(imageBase64));
+                    }
+                    catch (FormatException)
+                    {
+                        sw.Stop();
+                        return new MeaAiExecutionResult
+                        {
+                            Ok = false,
+                            Provider = "Antigravity",
+                            Model = normalizedModel,
+                            LatencyMs = sw.ElapsedMilliseconds,
+                            Error = "Dữ liệu ảnh gửi tới AI không hợp lệ."
+                        };
+                    }
+                    sb.AppendLine().AppendLine("Ảnh đính kèm (BẮT BUỘC gọi công cụ read_file để đọc tệp ảnh này ngay trước khi trả lời):").AppendLine(imgPath);
                 }
                 sb.AppendLine().AppendLine("Yêu cầu:").Append(prompt);
 
@@ -1815,14 +2171,14 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                     "-p", string.Empty,
                     "--input-format", "stream-json",
                     "--output-format", "stream-json",
-                    "--mode", "plan",
-                    "--sandbox",
+                    "--dangerously-skip-permissions",
                     "--disable-slash-commands",
+                    "--add-dir", workDir,
                     "--model", normalizedModel,
-                    "--print-timeout", "180s"
+                    "--print-timeout", "240s"
                 };
 
-                var (stdout, stderr, exitCode, timedOut) = await RunAgyProcessAsync(exe, args, stdinLine, workDir, TimeSpan.FromSeconds(195), ct).ConfigureAwait(false);
+                var (stdout, stderr, exitCode, timedOut) = await RunAgyProcessAsync(exe, args, stdinLine, workDir, TimeSpan.FromSeconds(255), ct).ConfigureAwait(false);
                 sw.Stop();
 
                 if (timedOut)
@@ -1833,24 +2189,37 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                         Provider = "Antigravity",
                         Model = normalizedModel,
                         LatencyMs = sw.ElapsedMilliseconds,
-                        Error = "Antigravity CLI hết thời gian chờ phản hồi."
+                        Error = "Antigravity CLI hết thời gian chờ phản hồi (255s). Với ảnh phức tạp, hãy thử model nhanh hơn như gemini-3.8-flash-medium."
                     };
                 }
 
-                // Parse stream-json result event
+                // Parse stream-json result event and streamed text fallback
                 JsonElement? resultEl = null;
+                var streamText = new StringBuilder();
                 foreach (var line in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
                     if (!line.TrimStart().StartsWith("{", StringComparison.Ordinal)) continue;
                     try
                     {
                         using var doc = JsonDocument.Parse(line);
-                        if (doc.RootElement.TryGetProperty("event", out var ev) &&
-                            string.Equals(ev.GetString(), "result", StringComparison.OrdinalIgnoreCase) &&
-                            doc.RootElement.TryGetProperty("result", out var resObj) &&
-                            resObj.ValueKind == JsonValueKind.Object)
+                        if (doc.RootElement.TryGetProperty("event", out var ev))
                         {
-                            resultEl = resObj.Clone();
+                            string evName = ev.GetString() ?? string.Empty;
+                            if (string.Equals(evName, "step_update", StringComparison.OrdinalIgnoreCase) &&
+                                doc.RootElement.TryGetProperty("step_update", out var suObj) &&
+                                suObj.TryGetProperty("step_type", out var stType) &&
+                                string.Equals(stType.GetString(), "agent_response", StringComparison.OrdinalIgnoreCase) &&
+                                suObj.TryGetProperty("text_delta", out var tdEl) &&
+                                tdEl.ValueKind == JsonValueKind.String)
+                            {
+                                streamText.Append(tdEl.GetString());
+                            }
+                            else if (string.Equals(evName, "result", StringComparison.OrdinalIgnoreCase) &&
+                                     doc.RootElement.TryGetProperty("result", out var resObj) &&
+                                     resObj.ValueKind == JsonValueKind.Object)
+                            {
+                                resultEl = resObj.Clone();
+                            }
                         }
                     }
                     catch { }
@@ -1860,6 +2229,10 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 {
                     string status = res.TryGetProperty("status", out var st) ? (st.GetString() ?? "") : "";
                     string responseText = res.TryGetProperty("response", out var rp) ? (rp.GetString() ?? "").Trim() : "";
+                    if (string.IsNullOrEmpty(responseText) && streamText.Length > 0)
+                    {
+                        responseText = streamText.ToString().Trim();
+                    }
                     if (string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(responseText))
                     {
                         return new MeaAiExecutionResult
@@ -1879,6 +2252,18 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                         Model = normalizedModel,
                         LatencyMs = sw.ElapsedMilliseconds,
                         Error = !string.IsNullOrWhiteSpace(errText) ? errText : (string.IsNullOrWhiteSpace(stderr) ? "Antigravity trả về kết quả rỗng." : Shorten(stderr, 300))
+                    };
+                }
+
+                if (streamText.Length > 0)
+                {
+                    return new MeaAiExecutionResult
+                    {
+                        Ok = true,
+                        Content = streamText.ToString().Trim(),
+                        Provider = "Antigravity",
+                        Model = normalizedModel,
+                        LatencyMs = sw.ElapsedMilliseconds
                     };
                 }
 

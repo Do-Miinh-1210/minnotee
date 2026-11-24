@@ -1918,7 +1918,7 @@
         const res = await window.MinNoteMeaSync.executeAiPrompt(
           'Hãy tối ưu mã TikZ sau giữ nguyên chính xác hình học và nhãn điểm:\n\n' + txt,
           DOMIINH_AI_SYSTEM_PROMPT,
-          { timeoutMs: 90000 }
+          { timeoutMs: 180000 }
         );
         const cleaned = extractTikzBlock(res && res.content);
         if (cleaned && cleaned.includes('\\begin{tikzpicture}')) {

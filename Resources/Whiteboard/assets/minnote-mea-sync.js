@@ -32,39 +32,98 @@
   const DEFAULT_MODELS_BY_PROVIDER = {
     'Google Gemini': [
       'gemini-2.5-flash',
-      'gemini-3.8-flash',
-      'gemini-3.6-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-pro-preview'
+      'gemini-2.5-pro',
+      'gemini-2.5-flash-lite',
+      'gemini-3-flash-preview',
+      'gemini-3.1-pro-preview',
+      'gemini-3.1-flash-lite-preview',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash'
     ],
     'Antigravity': [
       'gemini-3.8-flash-medium',
       'gemini-3.8-flash-high',
       'gemini-3.8-flash-low',
+      'gemini-4-neon-medium',
       'gemini-4-neon-high',
-      'claude-sonnet-5-5-medium'
+      'gemini-4-neon-low',
+      'gemini-4-neon-xhigh',
+      'gemini-4-carbon-medium',
+      'gemini-4-carbon-high',
+      'gemini-4-carbon-low',
+      'gemini-4-argon-medium',
+      'gemini-4-argon-high',
+      'gemini-4-argon-low',
+      'gemini-4-hydrogen-medium',
+      'gemini-4-hydrogen-high',
+      'gemini-4-hydrogen-low',
+      'gemini-4-hydrogen-xhigh',
+      'gemini-pro-orchestrator-neon',
+      'gemini-pro-orchestrator',
+      'gemini-pro-orchestrator-argon',
+      'claude-sonnet-5-5-medium',
+      'claude-sonnet-5-5-high',
+      'claude-sonnet-5-5-low',
+      'claude-opus-5-5-medium',
+      'claude-opus-5-5-high',
+      'claude-opus-5-5-low',
+      'gpt-oss-120b-medium'
     ],
     '9Router': [
-      'ag/gemini-3.8-flash',
+      'ag/gemini-3.8-flash-medium',
       'ag/gemini-3.8-flash-high',
-      'ag/gemini-3.7-flash-high',
-      'ag/claude-sonnet-5-5',
-      'gemini-3.8-flash'
+      'ag/gemini-3.8-flash-low',
+      'ag/gemini-3.8-flash',
+      'ag/gemini-4-carbon-medium',
+      'ag/gemini-4-carbon-high',
+      'ag/gemini-4-argon-medium',
+      'ag/gemini-4-argon-high',
+      'ag/claude-sonnet-5-5-medium',
+      'ag/claude-sonnet-5-5-high',
+      'ag/claude-opus-5-5-medium',
+      'ag/claude-sonnet-4-6',
+      'ag/claude-opus-4-6-thinking',
+      'ag/gemini-3.1-pro-high',
+      'ag/gpt-oss-120b-medium',
+      'anthropic/claude-sonnet-4-20250514',
+      'anthropic/claude-opus-4-20250514',
+      'openai/gpt-4o',
+      'deepseek/deepseek-chat'
     ],
     'Anthropic Claude': [
-      'claude-sonnet-5',
       'claude-sonnet-4-6',
+      'claude-opus-4-6',
+      'claude-sonnet-4-5',
+      'claude-opus-4-5',
+      'claude-haiku-4-5',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-sonnet-latest',
+      'claude-3-5-haiku-latest',
+      'claude-sonnet-5',
       'claude-opus-5'
     ],
     'DeepSeek': [
-      'deepseek-v4.1-flash',
+      'deepseek-chat',
       'deepseek-reasoner',
-      'deepseek-chat'
+      'deepseek-v4.1-flash'
     ],
     'OpenAI GPT': [
-      'gpt-4.5',
+      'gpt-5.2',
+      'gpt-5',
+      'gpt-5-mini',
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
       'gpt-4o',
-      'gpt-4o-mini'
+      'gpt-4o-mini',
+      'o3',
+      'o4-mini',
+      'gpt-4.5'
     ]
   };
 
@@ -315,9 +374,31 @@
             if (res.ok) {
               const json = await res.json();
               const models = Array.isArray(json.data) ? json.data.map((m) => m.id).filter(Boolean) : [];
-              if (models.length) return { provider: prov, models, live: true };
+              if (models.length) return { provider: prov, models, live: true, note: `Tìm thấy ${models.length} mô hình trên 9Router.` };
             }
           } catch (_) {}
+        } else if (prov === 'Google Gemini') {
+          const cfg = loadBrowserConfig();
+          const rawK = (p.rawKeys && !String(p.rawKeys).includes('••••')) ? p.rawKeys : ((cfg.keysByProvider && cfg.keysByProvider['Google Gemini']) || '');
+          const key = splitKeys(rawK)[0] || '';
+          if (key) {
+            try {
+              const ctrl = new AbortController();
+              const timer = setTimeout(() => ctrl.abort(), 6000);
+              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=100`, { signal: ctrl.signal });
+              clearTimeout(timer);
+              if (res.ok) {
+                const json = await res.json();
+                const models = Array.isArray(json.models)
+                  ? json.models
+                      .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+                      .map((m) => String(m.name || '').replace(/^models\//i, ''))
+                      .filter((id) => id && !/embedding|aqa|imagen|veo|learnlm|gemma-2/i.test(id))
+                  : [];
+                if (models.length) return { provider: prov, models, live: true, note: `Tìm thấy ${models.length} mô hình Google Gemini.` };
+              }
+            } catch (_) {}
+          }
         }
         return {
           provider: prov,
@@ -475,7 +556,7 @@
       parts.push({ text: promptText });
       const body = {
         contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.2 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 16384 }
       };
       if (systemPrompt) {
         body.systemInstruction = { parts: [{ text: String(systemPrompt) }] };
@@ -488,11 +569,14 @@
       if (!res.ok) throw new Error('Gemini HTTP ' + res.status);
       const data = await res.json();
       const resParts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-      const content = Array.isArray(resParts) ? resParts.map((x) => x.text || '').join('') : '';
+      const content = Array.isArray(resParts) ? resParts.filter((x) => !x.thought).map((x) => x.text || '').join('') : '';
       return { content, provider, model, latencyMs: Math.round(performance.now() - t0) };
     }
 
     if (provider === 'OpenAI GPT' || provider === 'DeepSeek') {
+      if (provider === 'DeepSeek' && imgB64) {
+        throw new Error('DeepSeek API hiện chỉ hỗ trợ văn bản, chưa hỗ trợ đọc ảnh trực tiếp.');
+      }
       const apiKey = keys[0];
       if (!apiKey) throw new Error('Chưa nhập API Key ' + provider + '.');
       const endpoint = provider === 'DeepSeek'
@@ -506,10 +590,14 @@
           ? [{ type: 'text', text: promptText }, { type: 'image_url', image_url: { url: 'data:' + imgMime + ';base64,' + imgB64 } }]
           : promptText
       });
+      const isReasoningOrGpt5 = provider === 'OpenAI GPT' && /^(o1|o3|o4|gpt-5)/i.test(model);
+      const reqPayload = isReasoningOrGpt5
+        ? { model, messages, max_completion_tokens: 16384 }
+        : { model, messages, temperature: 0.2, max_tokens: 8192 };
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model, messages, temperature: 0.2 })
+        body: JSON.stringify(reqPayload)
       });
       if (!res.ok) throw new Error(provider + ' HTTP ' + res.status);
       const data = await res.json();
@@ -559,7 +647,7 @@
         imageBase64: cleanImgB64 || undefined,
         imageMimeType: cleanImgB64 ? (o.imageMimeType || 'image/png') : undefined
       },
-      o.timeoutMs || 90000
+      o.timeoutMs || 260000
     );
     const content = data && typeof data.content === 'string' ? data.content : String(data || '');
     return {
@@ -600,19 +688,99 @@
       keyEdited: false,
       clearKey: false,
       rawKeysBuffer: '',
-      revealedProviders: new Set()
+      revealedProviders: new Set(),
+      modelFilter: '',
+      liveRefreshedProviders: new Set(),
+      modelsNote: ''
     };
     activeSettingsState = state;
     renderSettingsPanel(containerEl, state);
+    maybeAutoRefreshProviderModels(containerEl, state);
+  }
+
+  function getProviderModelList(state) {
+    const cfg = (state && state.cfg) || {};
+    const modelsMap = cfg.modelsByProvider || DEFAULT_MODELS_BY_PROVIDER;
+    const list = (modelsMap[state.provider] || DEFAULT_MODELS_BY_PROVIDER[state.provider] || []).slice();
+    if (state.model && !list.includes(state.model)) list.unshift(state.model);
+    if (!state.model && list.length) state.model = list[0];
+    return list;
+  }
+
+  function buildFilteredModelOptionsHtml(allModels, selectedModel, filterText) {
+    const q = String(filterText || '').trim().toLowerCase();
+    const list = q ? allModels.filter((m) => String(m).toLowerCase().includes(q)) : allModels;
+    if (!list.length) {
+      return {
+        html: `<option value="${esc(selectedModel || '')}" disabled selected>Không tìm thấy model khớp "${esc(filterText.trim())}"</option>`,
+        matchedCount: 0
+      };
+    }
+    return {
+      html: list.map((m) => `<option value="${esc(m)}" ${m === selectedModel ? 'selected' : ''}>${esc(m)}</option>`).join(''),
+      matchedCount: list.length
+    };
+  }
+
+  function syncModelSelectInPlace(host, state) {
+    const modSel = host.querySelector('#mn-mea-model');
+    const countEl = host.querySelector('#mn-mea-model-count');
+    const filterEl = host.querySelector('#mn-mea-model-filter');
+    const noteEl = host.querySelector('#mn-mea-model-note');
+    if (!modSel) return;
+    const allModels = getProviderModelList(state);
+    const { html, matchedCount } = buildFilteredModelOptionsHtml(allModels, state.model, state.modelFilter);
+    modSel.innerHTML = html;
+    if (matchedCount > 0 && allModels.includes(state.model)) {
+      const q = String(state.modelFilter || '').trim().toLowerCase();
+      const visible = q ? allModels.filter((m) => m.toLowerCase().includes(q)) : allModels;
+      if (visible.includes(state.model)) modSel.value = state.model;
+    }
+    if (countEl) {
+      countEl.textContent = (state.modelFilter && state.modelFilter.trim())
+        ? `${matchedCount}/${allModels.length} model`
+        : `${allModels.length} model`;
+    }
+    if (noteEl) {
+      noteEl.textContent = state.modelsNote || '';
+      noteEl.style.display = state.modelsNote ? 'block' : 'none';
+    }
+    if (!filterEl && allModels.length > 12) {
+      renderSettingsPanel(host, state);
+    } else if (filterEl) {
+      filterEl.placeholder = `Lọc nhanh model (${allModels.length} model)...`;
+    }
+  }
+
+  async function maybeAutoRefreshProviderModels(host, state) {
+    if (!host || !state || activeSettingsHost !== host || activeSettingsState !== state) return;
+    const prov = state.provider;
+    if (state.liveRefreshedProviders.has(prov)) return;
+    const shouldAuto = (prov === 'Antigravity' && state.cfg && state.cfg.antigravityInstalled) || prov === '9Router';
+    if (!shouldAuto || !isDesktopBridge()) return;
+    state.liveRefreshedProviders.add(prov);
+    try {
+      const res = await request('MEA_REFRESH_MODELS', { provider: prov }, 20000);
+      if (activeSettingsHost !== host || activeSettingsState !== state || state.provider !== prov) return;
+      if (res && Array.isArray(res.models) && res.models.length) {
+        state.cfg.modelsByProvider = state.cfg.modelsByProvider || {};
+        state.cfg.modelsByProvider[prov] = res.models;
+        if (!res.models.includes(state.model) && !state.model) state.model = res.models[0];
+        if (res.note) state.modelsNote = res.note;
+        syncModelSelectInPlace(host, state);
+      }
+    } catch (_) {}
   }
 
   function renderSettingsPanel(host, state) {
     const cfg = state.cfg || {};
     const providers = Array.isArray(cfg.providers) && cfg.providers.length ? cfg.providers : DEFAULT_PROVIDERS;
     const modelsMap = cfg.modelsByProvider || DEFAULT_MODELS_BY_PROVIDER;
-    const models = (modelsMap[state.provider] || DEFAULT_MODELS_BY_PROVIDER[state.provider] || []).slice();
-    if (state.model && !models.includes(state.model)) models.unshift(state.model);
-    if (!state.model && models.length) state.model = models[0];
+    const models = getProviderModelList(state);
+    const { html: modelOptionsHtml, matchedCount } = buildFilteredModelOptionsHtml(models, state.model, state.modelFilter);
+    const modelCountText = (state.modelFilter && state.modelFilter.trim())
+      ? `${matchedCount}/${models.length} model`
+      : `${models.length} model`;
 
     const keyUrls = cfg.providerKeyUrls || DEFAULT_KEY_URLS;
     const keyUrl = keyUrls[state.provider] || DEFAULT_KEY_URLS[state.provider] || '';
@@ -623,7 +791,6 @@
     const textareaVal = state.keyEdited
       ? state.rawKeysBuffer
       : (state.keyVisible && state.revealedProviders.has(state.provider) ? state.rawKeysBuffer : maskedVal);
-    const showRefreshModel = state.provider === '9Router' || state.provider === 'Antigravity';
     const st = cfg.syncStatus || {};
 
     host.innerHTML = `
@@ -656,13 +823,18 @@
               </select>
             </div>
             <div class="mn-v80-field">
-              <label class="mn-v80-label" for="mn-mea-model">
-                <span>Model AI</span>
-                ${showRefreshModel ? '<button type="button" class="mn-v80-btn sm" id="mn-mea-refresh-models" style="height:22px;font-size:11px;padding:0 7px;">🔄 Làm mới model</button>' : ''}
-              </label>
+              <div class="mn-mea-model-label-row">
+                <label class="mn-v80-label" for="mn-mea-model" style="margin:0;">Model AI</label>
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <span class="mn-v80-badge" id="mn-mea-model-count" style="font-size:10.5px;padding:1px 6px;">${esc(modelCountText)}</span>
+                  <button type="button" class="mn-v80-btn sm" id="mn-mea-refresh-models" style="height:22px;font-size:11px;padding:0 7px;">🔄 Làm mới model</button>
+                </div>
+              </div>
+              ${models.length > 12 ? `<input type="search" class="mn-v80-input mn-mea-model-filter" id="mn-mea-model-filter" value="${esc(state.modelFilter || '')}" placeholder="Lọc nhanh model (${models.length} model)..." />` : ''}
               <select class="mn-v80-select" id="mn-mea-model">
-                ${models.map((m) => `<option value="${esc(m)}" ${m === state.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}
+                ${modelOptionsHtml}
               </select>
+              <div id="mn-mea-model-note" style="font-size:11px;color:var(--mn80-text-muted);margin-top:2px;display:${state.modelsNote ? 'block' : 'none'};">${esc(state.modelsNote || '')}</div>
             </div>
           </div>
         </div>
@@ -732,6 +904,7 @@
 
     const provSel = host.querySelector('#mn-mea-provider');
     const modSel = host.querySelector('#mn-mea-model');
+    const modFilter = host.querySelector('#mn-mea-model-filter');
     const keyInput = host.querySelector('#mn-mea-key-input');
     const keyCountEl = host.querySelector('#mn-mea-key-count');
     const rotChk = host.querySelector('#mn-mea-rotation');
@@ -741,15 +914,25 @@
       state.provider = provSel.value;
       const list = (modelsMap[state.provider] || DEFAULT_MODELS_BY_PROVIDER[state.provider] || []);
       state.model = list[0] || '';
+      state.modelFilter = '';
+      state.modelsNote = '';
       state.keyVisible = false;
       state.keyEdited = false;
       state.clearKey = false;
       state.rawKeysBuffer = '';
       renderSettingsPanel(host, state);
+      maybeAutoRefreshProviderModels(host, state);
     });
 
+    if (modFilter) {
+      modFilter.addEventListener('input', () => {
+        state.modelFilter = modFilter.value || '';
+        syncModelSelectInPlace(host, state);
+      });
+    }
+
     modSel.addEventListener('change', () => {
-      state.model = modSel.value;
+      if (modSel.value) state.model = modSel.value;
     });
 
     keyInput.addEventListener('input', () => {
@@ -773,12 +956,18 @@
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Đang nạp...';
         try {
-          const res = await request('MEA_REFRESH_MODELS', { provider: state.provider });
+          const res = await request('MEA_REFRESH_MODELS', {
+            provider: state.provider,
+            rawKeys: state.keyEdited ? state.rawKeysBuffer : undefined
+          }, 25000);
+          state.liveRefreshedProviders.add(state.provider);
           if (res && Array.isArray(res.models) && res.models.length) {
             state.cfg.modelsByProvider = state.cfg.modelsByProvider || {};
             state.cfg.modelsByProvider[state.provider] = res.models;
             if (!res.models.includes(state.model)) state.model = res.models[0];
-            toast(`Đã cập nhật ${res.models.length} model cho ${state.provider}`);
+            state.modelFilter = '';
+            state.modelsNote = res.note || '';
+            toast(res.note || `Đã cập nhật ${res.models.length} model cho ${state.provider}`);
           }
           renderSettingsPanel(host, state);
         } catch (err) {
@@ -882,7 +1071,7 @@
           provider: state.provider,
           model: state.model,
           rawKeys: state.keyEdited ? state.rawKeysBuffer : undefined
-        }, 45000);
+        }, 120000);
         if (res && res.ok) {
           testOut.className = 'mn-mea-test-result ok';
           testOut.innerHTML = `<b>✓ Kết nối thành công!</b> (${res.latencyMs || 0} ms) — <b>${esc(res.provider || state.provider)}</b> / <code>${esc(res.model || state.model)}</code><br>Phản hồi: "${esc(res.reply || '')}"`;
@@ -2132,6 +2321,9 @@
     onSyncEvent,
     executeAiPrompt,
     mountSettingsPanel,
+    openSettingsModal: function () {
+      return typeof window.openMinNoteMeaSettings === 'function' ? window.openMinNoteMeaSettings() : false;
+    },
     openFigureSyncModal,
     pushCurrentFigure,
     queryQuestionBank,

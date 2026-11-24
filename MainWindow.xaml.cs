@@ -2085,11 +2085,12 @@ namespace MinNote
                     {
                         string reqId = GetJsonString(root, "id");
                         string? prov = GetJsonOptionalString(root, "provider");
+                        string? rawKeys = GetJsonOptionalString(root, "rawKeys") ?? GetJsonOptionalString(root, "apiKey");
                         _ = Task.Run(async () =>
                         {
                             try
                             {
-                                var (models, live, note) = await MatrixExamSyncService.Instance.RefreshModelsAsync(prov);
+                                var (models, live, note) = await MatrixExamSyncService.Instance.RefreshModelsAsync(prov, rawKeys);
                                 string resolvedProv = string.IsNullOrWhiteSpace(prov)
                                     ? (await MatrixExamSyncService.Instance.GetAiConfigAsync()).Provider
                                     : MatrixExamSyncService.NormalizeProviderName(prov);

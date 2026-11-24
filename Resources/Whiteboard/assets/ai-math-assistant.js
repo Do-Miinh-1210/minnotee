@@ -509,7 +509,7 @@
         const syncRes = await window.MinNoteMeaSync.executeAiPrompt(ocrPrompt, ocrSystem, {
           imageBase64: base64,
           imageMimeType: "image/png",
-          timeoutMs: 25000
+          timeoutMs: 120000
         });
         const cand = (syncRes && (syncRes.content || syncRes.text) || "").trim();
         if (cand) {

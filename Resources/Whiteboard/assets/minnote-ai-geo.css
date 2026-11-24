@@ -26,7 +26,7 @@ html.dark .mn-sel-ai-geo-btn:hover {
 #mn-ai-geo-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10065;
+  z-index: 100080;
   display: none;
   align-items: center;
   justify-content: center;
@@ -339,6 +339,52 @@ html.dark .mn-sel-ai-geo-btn:hover {
 
 .mn-ag-check input {
   accent-color: #2563eb;
+}
+
+.mn-ag-model-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--mn80-border, #e2e8f0);
+  background: var(--mn80-bg-soft, #f8fafc);
+}
+
+.mn-ag-provider-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mn80-accent, #2563eb);
+  background: var(--mn80-accent-soft, rgba(37, 99, 235, 0.1));
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mn-ag-model-select {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--mn80-border, #e2e8f0);
+  background: var(--mn80-bg, #ffffff);
+  color: var(--mn80-text, #0f172a);
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+}
+
+.mn-ag-model-select:focus {
+  border-color: var(--mn80-accent, #2563eb);
+}
+
+.mn-ag-model-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--mn80-text-muted, #64748b);
+  padding: 0 2px;
 }
 
 .mn-ag-progress {
