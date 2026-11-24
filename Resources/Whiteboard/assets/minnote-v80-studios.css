@@ -54,10 +54,19 @@ html.dark {
 }
 
 /* ============================================================================
- * 1. HAND-PEN CURSOR SUPPORT
+ * 1. NATIVE HAND-PEN MOUSE CURSOR SUPPORT (integrated with board data-cursor)
  * ============================================================================ */
-.board-scroller.mn-hand-cursor-active canvas {
-  cursor: none !important;
+.board[data-cursor="handPen"] .board-scroller {
+  cursor: var(--board-cursor, default);
+}
+.board[data-cursor="handPen"] .board-scroller[data-tool="eraser"] {
+  cursor: none;
+}
+.board[data-cursor="handPen"] .board-scroller[data-tool="select"] {
+  cursor: default;
+}
+.board[data-cursor="handPen"] .board-scroller[data-tool="pan"] {
+  cursor: grab;
 }
 
 /* ============================================================================

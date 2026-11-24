@@ -25,7 +25,7 @@ public record UpdateInfo(
 
 public class GitHubUpdateService
 {
-    private const string FallbackVersion = "0.0.8.1";
+    private const string FallbackVersion = "0.0.8.2";
     private const string DefaultSetupAssetName = "MinNote_Setup.exe";
 
     public static GitHubUpdateService Instance { get; } = new();

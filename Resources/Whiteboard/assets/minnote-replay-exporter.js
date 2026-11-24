@@ -1017,7 +1017,7 @@
         active: true,
         drawing: !frameSpec.lifted && tip.drawing !== false
       });
-      const handTargetH = Math.max(96, Math.min(185, (outH / scale) * 0.42));
+      const handTargetH = Math.max(66, Math.min(115, (outH / scale) * 0.25));
       window.MinNoteHandCursor.paintReplayTip(ctx, tipCopy, null, {
         forceShow: true,
         targetHeight: handTargetH,

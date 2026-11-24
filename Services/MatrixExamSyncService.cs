@@ -351,8 +351,13 @@ namespace MinNote.Services
         private const string DpapiPrefix = "enc:dpapi:";
         private const int CRYPTPROTECT_UI_FORBIDDEN = 0x1;
         private const string DatabaseFileName = "question_bank.db";
-        private const int WatcherDebounceMs = 450;
-        private const long SelfWriteSuppressMs = 400;
+        private const int WatcherDebounceMs = 1200;
+        private const long SelfWriteSuppressMs = 1800;
+        private const long StartupWatcherWarmupMs = 2500;
+        private readonly long _serviceStartTicks = Environment.TickCount64;
+        private string _lastQbFingerprint = string.Empty;
+        private string _lastFigFingerprint = string.Empty;
+        private string _lastCfgFingerprint = string.Empty;
 
         private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
         private static readonly HttpClient SharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
@@ -1941,14 +1946,15 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             }
         }
 
-        private static async Task<SqliteConnection> OpenQuestionBankConnectionAsync(string dbPath, bool enableWal)
+        private static async Task<SqliteConnection> OpenQuestionBankConnectionAsync(string dbPath, bool readOnly = true)
         {
-            var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadWriteCreate;Pooling=False;");
+            string mode = readOnly ? "ReadOnly" : "ReadWriteCreate";
+            var conn = new SqliteConnection($"Data Source={dbPath};Mode={mode};Pooling=False;");
             await conn.OpenAsync().ConfigureAwait(false);
             using var pragma = conn.CreateCommand();
-            pragma.CommandText = enableWal
-                ? "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"
-                : "PRAGMA busy_timeout=5000;";
+            pragma.CommandText = readOnly
+                ? "PRAGMA busy_timeout=5000;"
+                : "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
             try { await pragma.ExecuteNonQueryAsync().ConfigureAwait(false); } catch { }
             return conn;
         }
@@ -2052,7 +2058,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             }
 
             var allItems = new List<MeaQuestionDto>();
-            using (var conn = await OpenQuestionBankConnectionAsync(dbPath, enableWal: true).ConfigureAwait(false))
+            using (var conn = await OpenQuestionBankConnectionAsync(dbPath, readOnly: true).ConfigureAwait(false))
             {
                 var (schema, cols) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
                 result.Schema = schema.ToString();
@@ -2136,9 +2142,9 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return result;
         }
 
-        public async Task<List<MeaQuestionDto>> LoadAllQuestionsForLegacyBankAsync(int maxQuestions = 500)
+        public async Task<List<MeaQuestionDto>> LoadAllQuestionsForLegacyBankAsync(int maxQuestions = 250)
         {
-            var res = await ListQuestionsAsync(limit: maxQuestions, offset: 0, resolveImages: true).ConfigureAwait(false);
+            var res = await ListQuestionsAsync(limit: maxQuestions, offset: 0, resolveImages: false).ConfigureAwait(false);
             return res.Questions;
         }
 
@@ -2150,7 +2156,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
 
             MarkSelfWrite("question_bank_changed");
 
-            using var conn = await OpenQuestionBankConnectionAsync(dbPath, enableWal: true).ConfigureAwait(false);
+            using var conn = await OpenQuestionBankConnectionAsync(dbPath, readOnly: false).ConfigureAwait(false);
             var (schema, cols) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
             if (schema == QuestionBankSchema.None)
             {
@@ -3013,7 +3019,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             {
                 try
                 {
-                    using var conn = await OpenQuestionBankConnectionAsync(dbPath, enableWal: false).ConfigureAwait(false);
+                    using var conn = await OpenQuestionBankConnectionAsync(dbPath, readOnly: true).ConfigureAwait(false);
                     var (schema, _) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
                     info.QuestionBankSchema = schema.ToString();
                     if (schema != QuestionBankSchema.None)
@@ -3064,7 +3070,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                     catch { }
                 }
 
-                // 2. Watch active question_bank.db (+ -wal)
+                // 2. Watch active question_bank.db (+ -wal only; NEVER -shm/-journal!)
                 string qbDir = Path.GetDirectoryName(ResolveDatabasePath()) ?? string.Empty;
                 if (!string.IsNullOrEmpty(qbDir) && Directory.Exists(qbDir) && !SameDirectory(qbDir, _watchedQbDir))
                 {
@@ -3073,13 +3079,28 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                     {
                         _qbWatcher = new FileSystemWatcher(qbDir, "question_bank.db*")
                         {
-                            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
+                            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
                             EnableRaisingEvents = true
                         };
-                        _qbWatcher.Changed += (_, _) => ScheduleDebouncedEvent("question_bank_changed");
-                        _qbWatcher.Created += (_, _) => ScheduleDebouncedEvent("question_bank_changed");
-                        _qbWatcher.Renamed += (_, _) => ScheduleDebouncedEvent("question_bank_changed");
+                        FileSystemEventHandler onQbChange = (_, args) =>
+                        {
+                            string name = args.Name ?? string.Empty;
+                            if (name.EndsWith("-shm", StringComparison.OrdinalIgnoreCase) ||
+                                name.EndsWith("-journal", StringComparison.OrdinalIgnoreCase) ||
+                                name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return;
+                            }
+                            if (name.Equals(DatabaseFileName, StringComparison.OrdinalIgnoreCase) ||
+                                name.Equals(DatabaseFileName + "-wal", StringComparison.OrdinalIgnoreCase))
+                            {
+                                ScheduleDebouncedEvent("question_bank_changed");
+                            }
+                        };
+                        _qbWatcher.Changed += onQbChange;
+                        _qbWatcher.Created += onQbChange;
                         _watchedQbDir = qbDir;
+                        _lastQbFingerprint = ComputeQuestionBankFileFingerprint(ResolveDatabasePath());
                     }
                     catch { }
                 }
@@ -3133,9 +3154,47 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                    (Environment.TickCount64 - ticks) < SelfWriteSuppressMs;
         }
 
+        private static string ComputeQuestionBankFileFingerprint(string dbPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(dbPath) || !File.Exists(dbPath)) return "missing";
+                var fi = new FileInfo(dbPath);
+                string walPath = dbPath + "-wal";
+                long walLen = 0;
+                long walTicks = 0;
+                if (File.Exists(walPath))
+                {
+                    var wfi = new FileInfo(walPath);
+                    walLen = wfi.Length;
+                    walTicks = wfi.LastWriteTimeUtc.Ticks;
+                }
+                return $"{fi.Length}|{fi.LastWriteTimeUtc.Ticks}|{walLen}|{walTicks}";
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string ComputeFileFingerprint(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return "missing";
+                var fi = new FileInfo(filePath);
+                return $"{fi.Length}|{fi.LastWriteTimeUtc.Ticks}";
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         private void ScheduleDebouncedEvent(string eventType)
         {
             if (_disposed || IsRecentSelfWrite(eventType)) return;
+            if ((Environment.TickCount64 - _serviceStartTicks) < StartupWatcherWarmupMs) return;
 
             _debounceTimers.AddOrUpdate(
                 eventType,
@@ -3154,7 +3213,24 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             {
                 if (eventType == "config_changed")
                 {
+                    string cfgFp = ComputeFileFingerprint(ConfigFilePath);
+                    if (!string.IsNullOrEmpty(cfgFp) && cfgFp == _lastCfgFingerprint) return;
+                    _lastCfgFingerprint = cfgFp;
                     EnsureWatchersStarted();
+                }
+                else if (eventType == "question_bank_changed")
+                {
+                    string dbPath = ResolveDatabasePath();
+                    string qbFp = ComputeQuestionBankFileFingerprint(dbPath);
+                    if (!string.IsNullOrEmpty(qbFp) && qbFp == _lastQbFingerprint) return;
+                    _lastQbFingerprint = qbFp;
+                }
+                else if (eventType == "figures_changed")
+                {
+                    string figDir = GetFiguresDirectory(createIfMissing: false);
+                    string figFp = ComputeFileFingerprint(Path.Combine(figDir, "index.json"));
+                    if (!string.IsNullOrEmpty(figFp) && figFp == _lastFigFingerprint) return;
+                    _lastFigFingerprint = figFp;
                 }
 
                 var status = await GetSyncStatusAsync().ConfigureAwait(false);

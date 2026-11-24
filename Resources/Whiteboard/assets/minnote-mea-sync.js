@@ -1451,17 +1451,25 @@
       });
     }
 
+    const answerVal = String(q.correctAnswer || q.answer || '').trim();
+    const explVal = String(q.explanation || q.solution || '').trim();
+    const codeVal = q.code ? String(q.code).trim() : '';
+
     return {
       id: q.id || ('mea_q_' + Date.now()),
-      title: q.code ? `Câu ${q.code}` : (q.topic ? `Câu hỏi • ${q.topic}` : 'Câu hỏi MEA'),
+      code: codeVal || (q.topic ? `Câu • ${q.topic}` : 'Câu MEA'),
+      title: codeVal ? `Câu ${codeVal}` : (q.topic ? `Câu hỏi • ${q.topic}` : 'Câu hỏi MEA'),
       topic: q.topic || '',
       grade: q.grade || '',
       level: q.level || '',
       type: q.qtype || 'TN',
+      qtype: q.qtype || 'TN',
       content,
       options: opts,
-      answer: q.correctAnswer || q.answer || '',
-      solution: q.explanation || q.solution || '',
+      correctAnswer: answerVal,
+      answer: answerVal,
+      explanation: explVal,
+      solution: explVal,
       tikzCode: q.tikzCode || '',
       resolvedImages: Array.isArray(q.resolvedImages) ? q.resolvedImages : []
     };
@@ -1476,6 +1484,12 @@
     if (mode !== 'canvas' && typeof window.insertQuestionToPage === 'function') {
       const isNewPage = mode === 'new_page';
       window.insertQuestionToPage(cardQ, curPage, isNewPage);
+      if (typeof window.closeQuestionBankModal === 'function') {
+        window.closeQuestionBankModal();
+      }
+      if (standaloneQbBackdrop && standaloneQbBackdrop.classList.contains('open')) {
+        standaloneQbBackdrop.classList.remove('open');
+      }
       // If question also carries TikZ figure and user requested canvas+tikz or card+tikz, insert figure too
       if (cardQ.tikzCode && (mode === 'card_with_figure' || mode === 'latex')) {
         await insertFigureToBoard({ id: 'q_' + cardQ.id, title: cardQ.title, tikzCode: cardQ.tikzCode }, 'image');
@@ -1519,7 +1533,10 @@
   }
 
   let activeBankHost = null;
-  let activeBankFilter = { keyword: '', grade: '', level: '', qtype: '' };
+  let activeBankFilter = { keyword: '', grade: '', level: '', qtype: '', offset: 0 };
+  const BANK_PAGE_SIZE = 24;
+  let isLoadingBank = false;
+  let lastBankSyncRefreshAt = 0;
 
   async function openBankIntoModal(containerEl) {
     if (!containerEl) return;
@@ -1533,40 +1550,70 @@
           <select id="mn-qb-type" class="mn-v80-select"><option value="">Mọi loại câu</option></select>
           <button type="button" class="mn-v80-btn primary" id="mn-qb-search-btn">🔍 Lọc</button>
         </div>
-        <div id="mn-qb-meta" style="font-size:11.5px;color:var(--mn80-text-muted);">Đang đồng bộ từ SQLite MatrixExamAI Pro...</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div id="mn-qb-meta" style="font-size:11.5px;color:var(--mn80-text-muted);">Đang đồng bộ từ SQLite MatrixExamAI Pro...</div>
+          <div id="mn-qb-pager" style="display:flex;align-items:center;gap:6px;"></div>
+        </div>
         <div class="mn-qb-mea-list" id="mn-qb-list"></div>
       </div>
     `;
 
     const load = async () => {
+      if (isLoadingBank) return;
       const listEl = containerEl.querySelector('#mn-qb-list');
       const metaEl = containerEl.querySelector('#mn-qb-meta');
+      const pagerEl = containerEl.querySelector('#mn-qb-pager');
       if (!listEl) return;
+      isLoadingBank = true;
       listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--mn80-text-muted);">Đang tải danh sách câu hỏi...</div>';
       try {
         const res = await queryQuestionBank({
           keyword: activeBankFilter.keyword,
-          grade: activeBankFilter.grade,
+          grade: activeBankFilter.grade ? Number(activeBankFilter.grade) : undefined,
           level: activeBankFilter.level,
           qtype: activeBankFilter.qtype,
-          limit: 50,
-          offset: 0
+          limit: BANK_PAGE_SIZE,
+          offset: activeBankFilter.offset || 0
         });
 
-        const fillSelect = (sel, values, placeholder, curVal) => {
+        const fillSelect = (sel, values, placeholder, curVal, prefix) => {
           if (!sel || !Array.isArray(values)) return;
+          const curStr = String(curVal || '');
           sel.innerHTML = `<option value="">${placeholder}</option>` +
-            values.map((v) => `<option value="${esc(v)}" ${v === curVal ? 'selected' : ''}>${esc(v)}</option>`).join('');
+            values.map((v) => {
+              const sVal = String(v);
+              const lbl = prefix ? `${prefix}${sVal}` : sVal;
+              return `<option value="${esc(sVal)}" ${sVal === curStr ? 'selected' : ''}>${esc(lbl)}</option>`;
+            }).join('');
         };
         if (res && res.facets) {
-          fillSelect(containerEl.querySelector('#mn-qb-grade'), res.facets.grades, 'Tất cả lớp', activeBankFilter.grade);
-          fillSelect(containerEl.querySelector('#mn-qb-level'), res.facets.levels, 'Mọi mức độ', activeBankFilter.level);
-          fillSelect(containerEl.querySelector('#mn-qb-type'), res.facets.qtypes, 'Mọi loại câu', activeBankFilter.qtype);
+          fillSelect(containerEl.querySelector('#mn-qb-grade'), res.facets.grades, 'Tất cả lớp', activeBankFilter.grade, 'Lớp ');
+          fillSelect(containerEl.querySelector('#mn-qb-level'), res.facets.levels, 'Mọi mức độ', activeBankFilter.level, '');
+          fillSelect(containerEl.querySelector('#mn-qb-type'), res.facets.qtypes, 'Mọi loại câu', activeBankFilter.qtype, '');
         }
 
         const qs = (res && Array.isArray(res.questions)) ? res.questions : [];
+        const filteredTotal = Number(res && res.filteredTotal != null ? res.filteredTotal : qs.length);
+        const curOffset = activeBankFilter.offset || 0;
+        const fromIdx = filteredTotal > 0 ? (curOffset + 1) : 0;
+        const toIdx = curOffset + qs.length;
+
         if (metaEl) {
-          metaEl.textContent = `Hiển thị ${qs.length} / ${res.filteredTotal ?? qs.length} câu (Tổng kho: ${res.total ?? 0} câu • ${res.dbPath || ''})`;
+          metaEl.textContent = `Hiển thị ${fromIdx}–${toIdx} / ${filteredTotal} câu (Tổng kho: ${res.total ?? 0} câu)`;
+        }
+
+        if (pagerEl) {
+          const totalPages = Math.max(1, Math.ceil(filteredTotal / BANK_PAGE_SIZE));
+          const curPage = Math.floor(curOffset / BANK_PAGE_SIZE) + 1;
+          pagerEl.innerHTML = totalPages > 1
+            ? `<button type="button" class="mn-v80-btn sm" id="mn-qb-prev" ${curPage <= 1 ? 'disabled' : ''}>← Trước</button>` +
+              `<span style="font-size:11.5px;color:var(--mn80-text-muted);">${curPage}/${totalPages}</span>` +
+              `<button type="button" class="mn-v80-btn sm" id="mn-qb-next" ${curPage >= totalPages ? 'disabled' : ''}>Sau →</button>`
+            : '';
+          const prevBtn = pagerEl.querySelector('#mn-qb-prev');
+          const nextBtn = pagerEl.querySelector('#mn-qb-next');
+          if (prevBtn) prevBtn.addEventListener('click', () => { activeBankFilter.offset = Math.max(0, curOffset - BANK_PAGE_SIZE); load(); });
+          if (nextBtn) nextBtn.addEventListener('click', () => { if (curOffset + BANK_PAGE_SIZE < filteredTotal) { activeBankFilter.offset = curOffset + BANK_PAGE_SIZE; load(); } });
         }
 
         if (!qs.length) {
@@ -1574,7 +1621,7 @@
           return;
         }
 
-        listEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
         for (const q of qs) {
           const item = document.createElement('div');
           item.className = 'mn-qb-mea-item';
@@ -1601,10 +1648,14 @@
           item.querySelectorAll('[data-ins]').forEach((btn) => {
             btn.addEventListener('click', () => insertMeaQuestionToBoard(q, btn.dataset.ins));
           });
-          listEl.appendChild(item);
+          frag.appendChild(item);
         }
+        listEl.innerHTML = '';
+        listEl.appendChild(frag);
       } catch (err) {
         listEl.innerHTML = `<div style="padding:20px;color:var(--mn80-danger);">Lỗi kết nối NHCH MatrixExamAI Pro: ${esc(err.message || err)}</div>`;
+      } finally {
+        isLoadingBank = false;
       }
     };
 
@@ -1613,6 +1664,7 @@
       activeBankFilter.grade = containerEl.querySelector('#mn-qb-grade').value || '';
       activeBankFilter.level = containerEl.querySelector('#mn-qb-level').value || '';
       activeBankFilter.qtype = containerEl.querySelector('#mn-qb-type').value || '';
+      activeBankFilter.offset = 0;
       load();
     };
 
@@ -1650,20 +1702,20 @@
 
   function handleLiveSyncEvent(detail) {
     const ev = detail && detail.event;
+    const now = Date.now();
     if (ev === 'figures_changed') {
       if (figBackdrop && figBackdrop.classList.contains('open')) {
         refreshFigureGallery();
       }
-      toast('🔄 Kho hình MatrixExamAI Pro vừa được cập nhật!');
     } else if (ev === 'config_changed') {
-      if (activeSettingsHost && activeSettingsHost.isConnected && activeSettingsState && !activeSettingsState.keyEdited) {
+      if (activeSettingsHost && activeSettingsHost.isConnected && activeSettingsHost.offsetParent !== null && activeSettingsState && !activeSettingsState.keyEdited) {
         mountSettingsPanel(activeSettingsHost);
       }
     } else if (ev === 'question_bank_changed') {
-      if (activeBankHost && activeBankHost.isConnected) {
+      if (activeBankHost && activeBankHost.isConnected && activeBankHost.offsetParent !== null && !isLoadingBank && (now - lastBankSyncRefreshAt) > 3000) {
+        lastBankSyncRefreshAt = now;
         openBankIntoModal(activeBankHost);
       }
-      toast('🔄 Ngân hàng câu hỏi MatrixExamAI Pro vừa được đồng bộ!');
     }
   }
 
