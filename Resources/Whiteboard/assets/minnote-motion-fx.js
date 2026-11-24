@@ -1210,18 +1210,22 @@
         if (teeFn) { ctx.save(); ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 14; ctx.globalAlpha *= clamp01(prog); teeFn(ctx, sh, coords); ctx.restore(); }
         return { handled: true, tip: defaultTip };
       }
+      const laserFade = rawP < 0.78 ? 1 : clamp01(1 - smoothstep((rawP - 0.78) / 0.22));
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = color;
       ctx.lineWidth = lineW;
-      ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 16;
+      if (laserFade > 0.02) {
+        ctx.shadowColor = '#06b6d4';
+        ctx.shadowBlur = 16 * laserFade;
+      }
       const tip = drawPartialFn(ctx, polylines, clamp01(prog), !!rev);
-      if (tip) {
-        // Luminous white-cyan laser flare at tip
+      if (tip && laserFade > 0.02) {
+        // Luminous white-cyan laser flare at tip (feathers smoothly to 0 at end!)
+        ctx.globalAlpha *= laserFade;
         ctx.shadowColor = '#22d3ee';
-        ctx.shadowBlur = 22;
+        ctx.shadowBlur = 22 * laserFade;
         ctx.beginPath();
         ctx.arc(tip.x, tip.y, 10, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(34, 211, 238, 0.28)';
@@ -1230,6 +1234,7 @@
         ctx.arc(tip.x, tip.y, 4.4, 0, Math.PI * 2);
         ctx.fillStyle = '#06b6d4';
         ctx.fill();
+        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(tip.x, tip.y, 2.0, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';

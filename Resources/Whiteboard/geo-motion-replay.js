@@ -242,6 +242,9 @@
     { id: 'linear',    label: 'Tuyến tính' }
   ];
   let effectPopoverCategory = 'fit';
+  let effectPopoverPos = null;   // { left, top } remembered after user drags popover
+  let effectPopoverPeek = false; // translucent see-through mode
+  let lastRenderedStepSig = '';  // avoids innerHTML teardown during live playback!
 
   function getMotionFX() {
     return (typeof window !== 'undefined' && window.MinNoteMotionFX) ? window.MinNoteMotionFX : null;
@@ -283,9 +286,53 @@
 
   function closeEffectPopover() {
     if (effectPopover) {
-      effectPopover.classList.remove('open');
+      effectPopover.classList.remove('open', 'mn-fx-previewing');
     }
     effectPopoverState = null;
+  }
+
+  function getFigureScreenRect(b, r) {
+    try {
+      if (!b || !r || !b.scroller) return null;
+      const ctx = window.MinNoteGeoReplay && typeof window.MinNoteGeoReplay.getExportContext === 'function'
+        ? window.MinNoteGeoReplay.getExportContext(r)
+        : null;
+      if (!ctx || !ctx.bounds) return null;
+      const scRect = b.scroller.getBoundingClientRect();
+      const z = b.zoom || 1;
+      const topOff = typeof b.pageTop === 'function' ? b.pageTop(r.page, b.doc) : 0;
+      const leftOff = typeof b.pageLeft === 'function' ? b.pageLeft(r.page, b.doc) : 0;
+      const x0 = scRect.left + (leftOff + ctx.bounds.x0) * z - b.scroller.scrollLeft;
+      const y0 = scRect.top + (topOff + ctx.bounds.y0) * z - b.scroller.scrollTop;
+      const x1 = scRect.left + (leftOff + ctx.bounds.x1) * z - b.scroller.scrollLeft;
+      const y1 = scRect.top + (topOff + ctx.bounds.y1) * z - b.scroller.scrollTop;
+      if (!Number.isFinite(x0) || !Number.isFinite(y0)) return null;
+      return { left: x0, top: y0, right: x1, bottom: y1 };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function rectOverlapArea(a, b) {
+    if (!a || !b) return 0;
+    const ox = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const oy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return ox * oy;
+  }
+
+  function updateEffectPopoverPreviewFade() {
+    if (!effectPopover || !effectPopover.classList.contains('open')) return;
+    const b = getBoard();
+    const r = getFocusedReplay(b);
+    const isPlaying = !!(r && r.playing);
+    if (!isPlaying) {
+      effectPopover.classList.remove('mn-fx-previewing');
+      return;
+    }
+    const pr = effectPopover.getBoundingClientRect();
+    const figR = getFigureScreenRect(b, r);
+    const overlapsFig = figR ? rectOverlapArea(pr, figR) > 900 : false;
+    effectPopover.classList.toggle('mn-fx-previewing', overlapsFig);
   }
 
   function ensureEffectPopover() {
@@ -296,11 +343,27 @@
     pop.setAttribute('aria-label', 'Tùy chỉnh hiệu ứng bước');
     document.body.appendChild(pop);
 
+    // Allow panning/dragging canvas freely without closing popover; only close on a stationary click outside!
+    let outDown = null;
     document.addEventListener('pointerdown', (e) => {
+      outDown = null;
       if (!effectPopover || !effectPopover.classList.contains('open')) return;
       if (effectPopover.contains(e.target)) return;
-      if (e.target.closest && e.target.closest('[data-act="fx"]')) return;
-      closeEffectPopover();
+      if (e.target.closest && (e.target.closest('[data-act="fx"]') || e.target.closest('#mn-replay-panel'))) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      outDown = { x: e.clientX, y: e.clientY, t: Date.now() };
+    }, true);
+
+    document.addEventListener('pointerup', (e) => {
+      if (!outDown) return;
+      const dist = Math.hypot(e.clientX - outDown.x, e.clientY - outDown.y);
+      const elapsed = Date.now() - outDown.t;
+      outDown = null;
+      if (dist <= 6 && elapsed < 400 && effectPopover && effectPopover.classList.contains('open')) {
+        if (!effectPopover.contains(e.target) && !(e.target.closest && e.target.closest('#mn-replay-panel'))) {
+          closeEffectPopover();
+        }
+      }
     }, true);
 
     document.addEventListener('keydown', (e) => {
@@ -363,9 +426,15 @@
     })();
 
     pop.innerHTML = `
-      <div class="mn-fx-head">
-        <div class="mn-fx-title" title="${escapeHtml(labelText)}">✨ Hiệu ứng: <span>${escapeHtml(labelText)}</span></div>
-        <button type="button" class="mn-icon-btn" data-fx-close title="Đóng">✕</button>
+      <div class="mn-fx-head" title="Kéo thanh tiêu đề này để di chuyển khung hiệu ứng ra khỏi hình">
+        <div class="mn-fx-title" title="${escapeHtml(labelText)} (Kéo để di chuyển)">
+          <span class="mn-fx-grip" aria-hidden="true">⋮⋮</span>
+          <span>✨ ${escapeHtml(labelText)}</span>
+        </div>
+        <div class="mn-fx-head-actions">
+          <button type="button" class="mn-icon-btn${effectPopoverPeek ? ' active' : ''}" data-fx-peek title="Làm mờ khung để nhìn xuyên hình phía sau">👁</button>
+          <button type="button" class="mn-icon-btn" data-fx-close title="Đóng">✕</button>
+        </div>
       </div>
       <div class="mn-fx-sec">
         <div class="mn-fx-label">${isCueOnly ? 'Hiệu ứng nhấn mạnh (không vẽ lại)' : 'Chọn hiệu ứng theo đối tượng'}</div>
@@ -416,29 +485,76 @@
     `;
 
     pop.classList.add('open');
+    pop.classList.toggle('mn-fx-peek', effectPopoverPeek);
 
-    // Smart viewport clamp positioning (prefer clean side-by-side left of #mn-replay-panel so step rows stay visible!)
-    const pw = pop.offsetWidth || 360;
-    const ph = pop.offsetHeight || 380;
+    // Make the FX popover smoothly draggable by its header & persist position across clicks/tabs!
+    const fxHead = pop.querySelector('.mn-fx-head');
+    if (fxHead) {
+      makeDraggable(pop, fxHead, {
+        onDragEnd() {
+          const rr = pop.getBoundingClientRect();
+          effectPopoverPos = { left: Math.round(rr.left), top: Math.round(rr.top) };
+        }
+      });
+    }
+
+    // Smart placement: honor user's dragged position if set; otherwise choose side with LEAST overlap over the figure!
+    const pw = pop.offsetWidth || 344;
+    const ph = pop.offsetHeight || 420;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const panelRect = (replayPanel && replayPanel.classList.contains('open')) ? replayPanel.getBoundingClientRect() : null;
-    let left;
-    if (panelRect && panelRect.left - pw - 10 >= 12) {
-      left = panelRect.left - pw - 10;
-    } else if (panelRect && panelRect.right + 10 + pw <= vw - 12) {
-      left = panelRect.right + 10;
+    const minTop = 52;
+    const maxTop = Math.max(minTop, vh - ph - 16);
+    let left, top;
+
+    if (effectPopoverPos) {
+      left = Math.max(10, Math.min(vw - pw - 10, effectPopoverPos.left));
+      top = Math.max(minTop, Math.min(maxTop, effectPopoverPos.top));
     } else {
-      left = (clientX || vw - pw - 20) - pw - 10;
-      if (left < 12) left = Math.min(vw - pw - 12, (clientX || 20) + 12);
+      const panelRect = (replayPanel && replayPanel.classList.contains('open')) ? replayPanel.getBoundingClientRect() : null;
+      const figRect = getFigureScreenRect(b, r);
+      const baseTop = Math.max(minTop, Math.min(maxTop, (clientY || 120) - 40));
+      const candidates = [];
+      // 1. Far-left side edge (keeps center figure completely unobstructed!)
+      candidates.push({ left: 14, top: Math.max(minTop, Math.min(maxTop, 58)) });
+      // 2. Right of replay panel (if room)
+      if (panelRect && panelRect.right + 10 + pw <= vw - 10) {
+        candidates.push({ left: panelRect.right + 10, top: baseTop });
+      }
+      // 3. Left of replay panel
+      if (panelRect && panelRect.left - pw - 10 >= 10) {
+        candidates.push({ left: panelRect.left - pw - 10, top: baseTop });
+      }
+      // 4. Far-right edge (if replay panel was dragged left)
+      candidates.push({ left: Math.max(10, vw - pw - 14), top: Math.max(minTop, Math.min(maxTop, 58)) });
+
+      let best = candidates[0];
+      let bestPenalty = Infinity;
+      for (const c of candidates) {
+        const cr = { left: c.left, top: c.top, right: c.left + pw, bottom: c.top + ph };
+        const figOv = rectOverlapArea(cr, figRect);
+        const panOv = rectOverlapArea(cr, panelRect);
+        const penalty = figOv * 2.5 + panOv * 1.4;
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          best = c;
+        }
+      }
+      left = Math.max(10, Math.min(vw - pw - 10, best.left));
+      top = Math.max(minTop, Math.min(maxTop, best.top));
     }
-    let top = (clientY || 120) - 28;
-    if (top + ph > vh - 12) top = Math.max(12, vh - ph - 12);
-    if (top < 12) top = 12;
     pop.style.left = Math.round(left) + 'px';
     pop.style.top = Math.round(top) + 'px';
 
     pop.querySelector('[data-fx-close]').addEventListener('click', closeEffectPopover);
+    const peekBtn = pop.querySelector('[data-fx-peek]');
+    if (peekBtn) {
+      peekBtn.addEventListener('click', () => {
+        effectPopoverPeek = !effectPopoverPeek;
+        pop.classList.toggle('mn-fx-peek', effectPopoverPeek);
+        peekBtn.classList.toggle('active', effectPopoverPeek);
+      });
+    }
 
     pop.querySelectorAll('[data-fx-cat]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1837,15 +1953,52 @@
         : (boardItemsCount > 0 ? `+ Công thức/Nét (${boardItemsCount})` : '+ Công thức/Nét');
     }
 
-    if (stepsCollapsed) return;
+    updateEffectPopoverPreviewFade();
+
+    if (stepsCollapsed) {
+      lastRenderedStepSig = '';
+      return;
+    }
 
     const listEl = replayPanel.querySelector('#mn-rp-list');
-    const prevScroll = listEl.scrollTop;
-    listEl.innerHTML = '';
     if (!r.steps.length) {
+      lastRenderedStepSig = '';
       listEl.innerHTML = '<div class="mn-rp-empty">Chưa có hình học hoặc nội dung nào để dựng lại.</div>';
       return;
     }
+
+    // Zero-thrash fast path: if step structure/config is unchanged, ONLY toggle .current/.done classes (0 DOM rebuilds during 60fps playback!)
+    const stepSig = r.id + '|' + r.page + '|' + r.steps.map(s =>
+      `${s.id}:${s.enabled !== false ? 1 : 0}:${s.effect || ''}:${s.easing || ''}:${s.durationMul || 1}:${s.pauseAfter || 0}:${s.rev ? 1 : 0}:${s.tempHide ? 1 : 0}:${s.showGuides !== false ? 1 : 0}:${s.mode || ''}:${s.customTitle || ''}:${s.items ? s.items.length : 0}`
+    ).join(',');
+    if (lastRenderedStepSig === stepSig && listEl.children.length === r.steps.length) {
+      let ap = 0;
+      let curRowEl = null;
+      for (let rawIdx = 0; rawIdx < r.steps.length; rawIdx++) {
+        const st = r.steps[rawIdx];
+        const row = listEl.children[rawIdx];
+        if (!row) break;
+        const isEnabled = st.enabled !== false;
+        const myActiveIdx = isEnabled ? ap++ : -1;
+        const isCurrent = isEnabled && myActiveIdx === r.stepIdx && (r.stepProgress > 0 || r.playing);
+        const isDone = isEnabled && (myActiveIdx < r.stepIdx || (myActiveIdx === r.stepIdx && r.stepProgress >= 1));
+        row.classList.toggle('current', isCurrent);
+        row.classList.toggle('done', isDone);
+        if (isCurrent) curRowEl = row;
+      }
+      if (curRowEl && r.playing) {
+        const lr = listEl.getBoundingClientRect();
+        const rr = curRowEl.getBoundingClientRect();
+        if (rr.top < lr.top || rr.bottom > lr.bottom) {
+          curRowEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+      return;
+    }
+
+    lastRenderedStepSig = stepSig;
+    const prevScroll = listEl.scrollTop;
+    listEl.innerHTML = '';
 
     let activePos = 0;
     r.steps.forEach((st, rawIdx) => {
