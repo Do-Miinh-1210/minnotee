@@ -1070,10 +1070,17 @@
       incidentAngles.get(id2).push(a21);
     };
 
-    // Edge deduplication for clean output
-    const drawnDashedEdges = new Set();
+    // Edge deduplication for clean output (solid cleanly supersedes any duplicate dashed edge)
+    const drawnDashedEdges = new Map(); // ek -> index in layer2Dashed
     const drawnSolidEdges = new Set();
     const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+    const removeSupersededDashed = (ek) => {
+      if (drawnDashedEdges.has(ek)) {
+        const idx = drawnDashedEdges.get(ek);
+        if (idx >= 0 && idx < layer2Dashed.length) layer2Dashed[idx] = '';
+        drawnDashedEdges.delete(ek);
+      }
+    };
 
     const layer1Fills = [];
     const layer2Dashed = [];
@@ -1113,11 +1120,12 @@
             (sh.dashed ? layer2Dashed : layer3Solid).push(`\\draw[${style}] (${T(a)}) -- (${T(b)});`);
           } else if (sh.dashed) {
             if (!drawnDashedEdges.has(ek) && !drawnSolidEdges.has(ek)) {
-              drawnDashedEdges.add(ek);
+              drawnDashedEdges.set(ek, layer2Dashed.length);
               layer2Dashed.push(`\\draw[dashed, line width=0.4pt] (${T(a)}) -- (${T(b)});`);
             }
           } else {
             if (!drawnSolidEdges.has(ek)) {
+              removeSupersededDashed(ek);
               drawnSolidEdges.add(ek);
               layer3Solid.push(`\\draw[line width=0.6pt] (${T(a)}) -- (${T(b)});`);
             }
@@ -1166,15 +1174,22 @@
             const u = pIds[i], v = pIds[(i + 1) % pIds.length];
             addIncidentEdge(u, v);
           }
+          if (sh.width === 0) break;
           if (hiddenSet.size === 0) {
             if (sh.dashed) {
+              const startIdx = layer2Dashed.length;
               layer2Dashed.push(`\\draw[dashed, line width=0.4pt] ${polyPath};`);
+              for (let i = 0; i < pIds.length; i++) {
+                const ek = edgeKey(pIds[i], pIds[(i + 1) % pIds.length]);
+                if (!drawnDashedEdges.has(ek)) drawnDashedEdges.set(ek, -1);
+              }
             } else {
+              for (let i = 0; i < pIds.length; i++) {
+                const ek = edgeKey(pIds[i], pIds[(i + 1) % pIds.length]);
+                removeSupersededDashed(ek);
+                drawnSolidEdges.add(ek);
+              }
               layer3Solid.push(`\\draw[line width=0.6pt] ${polyPath};`);
-            }
-            for (let i = 0; i < pIds.length; i++) {
-              const ek = edgeKey(pIds[i], pIds[(i + 1) % pIds.length]);
-              (sh.dashed ? drawnDashedEdges : drawnSolidEdges).add(ek);
             }
           } else {
             for (let i = 0; i < pIds.length; i++) {
@@ -1184,10 +1199,11 @@
               const isHid = sh.dashed || (sh.hiddenSides || []).includes(i);
               if (isHid) {
                 if (!drawnDashedEdges.has(ek) && !drawnSolidEdges.has(ek)) {
-                  drawnDashedEdges.add(ek);
+                  drawnDashedEdges.set(ek, layer2Dashed.length);
                   layer2Dashed.push(`\\draw[dashed, line width=0.4pt] (${T(u)}) -- (${T(v)});`);
                 }
               } else if (!drawnSolidEdges.has(ek)) {
+                removeSupersededDashed(ek);
                 drawnSolidEdges.add(ek);
                 layer3Solid.push(`\\draw[line width=0.6pt] (${T(u)}) -- (${T(v)});`);
               }
@@ -1200,7 +1216,11 @@
           if (pIds.length < 3) break;
           const polyPath = pIds.map((id) => `(${T(id)})`).join(' -- ') + ' -- cycle';
           layer1Fills.push(`\\fill[gray!12] ${polyPath};`);
-          layer3Solid.push(`\\draw[line width=0.5pt] ${polyPath};`);
+          if (sh.dashed) {
+            layer2Dashed.push(`\\draw[dashed, line width=0.4pt] ${polyPath};`);
+          } else {
+            layer3Solid.push(`\\draw[line width=0.5pt] ${polyPath};`);
+          }
           const pname = sh.name || 'P';
           const anchor = pIds[0];
           layer4Marks.push(`\\path (${T(anchor)}) node[shift={(45:14pt)}]{$(${pname})$};`);
@@ -1243,7 +1263,8 @@
           const rExpr = radiusExprBetween(pIds[0], pIds[1]);
           if (sh.kind === 'sector') {
             layer1Fills.push(`\\fill[${fillStyleStr()}] (${T(pIds[0])}) -- (${T(pIds[1])}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(endDeg, 1)}, radius=${rExpr}] -- cycle;`);
-            layer3Solid.push(`\\draw[line width=0.6pt] (${T(pIds[0])}) -- (${T(pIds[1])}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(endDeg, 1)}, radius=${rExpr}] -- cycle;`);
+            const sStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+            (sh.dashed ? layer2Dashed : layer3Solid).push(`\\draw[${sStyle}] (${T(pIds[0])}) -- (${T(pIds[1])}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(endDeg, 1)}, radius=${rExpr}] -- cycle;`);
           } else {
             const style = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
             (sh.dashed ? layer2Dashed : layer3Solid).push(
@@ -1269,7 +1290,8 @@
             const a2n = norm(Math.atan2(p2.y - cy, p2.x - cx) * 180 / Math.PI);
             const a3n = norm(Math.atan2(p3.y - cy, p3.x - cx) * 180 / Math.PI);
             const span = a2n <= a3n ? a3n : (a3n - 360);
-            layer3Solid.push(`\\draw[line width=0.6pt] (${fmtNum(cx, 2)},${fmtNum(cy, 2)}) ++(${fmtNum(a1, 1)}:${fmtNum(r, 2)}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(a1 + span, 1)}, radius=${fmtNum(r, 2)}];`);
+            const aStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+            (sh.dashed ? layer2Dashed : layer3Solid).push(`\\draw[${aStyle}] (${fmtNum(cx, 2)},${fmtNum(cy, 2)}) ++(${fmtNum(a1, 1)}:${fmtNum(r, 2)}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(a1 + span, 1)}, radius=${fmtNum(r, 2)}];`);
           }
           break;
         }
@@ -1296,8 +1318,9 @@
           // Degree elevate quadratic (pStart, qCtrl, pEnd) to cubic Bezier
           const c1 = { x: pStart.x + (2 / 3) * (qCtrl.x - pStart.x), y: pStart.y + (2 / 3) * (qCtrl.y - pStart.y) };
           const c2 = { x: pEnd.x + (2 / 3) * (qCtrl.x - pEnd.x), y: pEnd.y + (2 / 3) * (qCtrl.y - pEnd.y) };
-          layer3Solid.push(
-            `\\draw[line width=0.6pt] (${fmtNum(pStart.x, 2)},${fmtNum(pStart.y, 2)}) .. controls (${fmtNum(c1.x, 2)},${fmtNum(c1.y, 2)}) and (${fmtNum(c2.x, 2)},${fmtNum(c2.y, 2)}) .. (${fmtNum(pEnd.x, 2)},${fmtNum(pEnd.y, 2)});`
+          const pStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+          (sh.dashed ? layer2Dashed : layer3Solid).push(
+            `\\draw[${pStyle}] (${fmtNum(pStart.x, 2)},${fmtNum(pStart.y, 2)}) .. controls (${fmtNum(c1.x, 2)},${fmtNum(c1.y, 2)}) and (${fmtNum(c2.x, 2)},${fmtNum(c2.y, 2)}) .. (${fmtNum(pEnd.x, 2)},${fmtNum(pEnd.y, 2)});`
           );
           break;
         }
@@ -1385,6 +1408,25 @@
           break;
         }
 
+        case 'truncCylinder': {
+          if (pIds.length < 3) break;
+          const [oId, rId, topId] = pIds;
+          const rv = revRadiusVar.get(sh.id) || {};
+          const r = rv.rName || radiusExprBetween(oId, rId);
+          const b = rv.bName || fmtNum(dist2(tikzCoords.get(oId), tikzCoords.get(rId)) * 0.32, 2);
+          const botL = isOriginCoord(oId) ? `(180:${r})` : `($(${T(oId)})+(180:${r})$)`;
+          const botR = isOriginCoord(oId) ? `(0:${r})` : `($(${T(oId)})+(0:${r})$)`;
+          const topL = `($(${T(topId)})+(180:${r})$)`;
+          const topR = `($(${T(topId)})+(0:${r})$)`;
+          layer2Dashed.push(`\\draw[dashed, line width=0.5pt] ${botL} arc (180:0:${r} and ${b});`);
+          layer3Solid.push(`\\draw[line width=0.6pt] ${botL} arc (180:360:${r} and ${b});`);
+          layer3Solid.push(`\\draw[line width=0.6pt] (${T(topId)}) ellipse (${r} and ${b});`);
+          layer3Solid.push(`\\draw[line width=0.6pt] ${botL} -- ${topL} ${botR} -- ${topR};`);
+          addIncidentEdge(oId, topId);
+          addIncidentEdge(oId, rId);
+          break;
+        }
+
         case 'cap': {
           if (pIds.length < 3) break;
           const [oId, rId, tId] = pIds;
@@ -1439,7 +1481,7 @@
     }
 
     lines.push(...layer1Fills);
-    lines.push(...layer2Dashed);
+    lines.push(...layer2Dashed.filter(Boolean));
     lines.push(...layer3Solid);
     lines.push(...layer4Marks);
 
