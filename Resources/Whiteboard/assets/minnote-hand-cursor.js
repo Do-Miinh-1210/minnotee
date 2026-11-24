@@ -1,16 +1,19 @@
 /**
- * MinNote v0.0.8.2 — Native Compact Hand-Holding-Pen Mouse Cursor & Replay Painter
+ * MinNote v0.0.8.7 — Always-Visible Compact Hand-Holding-Pen Cursor & Replay Painter
  * - Integrated directly with MinNote's native `Con trỏ chuột` (vH = ["pen", "handPen", "hand", "system", "dot"])
- *   and `Cỡ con trỏ` (Nhỏ / Vừa / To / Rất to -> 68px / 84px / 102px / 120px, strictly <= 128x128 hardware cursor!)
- * - Renders as a real OS/CSS hardware cursor (`--board-cursor`) with 0.00ms lag and pixel-exact metal nib hotspot!
- * - Zero floating sticker lag, zero double cursor, auto-switches to arrow/grab/eraser per active tool!
- * - Compact calibrated 2D Canvas painter for Construction Replay & Cropped GIF/Video Export (`104px`, 0px draw gap).
+ *   and `Cỡ con trỏ` (Nhỏ / Vừa / To / Rất to -> 64 / 76 / 88 / 100 CSS px).
+ * - Uses DPI-aware `image-set()` capped strictly at <= 124x124 physical pixels so Windows Chromium/WebView2
+ *   NEVER rejects the custom cursor at 100%, 125%, 150%, 175% or 200% scaling!
+ * - Always visible across ALL board tools (pen, geo, select, pan, text, space, highlighter, shape, laser, eraser),
+ *   when hovering points/shapes, when idle (never hidden by .no-pointer), AND when hovering/drawing with a stylus!
+ * - Zero-shadowBlur pre-baked offscreen sprite for 60fps stylus & Construction Replay / GIF-Video export.
  */
 (function () {
   'use strict';
 
   const STORAGE_REPLAY_KEY = 'minnote_hand_cursor_replay';
   const STORAGE_PREV_CURSOR_KEY = 'minnote_hand_prev_cursor';
+  const STORAGE_DEFAULT_V87_KEY = 'minnote_hand_default_v87';
   const PNG_SRC = './assets/hand-pen-cursor.png';
 
   // Exact calibrated metal nib coordinates on hand-pen-cursor.png (290x330)
@@ -18,34 +21,38 @@
   const NIB_NY = 0.06061;
   const DEFAULT_ASPECT = 290 / 330;
 
-  // Map MinNote's native cursorScale (sH = [1, 1.5, 2, 3]) to crisp compact hardware cursor heights (<= 124px!)
+  // Compact CSS cursor heights for MinNote's cursorScale [1, 1.5, 2, 3]
   function heightForScale(scale) {
     const s = Number(scale);
-    if (!Number.isFinite(s) || s <= 1.15) return 72;   // Nhỏ
-    if (s <= 1.75) return 88;                           // Vừa
-    if (s <= 2.4) return 104;                           // To
-    return 120;                                         // Rất to (always <= 128px OS hardware limit!)
+    if (!Number.isFinite(s) || s <= 1.15) return 64;   // Nhỏ
+    if (s <= 1.75) return 76;                           // Vừa
+    if (s <= 2.4) return 88;                            // To
+    return 100;                                         // Rất to
   }
 
-  // Clean compact SVG fallback used synchronously before PNG finishes decoding
-  const FALLBACK_SVG =
-    'data:image/svg+xml;charset=utf-8,' +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="72" height="82" viewBox="0 0 290 330">' +
-        '<defs>' +
-          '<linearGradient id="p" x1="0" y1="0" x2="1" y2="0.4">' +
-            '<stop offset="0%" stop-color="#38bdf8"/><stop offset="50%" stop-color="#0d9488"/><stop offset="100%" stop-color="#0f766e"/>' +
-          '</linearGradient>' +
-          '<linearGradient id="k" x1="0" y1="0" x2="0.7" y2="1">' +
-            '<stop offset="0%" stop-color="#f5c6a5"/><stop offset="100%" stop-color="#c9855e"/>' +
-          '</linearGradient>' +
-        '</defs>' +
-        '<polygon points="1,20 26,20 21,34" fill="#64748b"/>' +
-        '<path d="M23,20 L256,112 C263,115 266,122 263,129 C260,136 252,139 245,136 L19,35 Z" fill="url(#p)"/>' +
-        '<path d="M55,28 C82,10 132,4 166,14 C198,24 232,62 246,84 C254,98 250,115 239,122 L222,115 C224,96 205,74 182,66 C158,58 134,58 118,52 Z" fill="url(#k)"/>' +
-        '<path d="M46,56 C58,41 82,42 98,58 L138,108 C156,128 184,122 212,128 C236,133 246,162 241,202 L252,292 L176,308 L128,220 L54,96 Z" fill="url(#k)"/>' +
-      '</svg>'
+  function makeFallbackSvg(w, h) {
+    return (
+      'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="0 0 290 330">` +
+          '<defs>' +
+            '<linearGradient id="p" x1="0" y1="0" x2="1" y2="0.4">' +
+              '<stop offset="0%" stop-color="#38bdf8"/><stop offset="50%" stop-color="#0d9488"/><stop offset="100%" stop-color="#0f766e"/>' +
+            '</linearGradient>' +
+            '<linearGradient id="k" x1="0" y1="0" x2="0.7" y2="1">' +
+              '<stop offset="0%" stop-color="#f5c6a5"/><stop offset="100%" stop-color="#c9855e"/>' +
+            '</linearGradient>' +
+          '</defs>' +
+          '<polygon points="1,20 26,20 21,34" fill="#64748b"/>' +
+          '<path d="M23,20 L256,112 C263,115 266,122 263,129 C260,136 252,139 245,136 L19,35 Z" fill="url(#p)"/>' +
+          '<path d="M55,28 C82,10 132,4 166,14 C198,24 232,62 246,84 C254,98 250,115 239,122 L222,115 C224,96 205,74 182,66 C158,58 134,58 118,52 Z" fill="url(#k)"/>' +
+          '<path d="M46,56 C58,41 82,42 98,58 L138,108 C156,128 184,122 212,128 C236,133 246,162 241,202 L252,292 L176,308 L128,220 L54,96 Z" fill="url(#k)"/>' +
+        '</svg>'
+      )
     );
+  }
+
+  const FALLBACK_SVG = makeFallbackSvg(64 * DEFAULT_ASPECT, 64);
 
   let handImg = null;
   let imgReady = false;
@@ -116,42 +123,59 @@
   }
 
   function buildScaledCursorEntry(scale) {
-    const h = Math.min(124, Math.max(56, Math.round(heightForScale(scale))));
-    const cacheKey = (imgReady ? 'png_' : 'svg_') + h;
+    const dpr = Math.max(1, Math.min(3, (typeof window !== 'undefined' && Number(window.devicePixelRatio)) || 1));
+    const dprKey = Math.round(dpr * 100);
+    const cssH = heightForScale(scale);
+    const cacheKey = (imgReady ? 'png_' : 'svg_') + cssH + '_d' + dprKey;
     if (cursorCache.has(cacheKey)) return cursorCache.get(cacheKey);
 
     const img = getDrawableImage();
     const aspect = (img && img.naturalHeight > 0) ? (img.naturalWidth / img.naturalHeight) : DEFAULT_ASPECT;
-    const w = Math.min(124, Math.max(48, Math.round(h * aspect)));
-    const hotX = Math.max(0, Math.min(w - 1, Math.round(NIB_NX * w)));
-    const hotY = Math.max(0, Math.min(h - 1, Math.round(NIB_NY * h)));
 
-    let url = FALLBACK_SVG;
+    // Guarantee physical bitmap <= 124x124 so Windows Chromium/WebView2 NEVER rejects custom cursor at 125%/150%/200% DPI!
+    const physH = Math.min(124, Math.max(48, Math.round(cssH * dpr)));
+    const physW = Math.min(124, Math.max(40, Math.round(physH * aspect)));
+    const effH = physH / dpr;
+    const effW = physW / dpr;
+    const hotX = Math.max(0, Math.min(Math.max(1, Math.floor(effW)) - 1, Math.round(NIB_NX * effW)));
+    const hotY = Math.max(0, Math.min(Math.max(1, Math.floor(effH)) - 1, Math.round(NIB_NY * effH)));
+
+    let url = makeFallbackSvg(effW, effH);
+    let isPng = false;
     if (imgReady && handImg && handImg.naturalWidth > 0 && typeof document !== 'undefined') {
       try {
         const cv = document.createElement('canvas');
-        cv.width = w;
-        cv.height = h;
+        cv.width = physW;
+        cv.height = physH;
         const c = cv.getContext('2d');
         if (c) {
           c.imageSmoothingEnabled = true;
           c.imageSmoothingQuality = 'high';
-          c.clearRect(0, 0, w, h);
-          c.drawImage(handImg, 0, 0, w, h);
+          c.clearRect(0, 0, physW, physH);
+          c.drawImage(handImg, 0, 0, physW, physH);
           url = cv.toDataURL('image/png');
+          isPng = true;
         }
       } catch (_) {
-        url = PNG_SRC;
+        url = makeFallbackSvg(effW, effH);
       }
     }
 
+    const dprStr = Number(dpr.toFixed(2));
+    const css = (isPng && dpr > 1.01)
+      ? `image-set(url("${url}") ${dprStr}x) ${hotX} ${hotY}, default`
+      : `url("${url}") ${hotX} ${hotY}, default`;
+
     const entry = {
       url,
-      w,
-      h,
+      w: Math.round(effW),
+      h: Math.round(effH),
+      physW,
+      physH,
+      dpr,
       hotX,
       hotY,
-      css: `url("${url}") ${hotX} ${hotY}, default`
+      css
     };
     cursorCache.set(cacheKey, entry);
     return entry;
@@ -182,6 +206,11 @@
     const boardEl = document.querySelector('main.board');
     if (boardEl && boardEl.dataset.cursor === 'handPen') {
       boardEl.style.setProperty('--board-cursor', getNativeCursorCss(getCurrentCursorScale()));
+      const sc = boardEl.querySelector('.board-scroller');
+      if (sc) {
+        if (sc.style.cursor) sc.style.cursor = '';
+        if (sc.classList.contains('no-pointer')) sc.classList.remove('no-pointer');
+      }
     }
     updateToolbarButtons();
   }
@@ -226,7 +255,7 @@
       btn.classList.toggle('on', active);
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    document.querySelectorAll('[data-mn-hand-replay], #mn-rp-hand-btn').forEach((btn) => {
+    document.querySelectorAll('[data-mn-hand-replay], #mn-rp-hand, #mn-rp-hand-btn').forEach((btn) => {
       btn.classList.toggle('active', replayEnabled);
       btn.classList.toggle('on', replayEnabled);
       btn.setAttribute('aria-pressed', replayEnabled ? 'true' : 'false');
@@ -304,18 +333,32 @@
     return replayEnabled;
   }
 
+  function getNativeTipMetrics(scale) {
+    const img = getDrawableImage();
+    const h = heightForScale(scale);
+    const aspect = (img && img.naturalHeight > 0) ? (img.naturalWidth / img.naturalHeight) : DEFAULT_ASPECT;
+    const w = h * aspect;
+    return { w, h, nibX: NIB_NX * w, nibY: NIB_NY * h };
+  }
+
   /**
-   * Paint compact hand-pen right at native canvas cursor origin (0, 0) for `paintTip` (recording/preview).
+   * Paint compact hand-pen right at native canvas cursor origin (0, 0) for stylus hover/draw (`paintPenTip`).
    */
   function paintNativeTip(ctx, scale) {
     const img = getDrawableImage();
     if (!ctx || !img || (!img.complete && !imgReady) || !img.naturalWidth) return;
-    const h = heightForScale(scale);
-    const aspect = img.naturalHeight > 0 ? (img.naturalWidth / img.naturalHeight) : DEFAULT_ASPECT;
-    const w = h * aspect;
-    const nibX = NIB_NX * w;
-    const nibY = NIB_NY * h;
-    ctx.drawImage(img, -nibX, -nibY, w, h);
+    const { w, h, nibX, nibY } = getNativeTipMetrics(scale);
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    const sprite = getShadowedReplaySprite(img, isDark);
+    if (sprite) {
+      const sx = w / sprite.srcW;
+      const sy = h / sprite.srcH;
+      const padW = sprite.pad * sx;
+      const padH = sprite.pad * sy;
+      ctx.drawImage(sprite.canvas, -nibX - padW, -nibY - padH, w + padW * 2, h + padH * 2);
+    } else {
+      ctx.drawImage(img, -nibX, -nibY, w, h);
+    }
   }
 
   /**
@@ -394,16 +437,43 @@
     lastTipY = null;
   }
 
+  function applyDefaultHandMigration() {
+    try {
+      if (localStorage.getItem(STORAGE_DEFAULT_V87_KEY) === '1') return;
+      localStorage.setItem(STORAGE_DEFAULT_V87_KEY, '1');
+      localStorage.setItem('cursor', 'handPen');
+      if (localStorage.getItem(STORAGE_REPLAY_KEY) === null) {
+        localStorage.setItem(STORAGE_REPLAY_KEY, '1');
+      }
+      if (typeof window.__mnSetBoardCursor === 'function') {
+        window.__mnSetBoardCursor('handPen');
+      } else {
+        const boardEl = document.querySelector('main.board');
+        if (boardEl) boardEl.dataset.cursor = 'handPen';
+      }
+    } catch (_) {}
+  }
+
   function init() {
     ensureImages();
+    applyDefaultHandMigration();
     updateToolbarButtons();
-    // Observe main.board[data-cursor] attribute changes so toolbar toggle always stays synced with Settings!
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => {
+        refreshBoardCursorVar();
+      }, { passive: true });
+    }
+    // Observe main.board[data-cursor] attribute changes so toolbar toggle & cursor CSS always stay synced!
     if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
       const bindObs = () => {
         const boardEl = document.querySelector('main.board');
         if (!boardEl) {
-          setTimeout(bindObs, 300);
+          setTimeout(bindObs, 200);
           return;
+        }
+        // Re-sync default handPen once React board bridge has mounted
+        if (localStorage.getItem('cursor') === 'handPen' && boardEl.dataset.cursor !== 'handPen' && typeof window.__mnSetBoardCursor === 'function') {
+          window.__mnSetBoardCursor('handPen');
         }
         refreshBoardCursorVar();
         const obs = new MutationObserver(() => {
@@ -432,6 +502,7 @@
     setReplay,
     isReplay,
     getNativeCursorCss,
+    getNativeTipMetrics,
     getTabletCursorInfo,
     paintNativeTip,
     paintReplayTip,
