@@ -629,7 +629,7 @@ html.dark #mn-replay-panel {
 
 html.dark .mn-mp-head,
 html.dark .mn-rp-head {
-  background: linear-gradient(135deg, #134e4a, #0f172a);
+  background: linear-gradient(135deg, #172554, #0f172a);
   border-bottom-color: #334155;
 }
 
@@ -1047,10 +1047,11 @@ html.dark .mn-rp-saved-chip.loaded {
   background: rgba(255, 255, 255, 0.2);
 }
 
+#mn-replay-pill .mn-rp-pill-fig.playing,
 .mn-rp-pill-fig.playing {
   border-color: rgba(96, 165, 250, 0.7);
   background: rgba(59, 130, 246, 0.25);
-  color: #99f6e4;
+  color: #93c5fd;
 }
 
 html.dark .mn-rp-count-badge {
@@ -1071,7 +1072,7 @@ html.dark .mn-rp-saved-toggle {
 
 /* ==================== ULTRA-COMPACT REPLAY REDESIGN ==================== */
 #mn-replay-panel {
-  width: 300px;
+  width: 372px;
   border-radius: 13px;
 }
 #mn-replay-panel .mn-rp-head {
@@ -1106,7 +1107,7 @@ html.dark .mn-rp-saved-toggle {
   gap: 4px;
 }
 #mn-replay-panel .mn-rp-list {
-  max-height: 290px;
+  max-height: 300px;
   padding: 5px 7px 7px;
   gap: 3px;
 }
@@ -1134,5 +1135,507 @@ html.dark .mn-rp-saved-toggle {
 #mn-replay-pill {
   padding: 4px 8px;
   gap: 5px;
+}
+
+/* ==================== 8. V0.0.8.0 STUDIO TOOLS BAR, EFFECT POPOVER & ITERATE BAR ==================== */
+.mn-rp-tools-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.mn-rp-tool-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.mn-rp-tool-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.45);
+  color: #1d4ed8;
+}
+
+.mn-rp-tool-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.mn-rp-tool-btn.primary-soft {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.32);
+  color: #1d4ed8;
+}
+
+.mn-rp-tool-btn.primary-soft:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.mn-rp-tool-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.mn-step-fx-tag {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+/* Right-Click Step Effect Customizer Popover */
+#mn-rp-fx-popover {
+  position: fixed;
+  z-index: 10600;
+  width: 332px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24), 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#mn-rp-fx-popover.open {
+  display: flex;
+  animation: mnFxPopIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mnFxPopIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.mn-fx-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 11px;
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.14);
+}
+
+.mn-fx-title {
+  font-size: 12.2px;
+  font-weight: 700;
+  color: #1d4ed8;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mn-fx-title span {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.mn-fx-sec {
+  padding: 8px 11px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.mn-fx-label {
+  font-size: 10.8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.mn-fx-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.mn-fx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11.8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.13s ease;
+}
+
+.mn-fx-pill:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.mn-fx-pill.on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+}
+
+.mn-fx-ease-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.mn-fx-ease-row .mn-fx-chip {
+  padding: 0 4px;
+  font-size: 10.5px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.mn-fx-toggles {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.mn-fx-chip {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.mn-fx-chip:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.mn-fx-chip.on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.mn-fx-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.mn-fx-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.mn-fx-slider-row > span:first-child {
+  min-width: 76px;
+}
+
+.mn-fx-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: #2563eb;
+  cursor: pointer;
+  height: 4px;
+}
+
+.mn-fx-val {
+  min-width: 36px;
+  text-align: right;
+  font-weight: 700;
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+}
+
+.mn-fx-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  background: #f8fafc;
+}
+
+.mn-fx-btn {
+  flex: 1;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #ffffff;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.13s ease;
+  white-space: nowrap;
+}
+
+.mn-fx-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.mn-fx-btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.mn-fx-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+/* Floating Phép lặp (iterate) geo-amount bar */
+.geo-iter-bar {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+}
+
+.geo-iter-lbl {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.geo-iter-step {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.12s ease;
+}
+
+.geo-iter-step:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.geo-iter-bar input[type="number"] {
+  width: 44px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.geo-iter-apply {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.13s ease;
+}
+
+.geo-iter-apply:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.geo-iter-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ==================== 9. FULL DARK MODE POLISH (html.dark) ==================== */
+html.dark #mn-replay-panel .mn-rp-speed-btn,
+html.dark #mn-rp-step-count {
+  color: #93c5fd !important;
+}
+
+html.dark .mn-icon-btn.active {
+  background: rgba(37, 99, 235, 0.28);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+html.dark .mn-icon-btn.danger:hover {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+html.dark .mn-step-item.done {
+  border-left-color: #60a5fa;
+}
+
+html.dark .mn-step-drag:hover {
+  background: #334155;
+  color: #93c5fd;
+}
+
+html.dark .mn-rp-empty {
+  color: #94a3b8;
+}
+
+html.dark .mn-rp-tool-btn {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+html.dark .mn-rp-tool-btn:hover:not(:disabled) {
+  background: #1e293b;
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+html.dark .mn-rp-tool-btn.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+html.dark .mn-rp-tool-btn.primary-soft {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.42);
+  color: #93c5fd;
+}
+
+html.dark .mn-rp-tool-btn.primary-soft:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+html.dark .mn-step-fx-tag {
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+}
+
+html.dark #mn-rp-fx-popover {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: #334155;
+  color: #f1f5f9;
+  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.65);
+}
+
+html.dark .mn-fx-head {
+  background: linear-gradient(135deg, #172554, #0f172a);
+  border-bottom-color: #334155;
+}
+
+html.dark .mn-fx-title {
+  color: #93c5fd;
+}
+
+html.dark .mn-fx-title span {
+  color: #f8fafc;
+}
+
+html.dark .mn-fx-sec {
+  border-bottom-color: #1e293b;
+}
+
+html.dark .mn-fx-label,
+html.dark .mn-fx-slider-row {
+  color: #94a3b8;
+}
+
+html.dark .mn-fx-val {
+  color: #93c5fd;
+}
+
+html.dark .mn-fx-pill,
+html.dark .mn-fx-chip,
+html.dark .mn-fx-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+html.dark .mn-fx-pill:hover,
+html.dark .mn-fx-chip:hover,
+html.dark .mn-fx-btn:hover {
+  background: #273449;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+html.dark .mn-fx-pill.on,
+html.dark .mn-fx-chip.on,
+html.dark .mn-fx-btn.primary {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+html.dark .mn-fx-foot {
+  background: #0b1120;
+}
+
+html.dark .geo-iter-step {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+html.dark .geo-iter-step:hover {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+html.dark #mn-replay-pill {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: #334155;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
 }
 

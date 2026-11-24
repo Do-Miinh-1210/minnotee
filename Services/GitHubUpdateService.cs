@@ -25,7 +25,7 @@ public record UpdateInfo(
 
 public class GitHubUpdateService
 {
-    private const string FallbackVersion = "0.0.7.6";
+    private const string FallbackVersion = "0.0.8.0";
     private const string DefaultSetupAssetName = "MinNote_Setup.exe";
 
     public static GitHubUpdateService Instance { get; } = new();
@@ -314,7 +314,10 @@ public class GitHubUpdateService
         }
     }
 
-    public async Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo info, Action<double>? onProgress = null)
+    public async Task<bool> DownloadAndInstallUpdateAsync(
+        UpdateInfo info,
+        Action<double>? onProgress = null,
+        Func<Task>? beforeInstallLaunch = null)
     {
         try
         {
@@ -354,6 +357,15 @@ public class GitHubUpdateService
                 {
                     throw new IOException("Tệp cài đặt tải về bị rỗng.");
                 }
+            }
+
+            if (beforeInstallLaunch != null)
+            {
+                try
+                {
+                    await beforeInstallLaunch();
+                }
+                catch { }
             }
 
             // Luôn ưu tiên khởi chạy lại bản MinNote.exe mới cài trong Program Files\MinNote

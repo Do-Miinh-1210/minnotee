@@ -41,18 +41,24 @@
         display: none;
         flex-direction: column;
         background: #ffffff;
+        border: 1px solid #cbd5e1;
         border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
         padding: 6px;
-        width: 260px;
+        width: 272px;
         z-index: 100000;
         font-family: system-ui, -apple-system, sans-serif;
         user-select: none;
-        animation: aiPop 0.15s ease;
+        animation: aiPop 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      html.dark #ai-math-menu {
+        background: #111827;
+        border-color: #334155;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
       }
       @keyframes aiPop {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
+        from { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.96); }
+        to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
       }
       .ai-menu-item {
         display: flex;
@@ -62,13 +68,20 @@
         border-radius: 8px;
         cursor: pointer;
         font-size: 13px;
-        color: #1f2937;
+        color: #1e293b;
         font-weight: 500;
-        transition: background 0.15s ease;
+        transition: background 0.14s ease, color 0.14s ease;
       }
       .ai-menu-item:hover {
         background: #eff6ff;
         color: #1d4ed8;
+      }
+      html.dark .ai-menu-item {
+        color: #e2e8f0;
+      }
+      html.dark .ai-menu-item:hover {
+        background: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
       }
       .ai-menu-item svg {
         width: 18px;
@@ -77,46 +90,81 @@
       }
       .ai-divider {
         height: 1px;
-        background: #e5e7eb;
+        background: #e2e8f0;
         margin: 4px 6px;
+      }
+      html.dark .ai-divider {
+        background: #1f2937;
       }
       #ai-math-modal {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.45);
+        background: rgba(15, 23, 42, 0.52);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 100001;
-        backdrop-filter: blur(2px);
+        backdrop-filter: blur(4px);
+      }
+      html.dark #ai-math-modal {
+        background: rgba(2, 6, 23, 0.72);
       }
       .ai-modal-card {
         background: #ffffff;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
         width: 460px;
         max-width: 92vw;
         border-radius: 16px;
         padding: 22px;
-        box-shadow: 0 20px 35px rgba(0, 0, 0, 0.25);
+        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.28);
         font-family: system-ui, -apple-system, sans-serif;
+        animation: aiPop 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      html.dark .ai-modal-card {
+        background: #0f172a;
+        color: #f1f5f9;
+        border-color: #334155;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.72);
       }
       .ai-modal-title {
         font-size: 16px;
         font-weight: 700;
-        color: #111827;
+        color: #0f172a;
         margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
+      html.dark .ai-modal-title {
+        color: #f8fafc;
+      }
       .ai-modal-close {
         cursor: pointer;
         font-size: 20px;
-        color: #9ca3af;
+        color: #64748b;
         border: none;
         background: transparent;
+        border-radius: 6px;
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .ai-modal-close:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+      }
+      html.dark .ai-modal-close {
+        color: #94a3b8;
+      }
+      html.dark .ai-modal-close:hover {
+        background: #1e293b;
+        color: #ffffff;
       }
       .ai-preview-box {
-        background: #f8fafc;
+        background: #ffffff;
         border: 1.5px dashed #cbd5e1;
         border-radius: 10px;
         padding: 10px;
@@ -129,6 +177,10 @@
         justify-content: center;
         overflow: hidden;
       }
+      html.dark .ai-preview-box {
+        background: #f8fafc;
+        border-color: #475569;
+      }
       .ai-preview-box img {
         max-height: 110px;
         max-width: 100%;
@@ -137,16 +189,22 @@
       .ai-field-label {
         font-size: 12px;
         font-weight: 600;
-        color: #4b5563;
+        color: #475569;
         margin-bottom: 5px;
         display: flex;
         justify-content: space-between;
         align-items: center;
       }
+      html.dark .ai-field-label {
+        color: #cbd5e1;
+      }
       .ai-status-badge {
         font-size: 11px;
-        font-weight: 500;
+        font-weight: 600;
         color: #2563eb;
+      }
+      html.dark .ai-status-badge {
+        color: #60a5fa;
       }
       .ai-input-group {
         display: flex;
@@ -156,17 +214,28 @@
       .ai-input {
         flex: 1;
         padding: 9px 12px;
-        border: 1.5px solid #d1d5db;
+        background: #ffffff;
+        border: 1.5px solid #cbd5e1;
         border-radius: 8px;
         font-size: 15px;
         font-family: monospace;
         font-weight: 600;
-        color: #111827;
+        color: #0f172a;
         outline: none;
-        transition: border 0.15s ease;
+        transition: border 0.15s ease, box-shadow 0.15s ease;
       }
       .ai-input:focus {
         border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+      }
+      html.dark .ai-input {
+        background: #162033;
+        border-color: #334155;
+        color: #f8fafc;
+      }
+      html.dark .ai-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
       }
       .ai-suggestions {
         display: flex;
@@ -178,15 +247,27 @@
         font-size: 12px;
         padding: 4px 9px;
         background: #f1f5f9;
+        border: 1px solid #e2e8f0;
         color: #334155;
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
-        transition: all 0.15s ease;
+        transition: all 0.14s ease;
       }
       .ai-sug-item:hover {
         background: #dbeafe;
+        border-color: #93c5fd;
         color: #1d4ed8;
+      }
+      html.dark .ai-sug-item {
+        background: #1e293b;
+        border-color: #334155;
+        color: #cbd5e1;
+      }
+      html.dark .ai-sug-item:hover {
+        background: rgba(59, 130, 246, 0.24);
+        border-color: #3b82f6;
+        color: #93c5fd;
       }
       .ai-actions {
         display: flex;
@@ -195,13 +276,27 @@
       }
       .ai-btn-secondary {
         padding: 8px 14px;
-        background: #f3f4f6;
-        color: #374151;
-        border: none;
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
         border-radius: 8px;
         cursor: pointer;
         font-size: 13px;
         font-weight: 600;
+        transition: background 0.14s ease;
+      }
+      .ai-btn-secondary:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+      html.dark .ai-btn-secondary {
+        background: #1e293b;
+        color: #cbd5e1;
+        border-color: #334155;
+      }
+      html.dark .ai-btn-secondary:hover {
+        background: #334155;
+        color: #ffffff;
       }
       .ai-btn-primary {
         padding: 9px 18px;
@@ -235,8 +330,8 @@
       </div>
       <div class="ai-divider"></div>
       <div class="ai-menu-item" id="opt-config-gemini">
-        <svg fill="none" stroke="#7c3aed" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-        <span>Cài đặt Gemini Vision Key...</span>
+        <svg fill="none" stroke="#2563eb" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        <span>Cài đặt AI / MatrixExamAI Pro...</span>
       </div>
     </div>
 
@@ -392,25 +487,53 @@
     return text.trim();
   }
 
-  // 3. Nhận diện chữ viết tay (tự động)
+  // 3. Nhận diện chữ viết tay (ưu tiên MatrixExamAI Pro Sync -> Gemini 2.5 Flash -> Google IME)
   async function recognizeHandwriting(captured, mode) {
     if (!captured) return mode === "formula" ? "2x + 3 = 5" : "4x^2 - 3";
 
-    statusText.innerText = "Đang nhận diện nét chữ...";
-    statusText.style.color = "#2563eb";
+    const isDark = document.documentElement.classList.contains("dark");
+    const okColor = isDark ? "#34d399" : "#059669";
 
-    // Cách A: Nếu có Gemini API Key
-    const geminiKey = localStorage.getItem("note_gemini_api_key");
-    if (geminiKey && geminiKey.trim()) {
+    statusText.innerText = "Đang nhận diện nét chữ...";
+    statusText.style.color = "";
+
+    const ocrPrompt =
+      "This image shows a handwritten math formula, equation, or function. Extract the exact math formula. Return ONLY the formula string (e.g. '2x + 3 = 5' or 'y = 4x^2 - 3'). No explanation, no markdown.";
+    const ocrSystem =
+      "You are a precise mathematical handwriting OCR engine. Return ONLY the exact single-line math formula or expression with no commentary and no markdown fences.";
+    const base64 = captured.dataUrl ? captured.dataUrl.replace(/^data:image\/\w+;base64,/, "") : "";
+
+    // Cách 0 (Ưu tiên): Dùng khóa AI & model đồng bộ từ MatrixExamAI Pro
+    if (base64 && window.MinNoteMeaSync && typeof window.MinNoteMeaSync.executeAiPrompt === "function") {
       try {
-        const base64 = captured.dataUrl.replace(/^data:image\/\w+;base64,/, "");
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey.trim()}`, {
+        const syncRes = await window.MinNoteMeaSync.executeAiPrompt(ocrPrompt, ocrSystem, {
+          imageBase64: base64,
+          imageMimeType: "image/png",
+          timeoutMs: 25000
+        });
+        const cand = (syncRes && (syncRes.content || syncRes.text) || "").trim();
+        if (cand) {
+          const prov = (syncRes && syncRes.provider) ? syncRes.provider : "MEA Pro";
+          statusText.innerText = `✓ Nhận diện AI (${prov})`;
+          statusText.style.color = okColor;
+          return cleanMathFormula(cand, mode);
+        }
+      } catch (err) {
+        console.warn("MinNoteMeaSync OCR failed, falling back:", err);
+      }
+    }
+
+    // Cách A (Dự phòng): Nếu có Gemini API Key lưu cục bộ trong localStorage
+    const geminiKey = localStorage.getItem("note_gemini_api_key");
+    if (base64 && geminiKey && geminiKey.trim()) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey.trim())}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{
               parts: [
-                { text: "This image shows a handwritten math formula, equation, or function. Extract the exact math formula. Return ONLY the formula string (e.g. '2x + 3 = 5' or 'y = 4x^2 - 3'). No explanation, no markdown." },
+                { text: ocrPrompt },
                 { inline_data: { mime_type: "image/png", data: base64 } }
               ]
             }]
@@ -419,8 +542,8 @@
         const data = await res.json();
         const cand = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         if (cand) {
-          statusText.innerText = "✓ Nhận diện bằng Gemini AI";
-          statusText.style.color = "#059669";
+          statusText.innerText = "✓ Nhận diện bằng Gemini 2.5 Flash";
+          statusText.style.color = okColor;
           return cleanMathFormula(cand, mode);
         }
       } catch (err) {
@@ -463,7 +586,7 @@
           updateSuggestions(candidates, mode);
 
           statusText.innerText = "✓ Đã nhận diện thành công";
-          statusText.style.color = "#059669";
+          statusText.style.color = okColor;
           return cleanMathFormula(candidates[0], mode);
         }
       } catch (err) {
@@ -472,7 +595,7 @@
     }
 
     statusText.innerText = "Gợi ý mặc định";
-    statusText.style.color = "#6b7280";
+    statusText.style.color = "";
     return mode === "formula" ? "2x + 3 = 5" : "4x^2 - 3";
   }
 
@@ -613,11 +736,14 @@
   document.getElementById("opt-graph").addEventListener("click", () => openModal("graph"));
   document.getElementById("opt-formula").addEventListener("click", () => openModal("formula"));
 
-  // Cấu hình Gemini Key
+  // Cấu hình AI Key (Ưu tiên mở Cài đặt -> API Key & MEA đồng bộ với MatrixExamAI Pro)
   document.getElementById("opt-config-gemini").addEventListener("click", () => {
     menu.style.display = "none";
+    if (typeof window.openMinNoteMeaSettings === "function" && window.openMinNoteMeaSettings()) {
+      return;
+    }
     const current = localStorage.getItem("note_gemini_api_key") || "";
-    const key = prompt("Nhập Google Gemini API Key để nhận diện chữ viết tay toán học siêu chính xác (lấy miễn phí tại aistudio.google.com):", current);
+    const key = prompt("Nhập Google Gemini API Key dự phòng để nhận diện chữ viết tay toán học (ưu tiên cấu hình chung tại Cài đặt → API Key & MEA):", current);
     if (key !== null) {
       localStorage.setItem("note_gemini_api_key", key.trim());
       alert(key.trim() ? "Đã lưu Gemini API Key thành công!" : "Đã xóa API Key.");

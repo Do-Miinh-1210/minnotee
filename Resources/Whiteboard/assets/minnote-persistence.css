@@ -1,0 +1,399 @@
+/* ============================================================================
+   MinNote Persistence & Drive Backup Studio Modal Styles
+   ============================================================================ */
+.mn-drive-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999990;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+}
+
+.mn-drive-modal {
+  width: min(640px, 96vw);
+  max-height: min(88vh, 780px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+html.dark .mn-drive-modal,
+html[data-theme="dark"] .mn-drive-modal {
+  background: #141824;
+  color: #f1f5f9;
+  border-color: #2c344b;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.mn-drive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+html.dark .mn-drive-head,
+html[data-theme="dark"] .mn-drive-head {
+  background: linear-gradient(180deg, #1b2030 0%, #151926 100%);
+  border-bottom-color: #252c40;
+}
+
+.mn-drive-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mn-drive-title-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+html.dark .mn-drive-title-ico,
+html[data-theme="dark"] .mn-drive-title-ico {
+  background: rgba(96, 165, 250, 0.16);
+  color: #60a5fa;
+}
+
+.mn-drive-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.mn-drive-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+html.dark .mn-drive-sub,
+html[data-theme="dark"] .mn-drive-sub {
+  color: #94a3b8;
+}
+
+.mn-drive-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mn-drive-close:hover {
+  background: rgba(100, 116, 139, 0.14);
+  color: #0f172a;
+}
+
+html.dark .mn-drive-close:hover,
+html[data-theme="dark"] .mn-drive-close:hover {
+  color: #f8fafc;
+}
+
+.mn-drive-body {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mn-drive-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 13px 14px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+html.dark .mn-drive-card,
+html[data-theme="dark"] .mn-drive-card {
+  background: #10131d;
+  border-color: #232a3d;
+}
+
+.mn-drive-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mn-drive-card-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mn-drive-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.mn-drive-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mn-drive-pill.is-on {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+html.dark .mn-drive-pill.is-on,
+html[data-theme="dark"] .mn-drive-pill.is-on {
+  color: #34d399;
+}
+
+.mn-drive-pill.is-off {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+}
+
+html.dark .mn-drive-pill.is-off,
+html[data-theme="dark"] .mn-drive-pill.is-off {
+  color: #94a3b8;
+}
+
+.mn-drive-path {
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 11.5px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+html.dark .mn-drive-path,
+html[data-theme="dark"] .mn-drive-path {
+  background: #171c2b;
+  border-color: #293146;
+  color: #cbd5e1;
+}
+
+.mn-drive-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+html.dark .mn-drive-meta,
+html[data-theme="dark"] .mn-drive-meta {
+  color: #94a3b8;
+}
+
+.mn-drive-meta b {
+  color: #0f172a;
+}
+
+html.dark .mn-drive-meta b,
+html[data-theme="dark"] .mn-drive-meta b {
+  color: #f1f5f9;
+}
+
+.mn-drive-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.mn-drive-btn {
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.mn-drive-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.mn-drive-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+html.dark .mn-drive-btn,
+html[data-theme="dark"] .mn-drive-btn {
+  background: #1b2234;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+html.dark .mn-drive-btn:hover:not(:disabled),
+html[data-theme="dark"] .mn-drive-btn:hover:not(:disabled) {
+  background: #242d44;
+  border-color: #475569;
+}
+
+.mn-drive-btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.mn-drive-btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.mn-drive-btn.danger {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+html.dark .mn-drive-btn.danger,
+html[data-theme="dark"] .mn-drive-btn.danger {
+  color: #f87171;
+}
+
+.mn-drive-chip {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.mn-drive-chip:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+html.dark .mn-drive-chip,
+html[data-theme="dark"] .mn-drive-chip {
+  background: #1b2234;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html.dark .mn-drive-chip:hover,
+html[data-theme="dark"] .mn-drive-chip:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+.mn-drive-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+
+html.dark .mn-drive-check,
+html[data-theme="dark"] .mn-drive-check {
+  color: #cbd5e1;
+}
+
+.mn-drive-oauth-box {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 10px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html.dark .mn-drive-oauth-box,
+html[data-theme="dark"] .mn-drive-oauth-box {
+  border-top-color: #2e3852;
+}
+
+.mn-drive-input {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: Consolas, monospace;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+html.dark .mn-drive-input,
+html[data-theme="dark"] .mn-drive-input {
+  background: #171c2b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.mn-drive-status-msg {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+html.dark .mn-drive-status-msg,
+html[data-theme="dark"] .mn-drive-status-msg {
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+}
+
+.mn-drive-status-msg.is-error {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+html.dark .mn-drive-status-msg.is-error,
+html[data-theme="dark"] .mn-drive-status-msg.is-error {
+  color: #fca5a5;
+}

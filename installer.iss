@@ -1,6 +1,6 @@
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.7.6"
+#define MyAppVersion "0.0.8.0"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
@@ -83,7 +83,9 @@ procedure EnsureMinNoteClosed();
 var
   iResultCode: Integer;
 begin
-  // Đóng sạch mọi tiến trình MinNote đang chạy trước khi ghi đè file để tránh lỗi khóa file (phải cập nhật 2 lần)
+  // Yêu cầu MinNote đóng nhẹ nhàng trước để kịp lưu bảng viết & các sheet rồi mới đóng cưỡng bức nếu còn kẹt
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+  Sleep(1200);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
   Sleep(600);
 end;

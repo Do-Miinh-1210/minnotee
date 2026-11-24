@@ -346,6 +346,26 @@
     if (card.w > 700) el.classList.add('wide-layout');
     el.style.setProperty('--qc-font-size', `${card.fontSize || 16}px`);
 
+    // Normalize fields from both local question bank & MatrixExamAI Pro sync
+    const qCode = q.code || q.title || ('Câu ' + (pageIdx + 1));
+    const qCorrect = String(q.correctAnswer || q.answer || '').trim().toUpperCase();
+    const qExplanation = q.explanation || q.solution || '';
+
+    // Build extra resolved images gallery only if not already embedded in q.content
+    let extraImagesHtml = '';
+    if (Array.isArray(q.resolvedImages) && q.resolvedImages.length > 0 && !/<img\b/i.test(String(q.content || ''))) {
+      const imgTags = q.resolvedImages
+        .map((it) => {
+          const src = typeof it === 'string' ? it : (it && (it.dataUrl || it.url || it.src || ''));
+          return src ? `<img src="${src}" alt="Hình minh họa câu hỏi" />` : '';
+        })
+        .filter(Boolean)
+        .join('');
+      if (imgTags) {
+        extraImagesHtml = `<div class="mea-qc-resolved-imgs">${imgTags}</div>`;
+      }
+    }
+
     // Render Options HTML
     let optionsHtml = '';
     if (q.options && typeof q.options === 'object') {
@@ -355,7 +375,7 @@
       } else {
         entries = Object.entries(q.options).sort((a, b) => a[0].localeCompare(b[0]));
       }
-      const correctAns = String(q.correctAnswer || '').trim().toUpperCase();
+      const correctAns = qCorrect;
       for (const [k, optVal] of entries) {
         const kUpper = String(k).toUpperCase();
         const isSel = String(card.userSelected || '').toUpperCase() === kUpper;
@@ -381,13 +401,13 @@
     // Render Status Badge
     let badgeHtml = '';
     if (card.isRevealed) {
-      const correctKey = (q.correctAnswer || '').trim().toUpperCase();
+      const correctKey = qCorrect;
       if (!card.userSelected) {
-        badgeHtml = `<span class="mea-qc-result-badge info">Đáp án: ${correctKey}</span>`;
+        badgeHtml = `<span class="mea-qc-result-badge info">Đáp án: ${correctKey || '—'}</span>`;
       } else if (card.userSelected.toUpperCase() === correctKey) {
         badgeHtml = `<span class="mea-qc-result-badge correct">✓ Chính xác! Đáp án đúng: ${correctKey}</span>`;
       } else {
-        badgeHtml = `<span class="mea-qc-result-badge wrong">✗ Bạn chọn ${card.userSelected}. Đáp án đúng: ${correctKey}</span>`;
+        badgeHtml = `<span class="mea-qc-result-badge wrong">✗ Bạn chọn ${card.userSelected}. Đáp án đúng: ${correctKey || '—'}</span>`;
       }
     }
 
@@ -399,7 +419,7 @@
             <circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="19" r="1"></circle>
             <circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="19" r="1"></circle>
           </svg>
-          <span class="mea-qc-badge-num">${q.code || ('Câu ' + (pageIdx + 1))}</span>
+          <span class="mea-qc-badge-num">${qCode}</span>
           ${q.level ? `<span class="mea-qc-badge-level">${q.level}</span>` : ''}
           ${q.topic ? `<span class="mea-qc-badge-topic" title="${q.topic}">${q.topic}</span>` : ''}
         </div>
@@ -419,6 +439,7 @@
       <div class="mea-qc-body" style="${card.isCollapsed ? 'display:none;' : ''}">
         <div class="mea-qc-content">
           ${renderMath(q.content)}
+          ${extraImagesHtml}
         </div>
 
         ${optionsHtml ? `<div class="mea-qc-options-grid">${optionsHtml}</div>` : ''}
@@ -433,7 +454,7 @@
           Hướng Dẫn Giải Chi Tiết
         </div>
         <div class="mea-qc-explanation-text">
-          ${renderMath(q.explanation || 'Chưa có lời giải chi tiết cho câu hỏi này.')}
+          ${renderMath(qExplanation || 'Chưa có lời giải chi tiết cho câu hỏi này.')}
         </div>
       </div>
 
@@ -761,12 +782,12 @@
       bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
-      background: #0d9488;
+      background: #2563eb;
       color: #ffffff;
       padding: 12px 24px;
       border-radius: 10px;
       font-weight: 700;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 25px rgba(37, 99, 235, 0.38);
       z-index: 100000;
       display: flex;
       align-items: center;
@@ -820,9 +841,10 @@
     }
   };
 
-  // Render nội dung Modal Kho Đề (Bao gồm Tab Cài Đặt)
+  // Render nội dung Modal Kho Đề (Bao gồm Tab Đồng bộ MatrixExamAI Pro & Cài Đặt)
   function renderQuestionBankModalContent(overlay) {
     const activeExam = window.__meaActiveExam || (window.__meaExamsList.length > 0 ? window.__meaExamsList[0] : null);
+    const isMeaLiveTab = window.__meaActiveQbTab === 'mea_live';
     const isSettingsTab = window.__meaActiveQbTab === 'settings';
     const isStorageTab = window.__meaActiveQbTab === 'storage';
     const isHtmlLessonsTab = window.__meaActiveQbTab === 'html_lessons';
@@ -843,11 +865,26 @@
       `;
     });
 
-    // Render nội dung chính: Tab Đề Thi vs Tab Cài Đặt
+    // Render nội dung chính: Tab Đồng bộ MEA Pro / HTML / Kho / Cài Đặt / Đề Thi
     let mainContentHtml = '';
 
-    
-    if (isHtmlLessonsTab) {
+    if (isMeaLiveTab) {
+      mainContentHtml = `
+        <div class="mea-qb-live-panel">
+          <div class="mea-qb-live-header">
+            <div>
+              <strong>🔄 Đồng bộ Ngân Hàng Câu Hỏi MatrixExamAI Pro</strong>
+              <span style="margin-left:8px;opacity:0.86;">Đọc trực tiếp SQLite • Lọc Lớp / Chủ đề / Mức độ / Loại câu • KaTeX + Hình ảnh • Chèn 1 chạm lên bảng</span>
+            </div>
+            <div class="mea-qb-live-actions">
+              <button type="button" class="mea-qb-live-mini-btn" onclick="window.refreshMeaLiveQuestionBank()">🔄 Làm mới</button>
+              <button type="button" class="mea-qb-live-mini-btn" onclick="if(typeof window.openMinNoteMeaSettings==='function'){window.closeQuestionBankModal();window.openMinNoteMeaSettings();}">⚙ Cài đặt MEA</button>
+            </div>
+          </div>
+          <div id="mea-qb-live-sync-host" class="mea-qb-live-sync-host"></div>
+        </div>
+      `;
+    } else if (isHtmlLessonsTab) {
       // TAB BÀI GIẢNG & TRÌNH CHIẾU HTML TOÀN DIỆN
       let lessonsHtml = '';
       const list = window.__meaHtmlLessons || [];
@@ -856,8 +893,8 @@
         const kbSize = les.size ? (les.size / 1024).toFixed(1) : (les.htmlContent ? (les.htmlContent.length / 1024).toFixed(1) : 0);
         lessonsHtml += `
           <div class="mea-qb-storage-card ${isActive ? 'active' : ''}">
-            <div class="mea-qb-storage-card-title" style="color:#38bdf8;">${les.title}</div>
-            <div style="font-size:12px;color:#94a3b8;line-height:1.45;margin:6px 0;">
+            <div class="mea-qb-storage-card-title">${les.title}</div>
+            <div class="mea-qb-radio-desc" style="margin:6px 0;">
               ${les.description || 'Tài liệu bài giảng HTML tương tác đầy đủ, định dạng chuẩn web'}
             </div>
             <div class="mea-qb-storage-card-meta">
@@ -882,23 +919,21 @@
 
       mainContentHtml = `
         <div class="mea-qb-html-panel">
-          <!-- HERO DROPZONE NẠP FILE HTML TRỰC TIẾP TỪ MÁY TÍNH -->
-          
           <!-- HERO DROPZONE NẠP HOẶC DÁN FILE HTML TRỰC TIẾP -->
-          <div class="mea-html-upload-hero" style="background:rgba(2,132,199,0.08);border:2px dashed #0284c7;border-radius:12px;padding:22px 20px;text-align:center;margin-bottom:18px;">
+          <div class="mea-html-upload-hero" style="background:rgba(37,99,235,0.08);border:2px dashed #2563eb;border-radius:12px;padding:22px 20px;text-align:center;margin-bottom:18px;">
             <div style="font-size:32px;margin-bottom:6px;">📋 📂</div>
-            <div style="font-size:17px;font-weight:800;color:#38bdf8;margin-bottom:4px;">
+            <div style="font-size:17px;font-weight:800;margin-bottom:4px;">
               DÁN MÃ HTML HOẶC NẠP FILE TỪ MÁY TÍNH ĐỂ LƯU &amp; TRÌNH CHIẾU
             </div>
-            <div style="font-size:13px;color:#94a3b8;max-width:680px;margin:0 auto 12px auto;line-height:1.5;">
+            <div style="font-size:13px;opacity:0.85;max-width:680px;margin:0 auto 12px auto;line-height:1.5;">
               Dán trực tiếp mã nguồn HTML bài giảng (hỗ trợ Tailwind CSS, KaTeX công thức toán, trắc nghiệm tương tác). Bài giảng sẽ được lưu vĩnh viễn vào kho và mở chiếu toàn màn hình tức thì!
             </div>
             
             <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:14px;">
-              <button type="button" class="mea-present-btn primary" onclick="event.stopPropagation(); window.openPasteHtmlModal();" style="padding:10px 22px;background:#0d9488;color:#fff;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 4px 15px rgba(13,148,136,0.4);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+              <button type="button" class="mea-present-btn primary" onclick="event.stopPropagation(); window.openPasteHtmlModal();" style="padding:10px 22px;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 4px 14px rgba(37,99,235,0.36);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
                 📋 Dán Mã HTML &amp; Lưu (Ctrl+Shift+V)
               </button>
-              <button type="button" class="mea-present-btn" onclick="event.stopPropagation(); window.promptOpenHtmlFile();" style="padding:10px 20px;background:#0284c7;color:#fff;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 4px 15px rgba(2,132,199,0.35);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+              <button type="button" class="mea-present-btn" onclick="event.stopPropagation(); window.promptOpenHtmlFile();" style="padding:10px 20px;background:#0284c7;color:#fff;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 4px 14px rgba(2,132,199,0.34);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
                 📁 Chọn File HTML Từ Máy (F5)
               </button>
             </div>
@@ -913,17 +948,17 @@
               <button class="mea-present-btn" onclick="window.promptPasteHtmlCode()" title="Dán mã nguồn HTML để tạo bài giảng mới">
                 ➕ Dán Mã HTML
               </button>
-              <button class="mea-present-btn" onclick="window.restoreDefaultHtmlLessons()" style="color:#f59e0b;border-color:rgba(245,158,11,0.4);" title="Khôi phục bài giảng mẫu của Thầy Đỗ Minh Math">
+              <button class="mea-present-btn" onclick="window.restoreDefaultHtmlLessons()" style="color:#d97706;border-color:rgba(245,158,11,0.45);" title="Khôi phục bài giảng mẫu của Thầy Đỗ Minh Math">
                 🔄 Khôi Phục Bài Giảng Mẫu
               </button>
             </div>
-            <div style="font-size:13px;color:#94a3b8;">
-              Kho Lưu Trữ: <strong style="color:#38bdf8;">${list.length} bài giảng HTML</strong>
+            <div class="mea-qb-storage-card-meta">
+              Kho Lưu Trữ: <strong class="mea-qb-accent-strong">${list.length} bài giảng HTML</strong>
             </div>
           </div>
 
           <div class="mea-qb-storage-grid">
-            ${lessonsHtml || '<div style="color:#94a3b8;padding:20px;">Chưa có bài giảng nào trong kho. Hãy nhấn "Mở File HTML Từ Máy" hoặc "Khôi Phục Bài Giảng Mẫu"!</div>'}
+            ${lessonsHtml || '<div class="mea-qb-radio-desc" style="padding:20px;">Chưa có bài giảng nào trong kho. Hãy nhấn "Mở File HTML Từ Máy" hoặc "Khôi Phục Bài Giảng Mẫu"!</div>'}
           </div>
         </div>
       `;
@@ -974,12 +1009,12 @@
                   💾 Lưu Đề Đang Chọn Vào Kho
                 </button>
               ` : ''}
-              <button class="mea-present-btn" onclick="window.restoreDefaultExams()" style="color:#f59e0b;border-color:rgba(245,158,11,0.4);" title="Khôi phục danh sách các đề thi mẫu gốc">
+              <button class="mea-present-btn" onclick="window.restoreDefaultExams()" style="color:#d97706;border-color:rgba(245,158,11,0.45);" title="Khôi phục danh sách các đề thi mẫu gốc">
                 🔄 Khôi Phục Đề Mẫu Gốc
               </button>
             </div>
-            <div style="font-size:13px;color:#94a3b8;">
-              Tổng cộng: <strong style="color:#2dd4bf;">${window.__meaExamsList.length} đề thi</strong> trong Kho Lưu Trữ
+            <div class="mea-qb-storage-card-meta">
+              Tổng cộng: <strong class="mea-qb-accent-strong">${window.__meaExamsList.length} đề thi</strong> trong Kho Lưu Trữ
             </div>
           </div>
 
@@ -1030,14 +1065,14 @@
             </div>
             <div class="mea-theme-palette-grid">
               ${[
-                { id: 'dark-teal', name: 'Slate Teal', color: '#0d9488' },
+                { id: 'dark-teal', name: 'Cobalt Slate', color: '#2563eb' },
                 { id: 'chalkboard', name: 'Bảng Phấn Xanh', color: '#059669' },
                 { id: 'midnight', name: 'Đen OLED', color: '#1e293b' },
                 { id: 'glass', name: 'Kính Mờ', color: '#0ea5e9' },
-                { id: 'light', name: 'Giấy Sáng', color: '#e2e8f0' },
+                { id: 'light', name: 'Giấy Sáng', color: '#94a3b8' },
                 { id: 'wood', name: 'Bảng Gỗ', color: '#d97706' }
               ].map(t => `
-                <button class="mea-theme-btn ${settings.theme === t.id ? 'active' : ''}" style="background:${t.color}22; border-color:${t.color}; color:#f1f5f9;" onclick="window.updateTempSetting('theme', '${t.id}')">
+                <button class="mea-theme-btn ${settings.theme === t.id ? 'active' : ''}" style="background:${t.color}22; border-color:${t.color};" onclick="window.updateTempSetting('theme', '${t.id}')">
                   <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${t.color};margin-right:6px;"></span>
                   ${t.name}
                 </button>
@@ -1081,11 +1116,12 @@
       let questionsHtml = '';
       if (activeExam && activeExam.questions && activeExam.questions.length > 0) {
         activeExam.questions.forEach((q, idx) => {
+          const qCorrect = String(q.correctAnswer || q.answer || '').trim().toUpperCase();
           let optsHtml = '';
           if (q.options) {
             const keys = Object.keys(q.options).sort();
             optsHtml = keys.map(k => {
-              const isCorrect = (q.correctAnswer || '').trim().toUpperCase() === k.toUpperCase();
+              const isCorrect = qCorrect === k.toUpperCase();
               return `
                 <div class="mea-qb-opt-box ${isCorrect ? 'is-correct-preview' : ''}">
                   <span class="mea-qb-opt-key">${k}</span>
@@ -1099,7 +1135,7 @@
             <div class="mea-qb-q-card">
               <div class="mea-qb-q-header">
                 <div style="display:flex;align-items:center;gap:8px;">
-                  <span class="mea-qb-badge-code">${q.code || ('Câu ' + (idx + 1))}</span>
+                  <span class="mea-qb-badge-code">${q.code || q.title || ('Câu ' + (idx + 1))}</span>
                   ${q.level ? `<span class="mea-qc-badge-level">${q.level}</span>` : ''}
                   ${q.topic ? `<span class="mea-qc-badge-topic">${q.topic}</span>` : ''}
                 </div>
@@ -1147,22 +1183,25 @@
           </div>
 
           <div class="mea-qb-tabs">
-            <button class="mea-qb-tab-btn ${window.__meaActiveQbTab === 'html_lessons' ? 'active' : ''}" onclick="window.switchQbTab('html_lessons')" style="color:#38bdf8;font-weight:700;">
+            <button class="mea-qb-tab-btn mea-sync-tab ${isMeaLiveTab ? 'active' : ''}" onclick="window.switchQbTab('mea_live')" title="Đồng bộ trực tiếp Ngân hàng câu hỏi SQLite từ MatrixExamAI Pro">
+              🔄 Đồng bộ MatrixExamAI Pro
+            </button>
+            <button class="mea-qb-tab-btn ${isHtmlLessonsTab ? 'active' : ''}" onclick="window.switchQbTab('html_lessons')">
               🌐 Bài Giảng HTML (${(window.__meaHtmlLessons || []).length})
             </button>
             <button class="mea-qb-tab-btn ${window.__meaActiveQbTab === 'exams' ? 'active' : ''}" onclick="window.switchQbTab('exams')">
               📚 Đề Thi &amp; Câu Hỏi
             </button>
-            <button class="mea-qb-tab-btn ${window.__meaActiveQbTab === 'storage' ? 'active' : ''}" onclick="window.switchQbTab('storage')">
+            <button class="mea-qb-tab-btn ${isStorageTab ? 'active' : ''}" onclick="window.switchQbTab('storage')">
               💾 Kho Đề (${window.__meaExamsList.length})
             </button>
-            <button class="mea-qb-tab-btn ${window.__meaActiveQbTab === 'settings' ? 'active' : ''}" onclick="window.switchQbTab('settings')">
+            <button class="mea-qb-tab-btn ${isSettingsTab ? 'active' : ''}" onclick="window.switchQbTab('settings')">
               ⚙️ Cài Đặt Vị Trí
             </button>
           </div>
 
           <div style="display:flex;align-items:center;gap:8px;">
-            <button class="mea-present-btn primary" onclick="window.promptOpenHtmlFile()" style="background:#0284c7;color:#fff;border-radius:8px;padding:6px 14px;font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(2,132,199,0.4);" title="Mở chọn file HTML từ máy tính để chiếu ngay (F5)">
+            <button class="mea-present-btn primary" onclick="window.promptOpenHtmlFile()" style="background:#2563eb;color:#fff;border-radius:8px;padding:6px 14px;font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(37,99,235,0.34);" title="Mở chọn file HTML từ máy tính để chiếu ngay (F5)">
               📂 Nạp &amp; Chiếu HTML (F5)
             </button>
             <button class="mea-qb-btn-present-header" onclick="window.startExamPresentation('${activeExam ? activeExam.id : ''}', 0)" title="Bắt đầu trình chiếu Slide HTML (F5)">
@@ -1174,6 +1213,7 @@
 
         <!-- Body -->
         <div class="mea-qb-modal-body">
+          ${isMeaLiveTab ? '' : `
           <div class="mea-qb-sidebar">
             <div class="mea-qb-sidebar-header">
               <span class="mea-qb-sidebar-title">DANH SÁCH ĐỀ THI</span>
@@ -1183,20 +1223,23 @@
               ${examItemsHtml}
             </div>
           </div>
+          `}
 
-          <div class="mea-qb-main">
+          <div class="mea-qb-main mn-sec-enter">
             ${mainContentHtml}
           </div>
         </div>
 
         <!-- Footer -->
         <div class="mea-qb-modal-footer">
-          <div style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:12px;">
-            ${activeExam ? `Đang chọn: <strong style="color:#2dd4bf;">${activeExam.title}</strong> • ${activeExam.questions ? activeExam.questions.length : 0} câu hỏi` : ''}
+          <div style="font-size:13px;display:flex;align-items:center;gap:12px;">
+            ${isMeaLiveTab
+              ? `<span>Nguồn trực tiếp: <strong class="mea-qb-accent-strong">MatrixExamAI Pro (SQLite)</strong> • Hỗ trợ chèn 1 chạm vào bảng MinNote</span>`
+              : (activeExam ? `Đang chọn: <strong class="mea-qb-accent-strong">${activeExam.title}</strong> • ${activeExam.questions ? activeExam.questions.length : 0} câu hỏi` : '')}
           </div>
 
           <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-            ${activeExam && activeExam.questions && activeExam.questions.length > 0 ? `
+            ${!isMeaLiveTab && activeExam && activeExam.questions && activeExam.questions.length > 0 ? `
               <button class="mea-qb-btn-export-html" onclick="window.exportStandaloneHtmlPresentation('${activeExam.id}')" title="Tải file HTML Trình Chiếu độc lập mở trên mọi trình duyệt">
                 🌐 Xuất Slide HTML
               </button>
@@ -1214,13 +1257,34 @@
         </div>
       </div>
     `;
+
+    if (isMeaLiveTab) {
+      window.refreshMeaLiveQuestionBank();
+    }
   }
 
-  // Chuyển tab giữa Danh sách Đề và Cài đặt
+  // Mount & làm mới Ngân hàng câu hỏi trực tiếp từ MatrixExamAI Pro
+  window.refreshMeaLiveQuestionBank = function () {
+    const host = document.getElementById('mea-qb-live-sync-host');
+    if (!host) return;
+    if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.openBankIntoModal === 'function') {
+      window.MinNoteMeaSync.openBankIntoModal(host);
+    } else {
+      host.innerHTML = '<div class="mea-qb-radio-desc" style="padding:28px;text-align:center;">Đang khởi tạo cầu đồng bộ MatrixExamAI Pro... Hãy đảm bảo ứng dụng MinNote Desktop đang chạy và thử nhấn "Làm mới".</div>';
+    }
+  };
+
+  // Chuyển tab giữa Danh sách Đề, Đồng bộ MEA Pro và Cài đặt
   window.switchQbTab = function (tabName) {
     window.__meaActiveQbTab = tabName;
     const overlay = document.getElementById('mea-qb-modal-overlay');
-    if (overlay) renderQuestionBankModalContent(overlay);
+    if (overlay) {
+      renderQuestionBankModalContent(overlay);
+      const mainPane = overlay.querySelector('.mea-qb-main');
+      if (mainPane && typeof window.triggerMinNoteSecEnter === 'function') {
+        window.triggerMinNoteSecEnter(mainPane);
+      }
+    }
   };
 
   // Chọn đề thi đang duyệt
@@ -1305,7 +1369,9 @@
     editOverlay.style.display = 'flex';
 
     const opts = q.options || { A: '', B: '', C: '', D: '' };
-    const correctVal = (q.correctAnswer || 'A').toUpperCase();
+    const qCode = q.code || q.title || ('Câu ' + (pageIdx + 1));
+    const correctVal = String(q.correctAnswer || q.answer || 'A').trim().toUpperCase();
+    const qExp = q.explanation || q.solution || '';
 
     editOverlay.innerHTML = `
       <div class="mea-qc-edit-card">
@@ -1321,7 +1387,7 @@
           <div class="mea-qc-edit-row">
             <div class="mea-qc-edit-field" style="max-width:140px;">
               <span class="mea-qc-edit-label">Mã Câu / Số hiệu</span>
-              <input type="text" id="mea-edit-code" class="mea-qc-edit-input" value="${q.code || ('Câu ' + (pageIdx + 1))}">
+              <input type="text" id="mea-edit-code" class="mea-qc-edit-input" value="${qCode}">
             </div>
             <div class="mea-qc-edit-field" style="max-width:140px;">
               <span class="mea-qc-edit-label">Mức độ</span>
@@ -1374,7 +1440,7 @@
 
           <div class="mea-qc-edit-field">
             <span class="mea-qc-edit-label">Hướng dẫn giải chi tiết (KaTeX)</span>
-            <textarea id="mea-edit-explanation" class="mea-qc-edit-textarea" rows="3">${q.explanation || ''}</textarea>
+            <textarea id="mea-edit-explanation" class="mea-qc-edit-textarea" rows="3">${qExp}</textarea>
           </div>
         </div>
 
@@ -1412,15 +1478,19 @@
     const optD = document.getElementById('mea-edit-opt-D').value.trim();
     const explanation = document.getElementById('mea-edit-explanation').value.trim();
 
+    const finalCode = code || ('Câu ' + (pageIdx + 1));
     card.question = {
       ...card.question,
-      code: code || ('Câu ' + (pageIdx + 1)),
+      code: finalCode,
+      title: finalCode,
       level: level,
       topic: topic,
       correctAnswer: correct,
+      answer: correct,
       content: content,
       options: { A: optA, B: optB, C: optC, D: optD },
-      explanation: explanation
+      explanation: explanation,
+      solution: explanation
     };
 
     const el = document.getElementById(`mea-qc-card-${pageIdx}`);
@@ -2621,60 +2691,60 @@
     }
 
     overlay.innerHTML = `
-      <div class="mea-qb-modal-card" style="max-width:860px;width:92%;height:85vh;max-height:820px;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,0.8);border:1px solid #334155;border-radius:16px;background:#0f172a;overflow:hidden;">
+      <div class="mea-qb-modal-card mea-paste-modal-card">
         <!-- Header -->
-        <div class="mea-qb-modal-header" style="background:#1e293b;border-bottom:1px solid #334155;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
-          <div class="mea-qb-modal-title" style="color:#38bdf8;font-size:16px;font-weight:700;display:flex;align-items:center;gap:10px;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <div class="mea-qb-modal-header">
+          <div class="mea-qb-modal-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             Dán &amp; Lưu Bài Giảng HTML (MinNote Studio)
           </div>
-          <button class="mea-qb-close-btn" onclick="window.closePasteHtmlModal()" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:6px;">✕</button>
+          <button class="mea-qb-close-btn" onclick="window.closePasteHtmlModal()" title="Đóng">✕</button>
         </div>
 
         <!-- Body -->
-        <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;background:#0f172a;">
+        <div class="mea-paste-body">
           <!-- Ô tiêu đề bài giảng -->
           <div>
-            <label style="display:block;font-size:13px;font-weight:700;color:#cbd5e1;margin-bottom:6px;">
+            <label class="mea-paste-label">
               Tiêu Đề Bài Giảng:
             </label>
-            <input type="text" id="mea-paste-title-input" placeholder="Nhập tên bài giảng (tự động nhận diện từ thẻ &lt;title&gt; nếu để trống)..." style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#f8fafc;padding:10px 14px;border-radius:8px;font-size:14px;outline:none;" />
+            <input type="text" id="mea-paste-title-input" class="mea-paste-input" placeholder="Nhập tên bài giảng (tự động nhận diện từ thẻ &lt;title&gt; nếu để trống)..." />
           </div>
 
           <!-- Khu vực Textarea Dán Mã -->
           <div style="flex:1;display:flex;flex-direction:column;min-height:280px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <label style="font-size:13px;font-weight:700;color:#cbd5e1;">
+              <label class="mea-paste-label" style="margin-bottom:0;">
                 Mã Nguồn HTML (Hỗ trợ Tailwind CSS, KaTeX, JavaScript, Form trắc nghiệm):
               </label>
               <div style="display:flex;gap:8px;align-items:center;">
-                <span id="mea-paste-size-indicator" style="font-size:12px;color:#38bdf8;font-weight:600;">0 KB</span>
-                <button type="button" class="mea-present-btn" onclick="window.pasteFromClipboardToEditor()" style="padding:4px 12px;font-size:12px;background:#1e293b;color:#38bdf8;border:1px solid #0284c7;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <span id="mea-paste-size-indicator" class="mea-qb-accent-strong" style="font-size:12px;">0 KB</span>
+                <button type="button" class="mea-present-btn" onclick="window.pasteFromClipboardToEditor()" style="padding:4px 12px;font-size:12px;border-radius:6px;display:flex;align-items:center;gap:4px;">
                   📋 Dán Từ Clipboard
                 </button>
-                <button type="button" class="mea-present-btn" onclick="document.getElementById('mea-paste-textarea').value=''; window.updatePasteModalStats();" style="padding:4px 10px;font-size:12px;background:#1e293b;color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;cursor:pointer;">
+                <button type="button" class="mea-present-btn close" onclick="document.getElementById('mea-paste-textarea').value=''; window.updatePasteModalStats();" style="padding:4px 10px;font-size:12px;border-radius:6px;">
                   🧹 Xóa Trắng
                 </button>
               </div>
             </div>
 
-            <textarea id="mea-paste-textarea" style="flex:1;min-height:300px;width:100%;box-sizing:border-box;background:#090d16;color:#e2e8f0;font-family:'JetBrains Mono', Consolas, monospace;font-size:13px;line-height:1.5;padding:14px;border:1px solid #334155;border-radius:8px;resize:none;outline:none;" placeholder="Dán toàn bộ mã &lt;!DOCTYPE html&gt; vào đây (Bấm Ctrl+V)..." oninput="window.updatePasteModalStats()"></textarea>
+            <textarea id="mea-paste-textarea" class="mea-paste-textarea" placeholder="Dán toàn bộ mã &lt;!DOCTYPE html&gt; vào đây (Bấm Ctrl+V)..." oninput="window.updatePasteModalStats()"></textarea>
           </div>
         </div>
 
         <!-- Footer Hành Động -->
-        <div style="padding:14px 20px;background:#1e293b;border-top:1px solid #334155;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:12px;color:#94a3b8;">
+        <div class="mea-qb-modal-footer">
+          <div style="font-size:12px;">
             💡 Phím tắt: <strong>Ctrl + Enter</strong> để Lưu &amp; Chiếu Ngay
           </div>
           <div style="display:flex;gap:10px;">
-            <button class="mea-present-btn" onclick="window.closePasteHtmlModal()" style="padding:8px 16px;border-radius:8px;background:transparent;border:1px solid #475569;color:#cbd5e1;cursor:pointer;">
+            <button class="mea-present-btn" onclick="window.closePasteHtmlModal()" style="padding:8px 16px;border-radius:8px;">
               Hủy Bỏ
             </button>
-            <button class="mea-present-btn" onclick="window.savePastedHtmlLesson(false)" style="background:#0f766e;color:#fff;border-radius:8px;padding:8px 18px;font-weight:700;border:none;cursor:pointer;">
+            <button class="mea-present-btn" onclick="window.savePastedHtmlLesson(false)" style="background:#0284c7;color:#fff;border-color:#0284c7;border-radius:8px;padding:8px 18px;font-weight:700;">
               💾 Chỉ Lưu Vào Kho
             </button>
-            <button class="mea-present-btn primary" onclick="window.savePastedHtmlLesson(true)" style="background:#0284c7;color:#fff;border-radius:8px;padding:8px 22px;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 15px rgba(2,132,199,0.4);">
+            <button class="mea-present-btn primary" onclick="window.savePastedHtmlLesson(true)" style="background:#2563eb;color:#fff;border-radius:8px;padding:8px 22px;font-weight:700;border:none;box-shadow:0 4px 14px rgba(37,99,235,0.36);">
               ▶ Lưu &amp; Trình Chiếu Ngay (F5)
             </button>
           </div>

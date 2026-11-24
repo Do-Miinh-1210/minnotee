@@ -81,6 +81,14 @@
     return tex;
   }
 
+  function triggerSectionEnter(el) {
+    if (!el || !el.classList) return;
+    el.classList.remove('mn-sec-enter');
+    void el.offsetWidth;
+    el.classList.add('mn-sec-enter');
+  }
+  window.triggerMinNoteSecEnter = triggerSectionEnter;
+
   function setNativeTextareaValue(ta, value) {
     if (!ta) return;
     const proto = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
@@ -195,6 +203,10 @@
       dlg.querySelectorAll('[data-mnm-tab-btn]').forEach(function (b) {
         b.classList.toggle('active', b.getAttribute('data-mnm-tab-btn') === tab);
       });
+      const activePane = tab === 'editor'
+        ? dlg.querySelector('.math-palette .palette')
+        : dlg.querySelector('.mnm-extra-pane[data-pane="' + tab + '"]');
+      if (activePane) triggerSectionEnter(activePane);
     }
 
     // B. Enhance Left Palette Nav (Search placeholder + Pinned Common Formulas button)
@@ -411,7 +423,11 @@
           ensureClass(sec, 'mn-sec-hidden', false);
           return;
         }
-        ensureClass(sec, 'mn-sec-hidden', activeId !== 'all' && sid !== activeId);
+        const hide = activeId !== 'all' && sid !== activeId;
+        ensureClass(sec, 'mn-sec-hidden', hide);
+        if (shouldScrollTop && !hide) {
+          triggerSectionEnter(sec);
+        }
       });
 
       if (shouldScrollTop) {
@@ -664,18 +680,52 @@
 
   // --------------------------------------------------------------------------
   // 5. Settings Modal (.dialog.settings) -> Left-Sidebar Navigation Studio!
+  //    Includes 4th tab: 🔑 API Key & MEA (MatrixExamAI Pro Shared Sync)
   // --------------------------------------------------------------------------
+  function mountMeaSettingsHost(meaSec) {
+    if (!meaSec) return;
+    if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.mountSettingsPanel === 'function') {
+      if (meaSec.dataset.mnMeaMounted !== '1') {
+        meaSec.dataset.mnMeaMounted = '1';
+        try {
+          window.MinNoteMeaSync.mountSettingsPanel(meaSec);
+        } catch (err) {
+          meaSec.dataset.mnMeaMounted = '0';
+          console.warn('[MinNote Settings] mountSettingsPanel error:', err);
+        }
+      }
+    } else if (!meaSec.innerHTML.trim()) {
+      meaSec.innerHTML = '<div class="mn-set-mea-loading">Đang kết nối mô-đun đồng bộ MatrixExamAI Pro...</div>';
+    }
+  }
+
   function enhanceSettingsDialog(dlg) {
-    if (!dlg || dlg.dataset.mnSetReady === '1') return;
+    if (!dlg) return;
+    if (dlg.dataset.mnSetReady === '1') {
+      const existingHost = dlg.querySelector('section[data-mn-mea-host="1"]');
+      if (existingHost && existingHost.dataset.mnMeaMounted !== '1') {
+        mountMeaSettingsHost(existingHost);
+      }
+      return;
+    }
     const grid = dlg.querySelector('.settings-grid');
     const body = dlg.querySelector('.dialog-body');
     if (!grid || !body) return;
 
-    const sections = Array.from(grid.querySelectorAll(':scope > section'));
+    const sections = Array.from(grid.querySelectorAll(':scope > section:not([data-mn-mea-host="1"])'));
     if (sections.length < 2) return;
 
     dlg.dataset.mnSetReady = '1';
     dlg.classList.add('mn-set-studio');
+
+    // Mount 4th tab container for MatrixExamAI Pro API Key & Sync
+    let meaSec = grid.querySelector(':scope > section[data-mn-mea-host="1"]');
+    if (!meaSec) {
+      meaSec = document.createElement('section');
+      meaSec.className = 'mn-set-mea-section mn-set-hidden';
+      meaSec.setAttribute('data-mn-mea-host', '1');
+      grid.appendChild(meaSec);
+    }
 
     const NAV_META = [
       { id: '0', icon: '📄', fallback: 'Trang giấy & Khổ' },
@@ -697,29 +747,65 @@
           '<span>' + meta.icon + '</span><span>' + label + '</span>' +
         '</button>';
       }).join('') +
+      '<button type="button" class="mn-set-nav-btn" data-mn-set-go="mea-sync">' +
+        '<span>🔑</span><span>API Key &amp; MEA</span>' +
+      '</button>' +
       '<div class="mn-set-nav-sep"></div>' +
       '<button type="button" class="mn-set-nav-btn" data-mn-set-go="all"><span>⊞</span><span>Xem tất cả</span></button>';
 
-    function selectTab(id) {
+    function selectTab(id, animate) {
       dlg.setAttribute('data-mn-set-tab', id);
       nav.querySelectorAll('[data-mn-set-go]').forEach(function (b) {
         b.classList.toggle('active', b.getAttribute('data-mn-set-go') === id);
       });
       sections.forEach(function (sec, idx) {
-        sec.classList.toggle('mn-set-hidden', id !== 'all' && String(idx) !== id);
+        const hide = id !== 'all' && String(idx) !== id;
+        sec.classList.toggle('mn-set-hidden', hide);
+        if (animate && !hide) triggerSectionEnter(sec);
       });
+      const hideMea = id !== 'all' && id !== 'mea-sync';
+      meaSec.classList.toggle('mn-set-hidden', hideMea);
+      if (!hideMea) {
+        mountMeaSettingsHost(meaSec);
+        if (animate) triggerSectionEnter(meaSec);
+      }
       grid.scrollTop = 0;
     }
+
+    dlg._mnSelectSettingsTab = selectTab;
 
     nav.addEventListener('click', function (e) {
       const btn = e.target.closest('[data-mn-set-go]');
       if (!btn) return;
-      selectTab(btn.getAttribute('data-mn-set-go'));
+      selectTab(btn.getAttribute('data-mn-set-go'), true);
     });
 
     body.insertBefore(nav, body.firstChild);
-    selectTab('0');
+    mountMeaSettingsHost(meaSec);
+
+    const requestedTab = window.__mnPendingSettingsTab || '0';
+    window.__mnPendingSettingsTab = null;
+    selectTab(requestedTab, false);
   }
+
+  // Helper to jump directly to Settings -> API Key & MEA tab from other modules
+  window.openMinNoteMeaSettings = function () {
+    const openDlg = document.querySelector('.dialog.settings');
+    if (openDlg) {
+      enhanceSettingsDialog(openDlg);
+      if (typeof openDlg._mnSelectSettingsTab === 'function') {
+        openDlg._mnSelectSettingsTab('mea-sync', true);
+      }
+      return true;
+    }
+    window.__mnPendingSettingsTab = 'mea-sync';
+    const settingsBtn = document.querySelector('header.toolbar .tb[title*="Cài đặt"], header.toolbar .tb[title*="Settings"], header.toolbar .tb[aria-label*="Cài đặt"], header.toolbar .tb[aria-label*="Settings"]');
+    if (settingsBtn) {
+      settingsBtn.click();
+      return true;
+    }
+    return false;
+  };
 
   // --------------------------------------------------------------------------
   // Lightweight MutationObserver (batched via microtask/rAF)

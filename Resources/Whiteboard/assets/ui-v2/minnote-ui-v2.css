@@ -65,9 +65,9 @@ html[data-ui="v2"] {
   --v2-muted: #64748b;
 
   --v2-rail: #f8fafc;          /* rail công cụ đồng bộ hệ sinh thái MinMath */
-  --v2-rail-2: #e8effa;
+  --v2-rail-2: #eff6ff;
   --v2-rail-ink: #334155;
-  --v2-rail-ink-strong: #0f172a;
+  --v2-rail-ink-strong: #2563eb;
   --v2-rail-line: #dbe3ee;
   --v2-rail-sep: rgba(15, 23, 42, .10);
   --v2-rail-palette: #f1f5f9;
@@ -110,17 +110,17 @@ html[data-ui="v2"].dark {
   --v2-ink: #f1f5f9;
   --v2-muted: #94a3b8;
   --v2-rail: #0f172a;
-  --v2-rail-2: #1e293b;
-  --v2-rail-ink: #cbd5e1;
-  --v2-rail-ink-strong: #ffffff;
+  --v2-rail-2: rgba(59, 130, 246, 0.18);
+  --v2-rail-ink: #e2e8f0;
+  --v2-rail-ink-strong: #60a5fa;
   --v2-rail-line: #263248;
   --v2-rail-sep: rgba(255, 255, 255, .10);
   --v2-rail-palette: #1e293b;
   --v2-rail-on-bg: #2563eb;
   --v2-rail-on-ink: #ffffff;
   --v2-rail-on-shadow: 0 6px 16px -6px rgba(37, 99, 235, .58);
-  --v2-accent: #3b82f6;
-  --v2-accent-soft: rgba(59, 130, 246, .18);
+  --v2-accent: #60a5fa;
+  --v2-accent-soft: rgba(59, 130, 246, .20);
   --v2-shadow-paper: 0 0 0 1px #263248, 0 16px 40px -12px rgba(0, 0, 0, .6);
   --ink: var(--v2-ink) !important;
   --muted: var(--v2-muted) !important;
@@ -323,7 +323,7 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb,
 html[data-ui="v2"] .nb-tools-dock .tb {
   height: 36px !important; min-width: 36px !important;
   border-radius: var(--v2-r-sm) !important;
-  color: var(--v2-ink) !important;
+  color: var(--v2-rail-ink) !important;
   background: transparent !important;
   border: 0 !important; box-shadow: none !important;
 }
@@ -331,8 +331,10 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb svg { color
 html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb:hover:not(:disabled),
 html[data-ui="v2"] .nb-tools-dock .tb:hover:not(:disabled) {
   background: var(--v2-desk-2) !important;
+  color: var(--v2-rail-ink-strong) !important;
 }
-html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on {
+html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb.on,
+html[data-ui="v2"] .nb-tools-dock .tb.on {
   background: var(--v2-accent-soft) !important;
   color: var(--v2-accent) !important;
 }
@@ -385,12 +387,12 @@ html[data-ui="v2"] .nb-tools-dock .tb {
 }
 html[data-ui="v2"] .nb-tools-dock .tb span { font: 500 12.5px/1 var(--v2-font) !important; color: inherit !important; }
 html[data-ui="v2"] .nb-tools-dock .tb-sep { background: var(--v2-line) !important; height: 18px !important; }
-/* nút đầu tiên của dock (Kho Đề) nổi bật như CTA */
+/* nút đầu tiên của dock (Kho Đề) nổi bật như CTA Cobalt */
 html[data-ui="v2"] .nb-tools-dock > .tb:first-child {
-  background: var(--v2-ink) !important;
-  color: var(--v2-paper) !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
 }
-html[data-ui="v2"] .nb-tools-dock > .tb:first-child:hover { background: var(--v2-accent) !important; color: #fff !important; }
+html[data-ui="v2"] .nb-tools-dock > .tb:first-child:hover { background: #1d4ed8 !important; color: #ffffff !important; }
 
 /* ---------- 5. Trang giấy trên mặt bàn ---------- */
 html[data-ui="v2"] .board-wrap {
@@ -577,24 +579,41 @@ html[data-ui="v2"] .pages-panel .page-thumb-num {
 html[data-ui="v2"] .pages-panel .page-thumb.on .page-thumb-num { color: var(--v2-accent) !important; }
 html[data-ui="v2"].dark .tb-group.tools > .tb-palette { background: #2e2c3a !important; }
 
-/* ---------- 12. Bộ icon khối đặc (icons-v2.js) ----------
+/* ---------- 12. Bộ icon nét mảnh trong suốt + Duotone (icons-v2.js) ----------
    Mỗi icon được render 2 bản: .mn-ic1 (cũ) và .mn-ic2 (mới). Quy tắc dưới chọn bản hiện ra.
    Hai quy tắc đầu cố ý KHÔNG nằm dưới html[data-ui="v2"] để giao diện cũ ẩn icon mới. */
 html:not([data-ui="v2"]) svg.mn-ic2 { display: none !important; }
 html[data-ui="v2"] svg.mn-ic1 { display: none !important; }
 html[data-ui="v2"] svg.mn-ic2 {
-  fill: currentColor !important;
-  stroke: none !important;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   flex-shrink: 0;
   overflow: visible;
 }
+/* Giữ nét mảnh đồng nhất và vô hiệu hóa phóng đại 3x cũ từ mea-whiteboard-theme.css */
+html[data-ui="v2"] .tb svg.mn-ic2,
+html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 {
+  stroke-width: 1.85 !important;
+}
+html[data-ui="v2"] .tb:hover:not(:disabled) svg:first-child,
+html[data-ui="v2"] .tb:hover:not(:disabled) svg.mn-ic2 {
+  transform: none !important;
+  filter: none !important;
+}
 html[data-ui="v2"] .fav-star svg.mn-ic2,
-html[data-ui="v2"] .fav-tray-head svg.mn-ic2 { fill: currentColor !important; }
-/* icon trong menu thả xuống: cùng cỡ với chữ, hơi nhạt hơn chữ */
-html[data-ui="v2"] .dropdown-menu svg.mn-ic2 { width: 18px; height: 18px; }
-html[data-ui="v2"] .dropdown-menu button:not(.checked) svg.mn-ic2 { color: var(--v2-ink); opacity: .82; }
-/* nhóm "Chèn": icon 16px */
-html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 { width: 17px !important; height: 17px !important; }
+html[data-ui="v2"] .fav-tray-head svg.mn-ic2 {
+  fill: none;
+  stroke: currentColor;
+}
+/* icon trong menu thả xuống: cùng cỡ với chữ, sắc nét */
+html[data-ui="v2"] .dropdown-menu svg.mn-ic2 { width: 17px; height: 17px; }
+html[data-ui="v2"] .dropdown-menu button:not(.checked) svg.mn-ic2 { color: var(--v2-rail-ink); opacity: .92; }
+html[data-ui="v2"] .dropdown-menu button.checked svg.mn-ic2 { color: #ffffff !important; opacity: 1; }
+/* nhóm "Chèn": icon 15px */
+html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 { width: 15px !important; height: 15px !important; }
 /* index.html có quy tắc ".tb svg:not(:first-child){display:none}" để giấu mũi tên nhỏ;
    icon mới đứng sau icon cũ nên cần được hiện lại (trừ mũi tên .chevron). */
 html[data-ui="v2"] .tb svg.mn-ic2:not(.chevron),
@@ -887,8 +906,8 @@ html[data-ui="v2"] .tb-group.tools .tb {
   border-radius: 8px !important;
 }
 html[data-ui="v2"] .tb-group.tools .tb svg {
-  width: 16px !important;
-  height: 16px !important;
+  width: 17px !important;
+  height: 17px !important;
 }
 html[data-ui="v2"] .tb-group.tools > .tb-palette {
   width: 59px !important;
@@ -975,8 +994,8 @@ html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb {
   border-radius: 7px !important;
 }
 html[data-ui="v2"] .app > header.toolbar > .tb-group:first-child .tb svg {
-  width: 15px !important;
-  height: 15px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 html[data-ui="v2"] .app > header.toolbar > .tb-title {
   height: 27px !important;
@@ -1016,8 +1035,8 @@ html[data-ui="v2"] .nb-tools-dock .tb span {
   font: 500 11.5px/1 var(--v2-font) !important;
 }
 html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2 {
-  width: 14px !important;
-  height: 14px !important;
+  width: 15px !important;
+  height: 15px !important;
 }
 html[data-ui="v2"] .nb-tools-dock .tb-sep {
   height: 14px !important;

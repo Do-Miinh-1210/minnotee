@@ -129,12 +129,6 @@
               window.chrome.webview.postMessage({ type: 'PICK_WORD' });
             }
           });
-        },
-        drive: {
-          state: async () => ({ signedIn: true, email: 'admin_matrixexamai@gmail.com' }),
-          signIn: async () => true,
-          signOut: async () => false,
-          request: async () => ({})
         }
       };
 
@@ -192,45 +186,6 @@
         })();
       }
 
-      // Modal Google Drive
-      window.openGoogleDriveModal = function() {
-        let m = document.getElementById('modal-google-drive');
-        if (!m) {
-          m = document.createElement('div');
-          m.id = 'modal-google-drive';
-          m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999999;backdrop-filter:blur(3px);';
-          m.innerHTML = `
-            <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;width:420px;max-width:92vw;padding:20px;color:#f8fafc;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-                <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;color:#60a5fa;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-                  </svg>
-                  <span>Google Drive • Đồng Bộ Đám Mây</span>
-                </div>
-                <button onclick="document.getElementById('modal-google-drive').remove()" style="background:transparent;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
-              </div>
-              <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;line-height:1.6;border:1px solid #1e293b;">
-                <div style="color:#22c55e;font-weight:600;display:flex;align-items:center;gap:6px;">
-                  <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
-                  Đã kết nối tài khoản đám mây
-                </div>
-                <div style="color:#94a3b8;margin-top:4px;">Chủ sở hữu: <b style="color:#f1f5f9;">admin_matrixexamAI</b></div>
-                <div style="color:#94a3b8;">Trạng thái: <span style="color:#38bdf8;">Đồng bộ tự động &amp; Sao lưu an toàn</span></div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:10px;">
-                <button onclick="if(window.showToast) window.showToast('Đang sao lưu bảng viết lên Google Drive...'); setTimeout(()=>window.showToast&&window.showToast('Sao lưu thành công lên Drive!'), 800); document.getElementById('modal-google-drive').remove();" style="padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-                  ☁️ Sao lưu bảng viết ngay lên Drive
-                </button>
-                <button onclick="if(window.showToast) window.showToast('Đang kiểm tra bản sao lưu mới nhất trên Drive...'); setTimeout(()=>window.showToast&&window.showToast('Dữ liệu đã được đồng bộ mới nhất!'), 800); document.getElementById('modal-google-drive').remove();" style="padding:10px 14px;border-radius:8px;background:#334155;color:#e2e8f0;border:1px solid #475569;font-weight:600;font-size:13px;cursor:pointer;">
-                  🔄 Tải &amp; khôi phục từ Drive
-                </button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(m);
-        }
-      };
     </script>
 
     <!-- Casio Scientific Calculator (Integrated) -->
@@ -242,6 +197,8 @@
     <script src="./assets/emf-vector-bridge.js"></script>
     <link rel="stylesheet" href="./assets/screen-recorder-studio.css">
     <script src="./assets/screen-recorder-studio.js"></script>
+    <link rel="stylesheet" href="./assets/minnote-persistence.css">
+    <script src="./assets/minnote-persistence.js"></script>
     <script type="module" crossorigin src="./assets/index-CTbULhps.js"></script>
     <script type="module" crossorigin src="./assets/ai-math-assistant.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-BQ73TrLm.css">
@@ -284,12 +241,20 @@
     <link rel="stylesheet" href="./assets/ui-v2/minnote-ui-v2.css">
     <link rel="stylesheet" href="./assets/ui-v2/minnote-signature-ui.css">
     <script src="./assets/ui-v2/minnote-signature-ui.js" defer></script>
+
+    <!-- MinNote v0.0.8.0 Studios: Hand Cursor, Video Embed, Replay Exporter, Integer TikZ & MatrixExamAI Pro Sync -->
+    <link rel="stylesheet" href="./assets/minnote-v80-studios.css">
+    <script src="./assets/minnote-hand-cursor.js" defer></script>
+    <script src="./assets/minnote-video-embed.js" defer></script>
+    <script src="./assets/minnote-replay-exporter.js" defer></script>
+    <script src="./assets/minnote-tikz-exporter.js" defer></script>
+    <script src="./assets/minnote-mea-sync.js" defer></script>
   </head>
   <body>
     <!-- TOP TITLE & INTEGRATION BADGE -->
     <div id="mea-header-badge" style="display: none !important;">
       <span style="display:flex;align-items:center;gap:6px;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
           <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
           <path d="M2 2l7.586 7.586"></path>
@@ -297,15 +262,15 @@
         </svg>
         MinNote • Bảng Viết &amp; Lời Giải Toán Học
       </span>
-      <span class="badge-tag">STUDIO TEAL</span>
+      <span class="badge-tag">STUDIO COBALT</span>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-        <button class="btn-mindmap-mea" id="btn-toggle-presentation" onclick="if (window.startFullHtmlPresentation) { window.startFullHtmlPresentation(); } else if (window.startExamPresentation) { window.startExamPresentation(); }" title="Trình Chiếu Slide HTML (F5)" style="background:rgba(99,102,241,0.18);border:1px solid rgba(129,140,248,0.5);color:#a5b4fc;margin-right:6px;">
+        <button class="btn-mindmap-mea" id="btn-toggle-presentation" onclick="if (window.startFullHtmlPresentation) { window.startFullHtmlPresentation(); } else if (window.startExamPresentation) { window.startExamPresentation(); }" title="Trình Chiếu Slide HTML (F5)" style="background:rgba(37,99,235,0.18);border:1px solid rgba(96,165,250,0.5);color:#93c5fd;margin-right:6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
           Trình Chiếu HTML (F5)
         </button>
-        <button class="btn-mindmap-mea" id="btn-toggle-bank" onclick="if (window.toggleQuestionBankModal) { window.toggleQuestionBankModal(); }" title="Mở Kho Đề Thi & Ngân Hàng Câu Hỏi (Ctrl + Q)" style="background:rgba(20,184,166,0.18);border:1px solid rgba(45,212,191,0.5);color:#2dd4bf;margin-right:6px;">
+        <button class="btn-mindmap-mea" id="btn-toggle-bank" onclick="if (window.toggleQuestionBankModal) { window.toggleQuestionBankModal(); }" title="Mở Kho Đề Thi & Ngân Hàng Câu Hỏi (Ctrl + Q)" style="background:rgba(37,99,235,0.18);border:1px solid rgba(96,165,250,0.5);color:#93c5fd;margin-right:6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
@@ -372,7 +337,7 @@
           <div class="mindmap-toolbar-row-top">
             <div class="mindmap-title-group">
               <span class="mindmap-title-badge">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                 </svg>
@@ -457,7 +422,7 @@
         <!-- Markdown Outline Tab Area -->
         <div class="mindmap-markdown-area" id="mindmap-markdown-area">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:12px;font-weight:700;color:#0f172a;">Chỉnh sửa Dàn ý Markdown (Hỗ trợ công thức LaTeX $...$)</span>
+            <span class="mm-md-label">Chỉnh sửa Dàn ý Markdown (Hỗ trợ công thức LaTeX $...$)</span>
             <button class="mm-btn primary" onclick="window.applyMarkdownToTree()">Áp dụng vào Sơ đồ Đồ Họa</button>
           </div>
           <textarea class="mm-markdown-editor" id="mm-markdown-input" placeholder="# Chủ đề chính&#10;## Nhánh 1&#10;- Ý con kèm $x^2 + \sqrt{y}$"></textarea>
@@ -469,7 +434,7 @@
       <div class="mm-modal-card">
         <div class="mm-modal-header">
           <span class="mm-modal-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 20h9"></path>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
@@ -480,7 +445,7 @@
         <div class="mm-modal-body">
           <!-- Quick Math Formula Palette -->
           <div class="mm-quick-math-bar">
-            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;">Bấm để chèn nhanh công thức toán học (LaTeX):</div>
+            <div class="mm-field-hint">Bấm để chèn nhanh công thức toán học (LaTeX):</div>
             <div class="mm-math-categories">
               <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\frac{a}{b}')" title="Phân số">\frac{a}{b}</button>
               <button class="mm-math-btn" onclick="window.insertFormulaToEditor('\\sqrt{x}')" title="Căn bậc hai">\sqrt{x}</button>
@@ -513,7 +478,7 @@
 
           <!-- Textarea for text + formulas -->
           <div>
-            <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px;">Nhập văn bản và công thức (kẹp công thức trong cặp dấu $...$):</div>
+            <div class="mm-field-hint">Nhập văn bản và công thức (kẹp công thức trong cặp dấu $...$):</div>
             <textarea class="mm-textarea" id="mm-math-input" placeholder="Ví dụ: Định lý Cosin: $a^2 = b^2 + c^2 - 2bc \cos A$"></textarea>
           </div>
 
@@ -542,7 +507,7 @@
       <div class="mm-modal-card" style="max-width:540px;">
         <div class="mm-modal-header">
           <span class="mm-modal-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
             </svg>
             Trợ lý AI Sinh Sơ Đồ Tư Duy Toán Học
@@ -550,17 +515,17 @@
           <button class="mm-btn mm-btn-icon-only" onclick="window.closeAiMindmapModal()">✕</button>
         </div>
         <div class="mm-modal-body">
-          <div style="font-size:12px;color:#475569;line-height:1.5;">
+          <div class="mm-field-hint">
             Nhập tên bài học, chủ đề Toán học hoặc đề mục cần tổng hợp kiến thức. Trợ lý AI sẽ tự động phân nhánh và nạp công thức toán học LaTeX chuẩn xác:
           </div>
           <input type="text" id="mm-ai-topic-input" class="mm-textarea" style="min-height:42px;height:42px;" placeholder="Ví dụ: Khảo sát hàm số bậc 3, Tọa độ không gian Oxyz, Xác suất Bayes..." onkeydown="if(event.key==='Enter')window.generateAiMindmap();" />
 
-          <div id="mm-ai-provider-badge" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:6px;display:flex;align-items:center;gap:4px;">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;"></span>
-            <span id="mm-ai-provider-text">Được hỗ trợ bởi AI Engine (Google Gemini / 9Router / Claude)</span>
+          <div id="mm-ai-provider-badge" class="mm-ai-provider-row">
+            <span class="mm-ai-status-dot"></span>
+            <span id="mm-ai-provider-text">Được hỗ trợ bởi AI Engine (Đồng bộ MatrixExamAI Pro)</span>
           </div>
 
-          <div style="font-size:11px;font-weight:700;color:#64748b;margin-top:8px;">Chủ đề gợi ý nhanh:</div>
+          <div class="mm-field-hint-sm">Chủ đề gợi ý nhanh:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
             <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Đạo hàm và ứng dụng khảo sát hàm số'">Đạo hàm 12</button>
             <button class="mm-math-btn" onclick="document.getElementById('mm-ai-topic-input').value='Nguyên hàm, tích phân và ứng dụng diện tích, thể tích'">Tích phân 12</button>
@@ -572,7 +537,7 @@
         </div>
         <div class="mm-modal-footer">
           <button class="mm-btn" onclick="window.closeAiMindmapModal()">Đóng</button>
-          <button class="mm-btn accent-purple" id="btn-exec-ai-gen" onclick="window.generateAiMindmap()">✨ Tạo sơ đồ ngay</button>
+          <button class="mm-btn primary" id="btn-exec-ai-gen" onclick="window.generateAiMindmap()">✨ Tạo sơ đồ ngay</button>
         </div>
       </div>
     </div>
@@ -582,7 +547,7 @@
       <div class="mm-modal-card" style="max-width:760px;">
         <div class="mm-modal-header">
           <span class="mm-modal-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
             Kho Mẫu Sơ Đồ Tư Duy Toán THPT Chuẩn BGD
@@ -594,7 +559,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('dao_ham_12')">
               <div class="mm-template-title">
                 <span>Toán 12 • Đạo hàm &amp; Khảo sát</span>
-                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+                <span class="mindmap-tag mm-tpl-tag-blue">Toán 12</span>
               </div>
               <div class="mm-template-desc">Tính đơn điệu $f'(x) \ge 0$, cực trị đổi dấu, tiệm cận đứng, ngang, xiên.</div>
             </div>
@@ -602,7 +567,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('tich_phan_12')">
               <div class="mm-template-title">
                 <span>Toán 12 • Tích phân &amp; Nguyên hàm</span>
-                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+                <span class="mindmap-tag mm-tpl-tag-blue">Toán 12</span>
               </div>
               <div class="mm-template-desc">Định nghĩa, đổi biến số, tích phân từng phần $\int u \, dv$ và ứng dụng diện tích $S$.</div>
             </div>
@@ -610,7 +575,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('hinh_oxyz_12')">
               <div class="mm-template-title">
                 <span>Toán 12 • Tọa độ Oxyz</span>
-                <span class="mindmap-tag" style="background:#e0f2fe;color:#0369a1;">Toán 12</span>
+                <span class="mindmap-tag mm-tpl-tag-blue">Toán 12</span>
               </div>
               <div class="mm-template-desc">Vectơ, mặt cầu $(S)$, mặt phẳng $(\alpha)$ và phương trình đường thẳng.</div>
             </div>
@@ -618,7 +583,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('xac_suat_12')">
               <div class="mm-template-title">
                 <span>Toán 12 • Xác suất &amp; Bayes</span>
-                <span class="mindmap-tag" style="background:#fef3c7;color:#b45309;">Mới 2025</span>
+                <span class="mindmap-tag mm-tpl-tag-amber">Mới 2025</span>
               </div>
               <div class="mm-template-desc">Xác suất có điều kiện $P(A|B)$, xác suất toàn phần và định lý Bayes.</div>
             </div>
@@ -626,7 +591,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('luong_giac_11')">
               <div class="mm-template-title">
                 <span>Toán 11 • Lượng giác</span>
-                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+                <span class="mindmap-tag mm-tpl-tag-green">Toán 11</span>
               </div>
               <div class="mm-template-desc">Công thức cộng, nhân đôi, phương trình lượng giác cơ bản $\sin x = \sin \alpha$.</div>
             </div>
@@ -634,7 +599,7 @@
             <div class="mm-template-card" onclick="window.loadMathTemplate('mu_logarit_11')">
               <div class="mm-template-title">
                 <span>Toán 11 • Mũ &amp; Logarit</span>
-                <span class="mindmap-tag" style="background:#dcfce7;color:#15803d;">Toán 11</span>
+                <span class="mindmap-tag mm-tpl-tag-green">Toán 11</span>
               </div>
               <div class="mm-template-desc">Quy tắc lũy thừa, logarit cơ số $a$, đạo hàm $(a^x)'$ và $(\ln x)'$.</div>
             </div>
@@ -1095,6 +1060,118 @@
           targetGroup.appendChild(btnImg);
         } else {
           document.getElementById('tb-btn-insert-image').removeAttribute('style');
+        }
+
+        // 8. Nút Chèn Video (MP4 / YouTube)
+        if (!document.getElementById('tb-btn-insert-video')) {
+          const btnVid = document.createElement('button');
+          btnVid.id = 'tb-btn-insert-video';
+          btnVid.className = 'tb';
+          btnVid.title = 'Chèn Video (MP4 / YouTube)';
+          btnVid.setAttribute('aria-label', 'Chèn Video');
+          btnVid.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2.6"></rect>
+              <path d="M10.2 9.2l5.4 2.8-5.4 2.8V9.2z"></path>
+            </svg>
+            <span>Video</span>
+          `;
+          btnVid.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.MinNoteVideo && typeof window.MinNoteVideo.openInsertModal === 'function') {
+              window.MinNoteVideo.openInsertModal();
+            }
+          };
+          targetGroup.appendChild(btnVid);
+        } else {
+          document.getElementById('tb-btn-insert-video').removeAttribute('style');
+        }
+
+        // 9. Nút Xuất mã TikZ chuẩn số nguyên
+        if (!document.getElementById('tb-btn-export-tikz')) {
+          const btnTikz = document.createElement('button');
+          btnTikz.id = 'tb-btn-export-tikz';
+          btnTikz.className = 'tb';
+          btnTikz.title = 'Xuất mã TikZ chuẩn số nguyên';
+          btnTikz.setAttribute('aria-label', 'Xuất TikZ');
+          btnTikz.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7.5 4.8c-1.8 0-2.3.8-2.3 2.2v2.4c0 1.4-.7 2.6-2.2 2.6 1.5 0 2.2 1.2 2.2 2.6V17c0 1.4.5 2.2 2.3 2.2M16.5 4.8c1.8 0 2.3.8 2.3 2.2v2.4c0 1.4.7 2.6 2.2 2.6-1.5 0-2.2 1.2-2.2 2.6V17c0 1.4-.5 2.2-2.3 2.2"></path>
+              <path d="M12 7.8l3.5 6.8H8.5L12 7.8z"></path>
+            </svg>
+            <span>TikZ</span>
+          `;
+          btnTikz.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.MinNoteTikzExport && typeof window.MinNoteTikzExport.openModal === 'function') {
+              window.MinNoteTikzExport.openModal();
+            }
+          };
+          targetGroup.appendChild(btnTikz);
+        } else {
+          document.getElementById('tb-btn-export-tikz').removeAttribute('style');
+        }
+
+        // 10. Nút Kho hình đồng bộ MatrixExamAI Pro
+        if (!document.getElementById('tb-btn-mea-figures')) {
+          const btnMeaFig = document.createElement('button');
+          btnMeaFig.id = 'tb-btn-mea-figures';
+          btnMeaFig.className = 'tb';
+          btnMeaFig.title = 'Kho hình đồng bộ MatrixExamAI Pro';
+          btnMeaFig.setAttribute('aria-label', 'Kho hình MEA');
+          btnMeaFig.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3.5" y="3.5" width="7.2" height="7.2" rx="1.6"></rect>
+              <rect x="13.3" y="3.5" width="7.2" height="7.2" rx="1.6"></rect>
+              <rect x="3.5" y="13.3" width="7.2" height="7.2" rx="1.6"></rect>
+              <path d="M13.5 16.9a3.4 3.4 0 1 1 6.3 1.7M19.8 14.5v3.2h-3.2"></path>
+            </svg>
+            <span>Kho hình</span>
+          `;
+          btnMeaFig.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.openFigureSyncModal === 'function') {
+              window.MinNoteMeaSync.openFigureSyncModal();
+            }
+          };
+          targetGroup.appendChild(btnMeaFig);
+        } else {
+          document.getElementById('tb-btn-mea-figures').removeAttribute('style');
+        }
+
+        // 11. Nút Tay cầm bút đang viết (Hand Cursor)
+        if (!document.getElementById('tb-btn-hand-cursor')) {
+          const btnHand = document.createElement('button');
+          btnHand.id = 'tb-btn-hand-cursor';
+          btnHand.className = 'tb';
+          btnHand.title = 'Tay cầm bút đang viết';
+          btnHand.setAttribute('aria-label', 'Tay cầm bút');
+          btnHand.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15.8 3.5a2 2 0 0 1 2.83 2.83L10.4 14.6l-3.6 1 1-3.6 8-8.5z"></path>
+              <path d="M3.5 19.5c2.2-1.8 4.4-1.8 6.4 0s4.2 1.8 6.8-.5"></path>
+            </svg>
+            <span>Tay bút</span>
+          `;
+          btnHand.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.MinNoteHandCursor && typeof window.MinNoteHandCursor.toggleLive === 'function') {
+              const res = window.MinNoteHandCursor.toggleLive();
+              const active = typeof window.MinNoteHandCursor.isLive === 'function' ? !!window.MinNoteHandCursor.isLive() : !!res;
+              btnHand.classList.toggle('on', active);
+            }
+          };
+          targetGroup.appendChild(btnHand);
+        } else {
+          const btnHand = document.getElementById('tb-btn-hand-cursor');
+          btnHand.removeAttribute('style');
+          if (window.MinNoteHandCursor && typeof window.MinNoteHandCursor.isLive === 'function') {
+            btnHand.classList.toggle('on', !!window.MinNoteHandCursor.isLive());
+          }
         }
 
       }

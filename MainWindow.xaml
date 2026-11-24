@@ -28,6 +28,17 @@
             <DockPanel LastChildFill="True">
                 <!-- Trailing / Right: Nút chức năng & Window Controls -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- TRẠNG THÁI LƯU / LƯU NGAY -->
+                    <ui:Button x:Name="BtnSaveStatusTop" Appearance="Transparent"
+                               Icon="{ui:SymbolIcon Save24}"
+                               Content="Đã lưu"
+                               Foreground="#86EFAC"
+                               FontSize="10.5" Padding="6,2"
+                               Margin="0,0,4,0"
+                               Cursor="Hand"
+                               ToolTip="Tự động lưu đang bật • Bấm để lưu ngay tất cả tab và sheet (Ctrl+S)"
+                               Click="BtnSaveStatusTop_Click" />
+
                     <!-- CẬP NHẬT / UPDATE -->
                     <ui:Button x:Name="BtnUpdateTop" Appearance="Transparent"
                                Icon="{ui:SymbolIcon ArrowSync24}"

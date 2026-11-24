@@ -51,6 +51,19 @@ namespace MinNote
                 AppLog($"AppDomain.UnhandledException: {args.ExceptionObject}");
             };
 
+            SessionEnding += (s, args) =>
+            {
+                AppLog($"SessionEnding: {args.ReasonSessionEnding}");
+                try
+                {
+                    (MainWindow as MainWindow)?.FlushForSessionEnding();
+                }
+                catch (Exception ex)
+                {
+                    AppLog($"SessionEnding flush error: {ex.Message}");
+                }
+            };
+
             try
             {
                 _mutex = new Mutex(true, AppGuid, out bool isNewInstance);

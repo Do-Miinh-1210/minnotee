@@ -216,12 +216,234 @@
    * ============================================================================ */
   let replayPanel = null;
   let replayPill = null;
+  let effectPopover = null;
+  let effectPopoverState = null; // { rawIdx, replayId }
   let replayViewMode = 'full'; // 'full' | 'pill' | 'mini'
   let stepsCollapsed = true;   // Mở gọn mặc định; bấm ☰ để mở danh sách bước khi cần sửa
   let presetsOpen = false;
   let savedShelfOpen = false;
   let savedFlashTimer = 0;
   const SPEED_CYCLE = [0.5, 1, 1.5, 2, 3];
+
+  const STEP_EFFECTS = [
+    { id: 'draw',   icon: '✏', label: 'Vẽ nét' },
+    { id: 'glow',   icon: '✨', label: 'Phát sáng' },
+    { id: 'spring', icon: '⚡', label: 'Bật nảy' },
+    { id: 'fade',   icon: '🌫', label: 'Hiện dần' },
+    { id: 'zoom',   icon: '🔍', label: 'Phóng to' },
+    { id: 'slide',  icon: '⬆', label: 'Trượt vào' },
+    { id: 'wipe',   icon: '▬', label: 'Quét ngang' },
+    { id: 'pulse',  icon: '◉', label: 'Nhịp nhấn' }
+  ];
+  const STEP_EASINGS = [
+    { id: 'easeInOut', label: 'Mượt đều' },
+    { id: 'easeOut',   label: 'Nhanh→Chậm' },
+    { id: 'spring',    label: 'Đàn hồi' },
+    { id: 'linear',    label: 'Tuyến tính' }
+  ];
+  const EFFECT_LABEL_MAP = Object.fromEntries(STEP_EFFECTS.map(e => [e.id, e]));
+
+  function closeEffectPopover() {
+    if (effectPopover) {
+      effectPopover.classList.remove('open');
+    }
+    effectPopoverState = null;
+  }
+
+  function ensureEffectPopover() {
+    if (effectPopover) return effectPopover;
+    const pop = document.createElement('div');
+    pop.id = 'mn-rp-fx-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Tùy chỉnh hiệu ứng bước');
+    document.body.appendChild(pop);
+
+    document.addEventListener('pointerdown', (e) => {
+      if (!effectPopover || !effectPopover.classList.contains('open')) return;
+      if (effectPopover.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-act="fx"]')) return;
+      closeEffectPopover();
+    }, true);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && effectPopover && effectPopover.classList.contains('open')) {
+        closeEffectPopover();
+      }
+    });
+
+    effectPopover = pop;
+    return pop;
+  }
+
+  function openEffectPopover(rawIdx, clientX, clientY) {
+    const b = getBoard();
+    const r = getFocusedReplay(b);
+    if (!b || !r || !r.steps[rawIdx]) return;
+    const pg = b.doc.pages[r.page];
+    if (!pg || !pg.geo) return;
+
+    const st = r.steps[rawIdx];
+    const pop = ensureEffectPopover();
+    effectPopoverState = { rawIdx, replayId: r.id };
+
+    const isShape = st.kind === 'shape';
+    const sh = isShape ? pg.geo.shapes.find(s => s.id === st.refId) : null;
+    const hasDir = isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind);
+    const isInterPt = st.kind === 'point' && pg.geo.points[st.refId] && pg.geo.points[st.refId].def && pg.geo.points[st.refId].def.t === 'inter';
+    const labelText = stepDisplayLabel(pg.geo, st);
+
+    const curFx = st.effect || 'draw';
+    const curEase = st.easing || 'easeInOut';
+    const curDur = Math.max(0.5, Math.min(3.0, Number(st.durationMul) || 1));
+    const curPause = Math.max(0, Math.min(3.0, Number(st.pauseAfter) || 0));
+
+    const activeIdx = (() => {
+      let k = 0;
+      for (let i = 0; i < r.steps.length; i++) {
+        if (i === rawIdx) return r.steps[i].enabled === false ? -1 : k;
+        if (r.steps[i].enabled !== false) k++;
+      }
+      return -1;
+    })();
+
+    pop.innerHTML = `
+      <div class="mn-fx-head">
+        <div class="mn-fx-title" title="${escapeHtml(labelText)}">✨ Hiệu ứng: <span>${escapeHtml(labelText)}</span></div>
+        <button type="button" class="mn-icon-btn" data-fx-close title="Đóng">✕</button>
+      </div>
+      <div class="mn-fx-sec">
+        <div class="mn-fx-label">Kiểu hiệu ứng (8 hiệu ứng)</div>
+        <div class="mn-fx-grid">
+          ${STEP_EFFECTS.map(ef => `<button type="button" class="mn-fx-pill${curFx === ef.id ? ' on' : ''}" data-fx-effect="${ef.id}"><span>${ef.icon}</span><span>${ef.label}</span></button>`).join('')}
+        </div>
+      </div>
+      <div class="mn-fx-sec">
+        <div class="mn-fx-label">Đường cong chuyển động (Easing)</div>
+        <div class="mn-fx-ease-row">
+          ${STEP_EASINGS.map(ea => `<button type="button" class="mn-fx-chip${curEase === ea.id ? ' on' : ''}" data-fx-easing="${ea.id}">${ea.label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="mn-fx-sec mn-fx-sliders">
+        <div class="mn-fx-slider-row">
+          <span>Thời lượng</span>
+          <input type="range" min="0.5" max="3.0" step="0.1" value="${curDur.toFixed(1)}" data-fx-dur />
+          <span class="mn-fx-val" data-fx-dur-val>${curDur.toFixed(1)}×</span>
+        </div>
+        <div class="mn-fx-slider-row">
+          <span>Nghỉ sau bước</span>
+          <input type="range" min="0" max="3.0" step="0.1" value="${curPause.toFixed(1)}" data-fx-pause />
+          <span class="mn-fx-val" data-fx-pause-val>${curPause.toFixed(1)}s</span>
+        </div>
+      </div>
+      ${(hasDir || isShape || isInterPt) ? `
+      <div class="mn-fx-sec mn-fx-toggles">
+        ${hasDir ? `<button type="button" class="mn-fx-chip${st.rev ? ' on' : ''}" data-fx-toggle="rev">⇄ Đảo chiều</button>` : ''}
+        ${isShape ? `<button type="button" class="mn-fx-chip${st.tempHide ? ' on' : ''}" data-fx-toggle="tempHide">👻 Vẽ rồi ẩn</button>` : ''}
+        ${isInterPt ? `<button type="button" class="mn-fx-chip${st.showGuides !== false ? ' on' : ''}" data-fx-toggle="showGuides">✛ 2 đường dẫn</button>` : ''}
+      </div>` : ''}
+      <div class="mn-fx-foot">
+        <button type="button" class="mn-fx-btn primary" data-fx-preview>▶ Xem thử bước</button>
+        <button type="button" class="mn-fx-btn" data-fx-apply-all>Áp dụng cho tất cả bước</button>
+      </div>
+    `;
+
+    pop.classList.add('open');
+
+    // Smart viewport clamp positioning (prefer clean side-by-side left of #mn-replay-panel so step rows stay visible!)
+    const pw = pop.offsetWidth || 328;
+    const ph = pop.offsetHeight || 320;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelRect = (replayPanel && replayPanel.classList.contains('open')) ? replayPanel.getBoundingClientRect() : null;
+    let left;
+    if (panelRect && panelRect.left - pw - 10 >= 12) {
+      left = panelRect.left - pw - 10;
+    } else if (panelRect && panelRect.right + 10 + pw <= vw - 12) {
+      left = panelRect.right + 10;
+    } else {
+      left = (clientX || vw - pw - 20) - pw - 10;
+      if (left < 12) left = Math.min(vw - pw - 12, (clientX || 20) + 12);
+    }
+    let top = (clientY || 120) - 28;
+    if (top + ph > vh - 12) top = Math.max(12, vh - ph - 12);
+    if (top < 12) top = 12;
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+
+    pop.querySelector('[data-fx-close]').addEventListener('click', closeEffectPopover);
+
+    pop.querySelectorAll('[data-fx-effect]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        st.effect = btn.dataset.fxEffect;
+        pop.querySelectorAll('[data-fx-effect]').forEach(x => x.classList.toggle('on', x === btn));
+        persistScript(b, false, r);
+        renderReplayUI();
+        if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
+      });
+    });
+
+    pop.querySelectorAll('[data-fx-easing]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        st.easing = btn.dataset.fxEasing;
+        pop.querySelectorAll('[data-fx-easing]').forEach(x => x.classList.toggle('on', x === btn));
+        persistScript(b, false, r);
+        renderReplayUI();
+      });
+    });
+
+    const durInp = pop.querySelector('[data-fx-dur]');
+    const durVal = pop.querySelector('[data-fx-dur-val]');
+    durInp.addEventListener('input', () => {
+      const v = Math.max(0.5, Math.min(3.0, parseFloat(durInp.value) || 1));
+      st.durationMul = Number(v.toFixed(1));
+      durVal.textContent = st.durationMul.toFixed(1) + '×';
+      persistScript(b, false, r);
+    });
+    durInp.addEventListener('change', () => renderReplayUI());
+
+    const pauseInp = pop.querySelector('[data-fx-pause]');
+    const pauseVal = pop.querySelector('[data-fx-pause-val]');
+    pauseInp.addEventListener('input', () => {
+      const v = Math.max(0, Math.min(3.0, parseFloat(pauseInp.value) || 0));
+      st.pauseAfter = Number(v.toFixed(1));
+      pauseVal.textContent = st.pauseAfter.toFixed(1) + 's';
+      persistScript(b, false, r);
+    });
+    pauseInp.addEventListener('change', () => renderReplayUI());
+
+    pop.querySelectorAll('[data-fx-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.fxToggle;
+        if (key === 'rev') st.rev = !st.rev;
+        else if (key === 'tempHide') st.tempHide = !st.tempHide;
+        else if (key === 'showGuides') st.showGuides = st.showGuides === false;
+        btn.classList.toggle('on', key === 'showGuides' ? st.showGuides !== false : !!st[key]);
+        persistScript(b, false, r);
+        renderReplayUI();
+        if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
+      });
+    });
+
+    pop.querySelector('[data-fx-preview]').addEventListener('click', () => {
+      if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
+    });
+
+    pop.querySelector('[data-fx-apply-all]').addEventListener('click', () => {
+      const fx = st.effect || 'draw';
+      const ea = st.easing || 'easeInOut';
+      const dm = Number(st.durationMul) || 1;
+      const pa = Number(st.pauseAfter) || 0;
+      for (const item of r.steps) {
+        item.effect = fx;
+        item.easing = ea;
+        item.durationMul = dm;
+        item.pauseAfter = pa;
+      }
+      persistScript(b, true, r);
+      renderReplayUI();
+      closeEffectPopover();
+    });
+  }
 
   function getActiveReplays(b) {
     if (!b) return [];
@@ -669,7 +891,9 @@
       pointIds: r.scopePoints ? [...r.scopePoints] : null,
       solidGroups,
       speed: r.speed || 1,
-      pauseBetween: !!r.pauseBetween
+      pauseBetween: !!r.pauseBetween,
+      followCamera: r.followCamera !== false,
+      autoOrbitAfter: !!r.autoOrbitAfter
     };
     const ok = b.saveBuildScript(r.page, r.steps, meta);
     if (ok && showFeedback) flashSavedBadge(1);
@@ -719,6 +943,13 @@
           <div class="mn-rp-scrubber">
             <span id="mn-rp-step-count" style="font-weight:700;color:#2563eb;min-width:36px;font-variant-numeric:tabular-nums;">0/0</span>
             <input type="range" id="mn-rp-scrub" min="0" max="0" step="1" value="0" />
+          </div>
+          <div class="mn-rp-tools-bar">
+            <button type="button" class="mn-rp-tool-btn active" id="mn-rp-follow" title="Tự động theo dõi nét vẽ (Auto-Follow Camera)">🎥 <span>Theo dõi</span></button>
+            <button type="button" class="mn-rp-tool-btn" id="mn-rp-hand" title="Bật / Tắt tay cầm bút khi dựng lại">✍ <span>Tay bút</span></button>
+            <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-now" title="Xoay tròn đều 360° khối 3D">↻ <span>360°</span></button>
+            <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-after" title="Tự xoay 360° sau khi dựng xong hình 3D">⟳ <span>Tự xoay</span></button>
+            <button type="button" class="mn-rp-tool-btn primary-soft" id="mn-rp-export" title="Xuất GIF động hoặc Video (cắt gọn quanh hình)">🎬 <span>Xuất</span></button>
           </div>
         </div>
         <div class="mn-rp-presets-pop" id="mn-rp-presets-pop">
@@ -784,6 +1015,38 @@
       el.querySelector('#mn-rp-preset-solid').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('solidFirst'));
       el.querySelector('#mn-rp-preset-hidden').addEventListener('click', () => window.MinNoteGeoReplay.addHiddenLines());
       el.querySelector('#mn-rp-preset-ungroup').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('ungroup'));
+
+      el.querySelector('#mn-rp-follow').addEventListener('click', () => {
+        window.MinNoteGeoReplay.toggleFollowCamera();
+      });
+      el.querySelector('#mn-rp-hand').addEventListener('click', () => {
+        if (window.MinNoteHandCursor && typeof window.MinNoteHandCursor.toggleReplay === 'function') {
+          window.MinNoteHandCursor.toggleReplay();
+        }
+        renderReplayUI();
+      });
+      el.querySelector('#mn-rp-orbit-now').addEventListener('click', () => {
+        const b = getBoard();
+        const r = getFocusedReplay(b);
+        if (!b || !r || typeof b.toggleAutoOrbit !== 'function') return;
+        if (b.isAutoOrbiting && b.isAutoOrbiting()) {
+          b.stopAutoOrbit(true);
+        } else {
+          const found = typeof b.findOrbitSolid === 'function' ? b.findOrbitSolid(r.page, r.scopeShapes) : null;
+          if (found) b.startAutoOrbit(found.page, found.id, 0.75);
+        }
+        renderReplayUI();
+      });
+      el.querySelector('#mn-rp-orbit-after').addEventListener('click', () => {
+        window.MinNoteGeoReplay.toggleAutoOrbitAfter();
+      });
+      el.querySelector('#mn-rp-export').addEventListener('click', () => {
+        const b = getBoard();
+        const r = getFocusedReplay(b);
+        if (window.MinNoteReplayExporter && typeof window.MinNoteReplayExporter.openModal === 'function') {
+          window.MinNoteReplayExporter.openModal(r);
+        }
+      });
 
       replayPanel = el;
     }
@@ -1132,6 +1395,28 @@
     scrub.max = String(total);
     scrub.value = String(curDisplay);
 
+    const followBtn = replayPanel.querySelector('#mn-rp-follow');
+    if (followBtn) followBtn.classList.toggle('active', r.followCamera !== false);
+    const handBtn = replayPanel.querySelector('#mn-rp-hand');
+    if (handBtn) {
+      const handOn = !!(window.MinNoteHandCursor && typeof window.MinNoteHandCursor.isReplay === 'function' && window.MinNoteHandCursor.isReplay());
+      handBtn.classList.toggle('active', handOn);
+    }
+    const has3D = !!(typeof b.findOrbitSolid === 'function' && b.findOrbitSolid(r.page, r.scopeShapes));
+    const orbitNowBtn = replayPanel.querySelector('#mn-rp-orbit-now');
+    if (orbitNowBtn) {
+      const orbiting = !!(typeof b.isAutoOrbiting === 'function' && b.isAutoOrbiting());
+      orbitNowBtn.classList.toggle('active', orbiting);
+      orbitNowBtn.disabled = !has3D && !orbiting;
+      orbitNowBtn.title = has3D ? (orbiting ? 'Dừng xoay 360°' : 'Xoay tròn đều 360° khối 3D') : 'Chưa có khối 3D trên trang để xoay';
+    }
+    const orbitAfterBtn = replayPanel.querySelector('#mn-rp-orbit-after');
+    if (orbitAfterBtn) {
+      orbitAfterBtn.classList.toggle('active', !!r.autoOrbitAfter);
+      orbitAfterBtn.disabled = !has3D && !r.autoOrbitAfter;
+      orbitAfterBtn.title = has3D ? 'Tự động xoay tròn 360° sau khi dựng xong hình 3D' : 'Chỉ dùng khi kịch bản có khối 3D';
+    }
+
     const stepsToggle = replayPanel.querySelector('#mn-rp-steps-toggle');
     if (stepsToggle) {
       stepsToggle.classList.toggle('active', !stepsCollapsed);
@@ -1158,7 +1443,7 @@
       const isDone = isEnabled && (myActiveIdx < r.stepIdx || (myActiveIdx === r.stepIdx && r.stepProgress >= 1));
 
       const row = document.createElement('div');
-      row.className = `mn-step-item compact${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
+      row.className = `mn-step-item mn-rp-step compact${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
       row.dataset.idx = String(rawIdx);
 
       const isShape = st.kind === 'shape';
@@ -1167,14 +1452,24 @@
       const isInterPt = st.kind === 'point' && geo.points[st.refId] && geo.points[st.refId].def && geo.points[st.refId].def.t === 'inter';
       const isGroup = !!(st.items && st.items.length > 1);
       const labelText = stepDisplayLabel(geo, st);
+      const fxId = st.effect || 'draw';
+      const hasCustomFx = fxId !== 'draw' || (st.easing && st.easing !== 'easeInOut') || (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) || (Number(st.pauseAfter) > 0);
+      const fxMeta = EFFECT_LABEL_MAP[fxId] || STEP_EFFECTS[0];
+      const fxTagBits = [];
+      if (fxId !== 'draw') fxTagBits.push(`${fxMeta.icon} ${fxMeta.label}`);
+      if (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) fxTagBits.push(`${Number(st.durationMul).toFixed(1)}×`);
+      if (Number(st.pauseAfter) > 0) fxTagBits.push(`+${Number(st.pauseAfter).toFixed(1)}s`);
+      const fxTagHtml = fxTagBits.length ? `<span class="mn-step-fx-tag">${escapeHtml(fxTagBits.join(' · '))}</span>` : '';
 
       row.innerHTML = `
         <span class="mn-step-drag" title="Kéo để đổi thứ tự">⋮⋮</span>
         <span class="mn-step-num">${isEnabled ? myActiveIdx + 1 : '—'}</span>
         <div class="mn-step-info">
-          <div class="mn-step-label" title="${escapeHtml(labelText)}">${escapeHtml(labelText)}</div>
+          <div class="mn-step-label" title="${escapeHtml(labelText)} (Chuột phải để chỉnh hiệu ứng)">${escapeHtml(labelText)}</div>
+          ${fxTagHtml}
         </div>
         <div class="mn-step-actions">
+          <button class="mn-mini-btn ${hasCustomFx ? 'on' : ''}" data-act="fx" title="Tùy chỉnh hiệu ứng bước (hoặc nhấp chuột phải)">✨</button>
           ${isInterPt ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="Vẽ 2 đường giao nhau rồi ẩn">✛</button>` : ''}
           ${isShape ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="Vẽ tạm rồi tự ẩn">👻</button>` : ''}
           ${hasDir ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ">⇄</button>` : ''}
@@ -1186,6 +1481,12 @@
 
       attachPointerReorder(listEl, row, rawIdx, b, r, labelText);
 
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openEffectPopover(rawIdx, e.clientX, e.clientY);
+      });
+
       row.addEventListener('click', (e) => {
         if (Date.now() < suppressRowClickUntil) return;
         const btn = e.target.closest('[data-act]');
@@ -1195,7 +1496,10 @@
         }
         e.stopPropagation();
         const act = btn.dataset.act;
-        if (act === 'guides') {
+        if (act === 'fx') {
+          const br = btn.getBoundingClientRect();
+          openEffectPopover(rawIdx, br.left, br.top + br.height / 2);
+        } else if (act === 'guides') {
           st.showGuides = st.showGuides === false;
           persistScript(b, false, r);
           if (isEnabled) window.MinNoteGeoReplay.playSingleStep(myActiveIdx);
@@ -1303,6 +1607,8 @@
           stepProgress: 0,
           speed: (matchedSaved && typeof matchedSaved.speed === 'number') ? matchedSaved.speed : 1,
           pauseBetween: !!(matchedSaved && matchedSaved.pauseBetween),
+          followCamera: matchedSaved && typeof matchedSaved.followCamera === 'boolean' ? matchedSaved.followCamera : true,
+          autoOrbitAfter: !!(matchedSaved && matchedSaved.autoOrbitAfter),
           scopeShapes,
           scopePoints,
           scopeKey,
@@ -1335,6 +1641,8 @@
         stepProgress: 0,
         speed: (matchedSaved && typeof matchedSaved.speed === 'number') ? matchedSaved.speed : 1,
         pauseBetween: !!(matchedSaved && matchedSaved.pauseBetween),
+        followCamera: matchedSaved && typeof matchedSaved.followCamera === 'boolean' ? matchedSaved.followCamera : true,
+        autoOrbitAfter: !!(matchedSaved && matchedSaved.autoOrbitAfter),
         scopeShapes: null,
         scopePoints: null,
         scopeKey: 'all',
@@ -1401,6 +1709,8 @@
         stepProgress: 0,
         speed: typeof entry.speed === 'number' ? entry.speed : 1,
         pauseBetween: !!entry.pauseBetween,
+        followCamera: typeof entry.followCamera === 'boolean' ? entry.followCamera : true,
+        autoOrbitAfter: !!entry.autoOrbitAfter,
         scopeShapes,
         scopePoints,
         scopeKey,
@@ -1452,8 +1762,12 @@
     },
 
     close() {
+      closeEffectPopover();
       const b = getBoard();
-      if (b) b.stopReplay();
+      if (b) {
+        if (typeof b.stopAutoOrbit === 'function') b.stopAutoOrbit(true);
+        b.stopReplay();
+      }
       replayViewMode = 'full';
       renderReplayUI();
     },
@@ -1655,6 +1969,127 @@
       r.playing = false;
       persistScript(b, false, r);
       commitReplayChange(b, r, true);
+    },
+
+    toggleFollowCamera() {
+      const b = getBoard();
+      const r = getFocusedReplay(b);
+      if (!b || !r) return false;
+      r.followCamera = r.followCamera === false;
+      persistScript(b, false, r);
+      renderReplayUI();
+      return r.followCamera;
+    },
+
+    toggleAutoOrbitAfter() {
+      const b = getBoard();
+      const r = getFocusedReplay(b);
+      if (!b || !r) return false;
+      r.autoOrbitAfter = !r.autoOrbitAfter;
+      persistScript(b, false, r);
+      renderReplayUI();
+      return r.autoOrbitAfter;
+    },
+
+    openEffectMenu(rawIdx, clientX, clientY) {
+      openEffectPopover(rawIdx, clientX, clientY);
+    },
+
+    getExportContext(replayArg) {
+      const b = getBoard();
+      if (!b) return null;
+      let r = replayArg || getFocusedReplay(b);
+      if (!r) {
+        const pageIdx = b.currentPage();
+        const pg0 = b.doc.pages[pageIdx];
+        if (!pg0 || !pg0.geo) return null;
+        const steps = buildDefaultSteps(pg0.geo, null, null);
+        if (!steps.length) return null;
+        r = {
+          id: 'rp_export_tmp',
+          title: 'Cả trang',
+          scriptKey: 'all',
+          active: true,
+          page: pageIdx,
+          playing: false,
+          stepIdx: 0,
+          stepProgress: 0,
+          speed: 1,
+          pauseBetween: false,
+          followCamera: true,
+          autoOrbitAfter: false,
+          scopeShapes: null,
+          scopePoints: null,
+          scopeKey: 'all',
+          steps
+        };
+      }
+      const pg = b.doc.pages[r.page];
+      if (!pg || !pg.geo) return null;
+      const geo = pg.geo;
+      const K = window.__mnGeoKernel;
+      const coords = K && typeof K.Tt === 'function' ? K.Tt(geo) : new Map();
+      const activeSteps = (r.steps || []).filter(s => s.enabled !== false);
+
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      const addPt = (x, y, pad = 0) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        if (x - pad < x0) x0 = x - pad;
+        if (y - pad < y0) y0 = y - pad;
+        if (x + pad > x1) x1 = x + pad;
+        if (y + pad > y1) y1 = y + pad;
+      };
+
+      const shSet = r.scopeShapes || null;
+      const ptSet = r.scopePoints || null;
+      for (const sh of (geo.shapes || [])) {
+        if (sh.hidden || sh.kind === 'solid' || sh.kind === 'flatLink') continue;
+        if (shSet && !shSet.has(sh.id)) continue;
+        const bb = K && typeof K._mnShapeBBox === 'function' ? K._mnShapeBBox(sh, coords) : null;
+        if (bb) {
+          addPt(bb.x0, bb.y0, 8);
+          addPt(bb.x1, bb.y1, 8);
+        } else {
+          for (const pid of (sh.pts || [])) {
+            const p = coords.get(pid);
+            if (p) addPt(p.x, p.y, 8);
+          }
+        }
+      }
+      const opts = {
+        names: b.doc.names !== false,
+        labelSize: b.doc.labelSize,
+        dots: b.doc.dots,
+        labelColor: b.doc.labelColor,
+        dotColor: b.doc.dotColor,
+        dotSize: b.doc.dotSize
+      };
+      const lblPos = K && typeof K.xk === 'function' ? K.xk(geo, coords, opts) : null;
+      const fsz = opts.labelSize || 20;
+      for (const pt of Object.values(geo.points || {})) {
+        if (!pt.show || pt.hidden) continue;
+        if (ptSet && !ptSet.has(pt.id)) continue;
+        const c = coords.get(pt.id);
+        if (c) addPt(c.x, c.y, 12);
+        const lp = lblPos && lblPos.get(pt.id);
+        if (lp) addPt(lp.x, lp.y, Math.max(16, fsz * 0.95));
+      }
+      if (!Number.isFinite(x0)) {
+        x0 = 0; y0 = 0; x1 = 400; y1 = 300;
+      }
+      const bounds = { x0, y0, x1, y1, width: Math.max(40, x1 - x0), height: Math.max(40, y1 - y0) };
+      const solid = typeof b.findOrbitSolid === 'function' ? b.findOrbitSolid(r.page, r.scopeShapes) : null;
+      return {
+        board: b,
+        replay: r,
+        pageIdx: r.page,
+        page: pg,
+        geo,
+        activeSteps,
+        bounds,
+        solidId: solid ? solid.id : null,
+        has3D: !!solid
+      };
     }
   };
 

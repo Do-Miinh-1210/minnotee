@@ -799,8 +799,11 @@
         color: #e2e8f0 !important;
       }
 
-      /* Upgraded Node Cards (Crisp Typography, Larger KaTeX, Subtle Hover & Cobalt Ring) */
+      /* Upgraded Node Cards (Crisp Typography, Larger KaTeX, Exact Flex Centering) */
       #mea-mindmap-container .mm-node-card {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
         padding: 9px 16px !important;
         border-radius: 12px !important;
         background: #ffffff !important;
@@ -842,6 +845,7 @@
 
       /* Root Node (MinNote Cobalt Hero Card) */
       #mea-mindmap-container .mm-node-card.level-0 {
+        justify-content: center !important;
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
         color: #ffffff !important;
         border: 2px solid #60a5fa !important;
@@ -915,6 +919,7 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        width: 100%;
         line-height: 1.5 !important;
       }
       #mea-mindmap-container .mm-node-card.level-0 .mm-node-text {
@@ -936,12 +941,17 @@
         color: #f8fafc !important;
       }
 
-      /* Collapse/Expand Pill Badge with Hidden Descendant Count */
+      /* Collapse/Expand Pill Badge — Exact Geometric Circle & Pill Centering */
       #mea-mindmap-container .mm-collapse-badge {
-        min-width: 22px !important;
-        width: auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+        box-sizing: border-box !important;
+        width: 20px !important;
+        min-width: 20px !important;
         height: 20px !important;
-        padding: 0 6px !important;
+        padding: 0 !important;
         border-radius: 999px !important;
         background: var(--node-color, #2563eb) !important;
         color: #ffffff !important;
@@ -950,9 +960,14 @@
         font-weight: 700 !important;
         font-variant-numeric: tabular-nums !important;
         box-shadow: 0 2px 6px rgba(15, 23, 42, 0.24) !important;
-        right: -13px !important;
+        right: -11px !important;
         top: 50% !important;
         transform: translateY(-50%) !important;
+      }
+      #mea-mindmap-container .mm-collapse-badge svg {
+        display: block !important;
+        flex-shrink: 0 !important;
+        pointer-events: none !important;
       }
       html.dark #mea-mindmap-container .mm-collapse-badge {
         border-color: #0b1120 !important;
@@ -961,6 +976,17 @@
         transform: translateY(-50%) scale(1.12) !important;
       }
       #mea-mindmap-container .mm-collapse-badge.side-left {
+        left: -11px !important;
+        right: auto !important;
+      }
+      #mea-mindmap-container .mm-collapse-badge.is-collapsed {
+        width: auto !important;
+        min-width: 24px !important;
+        height: 20px !important;
+        padding: 0 5px !important;
+        right: -13px !important;
+      }
+      #mea-mindmap-container .mm-collapse-badge.side-left.is-collapsed {
         left: -13px !important;
         right: auto !important;
       }
@@ -1622,11 +1648,16 @@
     const H_SIB_GAP = 26;    // Horizontal gap between siblings in top-down layout
 
     let measureBox = document.getElementById('mm-measure-box');
-    if (!measureBox && typeof document !== 'undefined') {
+    const mmContainer = typeof document !== 'undefined' ? document.getElementById('mea-mindmap-container') : null;
+    const isContainerVisible = !!(mmContainer && mmContainer.offsetParent !== null && !mmContainer.classList.contains('mode-closed'));
+    const measureHost = isContainerVisible ? mmContainer : (typeof document !== 'undefined' ? document.body : null);
+    if (!measureBox && measureHost) {
       measureBox = document.createElement('div');
       measureBox.id = 'mm-measure-box';
       measureBox.style.cssText = 'position:fixed; visibility:hidden; pointer-events:none; left:-9999px; top:-9999px; width:max-content; max-width:660px; z-index:-1;';
-      document.body.appendChild(measureBox);
+      measureHost.appendChild(measureBox);
+    } else if (measureBox && measureHost && measureBox.parentElement !== measureHost) {
+      measureHost.appendChild(measureBox);
     }
 
     function measureNode(node, level = 0) {
@@ -1641,17 +1672,22 @@
         const fontSize = level === 0 ? '15.5px' : (level === 1 ? '13.5px' : '13px');
         const fontWeight = level === 0 ? '700' : (level === 1 ? '600' : '400');
         const pad = level === 0
-          ? (shape === 'pill' ? '12px 26px' : '12px 22px')
+          ? (shape === 'pill' ? '12px 20px' : (shape === 'underline' ? '6px 12px' : '12px 22px'))
           : (shape === 'pill' ? '9px 20px' : (shape === 'underline' ? '6px 12px' : '9px 16px'));
-        card.style.cssText = `display:inline-block; position:static; width:max-content; max-width:${maxW}px; min-width:96px; box-sizing:border-box; visibility:hidden; padding:${pad}; font-size:${fontSize}; font-weight:${fontWeight}; line-height:1.5; font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;`;
-        card.innerHTML = `<div class="mm-node-text" style="display:flex;align-items:center;gap:6px;">${renderNodeInnerHtml(node)}</div>`;
+        const borderCss = shape === 'underline'
+          ? `border:0; border-bottom:${level === 0 ? '3.5px' : '3px'} solid transparent;`
+          : (level === 0 || level === 1
+            ? 'border:2px solid transparent;'
+            : 'border:1.75px solid transparent; border-left-width:4px;');
+        card.style.cssText = `display:inline-flex; align-items:center; justify-content:${level === 0 ? 'center' : 'flex-start'}; position:static; width:max-content; max-width:${maxW}px; min-width:96px; box-sizing:border-box; visibility:hidden; padding:${pad}; ${borderCss} font-size:${fontSize}; font-weight:${fontWeight}; line-height:1.5; font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;`;
+        card.innerHTML = `<div class="mm-node-text" style="display:flex;align-items:center;gap:6px;width:100%;line-height:1.5;${level === 0 ? 'justify-content:center;' : ''}">${renderNodeInnerHtml(node)}</div>`;
         // Match enlarged KaTeX font size during measurement
         card.querySelectorAll('.katex').forEach(k => { k.style.fontSize = '1.14em'; });
         measureBox.appendChild(card);
         const rect = card.getBoundingClientRect();
         if (rect && rect.width > 20) {
-          w = Math.ceil(rect.width) + 20;
-          h = Math.ceil(rect.height) + 6;
+          w = Math.ceil(rect.width) + 10;
+          h = Math.ceil(rect.height);
         }
         measureBox.removeChild(card);
       }
@@ -1665,11 +1701,13 @@
         const badgeExtra = node.badge ? 24 : 0;
         const totalEst = plainText.length * 9 + formulaChars * 8.5 + 52 + badgeExtra;
         w = Math.min(maxW, Math.max(120, totalEst));
-        h = 46 + (rawText.includes('\n') || rawText.includes('\\begin') || rawText.includes('\\frac') ? 36 : 0);
+        h = 44 + (rawText.includes('\n') || rawText.includes('\\begin') || rawText.includes('\\frac') ? 32 : 0);
       }
 
       node.w = Math.max(level === 0 ? 190 : 108, w);
-      node.h = Math.max(level === 0 ? 52 : 42, h);
+      node.h = Math.max(level === 0 ? 48 : 40, h);
+      node._rw = node.w;
+      node._rh = node.h;
 
       if (node.children && node.children.length > 0 && node.expanded !== false) {
         let totalChildHeight = 0;
@@ -1814,10 +1852,14 @@
   }
 
   function buildConnectorPath(parent, child, ox, oy, layout) {
+    const pw = parent._rw || parent.w;
+    const ph = parent._rh || parent.h;
+    const cw = child._rw || child.w;
+    const ch = child._rh || child.h;
     if (layout === 'down') {
-      const sx = (parent.x + parent.w / 2) - ox;
-      const sy = (parent.y + parent.h) - oy;
-      const ex = (child.x + child.w / 2) - ox;
+      const sx = (parent.x + pw / 2) - ox;
+      const sy = (parent.y + ph) - oy;
+      const ex = (child.x + cw / 2) - ox;
       const ey = child.y - oy;
       const cy1 = sy + (ey - sy) * 0.5;
       const cy2 = ey - (ey - sy) * 0.5;
@@ -1825,18 +1867,51 @@
     }
     if (child._side === 'left') {
       const sx = parent.x - ox;
-      const sy = (parent.y + parent.h / 2) - oy;
-      const ex = (child.x + child.w) - ox;
-      const ey = (child.y + child.h / 2) - oy;
+      const sy = (parent.y + ph / 2) - oy;
+      const ex = (child.x + cw) - ox;
+      const ey = (child.y + ch / 2) - oy;
       const dx = Math.abs(sx - ex) * 0.45;
       return `M ${sx} ${sy} C ${sx - dx} ${sy}, ${ex + dx} ${ey}, ${ex} ${ey}`;
     }
-    const sx = (parent.x + parent.w) - ox;
-    const sy = (parent.y + parent.h / 2) - oy;
+    const sx = (parent.x + pw) - ox;
+    const sy = (parent.y + ph / 2) - oy;
     const ex = child.x - ox;
-    const ey = (child.y + child.h / 2) - oy;
+    const ey = (child.y + ch / 2) - oy;
     const dx = Math.abs(ex - sx) * 0.45;
     return `M ${sx} ${sy} C ${sx + dx} ${sy}, ${ex - dx} ${ey}, ${ex} ${ey}`;
+  }
+
+  function syncRenderedConnectors(edgesSvg, rootNode, layout) {
+    if (!edgesSvg || !rootNode) return;
+    function readActualBoxes(node) {
+      const el = document.getElementById(`mm-card-${node.id}`);
+      if (el && el.offsetHeight > 0 && el.offsetWidth > 0) {
+        node._rw = el.offsetWidth;
+        node._rh = el.offsetHeight;
+      } else {
+        node._rw = node.w;
+        node._rh = node.h;
+      }
+      if (node.children && node.children.length > 0 && node.expanded !== false) {
+        node.children.forEach(readActualBoxes);
+      }
+    }
+    readActualBoxes(rootNode);
+
+    let syncedPaths = '';
+    function rebuildPaths(node, inheritedColor) {
+      const nodeColor = getNodeColor(node, inheritedColor);
+      if (node.children && node.children.length > 0 && node.expanded !== false) {
+        node.children.forEach((child) => {
+          const childColor = getNodeColor(child, nodeColor);
+          const d = buildConnectorPath(node, child, 0, 0, layout);
+          syncedPaths += `<path d="${d}" fill="none" stroke="${childColor}" stroke-width="2.4" stroke-linecap="round" opacity="0.88" />`;
+          rebuildPaths(child, nodeColor);
+        });
+      }
+    }
+    rebuildPaths(rootNode, '#2563eb');
+    edgesSvg.innerHTML = syncedPaths;
   }
 
   // 7. RENDER VISUAL SVG & HTML CARDS
@@ -1927,7 +2002,9 @@
             <div class="mm-collapse-badge side-${side} ${isCollapsed ? 'is-collapsed' : ''}"
                  onclick="window.toggleNodeExpand('${node.id}', event)"
                  title="${isCollapsed ? `Mở rộng ${hiddenDesc} nhánh ẩn` : 'Thu gọn nhánh'}">
-              ${isCollapsed ? `+${hiddenDesc}` : '−'}
+              ${isCollapsed
+                ? `<span>+${hiddenDesc}</span>`
+                : '<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'}
             </div>
           ` : ''}
         </div>
@@ -1987,6 +2064,9 @@
     nodesLayer.style.width = `${svgW}px`;
     nodesLayer.style.height = `${svgH}px`;
     nodesLayer.innerHTML = nodesHtml;
+
+    // Sync Bezier connectors to actual rendered DOM box heights so curves hit dead-center
+    syncRenderedConnectors(edgesSvg, state.tree, layout);
 
     const zoomLabel = document.getElementById('mindmap-zoom-label');
     if (zoomLabel) {
@@ -2473,6 +2553,27 @@
   };
 
   // 11. AI MINDMAP ASSISTANT
+  let _activeAiMindmapReqId = null;
+  let _activeAiMindmapTimer = null;
+  let _aiMindmapInFlight = false;
+
+  function cleanAiMarkdownResponse(raw) {
+    if (!raw) return '';
+    let s = String(raw).trim();
+    const fence = s.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
+    if (fence && fence[1]) s = fence[1].trim();
+    return s;
+  }
+
+  function clearAiMindmapPending() {
+    _activeAiMindmapReqId = null;
+    _aiMindmapInFlight = false;
+    if (_activeAiMindmapTimer) {
+      clearTimeout(_activeAiMindmapTimer);
+      _activeAiMindmapTimer = null;
+    }
+  }
+
   window.updateAiProviderBadge = function (info) {
     const badge = document.getElementById('mm-ai-provider-text');
     if (badge && info) {
@@ -2485,6 +2586,14 @@
     if (modal) modal.style.display = 'flex';
     if (window.__meaAiProviderInfo) {
       window.updateAiProviderBadge(window.__meaAiProviderInfo);
+    } else if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.request === 'function') {
+      window.MinNoteMeaSync.request('MEA_GET_AI_CONFIG', {}).then((cfg) => {
+        if (cfg && (cfg.provider || cfg.model)) {
+          const info = `${cfg.provider || 'AI'}${cfg.model ? ' • ' + cfg.model : ''}`;
+          window.__meaAiProviderInfo = info;
+          window.updateAiProviderBadge(info);
+        }
+      }).catch(() => {});
     }
     setTimeout(() => {
       const inp = document.getElementById('mm-ai-topic-input');
@@ -2497,6 +2606,37 @@
     if (modal) modal.style.display = 'none';
   };
 
+  window.receiveAiMindmapResult = function (payload) {
+    if (!_aiMindmapInFlight && !_activeAiMindmapReqId) {
+      // Ignore duplicate arrival when both ExecuteScript and MEA_SYNC_RESULT fire for the same request
+      return;
+    }
+    clearAiMindmapPending();
+    if (typeof payload === 'string') {
+      window.onAiMindmapGenerated(cleanAiMarkdownResponse(payload));
+      return;
+    }
+    if (payload && typeof payload === 'object') {
+      const prov = payload.provider || (payload.data && payload.data.provider);
+      const mdl = payload.model || (payload.data && payload.data.model);
+      if (prov || mdl) {
+        const info = `${prov || 'AI'}${mdl ? ' • ' + mdl : ''}`;
+        window.__meaAiProviderInfo = info;
+        window.updateAiProviderBadge(info);
+      }
+      if (payload.ok === false || payload.error) {
+        window.onAiMindmapError(payload.error || 'AI không thể tạo sơ đồ tư duy.');
+        return;
+      }
+      const md = payload.markdown || payload.text || payload.content || (payload.data && (payload.data.markdown || payload.data.text || payload.data.content)) || (typeof payload.data === 'string' ? payload.data : '');
+      if (md) {
+        window.onAiMindmapGenerated(cleanAiMarkdownResponse(md));
+      } else {
+        window.onAiMindmapError('AI không trả về nội dung sơ đồ tư duy hợp lệ!');
+      }
+    }
+  };
+
   window.generateAiMindmap = async function () {
     const input = document.getElementById('mm-ai-topic-input');
     const topic = input ? input.value.trim() : '';
@@ -2505,20 +2645,51 @@
       else window.showToast('Vui lòng nhập chủ đề hoặc bài học cần tạo sơ đồ tư duy!', 'warning');
       return;
     }
+    _aiMindmapInFlight = true;
     const btnGen = document.getElementById('btn-exec-ai-gen');
     if (btnGen) {
       btnGen.disabled = true;
       btnGen.innerHTML = '<span>⏳ AI đang tư duy &amp; phân nhánh...</span>';
     }
-    // 1. Desktop C# WebView2 bridge
+
+    const sysPrompt = 'Bạn là chuyên gia sư phạm Toán học THPT. Hãy tạo dàn ý sơ đồ tư duy (Mindmap) chuẩn khoa học, ngắn gọn, súc tích cho bài học được yêu cầu. BẮT BUỘC sử dụng công thức toán học LaTeX kẹp trong dấu $...$ cho các công thức, định lý, điều kiện. Định dạng thuần Markdown: Tiêu đề gốc #, nhánh chính ##, nhánh con -. Không giải thích thêm ngoài dàn ý Markdown.';
+    const userPrompt = `Hãy lập sơ đồ tư duy toán học cho chủ đề: ${topic}`;
+
+    // 1. Unified MatrixExamAI Pro Shared AI Sync (MinNoteMeaSync)
+    if (window.MinNoteMeaSync && typeof window.MinNoteMeaSync.executeAiPrompt === 'function') {
+      try {
+        const res = await window.MinNoteMeaSync.executeAiPrompt(userPrompt, sysPrompt, { temperature: 0.3 });
+        const md = cleanAiMarkdownResponse(typeof res === 'string' ? res : (res && (res.text || res.content || res.reply || res.markdown)));
+        if (md && md.length > 10) {
+          window.onAiMindmapGenerated(md);
+          return;
+        }
+      } catch (err) {
+        console.warn('[Mindmap] MinNoteMeaSync.executeAiPrompt fallback:', err);
+      }
+    }
+
+    // 2. Desktop C# WebView2 direct GENERATE_AI_MINDMAP bridge
     if (window.chrome && window.chrome.webview) {
+      clearAiMindmapPending();
+      const reqId = 'mm_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      _activeAiMindmapReqId = reqId;
+      _activeAiMindmapTimer = setTimeout(() => {
+        if (_activeAiMindmapReqId === reqId) {
+          clearAiMindmapPending();
+          window.onAiMindmapGenerated(buildSmartCurriculumFallback(topic));
+          window.showToast('AI phản hồi chậm — đã nạp sơ đồ chuẩn SGK thay thế.', 'warning');
+        }
+      }, 45000);
       window.chrome.webview.postMessage({
         type: 'GENERATE_AI_MINDMAP',
+        id: reqId,
         topic: topic
       });
       return;
     }
-    // 2. Standalone Web Fallback
+
+    // 3. Standalone Web Fallback (9Router -> Gemini stored key -> Smart Curriculum)
     try {
       let generatedMd = null;
       try {
@@ -2528,24 +2699,36 @@
           body: JSON.stringify({
             model: 'ag/gemini-3.8-flash-high',
             messages: [
-              {
-                role: 'system',
-                content: 'Bạn là chuyên gia sư phạm Toán học THPT. Hãy tạo dàn ý sơ đồ tư duy (Mindmap) chuẩn khoa học, ngắn gọn, súc tích cho bài học được yêu cầu. BẮT BUỘC sử dụng công thức toán học LaTeX kẹp trong dấu $...$ cho các công thức, định lý, điều kiện. Định dạng thuần Markdown: Tiêu đề gốc #, nhánh chính ##, nhánh con -.'
-              },
-              {
-                role: 'user',
-                content: `Hãy lập sơ đồ tư duy toán học cho chủ đề: ${topic}`
-              }
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: userPrompt }
             ],
             temperature: 0.3
           })
         });
         if (res.ok) {
           const json = await res.json();
-          generatedMd = json.choices?.[0]?.message?.content;
+          generatedMd = cleanAiMarkdownResponse(json.choices?.[0]?.message?.content);
         }
       } catch (err) {
         console.log('[Mindmap] Local AI fallback:', err);
+      }
+      if (!generatedMd) {
+        const gKey = (typeof localStorage !== 'undefined' && localStorage.getItem('note_gemini_api_key')) || '';
+        if (gKey.trim()) {
+          try {
+            const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(gKey.trim())}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: `${sysPrompt}\n\n${userPrompt}` }] }]
+              })
+            });
+            if (gRes.ok) {
+              const gJson = await gRes.json();
+              generatedMd = cleanAiMarkdownResponse(gJson.candidates?.[0]?.content?.parts?.[0]?.text);
+            }
+          } catch (_) {}
+        }
       }
       if (!generatedMd) {
         generatedMd = buildSmartCurriculumFallback(topic);
@@ -2557,17 +2740,19 @@
   };
 
   window.onAiMindmapGenerated = function (markdownText) {
+    clearAiMindmapPending();
     const btnGen = document.getElementById('btn-exec-ai-gen');
     if (btnGen) {
       btnGen.disabled = false;
       btnGen.innerHTML = '✨ Tạo sơ đồ ngay';
     }
-    if (!markdownText || !markdownText.trim()) {
+    const cleaned = cleanAiMarkdownResponse(markdownText);
+    if (!cleaned) {
       window.showToast('AI không trả về nội dung sơ đồ tư duy hợp lệ!', 'warning');
       return;
     }
     pushHistory();
-    state.tree = markdownToTree(markdownText.trim());
+    state.tree = markdownToTree(cleaned);
     state.selectedId = 'root';
     state.openStyleNodeId = null;
     refreshSearchMatches(false);
@@ -2578,6 +2763,7 @@
   };
 
   window.onAiMindmapError = function (errorMessage) {
+    clearAiMindmapPending();
     const btnGen = document.getElementById('btn-exec-ai-gen');
     if (btnGen) {
       btnGen.disabled = false;
@@ -2712,7 +2898,9 @@
         background: #ffffff;
         border: 1.75px solid var(--node-color, #2563eb);
         box-shadow: 0 3px 10px -2px rgba(15, 23, 42, 0.09);
-        display: inline-block;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
         max-width: 580px;
         min-width: 96px;
         box-sizing: border-box;
@@ -2723,6 +2911,7 @@
         text-rendering: geometricPrecision;
       }
       .mm-node-card.level-0 {
+        justify-content: center !important;
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: #ffffff;
         border: 2px solid #60a5fa;
@@ -3170,7 +3359,8 @@
   const onCapturedMessage = async function (e) {
     try {
       const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-      if (data && data.type === 'MINDMAP_CAPTURED' && data.dataUri) {
+      if (!data) return;
+      if (data.type === 'MINDMAP_CAPTURED' && data.dataUri) {
         if (typeof window.__onMindmapCapturedSuccess === 'function') {
           window.__onMindmapCapturedSuccess();
         }
@@ -3180,6 +3370,10 @@
         } else if (data.action === 'copy_word') {
           window.copyImageToClipboard(data.dataUri);
         }
+      } else if (data.type === 'AI_MINDMAP_RESULT') {
+        window.receiveAiMindmapResult(data);
+      } else if (data.type === 'MEA_SYNC_RESULT' && _activeAiMindmapReqId && data.id === _activeAiMindmapReqId) {
+        window.receiveAiMindmapResult(data);
       }
     } catch (_) {}
   };
@@ -3344,8 +3538,8 @@
       const ny = node.y - oy;
       nodesHtml += `
         <div class="mm-node-card level-${node.level} shape-${shape} side-${side}"
-             style="position: absolute; left: ${nx}px; top: ${ny}px; width: ${node.w}px; min-height: ${node.h}px; box-sizing: border-box; --node-color: ${nodeColor};">
-          <div class="mm-node-text">${renderNodeInnerHtml(node)}</div>
+             style="position: absolute; display: flex; align-items: center; justify-content: ${node.level === 0 ? 'center' : 'flex-start'}; left: ${nx}px; top: ${ny}px; width: ${node.w}px; min-height: ${node.h}px; box-sizing: border-box; --node-color: ${nodeColor};">
+          <div class="mm-node-text" style="display: flex; align-items: center; gap: 6px; width: 100%; ${node.level === 0 ? 'justify-content: center;' : ''}">${renderNodeInnerHtml(node)}</div>
         </div>
       `;
     }

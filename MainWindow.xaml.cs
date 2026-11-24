@@ -1,6 +1,7 @@
 using MinNote.Services;
 using MinNote.Views;
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Wpf.Ui.Controls;
 using MessageBox = System.Windows.MessageBox;
@@ -37,6 +39,13 @@ namespace MinNote
         private int _nativeRecStopping;
         private string _nativeRecDocName = "";
         private UpdateInfo? _availableUpdate;
+        private bool _isDirty;
+        private bool _allowCloseNow;
+        private bool _isHandlingClose;
+        private string _lastSavedDisplay = "";
+        private int _lastKnownSheetCount = 1;
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pendingHostRequests = new();
+        private StartupRecoveryInfo _sessionMeta = new();
 
         public static void Log(string msg)
         {
@@ -58,6 +67,9 @@ namespace MinNote
             Title = $"MinNote v{currentVer} • Bảng Viết & Vẽ Hình Toán Học - Đỗ Miinh Math";
             BtnUpdateTop.ToolTip = $"MinNote v{currentVer} • Bấm để kiểm tra bản cập nhật mới";
 
+            _sessionMeta = NotebookBackupService.Instance.MarkSessionStarted();
+            Log($"SessionStarted: prevCleanExit={_sessionMeta.PreviousCleanExit}, pendingUpdateRestore={_sessionMeta.PendingUpdateRestore}");
+
             // Kích hoạt & đồng bộ bản quyền Cloud; bảng viết chỉ mở khi license đã ký có quyền "whiteboard"
             RunLockedMid.Text = HardwareInfoService.GetMachineId();
             OnLicense(SupabaseLicenseService.Instance.GetCurrentLicense());
@@ -66,15 +78,22 @@ namespace MinNote
             _licenseTimer.Tick += async (s, e) => await SyncLicenseAsync();
             _licenseTimer.Start();
 
-            Closing += (s, e) => Log($"Window Closing: Cancel={e.Cancel}");
+            Closing += MainWindow_Closing;
             Closed += (s, e) =>
             {
                 Log("Window Closed");
+                try { MatrixExamSyncService.Instance.SyncChanged -= OnMeaSyncChanged; } catch { }
+                try { MatrixExamSyncService.Instance.Dispose(); } catch { }
+                try { WvWhiteboard?.Dispose(); } catch { }
                 try { _recOverlay?.Dispose(); } catch { }
                 try { NativeScreenRecorder.Instance.Dispose(); } catch { }
                 try { MininkEmfService.Instance.Dispose(); } catch { }
                 try { VideoRecorderService.Instance.Dispose(); } catch { }
             };
+
+            // Đồng bộ thời gian thực hai chiều với MatrixExamAI Pro (config.json, question_bank.db, figures/)
+            MatrixExamSyncService.Instance.SyncChanged += OnMeaSyncChanged;
+            MatrixExamSyncService.Instance.EnsureWatchersStarted();
 
             // Tự dò & làm nóng Inkscape/MinInk nền (hoặc tải MinInk có xác thực SHA-256 nếu máy chưa có)
             _ = Task.Run(() => MininkEmfService.Instance.EnsureAvailableOnStartupAsync(Log));
@@ -249,24 +268,40 @@ namespace MinNote
                     : await CreateEnvironmentWithFallbackAsync();
                 Log("CoreWebView2Environment acquired successfully");
 
+                bool attachedPrimary = false;
                 try
                 {
                     Log("Calling EnsureCoreWebView2Async");
                     await WvWhiteboard.EnsureCoreWebView2Async(env);
+                    attachedPrimary = true;
                     Log("EnsureCoreWebView2Async succeeded");
                 }
                 catch (Exception exEnv)
                 {
-                    // Hồ sơ chính còn bị tiến trình WebView2 cũ giữ (vừa đóng app): đợi ngắn rồi thử lại trước khi dùng hồ sơ dự phòng
-                    Log($"EnsureCoreWebView2Async with environment failed ({exEnv.Message}). Retrying primary profile...");
-                    await Task.Delay(700);
-                    try
+                    // Hồ sơ chính còn bị tiến trình WebView2 cũ giữ (sau cập nhật hoặc khởi động lại nhanh): đợi tối đa ~3 giây rồi mới sang hồ sơ dự phòng
+                    Log($"EnsureCoreWebView2Async failed ({exEnv.Message}). Retrying primary profile...");
+                    for (int attempt = 1; attempt <= 6 && !attachedPrimary; attempt++)
                     {
-                        await WvWhiteboard.EnsureCoreWebView2Async(await CreateEnvironmentWithFallbackAsync());
+                        await Task.Delay(500);
+                        try
+                        {
+                            string primaryDir = ProfileDir("WebView2");
+                            Directory.CreateDirectory(primaryDir);
+                            var primaryEnv = await CoreWebView2Environment.CreateAsync(null, primaryDir,
+                                new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = BrowserArgs });
+                            await WvWhiteboard.EnsureCoreWebView2Async(primaryEnv);
+                            attachedPrimary = true;
+                            Log($"EnsureCoreWebView2Async primary profile succeeded on retry {attempt}");
+                        }
+                        catch (Exception exRetry)
+                        {
+                            Log($"Primary profile retry {attempt}/6 busy: {exRetry.Message}");
+                        }
                     }
-                    catch (Exception exRetry)
+
+                    if (!attachedPrimary)
                     {
-                        Log($"Primary profile still busy ({exRetry.Message}).");
+                        Log("Primary profile still locked after retries; switching to alternate profile.");
                         await WvWhiteboard.EnsureCoreWebView2Async(await CreateAlternateEnvironmentAsync());
                     }
                 }
@@ -281,6 +316,11 @@ namespace MinNote
                 WvWhiteboard.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "minnote-rec.local",
                     NativeScreenRecorder.GetTempDir(),
+                    CoreWebView2HostResourceAccessKind.Allow
+                );
+                WvWhiteboard.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    "minnote-media.local",
+                    GetMediaCacheDirectory(),
                     CoreWebView2HostResourceAccessKind.Allow
                 );
                 Log("SetVirtualHostNameToFolderMapping completed");
@@ -1506,6 +1546,1096 @@ namespace MinNote
                             }
                         });
                     }
+                    else if (msgType == "PERSIST_HOST_REPLY")
+                    {
+                        string reqId = GetJsonString(root, "reqId");
+                        if (!string.IsNullOrEmpty(reqId) && _pendingHostRequests.TryRemove(reqId, out var tcs))
+                        {
+                            tcs.TrySetResult(root.Clone());
+                        }
+                    }
+                    else if (msgType == "PERSIST_DIRTY_STATE")
+                    {
+                        bool dirty = root.TryGetProperty("dirty", out var dEl) && dEl.ValueKind == JsonValueKind.True;
+                        string savedAt = GetJsonString(root, "savedAtDisplay");
+                        int sheetCnt = root.TryGetProperty("sheetCount", out var scEl) && scEl.TryGetInt32(out var sc) ? sc : 1;
+                        _isDirty = dirty;
+                        if (sheetCnt > 0) _lastKnownSheetCount = sheetCnt;
+                        if (!string.IsNullOrWhiteSpace(savedAt)) _lastSavedDisplay = savedAt;
+                        UpdateSaveStatusUi(_isDirty, _lastSavedDisplay, _lastKnownSheetCount);
+                    }
+                    else if (msgType == "PERSIST_HYDRATE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var payload = NotebookBackupService.Instance.GetHydrationPayload();
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, payload);
+                            }
+                            catch (Exception exHyd)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exHyd.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_WRITE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string dir = GetJsonString(root, "dir");
+                        string name = GetJsonString(root, "name");
+                        string b64 = GetJsonString(root, "base64");
+                        long modifiedMs = root.TryGetProperty("modifiedMs", out var mEl) && mEl.TryGetInt64(out var mv) ? mv : 0;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                byte[] bytes = string.IsNullOrEmpty(b64) ? Array.Empty<byte>() : Convert.FromBase64String(b64);
+                                NotebookBackupService.Instance.MirrorWriteFile(dir, name, bytes, modifiedMs);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { saved = true, sizeBytes = bytes.Length });
+                            }
+                            catch (Exception exMw)
+                            {
+                                Log($"[PERSIST_MIRROR_WRITE] {dir}/{name}: {exMw.Message}");
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exMw.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_REMOVE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string dir = GetJsonString(root, "dir");
+                        string name = GetJsonString(root, "name");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.MirrorRemoveFile(dir, name);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { removed = true });
+                            }
+                            catch (Exception exMr)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exMr.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_MAKEDIR")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string dir = GetJsonString(root, "dir");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.MirrorMakeDir(dir);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { created = true });
+                            }
+                            catch (Exception exMd)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exMd.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_REMOVEDIR")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string dir = GetJsonString(root, "dir");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.MirrorRemoveDir(dir);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { removed = true });
+                            }
+                            catch (Exception exRd)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exRd.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_MOVE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string oldDir = GetJsonString(root, "oldDir");
+                        string oldName = GetJsonString(root, "oldName");
+                        string newDir = GetJsonString(root, "newDir");
+                        string newName = GetJsonString(root, "newName");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.MirrorMoveFile(oldDir, oldName, newDir, newName);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { moved = true });
+                            }
+                            catch (Exception exMv)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exMv.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_MIRROR_MOVEDIR")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string oldDir = GetJsonString(root, "oldDir");
+                        string newDir = GetJsonString(root, "newDir");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.MirrorMoveDir(oldDir, newDir);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { moved = true });
+                            }
+                            catch (Exception exMd)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exMd.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_SAVE_SESSION")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string tabsJson = GetJsonString(root, "tabsJson");
+                        string placesJson = GetJsonString(root, "placesJson");
+                        int tabCount = root.TryGetProperty("tabCount", out var tcEl) && tcEl.TryGetInt32(out var tc) ? tc : 0;
+                        int sheetCount = root.TryGetProperty("sheetCount", out var scEl) && scEl.TryGetInt32(out var sc) ? sc : 1;
+                        string activeTabName = GetJsonString(root, "activeTabName");
+                        string reason = GetJsonString(root, "reason");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                NotebookBackupService.Instance.SaveSessionSnapshot(tabsJson, placesJson, tabCount, sheetCount, activeTabName, reason);
+                                string hhmm = DateTime.Now.ToString("HH:mm:ss");
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    _lastSavedDisplay = hhmm;
+                                    if (sheetCount > 0) _lastKnownSheetCount = sheetCount;
+                                    UpdateSaveStatusUi(_isDirty, _lastSavedDisplay, _lastKnownSheetCount);
+                                });
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { saved = true, savedAtDisplay = hhmm });
+                            }
+                            catch (Exception exSs)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSs.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_GET_STATUS")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var backup = NotebookBackupService.Instance.GetStatusInfo();
+                                var drive = await GoogleDriveService.Instance.GetStateAsync();
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { backup, drive });
+                            }
+                            catch (Exception exSt)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSt.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_OPEN_FOLDER")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string which = GetJsonString(root, "which");
+                        try
+                        {
+                            NotebookBackupService.Instance.OpenFolderInExplorer(which);
+                            await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { opened = true });
+                        }
+                        catch (Exception exOf)
+                        {
+                            await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exOf.Message);
+                        }
+                    }
+                    else if (msgType == "PERSIST_CHOOSE_SYNC_FOLDER")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        try
+                        {
+                            var current = NotebookBackupService.Instance.GetSettings().SyncFolderPath;
+                            var ofd = new Microsoft.Win32.OpenFolderDialog
+                            {
+                                Title = "Chọn thư mục đồng bộ (Google Drive / OneDrive / USB...)",
+                                InitialDirectory = !string.IsNullOrWhiteSpace(current) && Directory.Exists(current)
+                                    ? current
+                                    : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                                Multiselect = false
+                            };
+                            if (ofd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(ofd.FolderName))
+                            {
+                                NotebookBackupService.Instance.SaveSettings(confirmExitWhenSaved: null, syncFolderPath: ofd.FolderName);
+                                var backup = NotebookBackupService.Instance.GetStatusInfo();
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { cancelled = false, folder = ofd.FolderName, backup });
+                            }
+                            else
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { cancelled = true });
+                            }
+                        }
+                        catch (Exception exCf)
+                        {
+                            await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exCf.Message);
+                        }
+                    }
+                    else if (msgType == "PERSIST_SET_SYNC_FOLDER")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string folder = GetJsonString(root, "folder");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                if (!string.IsNullOrWhiteSpace(folder) && !Directory.Exists(folder))
+                                {
+                                    throw new DirectoryNotFoundException("Không tìm thấy thư mục đã chọn trên máy.");
+                                }
+                                NotebookBackupService.Instance.SaveSettings(confirmExitWhenSaved: null, syncFolderPath: folder);
+                                var backup = NotebookBackupService.Instance.GetStatusInfo();
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { backup });
+                            }
+                            catch (Exception exSf)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSf.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_SYNC_FOLDER_NOW")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string folder = GetJsonString(root, "folder");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var result = await NotebookBackupService.Instance.SyncToFolderNowAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, result);
+                            }
+                            catch (Exception exSy)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSy.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_RESTORE_FROM_FOLDER")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string folder = GetJsonString(root, "folder");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var result = await NotebookBackupService.Instance.RestoreFromFolderAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, result);
+                            }
+                            catch (Exception exRf)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exRf.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PERSIST_SET_SETTINGS")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        bool? confirmExit = root.TryGetProperty("confirmExitWhenSaved", out var ceEl) &&
+                            (ceEl.ValueKind == JsonValueKind.True || ceEl.ValueKind == JsonValueKind.False)
+                            ? ceEl.GetBoolean()
+                            : null;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var saved = NotebookBackupService.Instance.SaveSettings(confirmExit, syncFolderPath: null);
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { settings = saved });
+                            }
+                            catch (Exception exSs)
+                            {
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSs.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_GET_STATE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var st = await GoogleDriveService.Instance.GetStateAsync();
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
+                            }
+                            catch (Exception exDr)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDr.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_SAVE_CONFIG")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string clientId = GetJsonString(root, "clientId");
+                        string clientSecret = GetJsonString(root, "clientSecret");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var st = GoogleDriveService.Instance.SaveOAuthConfig(clientId, clientSecret);
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
+                            }
+                            catch (Exception exDc)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDc.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_SIGN_IN")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var st = await GoogleDriveService.Instance.SignInAsync();
+                                await Dispatcher.InvokeAsync(() => { Activate(); });
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
+                            }
+                            catch (Exception exSi)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exSi.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_SIGN_OUT")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var st = await GoogleDriveService.Instance.SignOutAsync();
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
+                            }
+                            catch (Exception exSo)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exSo.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_BACKUP_NOW")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var resObj = await GoogleDriveService.Instance.BackupAllNotebooksAsync();
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
+                            }
+                            catch (Exception exDb)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDb.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_RESTORE_NOW")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var resObj = await GoogleDriveService.Instance.RestoreAllNotebooksAsync();
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
+                            }
+                            catch (Exception exDr)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDr.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "DRIVE_OPEN_WEB_FOLDER")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        try
+                        {
+                            GoogleDriveService.Instance.OpenDriveFolderInBrowser();
+                            await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, new { opened = true });
+                        }
+                        catch (Exception exOw)
+                        {
+                            await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exOw.Message);
+                        }
+                    }
+                    else if (msgType == "DRIVE_API_REQUEST")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string method = GetJsonString(root, "method");
+                        string url = GetJsonString(root, "url");
+                        string? ctype = root.TryGetProperty("type", out var ctEl) ? ctEl.GetString() : null;
+                        string? body = root.TryGetProperty("body", out var bEl) ? bEl.GetString() : null;
+                        bool binary = root.TryGetProperty("binary", out var binEl) && binEl.ValueKind == JsonValueKind.True;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var resObj = await GoogleDriveService.Instance.ProxyRequestAsync(method, url, ctype, body, binary);
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
+                            }
+                            catch (Exception exApi)
+                            {
+                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exApi.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_GET_AI_CONFIG")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var cfg = await MatrixExamSyncService.Instance.GetAiConfigAsync();
+                                await PostMeaSyncResultAsync(reqId, true, cfg);
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_REVEAL_API_KEY")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? prov = GetJsonOptionalString(root, "provider");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (resolvedProv, rawKeys, keyCount, masked) = MatrixExamSyncService.Instance.RevealApiKey(prov);
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    provider = resolvedProv,
+                                    rawKeys,
+                                    keyCount,
+                                    masked
+                                });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_SAVE_AI_CONFIG")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        var saveReq = new MeaSaveAiConfigRequest
+                        {
+                            Provider = GetJsonString(root, "provider"),
+                            Model = GetJsonString(root, "model"),
+                            RawKeys = root.TryGetProperty("rawKeys", out var rkEl) && rkEl.ValueKind == JsonValueKind.String
+                                ? rkEl.GetString()
+                                : (root.TryGetProperty("apiKey", out var akEl) && akEl.ValueKind == JsonValueKind.String ? akEl.GetString() : null),
+                            KeyEdited = root.TryGetProperty("keyEdited", out var keEl) && keEl.ValueKind == JsonValueKind.True,
+                            ClearKey = root.TryGetProperty("clearKey", out var ckEl) && ckEl.ValueKind == JsonValueKind.True,
+                            KeyRotation = root.TryGetProperty("keyRotation", out var krEl) && (krEl.ValueKind == JsonValueKind.True || krEl.ValueKind == JsonValueKind.False)
+                                ? krEl.GetBoolean()
+                                : null
+                        };
+                        if (root.TryGetProperty("keysByProvider", out var kbpEl) && kbpEl.ValueKind == JsonValueKind.Object)
+                        {
+                            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var prop in kbpEl.EnumerateObject())
+                            {
+                                if (prop.Value.ValueKind == JsonValueKind.String)
+                                {
+                                    map[prop.Name] = prop.Value.GetString() ?? "";
+                                }
+                            }
+                            saveReq.KeysByProvider = map;
+                        }
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var updated = await MatrixExamSyncService.Instance.SaveAiConfigAsync(saveReq);
+                                await PostMeaSyncResultAsync(reqId, true, updated);
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_REFRESH_MODELS")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? prov = GetJsonOptionalString(root, "provider");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (models, live, note) = await MatrixExamSyncService.Instance.RefreshModelsAsync(prov);
+                                string resolvedProv = string.IsNullOrWhiteSpace(prov)
+                                    ? (await MatrixExamSyncService.Instance.GetAiConfigAsync()).Provider
+                                    : MatrixExamSyncService.NormalizeProviderName(prov);
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    provider = resolvedProv,
+                                    models,
+                                    live,
+                                    note
+                                });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_TEST_AI_KEY")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? prov = GetJsonOptionalString(root, "provider");
+                        string? model = GetJsonOptionalString(root, "model");
+                        string? rawKeys = GetJsonOptionalString(root, "rawKeys") ?? GetJsonOptionalString(root, "apiKey");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var res = await MatrixExamSyncService.Instance.TestConnectionAsync(prov, model, rawKeys);
+                                await PostMeaSyncResultAsync(reqId, true, res);
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_PICK_KEY_FILE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        try
+                        {
+                            var dlg = new Microsoft.Win32.OpenFileDialog
+                            {
+                                Title = "Chọn tệp danh sách API Key (.txt)",
+                                Filter = "Tệp văn bản (*.txt)|*.txt|Tất cả tệp (*.*)|*.*"
+                            };
+                            if (dlg.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(dlg.FileName))
+                            {
+                                string content = File.ReadAllText(dlg.FileName, System.Text.Encoding.UTF8);
+                                int count = MatrixExamSyncService.SplitKeys(content).Count;
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    cancelled = false,
+                                    fileName = Path.GetFileName(dlg.FileName),
+                                    rawKeys = content,
+                                    keyCount = count
+                                });
+                            }
+                            else
+                            {
+                                await PostMeaSyncResultAsync(reqId, true, new { cancelled = true, keyCount = 0 });
+                            }
+                        }
+                        catch (Exception exMea)
+                        {
+                            await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                        }
+                    }
+                    else if (msgType == "MEA_SAVE_KEY_FILE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? rawKeys = GetJsonOptionalString(root, "rawKeys") ?? GetJsonOptionalString(root, "apiKey");
+                        string? prov = GetJsonOptionalString(root, "provider");
+                        try
+                        {
+                            if (string.IsNullOrWhiteSpace(rawKeys) || rawKeys.Contains("••••", StringComparison.Ordinal))
+                            {
+                                rawKeys = MatrixExamSyncService.Instance.RevealApiKey(prov).RawKeys;
+                            }
+                            if (string.IsNullOrWhiteSpace(rawKeys))
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, "Chưa có nội dung API Key để lưu.");
+                                return;
+                            }
+
+                            var sfd = new Microsoft.Win32.SaveFileDialog
+                            {
+                                Title = "Lưu danh sách API Key vào máy tính",
+                                Filter = "Tệp văn bản (*.txt)|*.txt|Tất cả tệp (*.*)|*.*",
+                                FileName = "api.txt",
+                                DefaultExt = ".txt"
+                            };
+                            if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
+                            {
+                                File.WriteAllText(sfd.FileName, rawKeys.Trim(), new System.Text.UTF8Encoding(false));
+                                int count = MatrixExamSyncService.SplitKeys(rawKeys).Count;
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    cancelled = false,
+                                    path = sfd.FileName,
+                                    fileName = Path.GetFileName(sfd.FileName),
+                                    keyCount = count
+                                });
+                            }
+                            else
+                            {
+                                await PostMeaSyncResultAsync(reqId, true, new { cancelled = true, keyCount = 0 });
+                            }
+                        }
+                        catch (Exception exMea)
+                        {
+                            await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                        }
+                    }
+                    else if (msgType == "MEA_AI_EXECUTE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string prompt = GetJsonString(root, "prompt");
+                        string? systemPrompt = GetJsonOptionalString(root, "systemPrompt");
+                        string? prov = GetJsonOptionalString(root, "provider");
+                        string? model = GetJsonOptionalString(root, "model");
+                        string? rawKeys = GetJsonOptionalString(root, "rawKeys") ?? GetJsonOptionalString(root, "apiKey");
+                        string? imageBase64 = GetJsonOptionalString(root, "imageBase64");
+                        string imageMime = GetJsonOptionalString(root, "imageMimeType") ?? "image/png";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var res = await MatrixExamSyncService.Instance.ExecutePromptAsync(
+                                    prompt, systemPrompt, prov, model, rawKeys, imageBase64, imageMime);
+                                if (res.Ok)
+                                {
+                                    await PostMeaSyncResultAsync(reqId, true, new
+                                    {
+                                        content = res.Content,
+                                        provider = res.Provider,
+                                        model = res.Model,
+                                        latencyMs = res.LatencyMs
+                                    });
+                                }
+                                else
+                                {
+                                    await PostMeaSyncResultAsync(reqId, false, new
+                                    {
+                                        provider = res.Provider,
+                                        model = res.Model,
+                                        latencyMs = res.LatencyMs
+                                    }, res.Error ?? "Lỗi gọi AI.");
+                                }
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_QB_LIST")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? keyword = GetJsonOptionalString(root, "keyword") ?? GetJsonOptionalString(root, "query");
+                        int? grade = GetJsonNullableInt(root, "grade");
+                        string? topic = GetJsonOptionalString(root, "topic");
+                        string? level = GetJsonOptionalString(root, "level");
+                        string? qtype = GetJsonOptionalString(root, "qtype");
+                        int limit = GetJsonNullableInt(root, "limit") ?? 100;
+                        int offset = GetJsonNullableInt(root, "offset") ?? 0;
+                        bool resolveImages = !root.TryGetProperty("resolveImages", out var riEl) || riEl.ValueKind != JsonValueKind.False;
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var listRes = await MatrixExamSyncService.Instance.ListQuestionsAsync(
+                                    keyword, grade, topic, level, qtype, limit, offset, resolveImages);
+                                await PostMeaSyncResultAsync(reqId, true, listRes);
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_QB_SAVE_QUESTION")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        JsonElement qSource = root.TryGetProperty("question", out var qObj) && qObj.ValueKind == JsonValueKind.Object
+                            ? qObj
+                            : root;
+                        var qDto = ParseQuestionFromJson(qSource);
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (savedId, code, updated, dbPath, schema) = await MatrixExamSyncService.Instance.SaveQuestionAsync(qDto);
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    id = savedId,
+                                    code,
+                                    updated,
+                                    dbPath,
+                                    schema
+                                });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_FIG_LIST")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? keyword = GetJsonOptionalString(root, "keyword") ?? GetJsonOptionalString(root, "query");
+                        string? source = GetJsonOptionalString(root, "source") ?? "all";
+                        int limit = GetJsonNullableInt(root, "limit") ?? 120;
+                        bool includePreview = !root.TryGetProperty("includePreview", out var ipEl) || ipEl.ValueKind != JsonValueKind.False;
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (figuresDir, total, figures) = await MatrixExamSyncService.Instance.ListFiguresAsync(keyword, source, limit, includePreview);
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    figuresDir,
+                                    total,
+                                    figures
+                                });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_FIG_PUSH")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string? figureId = GetJsonOptionalString(root, "figureId")
+                                           ?? GetJsonOptionalString(root, "targetId")
+                                           ?? GetJsonOptionalString(root, "figId");
+                        string? title = GetJsonOptionalString(root, "title");
+                        string? description = GetJsonOptionalString(root, "description");
+                        var tags = GetJsonStringList(root, "tags");
+                        string tikzCode = GetJsonString(root, "tikzCode");
+                        string? pngDataUrl = GetJsonOptionalString(root, "pngDataUrl") ?? GetJsonOptionalString(root, "pngBase64");
+                        string? mnoteJson = GetJsonOptionalString(root, "mnoteJson");
+                        string source = GetJsonOptionalString(root, "source") ?? "minnote";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var (figure, updated, figuresDir) = await MatrixExamSyncService.Instance.PushFigureAsync(
+                                    figureId, title, description, tags, tikzCode, pngDataUrl, mnoteJson, source);
+                                await PostMeaSyncResultAsync(reqId, true, new
+                                {
+                                    figure,
+                                    updated,
+                                    figuresDir
+                                });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_FIG_LOAD")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string figureId = GetJsonOptionalString(root, "figureId")
+                                          ?? GetJsonOptionalString(root, "targetId")
+                                          ?? GetJsonOptionalString(root, "figId")
+                                          ?? "";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var figure = await MatrixExamSyncService.Instance.LoadFigureAsync(figureId);
+                                if (figure == null)
+                                {
+                                    await PostMeaSyncResultAsync(reqId, false, null, $"Không tìm thấy hình #{figureId} trong Kho hình MatrixExamAI.");
+                                }
+                                else
+                                {
+                                    await PostMeaSyncResultAsync(reqId, true, figure);
+                                }
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "MEA_FIG_DELETE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string figureId = GetJsonOptionalString(root, "figureId")
+                                          ?? GetJsonOptionalString(root, "targetId")
+                                          ?? GetJsonOptionalString(root, "figId")
+                                          ?? "";
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                bool deleted = await MatrixExamSyncService.Instance.DeleteFigureAsync(figureId);
+                                await PostMeaSyncResultAsync(reqId, true, new { deleted, figureId });
+                            }
+                            catch (Exception exMea)
+                            {
+                                await PostMeaSyncResultAsync(reqId, false, null, exMea.Message);
+                            }
+                        });
+                    }
+                    else if (msgType == "PICK_VIDEO")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        try
+                        {
+                            var dlg = new Microsoft.Win32.OpenFileDialog
+                            {
+                                Title = "Chọn tệp Video để chèn vào bảng viết MinNote",
+                                Filter = "Tệp Video (*.mp4;*.webm;*.mov;*.mkv;*.m4v)|*.mp4;*.webm;*.mov;*.mkv;*.m4v|Tất cả tệp (*.*)|*.*",
+                                CheckFileExists = true
+                            };
+
+                            if (dlg.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(dlg.FileName) && File.Exists(dlg.FileName))
+                            {
+                                string srcPath = dlg.FileName;
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        string cacheDir = GetMediaCacheDirectory();
+                                        var srcInfo = new FileInfo(srcPath);
+                                        string ext = Path.GetExtension(srcPath).ToLowerInvariant();
+                                        if (string.IsNullOrEmpty(ext)) ext = ".mp4";
+                                        string baseName = VideoRecorderService.SanitizeFileName(Path.GetFileNameWithoutExtension(srcPath));
+                                        if (baseName.Length > 48) baseName = baseName[..48];
+                                        string fingerprint = $"{srcPath}|{srcInfo.Length}|{srcInfo.LastWriteTimeUtc.Ticks}";
+                                        string shortHash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprint)))[..8];
+                                        string safeFileName = $"{baseName}_{shortHash}{ext}";
+                                        string destPath = Path.Combine(cacheDir, safeFileName);
+
+                                        if (!File.Exists(destPath) || new FileInfo(destPath).Length != srcInfo.Length)
+                                        {
+                                            File.Copy(srcPath, destPath, overwrite: true);
+                                        }
+
+                                        string mediaUrl = $"https://minnote-media.local/{Uri.EscapeDataString(safeFileName)}";
+                                        await PostMeaSyncResultAsync(reqId, true, new
+                                        {
+                                            cancelled = false,
+                                            url = mediaUrl,
+                                            fileName = srcInfo.Name,
+                                            cachedFileName = safeFileName,
+                                            localPath = destPath,
+                                            sizeBytes = srcInfo.Length
+                                        });
+                                    }
+                                    catch (Exception exCopy)
+                                    {
+                                        await PostMeaSyncResultAsync(reqId, false, null, exCopy.Message);
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                await PostMeaSyncResultAsync(reqId, true, new { cancelled = true });
+                            }
+                        }
+                        catch (Exception exVid)
+                        {
+                            await PostMeaSyncResultAsync(reqId, false, null, exVid.Message);
+                        }
+                    }
+                    else if (msgType == "SAVE_MEDIA_FILE")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string suggestedName = GetJsonString(root, "fileName");
+                        string rawExt = GetJsonString(root, "ext").Trim().TrimStart('.').ToLowerInvariant();
+                        string? base64Data = GetJsonOptionalString(root, "base64Data");
+                        string? textData = GetJsonOptionalString(root, "textData");
+
+                        if (string.IsNullOrEmpty(rawExt) && !string.IsNullOrWhiteSpace(suggestedName))
+                        {
+                            rawExt = Path.GetExtension(suggestedName).TrimStart('.').ToLowerInvariant();
+                        }
+                        if (string.IsNullOrEmpty(rawExt))
+                        {
+                            rawExt = !string.IsNullOrEmpty(base64Data) ? "gif" : "tex";
+                        }
+                        if (string.IsNullOrWhiteSpace(suggestedName))
+                        {
+                            suggestedName = $"MinNote_Export_{DateTime.Now:yyyyMMdd_HHmmss}.{rawExt}";
+                        }
+                        else if (!suggestedName.EndsWith("." + rawExt, StringComparison.OrdinalIgnoreCase))
+                        {
+                            suggestedName += "." + rawExt;
+                        }
+
+                        string filter = rawExt switch
+                        {
+                            "gif" => "Ảnh động GIF (*.gif)|*.gif|Tất cả tệp (*.*)|*.*",
+                            "webm" => "Video WebM (*.webm)|*.webm|Video MP4 (*.mp4)|*.mp4|Tất cả tệp (*.*)|*.*",
+                            "mp4" => "Video MP4 (*.mp4)|*.mp4|Video WebM (*.webm)|*.webm|Tất cả tệp (*.*)|*.*",
+                            "tex" => "Mã LaTeX / TikZ (*.tex)|*.tex|Tệp văn bản (*.txt)|*.txt|Tất cả tệp (*.*)|*.*",
+                            _ => "Tất cả tệp (*.*)|*.*"
+                        };
+
+                        try
+                        {
+                            var sfd = new Microsoft.Win32.SaveFileDialog
+                            {
+                                Title = rawExt == "tex" ? "Lưu mã TikZ (.tex)" : $"Lưu tệp xuất (.{rawExt})",
+                                Filter = filter,
+                                FileName = suggestedName,
+                                DefaultExt = "." + rawExt
+                            };
+
+                            if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
+                            {
+                                string outPath = sfd.FileName;
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        long sizeBytes;
+                                        if (!string.IsNullOrEmpty(base64Data))
+                                        {
+                                            string cleanB64 = MatrixExamSyncService.StripDataUriPrefix(base64Data);
+                                            byte[] bytes = Convert.FromBase64String(cleanB64);
+                                            await File.WriteAllBytesAsync(outPath, bytes).ConfigureAwait(false);
+                                            sizeBytes = bytes.Length;
+                                        }
+                                        else
+                                        {
+                                            byte[] utf8 = new System.Text.UTF8Encoding(false).GetBytes(textData ?? "");
+                                            await File.WriteAllBytesAsync(outPath, utf8).ConfigureAwait(false);
+                                            sizeBytes = utf8.Length;
+                                        }
+
+                                        await PostMeaSyncResultAsync(reqId, true, new
+                                        {
+                                            cancelled = false,
+                                            path = outPath,
+                                            fileName = Path.GetFileName(outPath),
+                                            sizeBytes
+                                        });
+                                    }
+                                    catch (Exception exSave)
+                                    {
+                                        await PostMeaSyncResultAsync(reqId, false, null, exSave.Message);
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                await PostMeaSyncResultAsync(reqId, true, new { cancelled = true });
+                            }
+                        }
+                        catch (Exception exDlg)
+                        {
+                            await PostMeaSyncResultAsync(reqId, false, null, exDlg.Message);
+                        }
+                    }
+                    else if (msgType == "GENERATE_AI_MINDMAP")
+                    {
+                        string reqId = GetJsonString(root, "id");
+                        string topic = GetJsonString(root, "topic");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                if (string.IsNullOrWhiteSpace(topic))
+                                {
+                                    throw new InvalidOperationException("Chủ đề sơ đồ tư duy không được để trống.");
+                                }
+
+                                var aiRes = await MatrixExamSyncService.Instance.GenerateMindmapMarkdownAsync(topic);
+                                if (aiRes.Ok)
+                                {
+                                    if (!string.IsNullOrEmpty(reqId))
+                                    {
+                                        await PostMeaSyncResultAsync(reqId, true, new
+                                        {
+                                            markdown = aiRes.Content,
+                                            provider = aiRes.Provider,
+                                            model = aiRes.Model,
+                                            latencyMs = aiRes.LatencyMs
+                                        });
+                                    }
+
+                                    string payloadObj = JsonSerializer.Serialize(new
+                                    {
+                                        ok = true,
+                                        markdown = aiRes.Content,
+                                        provider = aiRes.Provider,
+                                        model = aiRes.Model,
+                                        latencyMs = aiRes.LatencyMs
+                                    });
+                                    string mdLit = JsonSerializer.Serialize(aiRes.Content);
+                                    await Dispatcher.InvokeAsync(async () =>
+                                    {
+                                        if (WvWhiteboard?.CoreWebView2 == null) return;
+                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                            $"if (typeof window.receiveAiMindmapResult === 'function') window.receiveAiMindmapResult({payloadObj}); else if (typeof window.onAiMindmapGenerated === 'function') window.onAiMindmapGenerated({mdLit});");
+                                    });
+                                }
+                                else
+                                {
+                                    string errMsg = aiRes.Error ?? "AI không trả về sơ đồ tư duy hợp lệ.";
+                                    if (!string.IsNullOrEmpty(reqId))
+                                    {
+                                        await PostMeaSyncResultAsync(reqId, false, null, errMsg);
+                                    }
+                                    string errObj = JsonSerializer.Serialize(new
+                                    {
+                                        ok = false,
+                                        error = errMsg,
+                                        provider = aiRes.Provider,
+                                        model = aiRes.Model
+                                    });
+                                    string errLit = JsonSerializer.Serialize(errMsg);
+                                    await Dispatcher.InvokeAsync(async () =>
+                                    {
+                                        if (WvWhiteboard?.CoreWebView2 == null) return;
+                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                            $"if (typeof window.receiveAiMindmapResult === 'function') window.receiveAiMindmapResult({errObj}); else if (typeof window.onAiMindmapError === 'function') window.onAiMindmapError({errLit});");
+                                    });
+                                }
+                            }
+                            catch (Exception exMm)
+                            {
+                                Log($"GENERATE_AI_MINDMAP error: {exMm.Message}");
+                                if (!string.IsNullOrEmpty(reqId))
+                                {
+                                    await PostMeaSyncResultAsync(reqId, false, null, exMm.Message);
+                                }
+                                string errObj = JsonSerializer.Serialize(new { ok = false, error = exMm.Message });
+                                string errLit = JsonSerializer.Serialize(exMm.Message);
+                                await Dispatcher.InvokeAsync(async () =>
+                                {
+                                    if (WvWhiteboard?.CoreWebView2 == null) return;
+                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                                        $"if (typeof window.receiveAiMindmapResult === 'function') window.receiveAiMindmapResult({errObj}); else if (typeof window.onAiMindmapError === 'function') window.onAiMindmapError({errLit});");
+                                });
+                            }
+                        });
+                    }
                 }
             }
             catch (Exception ex)
@@ -1624,14 +2754,159 @@ namespace MinNote
             }
         }
 
-        private async Task PostRecResultAsync(string reqId, bool ok, object? result, string? error = null)
+        private static string GetJsonString(JsonElement root, string propertyName) =>
+            root.TryGetProperty(propertyName, out var el) && el.ValueKind == JsonValueKind.String
+                ? (el.GetString() ?? "")
+                : "";
+
+        private static string? GetJsonOptionalString(JsonElement root, string propertyName) =>
+            root.TryGetProperty(propertyName, out var el) && el.ValueKind == JsonValueKind.String
+                ? el.GetString()
+                : null;
+
+        private static int? GetJsonNullableInt(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var el)) return null;
+            if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out int num)) return num;
+            if (el.ValueKind == JsonValueKind.String && int.TryParse(el.GetString(), out int parsed)) return parsed;
+            return null;
+        }
+
+        private static List<string>? GetJsonStringList(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var el)) return null;
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<string>();
+                foreach (var item in el.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        string val = (item.GetString() ?? "").Trim();
+                        if (!string.IsNullOrEmpty(val)) list.Add(val);
+                    }
+                }
+                return list;
+            }
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                string raw = el.GetString() ?? "";
+                return raw.Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                          .Select(s => s.Trim())
+                          .Where(s => !string.IsNullOrEmpty(s))
+                          .ToList();
+            }
+            return null;
+        }
+
+        private static MeaQuestionDto ParseQuestionFromJson(JsonElement el)
+        {
+            long id = 0;
+            if (el.TryGetProperty("id", out var idEl))
+            {
+                if (idEl.ValueKind == JsonValueKind.Number && idEl.TryGetInt64(out long lid)) id = lid;
+                else if (idEl.ValueKind == JsonValueKind.String && long.TryParse(idEl.GetString(), out long sid)) id = sid;
+            }
+
+            var options = new Dictionary<string, string>();
+            if (el.TryGetProperty("options", out var optEl) && optEl.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in optEl.EnumerateObject())
+                {
+                    options[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? (prop.Value.GetString() ?? "") : prop.Value.ToString();
+                }
+            }
+
+            return new MeaQuestionDto
+            {
+                Id = id,
+                Code = GetJsonOptionalString(el, "code") ?? GetJsonOptionalString(el, "questionCode") ?? "",
+                Subject = GetJsonOptionalString(el, "subject") ?? "Toán",
+                Grade = GetJsonNullableInt(el, "grade") ?? 12,
+                Topic = GetJsonOptionalString(el, "topic") ?? "",
+                Level = GetJsonOptionalString(el, "level") ?? GetJsonOptionalString(el, "cognitiveLevel") ?? "Thông hiểu",
+                Qtype = GetJsonOptionalString(el, "qtype") ?? GetJsonOptionalString(el, "questionType") ?? "MultipleChoice4",
+                Content = GetJsonOptionalString(el, "content") ?? "",
+                Options = options,
+                CorrectAnswer = GetJsonOptionalString(el, "correctAnswer") ?? GetJsonOptionalString(el, "answer") ?? "",
+                Explanation = GetJsonOptionalString(el, "explanation") ?? GetJsonOptionalString(el, "solution") ?? "",
+                TikzCode = GetJsonOptionalString(el, "tikzCode") ?? "",
+                Images = GetJsonStringList(el, "images") ?? new List<string>(),
+                Source = GetJsonOptionalString(el, "source") ?? "MinNote"
+            };
+        }
+
+        private static string GetMediaCacheDirectory()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MinNote",
+                "media_cache");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        private void OnMeaSyncChanged(string eventType, object summary)
+        {
+            _ = PostMeaSyncEventAsync(eventType, summary);
+        }
+
+        private async Task PostMeaSyncEventAsync(string eventType, object summary)
+        {
+            try
+            {
+                string payload = JsonSerializer.Serialize(new
+                {
+                    type = "MEA_SYNC_EVENT",
+                    @event = eventType,
+                    summary
+                });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"PostMeaSyncEventAsync ({eventType}) error: {ex.Message}");
+            }
+        }
+
+        private async Task PostMeaSyncResultAsync(string reqId, bool ok, object? data, string? error = null)
         {
             if (string.IsNullOrEmpty(reqId)) return;
             try
             {
                 string payload = JsonSerializer.Serialize(new
                 {
-                    type = "REC_RESULT",
+                    type = "MEA_SYNC_RESULT",
+                    id = reqId,
+                    ok,
+                    data,
+                    error
+                });
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    WvWhiteboard?.CoreWebView2?.PostWebMessageAsJson(payload);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"PostMeaSyncResultAsync error: {ex.Message}");
+            }
+        }
+
+        private Task PostRecResultAsync(string reqId, bool ok, object? result, string? error = null) =>
+            PostBridgeResultAsync("REC_RESULT", reqId, ok, result, error);
+
+        private async Task PostBridgeResultAsync(string messageType, string reqId, bool ok, object? result, string? error = null)
+        {
+            if (string.IsNullOrEmpty(reqId)) return;
+            try
+            {
+                string payload = JsonSerializer.Serialize(new
+                {
+                    type = messageType,
                     id = reqId,
                     ok,
                     result,
@@ -1644,7 +2919,263 @@ namespace MinNote
             }
             catch (Exception ex)
             {
-                Log($"PostRecResultAsync error: {ex.Message}");
+                Log($"PostBridgeResultAsync ({messageType}) error: {ex.Message}");
+            }
+        }
+
+        private sealed class WhiteboardExitStatus
+        {
+            public bool IsDirty { get; init; }
+            public bool HasContent { get; init; }
+            public string DocName { get; init; } = "";
+            public int TabCount { get; init; } = 1;
+            public int SheetCount { get; init; } = 1;
+        }
+
+        private async Task<JsonElement?> SendHostCommandAsync(string cmd, string reason, int timeoutMs)
+        {
+            if (!_isInitialized || WvWhiteboard?.CoreWebView2 == null) return null;
+
+            string reqId = "host_" + Guid.NewGuid().ToString("N")[..10];
+            var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingHostRequests[reqId] = tcs;
+            try
+            {
+                string argJson = JsonSerializer.Serialize(new { reqId, cmd, reason });
+                string script = $"if (window.__minnotePersistence && typeof window.__minnotePersistence.handleHostCommand === 'function') {{ window.__minnotePersistence.handleHostCommand({argJson}); }} else if (window.chrome && window.chrome.webview) {{ window.chrome.webview.postMessage({{ type: 'PERSIST_HOST_REPLY', reqId: {JsonSerializer.Serialize(reqId)}, unsupported: true }}); }}";
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync(script);
+                });
+
+                using var cts = new CancellationTokenSource(timeoutMs);
+                return await tcs.Task.WaitAsync(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                Log($"SendHostCommandAsync({cmd}) notice: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                _pendingHostRequests.TryRemove(reqId, out _);
+            }
+        }
+
+        private async Task<WhiteboardExitStatus> QueryWhiteboardExitStatusAsync(int timeoutMs = 2500)
+        {
+            var replyOpt = await SendHostCommandAsync("getExitStatus", "closing_check", timeoutMs);
+            if (replyOpt is not JsonElement reply ||
+                (reply.TryGetProperty("unsupported", out var uns) && uns.ValueKind == JsonValueKind.True))
+            {
+                return new WhiteboardExitStatus { IsDirty = _isDirty, HasContent = _isDirty };
+            }
+
+            bool dirty = reply.TryGetProperty("isDirty", out var dEl) && dEl.ValueKind == JsonValueKind.True;
+            bool hasContent = reply.TryGetProperty("hasContent", out var hEl) && hEl.ValueKind == JsonValueKind.True;
+            string name = GetJsonString(reply, "activeTabName");
+            int tabCnt = reply.TryGetProperty("tabCount", out var tcEl) && tcEl.TryGetInt32(out var tc) ? tc : 1;
+            int sheetCnt = reply.TryGetProperty("sheetCount", out var scEl) && scEl.TryGetInt32(out var sc) ? sc : 1;
+            return new WhiteboardExitStatus
+            {
+                IsDirty = dirty || _isDirty,
+                HasContent = hasContent || dirty || tabCnt > 1 || sheetCnt > 1,
+                DocName = name,
+                TabCount = Math.Max(1, tabCnt),
+                SheetCount = Math.Max(1, sheetCnt)
+            };
+        }
+
+        private async Task<bool> FlushAndSaveWhiteboardAsync(string reason, int timeoutMs = 5500)
+        {
+            if (!_isInitialized || WvWhiteboard?.CoreWebView2 == null) return false;
+            var replyOpt = await SendHostCommandAsync("saveAllNow", reason, timeoutMs);
+            if (replyOpt is JsonElement reply)
+            {
+                bool ok = reply.TryGetProperty("ok", out var okEl) && okEl.ValueKind == JsonValueKind.True;
+                if (ok)
+                {
+                    _isDirty = false;
+                    _lastSavedDisplay = DateTime.Now.ToString("HH:mm:ss");
+                    int sc = reply.TryGetProperty("sheetCount", out var scEl) && scEl.TryGetInt32(out var sVal) ? sVal : _lastKnownSheetCount;
+                    if (sc > 0) _lastKnownSheetCount = sc;
+                    await Dispatcher.InvokeAsync(() => UpdateSaveStatusUi(false, _lastSavedDisplay, _lastKnownSheetCount));
+                }
+                return ok;
+            }
+            return false;
+        }
+
+        private void UpdateSaveStatusUi(bool dirty, string? savedTimeText, int sheetCount)
+        {
+            if (BtnSaveStatusTop == null) return;
+            string sheetNote = sheetCount > 1 ? $" ({sheetCount} sheet)" : "";
+            string timeNote = string.IsNullOrWhiteSpace(savedTimeText) ? "" : $" lúc {savedTimeText}";
+
+            if (dirty)
+            {
+                BtnSaveStatusTop.Content = "Chưa lưu";
+                BtnSaveStatusTop.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(252, 211, 77));
+                BtnSaveStatusTop.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(40, 245, 158, 11));
+                BtnSaveStatusTop.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(120, 245, 158, 11));
+                BtnSaveStatusTop.BorderThickness = new Thickness(1);
+                BtnSaveStatusTop.ToolTip = $"Có thao tác chưa lưu{sheetNote} • Bấm để lưu tất cả tab & sheet ngay (Ctrl+S)";
+            }
+            else
+            {
+                BtnSaveStatusTop.Content = string.IsNullOrWhiteSpace(savedTimeText) ? "Đã lưu" : $"Đã lưu {savedTimeText}";
+                BtnSaveStatusTop.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(134, 239, 172));
+                BtnSaveStatusTop.Background = System.Windows.Media.Brushes.Transparent;
+                BtnSaveStatusTop.BorderBrush = System.Windows.Media.Brushes.Transparent;
+                BtnSaveStatusTop.BorderThickness = new Thickness(0);
+                BtnSaveStatusTop.ToolTip = $"Đã tự động lưu an toàn{timeNote}{sheetNote} • Bấm để lưu ngay";
+            }
+        }
+
+        private async void BtnSaveStatusTop_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                BtnSaveStatusTop.IsEnabled = false;
+                BtnSaveStatusTop.Content = "Đang lưu…";
+                bool ok = await FlushAndSaveWhiteboardAsync("manual_top", 6000);
+                if (ok && WvWhiteboard?.CoreWebView2 != null)
+                {
+                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
+                        "if (typeof window.showToast === 'function') window.showToast('Đã lưu tất cả sổ và các sheet an toàn ra ổ đĩa!', 'success');");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"BtnSaveStatusTop_Click error: {ex.Message}");
+            }
+            finally
+            {
+                BtnSaveStatusTop.IsEnabled = true;
+                UpdateSaveStatusUi(_isDirty, _lastSavedDisplay, _lastKnownSheetCount);
+            }
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            Log($"Window Closing: allowNow={_allowCloseNow}, handling={_isHandlingClose}, dirty={_isDirty}");
+            if (_allowCloseNow) return;
+
+            e.Cancel = true;
+            if (_isHandlingClose) return;
+            _isHandlingClose = true;
+            _ = HandleWindowClosingAsync();
+        }
+
+        private async Task HandleWindowClosingAsync()
+        {
+            try
+            {
+                if (!_isInitialized || WvWhiteboard?.CoreWebView2 == null || PanelLocked.Visibility == Visibility.Visible)
+                {
+                    NotebookBackupService.Instance.MarkCleanExit("early_exit", pendingUpdateRestore: false);
+                    _allowCloseNow = true;
+                    Close();
+                    return;
+                }
+
+                var status = await QueryWhiteboardExitStatusAsync(2500);
+                var settings = NotebookBackupService.Instance.GetSettings();
+
+                if (status.IsDirty || (status.HasContent && settings.ConfirmExitWhenSaved))
+                {
+                    string lastTime = string.IsNullOrWhiteSpace(_lastSavedDisplay) ? "" : $"lúc {_lastSavedDisplay}";
+                    var dlg = new ExitConfirmDialog(
+                        status.IsDirty,
+                        status.DocName,
+                        status.TabCount,
+                        status.SheetCount,
+                        lastTime,
+                        showDontAskAgainCheckbox: !status.IsDirty)
+                    {
+                        Owner = this
+                    };
+                    dlg.ShowDialog();
+
+                    if (dlg.Choice == ExitDialogChoice.Cancel)
+                    {
+                        _isHandlingClose = false;
+                        return;
+                    }
+
+                    if (dlg.Choice == ExitDialogChoice.SaveAndExit)
+                    {
+                        if (!status.IsDirty && dlg.DontAskAgainChecked)
+                        {
+                            NotebookBackupService.Instance.SaveSettings(confirmExitWhenSaved: false, syncFolderPath: null);
+                        }
+                        await FlushAndSaveWhiteboardAsync("exit", 6000);
+                        NotebookBackupService.Instance.MarkCleanExit("exit", pendingUpdateRestore: false);
+                    }
+                    else
+                    {
+                        NotebookBackupService.Instance.MarkCleanExit("discard_exit", pendingUpdateRestore: false);
+                    }
+                }
+                else
+                {
+                    if (status.HasContent)
+                    {
+                        await FlushAndSaveWhiteboardAsync("quiet_exit", 2000);
+                    }
+                    NotebookBackupService.Instance.MarkCleanExit("quiet_exit", pendingUpdateRestore: false);
+                }
+
+                try { WvWhiteboard?.Dispose(); } catch { }
+                await Task.Delay(150);
+                _allowCloseNow = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleWindowClosingAsync error: {ex.Message}");
+                _allowCloseNow = true;
+                Close();
+            }
+        }
+
+        /// <summary>Xả lưu khẩn cấp khi Windows tắt máy / khởi động lại (tối đa 2.5 giây, không hiện hộp thoại).</summary>
+        public void FlushForSessionEnding()
+        {
+            if (_allowCloseNow) return;
+            _allowCloseNow = true;
+            try
+            {
+                if (_isInitialized && WvWhiteboard?.CoreWebView2 != null && CheckAccess())
+                {
+                    var frame = new DispatcherFrame();
+                    _ = Task.Run(async () =>
+                    {
+                        try { await FlushAndSaveWhiteboardAsync("windows_shutdown", 2300).ConfigureAwait(false); } catch { }
+                        frame.Continue = false;
+                    });
+                    var killer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2500) };
+                    killer.Tick += (_, _) =>
+                    {
+                        killer.Stop();
+                        frame.Continue = false;
+                    };
+                    killer.Start();
+                    Dispatcher.PushFrame(frame);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"FlushForSessionEnding error: {ex.Message}");
+            }
+            finally
+            {
+                NotebookBackupService.Instance.MarkCleanExit("windows_shutdown", pendingUpdateRestore: false);
+                try { WvWhiteboard?.Dispose(); } catch { }
             }
         }
 
@@ -1869,13 +3400,30 @@ namespace MinNote
 
                     if (res == System.Windows.MessageBoxResult.Yes)
                     {
+                        BtnUpdateTop.Content = "Đang lưu dữ liệu…";
+                        await FlushAndSaveWhiteboardAsync("pre_update_download", 6000);
+
                         BtnUpdateTop.Content = "Đang tải…";
-                        bool ok = await GitHubUpdateService.Instance.DownloadAndInstallUpdateAsync(update, pct =>
-                        {
-                            Dispatcher.Invoke(() => BtnUpdateTop.Content = $"{pct:F0}%");
-                        });
+                        bool ok = await GitHubUpdateService.Instance.DownloadAndInstallUpdateAsync(
+                            update,
+                            pct => Dispatcher.Invoke(() => BtnUpdateTop.Content = $"{pct:F0}%"),
+                            beforeInstallLaunch: async () =>
+                            {
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    BtnUpdateTop.Content = "Đang lưu sheet…";
+                                });
+                                await FlushAndSaveWhiteboardAsync("pre_update_install", 6000);
+                                NotebookBackupService.Instance.MarkCleanExit("update", pendingUpdateRestore: true);
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    _allowCloseNow = true;
+                                });
+                            });
                         if (!ok)
                         {
+                            _allowCloseNow = false;
+                            NotebookBackupService.Instance.MarkSessionStarted();
                             _availableUpdate = null;
                         }
                     }
@@ -2048,78 +3596,50 @@ namespace MinNote
 
         private async Task LoadAndSendQuestionBankAsync()
         {
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string[] dbPaths = [
-                Path.Combine(localAppData, "MatrixExamAI", "question_bank.db"),
-                Path.Combine(userProfile, ".exam_generator", "question_bank.db")
-            ];
+            var items = await MatrixExamSyncService.Instance.LoadAllQuestionsForLegacyBankAsync(500);
+            if (items.Count == 0) return;
 
-            string? activeDb = dbPaths.FirstOrDefault(File.Exists);
-            if (activeDb == null) return;
-
-            var questions = new List<Dictionary<string, object?>>();
-            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={activeDb};"))
+            var questions = items.Select((q, idx) => new Dictionary<string, object?>
             {
-                await conn.OpenAsync();
-                using var checkCmd = conn.CreateCommand();
-                checkCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='questions';";
-                long count = Convert.ToInt64(await checkCmd.ExecuteScalarAsync());
-                if (count == 0) return;
-
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT id, question_code, topic, cognitive_level, content, options_json, correct_answer, explanation FROM questions ORDER BY id DESC;";
-                using var reader = await cmd.ExecuteReaderAsync();
-                int idx = 1;
-                while (await reader.ReadAsync())
-                {
-                    string id = reader["id"]?.ToString() ?? idx.ToString();
-                    string code = reader["question_code"]?.ToString() ?? $"Câu {idx}";
-                    string topic = reader["topic"]?.ToString() ?? "Tổng hợp";
-                    string level = reader["cognitive_level"]?.ToString() ?? "Thông hiểu";
-                    string qContent = reader["content"]?.ToString() ?? "";
-                    string optJson = reader["options_json"]?.ToString() ?? "";
-                    string ans = reader["correct_answer"]?.ToString() ?? "";
-                    string exp = reader["explanation"]?.ToString() ?? "";
-
-                    Dictionary<string, string> options = new();
-                    if (!string.IsNullOrWhiteSpace(optJson))
-                    {
-                        try { options = JsonSerializer.Deserialize<Dictionary<string, string>>(optJson) ?? new(); } catch { }
-                    }
-
-                    questions.Add(new Dictionary<string, object?>
-                    {
-                        ["id"] = id,
-                        ["code"] = code,
-                        ["topic"] = topic,
-                        ["level"] = level,
-                        ["content"] = qContent,
-                        ["options"] = options,
-                        ["correctAnswer"] = ans,
-                        ["explanation"] = exp
-                    });
-                    idx++;
-                }
-            }
-
-            if (questions.Count == 0) return;
+                ["id"] = q.Id.ToString(),
+                ["code"] = string.IsNullOrWhiteSpace(q.Code) ? $"Câu {idx + 1}" : q.Code,
+                ["subject"] = string.IsNullOrWhiteSpace(q.Subject) ? "Toán học" : q.Subject,
+                ["grade"] = q.Grade > 0 ? q.Grade : 12,
+                ["topic"] = string.IsNullOrWhiteSpace(q.Topic) ? "Tổng hợp" : q.Topic,
+                ["level"] = string.IsNullOrWhiteSpace(q.Level) ? "Thông hiểu" : q.Level,
+                ["qtype"] = q.Qtype,
+                ["content"] = q.Content,
+                ["options"] = q.Options,
+                ["correctAnswer"] = q.CorrectAnswer,
+                ["explanation"] = q.Explanation,
+                ["tikzCode"] = q.TikzCode,
+                ["images"] = q.Images,
+                ["resolvedImages"] = q.ResolvedImages,
+                ["inlineImages"] = q.InlineImages,
+                ["source"] = q.Source
+            }).ToList();
 
             var grouped = questions
                 .GroupBy(q => (q["topic"]?.ToString() ?? "Tổng hợp"))
-                .Select(g => new Dictionary<string, object?>
+                .Select(g =>
                 {
-                    ["id"] = "exam_sqlite_" + Math.Abs(g.Key.GetHashCode()),
-                    ["title"] = g.Key,
-                    ["source"] = "Kho SQLite MatrixExamAI (" + g.Count() + " câu)",
-                    ["subject"] = "Toán học",
-                    ["grade"] = 12,
-                    ["questions"] = g.ToList()
+                    int firstGrade = g.Select(x => x["grade"] is int gi ? gi : 12).FirstOrDefault();
+                    string firstSubject = g.Select(x => x["subject"]?.ToString()).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Toán học";
+                    return new Dictionary<string, object?>
+                    {
+                        ["id"] = "exam_sqlite_" + Math.Abs(g.Key.GetHashCode()),
+                        ["title"] = g.Key,
+                        ["source"] = "Kho SQLite MatrixExamAI (" + g.Count() + " câu)",
+                        ["subject"] = firstSubject,
+                        ["grade"] = firstGrade > 0 ? firstGrade : 12,
+                        ["questions"] = g.ToList()
+                    };
                 }).ToList();
 
             string jsonExams = JsonSerializer.Serialize(grouped);
             await Dispatcher.InvokeAsync(async () =>
             {
+                if (WvWhiteboard?.CoreWebView2 == null) return;
                 await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"if (typeof window.receiveQuestionBankData === 'function') window.receiveQuestionBankData({jsonExams});");
             });
         }

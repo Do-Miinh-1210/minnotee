@@ -24,7 +24,7 @@ if not GITHUB_TOKEN:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.7.6"
+TAG = "v0.0.8.0"
 NOTES_PATH = os.path.join(BASE_DIR, "release_notes", f"{TAG}.md")
 SETUP_EXE = os.path.join(BASE_DIR, "dist", "installer", "MinNote_Setup.exe")
 
@@ -35,7 +35,7 @@ if title_match:
     TITLE = title_match.group(1).strip()
     BODY = "\n".join(lines[1:]).lstrip("\r\n")
 else:
-    TITLE = f"MinNote {TAG} - Nâng Cấp Mindmap Studio Cobalt, Hình Học Tương Tác Toàn Diện, Sửa Thanh Quay Màn Hình & Tự Cập Nhật 1 Chạm"
+    TITLE = f"MinNote {TAG} - Đồng Bộ 2 Chiều MatrixExamAI Pro, Xuất TikZ Chuẩn Số Nguyên, Diễn Hoạt 3D 360°, Xuất GIF/Video, Tay Cầm Bút & Video Trên Bảng"
     BODY = raw_notes
 
 # Không tạo bản phát hành khi chưa có bộ cài: app của người dùng sẽ thấy bản mới mà không có gì để tải.

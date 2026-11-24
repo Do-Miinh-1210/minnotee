@@ -3031,3 +3031,175 @@ html[data-ui="v2"].dark .show .show-ask .show-chip:not(.primary):hover {
   border-color: #475569 !important;
   color: #ffffff !important;
 }
+
+/* ============================================================================
+   14. DUOTONE ICON POLISH & SETTINGS 4TH TAB (API KEY & MEA SYNC)
+   ============================================================================ */
+html[data-ui="v2"] .dialog.settings.mn-set-studio[data-mn-set-tab="all"] .settings-grid > section.mn-set-mea-section {
+  grid-column: 1 / -1 !important;
+}
+
+.mn-set-mea-loading {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}
+
+html.dark .mn-set-mea-loading {
+  color: #94a3b8;
+}
+
+/* Active toggle pill in top dock (e.g. Tay cầm bút / Hand Cursor) */
+html[data-ui="v2"] #nb-tools-dock .tb.on,
+html[data-ui="v2"] #nb-tools-dock #tb-btn-hand-cursor.on {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px -3px rgba(37, 99, 235, 0.55) !important;
+}
+
+html[data-ui="v2"] #nb-tools-dock .tb.on:hover:not(:disabled),
+html[data-ui="v2"] #nb-tools-dock #tb-btn-hand-cursor.on:hover:not(:disabled) {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
+/* Ensure crisp transparent-outline + subtle duotone icons across all surfaces */
+html[data-ui="v2"] .selection-bar button svg.mn-ic2,
+html[data-ui="v2"] .dropdown-menu button svg.mn-ic2,
+html[data-ui="v2"] .nb-tools-dock .tb svg.mn-ic2,
+html[data-ui="v2"] .tb-group.tools .tb svg.mn-ic2 {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ============================================================================
+   15. DESIGN SPELLS — SILKY GPU MICRO-INTERACTIONS & TAB/POPOVER TRANSITIONS
+   GPU-accelerated transform + opacity ONLY (zero layout shifts, 60fps+)
+   ============================================================================ */
+@keyframes mnPopIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.972);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes mnSelectionPopIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, 6px, 0) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+}
+
+@keyframes mnSecEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes mnDrawerSlideIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(14px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Pop-in entrance for popovers, modals & floating bars */
+html[data-ui="v2"] .dropdown-menu,
+html[data-ui="v2"] .dialog,
+.mm-modal-card,
+.mn-v80-modal,
+.mea-qb-modal-card,
+.mea-qc-edit-card,
+.mea-confirm-dialog,
+.mn-drive-modal {
+  animation: mnPopIn 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards !important;
+  transform-origin: center top;
+}
+
+html[data-ui="v2"] .selection-bar {
+  animation: mnSelectionPopIn 175ms cubic-bezier(0.22, 1, 0.36, 1) backwards !important;
+  transform-origin: center top;
+}
+
+/* Mindmap Studio drawer & markdown view smooth entrance */
+#mea-mindmap-container.mode-split,
+#mea-mindmap-container.mode-full {
+  animation: mnDrawerSlideIn 210ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+#mea-mindmap-container .mindmap-markdown-area.active {
+  animation: mnSecEnter 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Smooth tab / section switch entrance (180ms spring-out curve) */
+.mn-sec-enter {
+  animation: mnSecEnter 180ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+/* Subtle tactile hover & press micro-interactions across buttons and cards */
+html[data-ui="v2"] .tb,
+html[data-ui="v2"] .nb-tools-dock .tb,
+html[data-ui="v2"] .selection-bar button,
+html[data-ui="v2"] .dropdown-menu button,
+html[data-ui="v2"] .mn-pop-ftab,
+html[data-ui="v2"] .mn-set-nav-btn,
+html[data-ui="v2"] .mnm-head-tab,
+html[data-ui="v2"] .mnm-common-card,
+html[data-ui="v2"] .mnm-key-row,
+html[data-ui="v2"] .sheet-tab,
+#mea-mindmap-container .mm-btn,
+.mea-qb-tab-btn {
+  transition:
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.16s ease,
+    color 0.14s ease !important;
+}
+
+html[data-ui="v2"] .tb:active:not(:disabled),
+html[data-ui="v2"] .nb-tools-dock .tb:active:not(:disabled),
+html[data-ui="v2"] .selection-bar button:active:not(:disabled),
+html[data-ui="v2"] .mn-pop-ftab:active:not(:disabled),
+html[data-ui="v2"] .mn-set-nav-btn:active:not(:disabled),
+html[data-ui="v2"] .mnm-common-card:active:not(:disabled),
+html[data-ui="v2"] .sheet-tab:active:not(:disabled),
+.mea-qb-tab-btn:active:not(:disabled) {
+  transform: scale(0.965) !important;
+}
+
+html[data-ui="v2"] .mnm-common-card:hover {
+  transform: translate3d(0, -1.5px, 0);
+}
+
+/* Accessibility: honor OS reduced motion preference cleanly */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
