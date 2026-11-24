@@ -117,7 +117,9 @@
             if (window.chrome && window.chrome.webview) {
               window.chrome.webview.postMessage({ type: 'CONVERT_WORD', path: p });
             } else {
-              alert('Tính năng chuyển đổi Word trực tiếp hoạt động trên ứng dụng MinNote cài đặt trên Windows.');
+              if (window.MinNoteDialog) {
+                window.MinNoteDialog.alert('Tính năng chuyển đổi Word trực tiếp hoạt động trên ứng dụng MinNote cài đặt trên Windows.', 'Thông báo');
+              }
               resolve({ error: 'requires_app' });
             }
           });
@@ -200,6 +202,8 @@
     <link rel="stylesheet" href="./assets/minnote-persistence.css">
     <script src="./assets/minnote-persistence.js"></script>
     <script src="./assets/minnote-motion-fx.js"></script>
+    <link rel="stylesheet" href="./assets/minnote-dialog.css">
+    <script src="./assets/minnote-dialog.js"></script>
     <script type="module" crossorigin src="./assets/index-CTbULhps.js"></script>
     <script type="module" crossorigin src="./assets/ai-math-assistant.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-BQ73TrLm.css">
@@ -975,7 +979,9 @@
                 console.error('Import Word error:', err);
               }
             } else {
-              alert('Tính năng nhập file Word trực tiếp yêu cầu chạy trên ứng dụng MinNote.');
+              if (window.MinNoteDialog) {
+                window.MinNoteDialog.alert('Tính năng nhập file Word trực tiếp yêu cầu chạy trên ứng dụng MinNote.', 'Thông báo');
+              }
             }
           };
           targetGroup.appendChild(btnIW);

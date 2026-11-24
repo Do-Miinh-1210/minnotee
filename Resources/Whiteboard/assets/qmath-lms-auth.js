@@ -463,7 +463,7 @@
         banner.remove();
         showToast('✅ Đã khôi phục bài giảng từ bản sao lưu tự động! Hãy bấm "Lưu vào Lớp" để đồng bộ.', 'success', 5000);
       } catch (err) {
-        alert('Lỗi khôi phục bản nháp: ' + err.message);
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi khôi phục bản nháp: ' + err.message, 'Thông báo lỗi');
       }
     };
 
@@ -599,7 +599,7 @@
         };
       });
     } catch (e) {
-      alert('Lỗi đọc bản sao lưu: ' + e.message);
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi đọc bản sao lưu: ' + e.message, 'Thông báo lỗi');
     }
   }
 
@@ -1202,7 +1202,7 @@
       }
     } catch (err) {
       console.error('[loadAndRenderLessonNote] Error:', err);
-      alert('Lỗi tải bài giảng: ' + err.message);
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi tải bài giảng: ' + err.message, 'Thông báo lỗi');
     } finally {
       if (loadingEl) loadingEl.remove();
     }
@@ -1213,7 +1213,7 @@
   // =========================================================
   async function exportCurrentNoteToPdf() {
     if (!window.__NR_API || !window.__NR_EDITOR || !window.__NR_EDITOR.doc) {
-      alert('Chưa có dữ liệu bài giảng để xuất PDF!');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Chưa có dữ liệu bài giảng để xuất PDF!', 'Lưu ý');
       return;
     }
 
@@ -1243,7 +1243,7 @@
       }, 2000);
     } catch (err) {
       console.error('[exportCurrentNoteToPdf] Error:', err);
-      alert('Lỗi xuất PDF: ' + err.message);
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi xuất PDF: ' + err.message, 'Thông báo lỗi');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -1408,7 +1408,7 @@
   // =========================================================
   async function openSaveToClassModal() {
     if (!window.__NR_EDITOR || !window.__NR_EDITOR.doc || !window.__NR_API) {
-      alert('Bảng viết chưa sẵn sàng. Vui lòng thử lại sau giây lát!');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Bảng viết chưa sẵn sàng. Vui lòng thử lại sau giây lát!', 'Lưu ý');
       return;
     }
 
@@ -1580,11 +1580,11 @@
       const allowStudentPdf = document.getElementById('qm-save-allow-pdf').checked;
 
       if (!selectedClassId) {
-        alert('Vui lòng chọn Lớp học!');
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Vui lòng chọn Lớp học!', 'Lưu ý');
         return;
       }
       if (!title) {
-        alert('Vui lòng nhập Tên bài giảng!');
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Vui lòng nhập Tên bài giảng!', 'Lưu ý');
         return;
       }
 
@@ -1625,7 +1625,7 @@
         setTimeout(() => modal.remove(), 900);
       } catch (err) {
         console.error('[SaveLesson] Error:', err);
-        alert('Lỗi lưu bài giảng: ' + err.message);
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi lưu bài giảng: ' + err.message, 'Thông báo lỗi');
         submitBtn.disabled = false;
         progBox.style.display = 'none';
       }
@@ -1712,7 +1712,7 @@
       filterEl.onchange = renderList;
       renderList();
     } catch (e) {
-      alert('Lỗi tải danh sách bài giảng: ' + e.message);
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi tải danh sách bài giảng: ' + e.message, 'Thông báo lỗi');
     }
   }
 
@@ -1877,8 +1877,17 @@
 
     const btnLogout = document.getElementById('qmath-btn-logout');
     if (btnLogout) {
-      btnLogout.onclick = () => {
-        if (confirm('Bạn có chắc chắn muốn đăng xuất tài khoản QMath khỏi Bảng vẽ?')) {
+      btnLogout.onclick = async () => {
+        const okLogout = window.MinNoteDialog
+          ? await window.MinNoteDialog.confirm({
+              title: 'Đăng xuất QMath',
+              message: 'Bạn có chắc chắn muốn đăng xuất tài khoản QMath khỏi Bảng vẽ?',
+              confirmText: 'Đăng xuất',
+              cancelText: 'Hủy',
+              tone: 'danger'
+            })
+          : false;
+        if (okLogout) {
           clearSession();
           window.location.reload();
         }

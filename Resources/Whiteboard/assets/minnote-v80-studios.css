@@ -425,13 +425,26 @@ html.dark {
   left: 0;
   top: 0;
   transform-origin: 0 0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #020617;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
-  border: 1.5px solid rgba(59, 130, 246, 0.45);
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  border: none;
   pointer-events: none;
   will-change: transform;
+}
+
+.mn-vid-media-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.mn-vid-box.selected .mn-vid-media-wrap {
+  outline: 1.5px dashed #2563eb;
+  outline-offset: 0;
 }
 
 .mn-vid-box.interactive {
@@ -444,52 +457,65 @@ html.dark {
   height: 100%;
   display: block;
   border: 0;
-  background: #000000;
+  outline: none;
+  background: transparent;
   object-fit: contain;
 }
 
-.mn-vid-box.draw-passthrough video,
-.mn-vid-box.draw-passthrough iframe {
-  pointer-events: none !important;
+.mn-vid-box video:focus,
+.mn-vid-box video:focus-visible {
+  outline: none;
 }
 
-.mn-vid-badge-bar {
+.mn-vid-drag-surface {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  z-index: 4;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 52px;
+  z-index: 3;
+  cursor: grab;
+  background: transparent;
   pointer-events: auto;
+  touch-action: none;
 }
 
-.mn-vid-mini-btn {
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(15, 23, 42, 0.84);
-  color: #f8fafc;
-  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  backdrop-filter: blur(6px);
-  transition: background-color 0.14s ease, transform 0.12s ease;
+.mn-vid-box[data-kind="iframe"] .mn-vid-drag-surface {
+  bottom: auto;
+  height: 28px;
 }
 
-.mn-vid-mini-btn:hover {
-  background: #2563eb;
-  border-color: #60a5fa;
+.mn-vid-drag-surface.dragging {
+  cursor: grabbing;
 }
 
-.mn-vid-mini-btn.active {
-  background: #2563eb;
-  border-color: #93c5fd;
+.mn-vid-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background: #ffffff;
+  border: 1.5px solid #2563eb;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+  z-index: 5;
+  display: none;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.mn-vid-box.selected.interactive .mn-vid-handle {
+  display: block;
+}
+
+.mn-vid-handle.nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.mn-vid-handle.ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.mn-vid-handle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.mn-vid-handle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
+.mn-vid-box.draw-passthrough,
+.mn-vid-box.draw-passthrough * {
+  pointer-events: none !important;
 }
 
 .mn-vid-dropzone {
@@ -965,8 +991,8 @@ html.dark .mn-tikz-preview-stage.empty {
 }
 
 .mn-qb-search-wrap.compact {
-  flex: 0 1 210px;
-  min-width: 150px;
+  flex: 0 1 165px;
+  min-width: 140px;
 }
 
 .mn-qb-search-ico,
@@ -1041,7 +1067,11 @@ html.dark .mn-tikz-preview-stage.empty {
 }
 
 .mn-qb-select-topic {
-  max-width: 215px;
+  max-width: 195px;
+}
+
+.mn-qb-select-source {
+  max-width: 210px;
 }
 
 .mn-qb-select.sm {
@@ -1142,6 +1172,7 @@ html.dark .mn-tikz-preview-stage.empty {
 
 /* Single Full-Height Scrollable Card List (no max-height: 460px!) */
 .mn-qb-mea-list {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -1153,6 +1184,8 @@ html.dark .mn-tikz-preview-stage.empty {
 }
 
 .mn-qb-card {
+  position: relative;
+  flex-shrink: 0;
   background: var(--qb-bg, var(--mn80-bg));
   border: 1px solid var(--qb-line, var(--mn80-border));
   border-radius: 12px;

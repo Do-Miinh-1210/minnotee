@@ -1882,10 +1882,18 @@
               }
               window.MinNoteGeoReplay.selectScript(item.id);
             });
-            tab.addEventListener('dblclick', (e) => {
+            tab.addEventListener('dblclick', async (e) => {
               if (e.target.closest('button')) return;
               e.stopPropagation();
-              const nextName = window.prompt('Đặt tên cho kịch bản hình này:', item.title || lbl);
+              const nextName = window.MinNoteDialog
+                ? await window.MinNoteDialog.prompt({
+                    title: 'Đổi tên kịch bản',
+                    message: 'Đặt tên cho kịch bản hình này:',
+                    defaultValue: item.title || lbl,
+                    confirmText: 'Lưu tên',
+                    cancelText: 'Hủy'
+                  })
+                : null;
               if (nextName && nextName.trim()) {
                 item.title = nextName.trim();
                 persistScript(b, false, item);
@@ -1923,10 +1931,18 @@
           const name = entry.title || (entry.key === 'all' ? 'Cả trang' : 'Hình đã lưu');
           chip.title = isLoaded ? `Đang mở: ${name}` : `Mở song song "${name}"`;
           chip.innerHTML = `<span>${escapeHtml(name)}</span><button type="button" class="mn-rp-saved-del" title="Xóa">✕</button>`;
-          chip.addEventListener('click', (e) => {
+          chip.addEventListener('click', async (e) => {
             if (e.target.closest('.mn-rp-saved-del')) {
               e.stopPropagation();
-              const okDel = window.confirm(`Xóa kịch bản đã lưu "${name}"? (Vẫn có thể khôi phục bằng nút ↶)`);
+              const okDel = window.MinNoteDialog
+                ? await window.MinNoteDialog.confirm({
+                    title: 'Xóa kịch bản đã lưu',
+                    message: `Xóa kịch bản đã lưu "${name}"? (Vẫn có thể khôi phục bằng nút ↶)`,
+                    confirmText: 'Xóa kịch bản',
+                    cancelText: 'Hủy',
+                    tone: 'danger'
+                  })
+                : false;
               if (!okDel) return;
               if (typeof b.deleteBuildScript === 'function') b.deleteBuildScript(r.page, entry.key);
               renderReplayUI();
@@ -2718,7 +2734,7 @@
       renderReplayUI();
     },
 
-    applyPreset(mode, force = false) {
+    async applyPreset(mode, force = false) {
       const b = getBoard();
       const r = getFocusedReplay(b);
       if (!b || !r) return false;
@@ -2726,7 +2742,12 @@
       if (!pg) return false;
       if ((mode === 'orig' || mode === 'solidFirst') && !force && isScriptCustomized(r, pg)) {
         const label = mode === 'orig' ? 'khôi phục thứ tự Gốc' : 'áp dụng mẫu Khối→Nét';
-        if (!window.confirm(`Bạn có chắc muốn ${label}? Các thiết lập bước hiện tại sẽ được sao lưu (có thể bấm ↶ để hoàn tác).`)) {
+        const title = mode === 'orig' ? 'Khôi phục thứ tự Gốc' : 'Áp dụng mẫu Khối → Nét';
+        const msg = `Bạn có chắc muốn ${label}? Các thiết lập bước hiện tại sẽ được sao lưu (có thể bấm ↶ để hoàn tác).`;
+        const ok = window.MinNoteDialog
+          ? await window.MinNoteDialog.confirm({ title, message: msg, confirmText: 'Xác nhận', cancelText: 'Hủy', tone: 'warning' })
+          : false;
+        if (!ok) {
           return false;
         }
       }

@@ -89,8 +89,10 @@ namespace MinNote
                         else
                         {
                             AppLog("Another instance holds the mutex but has no window yet; exiting.");
-                            MessageBox.Show("MinNote đang khởi động hoặc đang chạy ở một cửa sổ khác.", "MinNote",
-                                MessageBoxButton.OK, MessageBoxImage.Information);
+                            MinNote.Views.MinNoteDialog.ShowAlert(
+                                null,
+                                "MinNote đang khởi động hoặc đang chạy ở một cửa sổ khác.",
+                                "MinNote");
                         }
                     }
                     catch (Exception ex)

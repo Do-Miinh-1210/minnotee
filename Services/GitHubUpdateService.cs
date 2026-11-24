@@ -25,7 +25,7 @@ public record UpdateInfo(
 
 public class GitHubUpdateService
 {
-    private const string FallbackVersion = "0.0.8.9";
+    private const string FallbackVersion = "0.0.9.0";
     private const string DefaultSetupAssetName = "MinNote_Setup.exe";
 
     public static GitHubUpdateService Instance { get; } = new();
@@ -417,7 +417,11 @@ public class GitHubUpdateService
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Lỗi khi tải bản cập nhật: {ex.Message}", "Cập nhật thất bại", MessageBoxButton.OK, MessageBoxImage.Error);
+            MinNote.Views.MinNoteDialog.ShowAlert(
+                null,
+                $"Lỗi khi tải bản cập nhật: {ex.Message}",
+                "Cập nhật thất bại",
+                MinNote.Views.MinNoteDialogTone.Danger);
             return false;
         }
     }

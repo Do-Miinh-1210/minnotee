@@ -591,7 +591,28 @@
     </div>
   </div>
 
+  <div id="portalNoticeOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div style="width:360px;max-width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 20px 40px rgba(15,23,42,0.22);overflow:hidden;font-family:inherit;">
+      <div style="padding:16px 18px 8px;font-weight:700;font-size:15px;color:#0f172a;">Thông báo</div>
+      <div id="portalNoticeMsg" style="padding:4px 18px 16px;font-size:13.5px;line-height:1.5;color:#334155;"></div>
+      <div style="padding:10px 18px 14px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;">
+        <button id="portalNoticeOkBtn" type="button" style="padding:8px 18px;border-radius:8px;border:none;background:#2563eb;color:#ffffff;font-weight:600;font-size:13px;cursor:pointer;">Đã hiểu</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    function showPortalAlert(message) {
+      const ov = document.getElementById('portalNoticeOverlay');
+      const msg = document.getElementById('portalNoticeMsg');
+      const ok = document.getElementById('portalNoticeOkBtn');
+      if (!ov || !msg || !ok) return;
+      msg.textContent = String(message || '');
+      ov.style.display = 'flex';
+      ok.onclick = () => { ov.style.display = 'none'; };
+      ov.onclick = (ev) => { if (ev.target === ov) ov.style.display = 'none'; };
+      ok.focus();
+    }
     // Bảng màu 10 nhóm đồng bộ chuẩn NoteBoard Ink GroupHub
     const GROUP_PALETTE = [
       { color: '#10b981', accent: '#059669', bgLight: '#ecfdf5', borderLight: '#a7f3d0' },
@@ -894,7 +915,7 @@
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.onclick = async () => {
       if (isPortalLocked) {
-        alert('Cổng nộp bài hiện đang bị khóa. Bạn không thể gửi thêm bài.');
+        showPortalAlert('Cổng nộp bài hiện đang bị khóa. Bạn không thể gửi thêm bài.');
         return;
       }
 
@@ -904,7 +925,7 @@
       let item = null;
       if (activeTab === 'photo') {
         if (!currentPhotoData) {
-          alert('Vui lòng chụp ảnh bài làm của nhóm trước khi bấm nộp.');
+          showPortalAlert('Vui lòng chụp ảnh bài làm của nhóm trước khi bấm nộp.');
           return;
         }
         item = {
@@ -922,12 +943,12 @@
       } else {
         const url = document.getElementById('urlInput').value.trim();
         if (!url) {
-          alert('Vui lòng dán liên kết sản phẩm (Canva, Slides...).');
+          showPortalAlert('Vui lòng dán liên kết sản phẩm (Canva, Slides...).');
           return;
         }
         const parsed = parseProduct(url);
         if (!parsed) {
-          alert('Đường dẫn không hợp lệ. Vui lòng nhập link đầy đủ (bắt đầu bằng https://).');
+          showPortalAlert('Đường dẫn không hợp lệ. Vui lòng nhập link đầy đủ (bắt đầu bằng https://).');
           return;
         }
         item = {

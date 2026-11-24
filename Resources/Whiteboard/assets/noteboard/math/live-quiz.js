@@ -821,7 +821,8 @@
       if (typeof window.toast === 'function') window.toast('Đã phát câu ' + (index + 1) + ' cho cả lớp');
     } catch (e) {
       /* fetch bị chặn (vd Nginx từ chối gói lớn nên trả về không kèm CORS) chỉ báo "Failed to fetch" */
-      alert(e instanceof TypeError ? 'Không gửi được câu ' + (index + 1) + ' lên máy chủ. Câu có hình/công thức lớn hơn giới hạn của máy chủ (cần mở rộng Nginx cho /api/live/ lên 8 MB), hoặc mạng đang gián đoạn.' : e.message);
+      const errMsg = e instanceof TypeError ? 'Không gửi được câu ' + (index + 1) + ' lên máy chủ. Câu có hình/công thức lớn hơn giới hạn của máy chủ (cần mở rộng Nginx cho /api/live/ lên 8 MB), hoặc mạng đang gián đoạn.' : e.message;
+      if (window.MinNoteDialog) window.MinNoteDialog.alert(errMsg, 'Thông báo lỗi');
     } finally {
       btn.disabled = false;
     }
@@ -846,7 +847,17 @@
 
   // Dừng phiên
   sec.querySelector('#liveEndBtn').onclick = async () => {
-    if (!currentRoom || !confirm('Thầy cô có chắc muốn kết thúc phiên Live Quiz này?')) return;
+    if (!currentRoom) return;
+    const okEnd = window.MinNoteDialog
+      ? await window.MinNoteDialog.confirm({
+          title: 'Kết thúc phiên Live Quiz',
+          message: 'Thầy cô có chắc muốn kết thúc phiên Live Quiz này?',
+          confirmText: 'Kết thúc',
+          cancelText: 'Hủy',
+          tone: 'danger'
+        })
+      : false;
+    if (!okEnd) return;
     try {
       await hostFetch(`/api/live/host/${currentRoom.id}/end`, {});
     } catch (_) {}
@@ -1752,7 +1763,7 @@
       a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
       if (typeof window.toast === 'function') window.toast('Đã xuất Excel gồm Tổng hợp và Chi tiết: ' + name);
-    } catch (e) { alert(e.message); }
+    } catch (e) { if (window.MinNoteDialog) window.MinNoteDialog.alert(e.message, 'Thông báo lỗi'); }
   }
   function pinSummary() {
     const s = summaryData; if (!s) return;

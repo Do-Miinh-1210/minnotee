@@ -2157,8 +2157,16 @@
         <span class="gh-members-icon" style="color:${palette.accent}">👥</span>
         <span class="gh-members-text ${hasMembers ? '' : 'empty'}">${hasMembers ? escapeHtml(group.members) : 'Chưa nhập thành viên (Bấm để thêm hoặc HS tự điền)'}</span>
       `;
-      membersRow.onclick = () => {
-        const input = prompt(`Nhập danh sách thành viên cho ${group.name} (ví dụ: Minh (NT), An, Hùng, Vy):`, group.members || '');
+      membersRow.onclick = async () => {
+        const input = window.MinNoteDialog
+          ? await window.MinNoteDialog.prompt({
+              title: `Thành viên ${group.name}`,
+              message: `Nhập danh sách thành viên cho ${group.name} (ví dụ: Minh (NT), An, Hùng, Vy):`,
+              defaultValue: group.members || '',
+              confirmText: 'Lưu danh sách',
+              cancelText: 'Hủy'
+            })
+          : null;
         if (input !== null) {
           group.members = input.trim();
           saveState();
@@ -2927,8 +2935,8 @@
         saveState();
         if (typeof window.toast === 'function') {
           window.toast('⏱️ HẾT GIỜ THẢO LUẬN NHÓM! Cổng nộp bài đã tự động khóa.');
-        } else {
-          alert('⏱️ HẾT GIỜ THẢO LUẬN NHÓM! Cổng nộp bài đã tự động khóa.');
+        } else if (window.MinNoteDialog) {
+          window.MinNoteDialog.alert('HẾT GIỜ THẢO LUẬN NHÓM! Cổng nộp bài đã tự động khóa.', 'Hết giờ thảo luận');
         }
         return;
       }
@@ -3032,8 +3040,16 @@
   }
   const editMissionBtn = document.getElementById('ghEditMissionBtn');
   if (editMissionBtn) {
-    editMissionBtn.onclick = () => {
-      const input = prompt('Nhập nhiệm vụ giáo viên giao cho các nhóm:', state.task || '');
+    editMissionBtn.onclick = async () => {
+      const input = window.MinNoteDialog
+        ? await window.MinNoteDialog.prompt({
+            title: 'Giao nhiệm vụ thảo luận',
+            message: 'Nhập nhiệm vụ giáo viên giao cho các nhóm:',
+            defaultValue: state.task || '',
+            confirmText: 'Lưu nhiệm vụ',
+            cancelText: 'Hủy'
+          })
+        : null;
       if (input !== null && input.trim()) {
         state.task = input.trim();
         saveState();
@@ -3045,16 +3061,27 @@
   // Sao chép link nộp bài nhóm trong modal QR
   const copyQRBtn = document.getElementById('ghCopyQRUrlBtn');
   if (copyQRBtn) {
-    copyQRBtn.onclick = () => {
+    copyQRBtn.onclick = async () => {
       const url = document.getElementById('ghQRUrlText')?.textContent?.trim() || '';
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => {
-          alert('Đã sao chép liên kết nộp bài nhóm vào bộ nhớ tạm!');
-        }).catch(() => {
-          prompt('Sao chép liên kết dưới đây:', url);
+        try {
+          await navigator.clipboard.writeText(url);
+          if (typeof window.toast === 'function') {
+            window.toast('Đã sao chép liên kết nộp bài nhóm vào bộ nhớ tạm!');
+          } else if (window.MinNoteDialog) {
+            window.MinNoteDialog.alert('Đã sao chép liên kết nộp bài nhóm vào bộ nhớ tạm!', 'Đã sao chép');
+          }
+          return;
+        } catch (_) {}
+      }
+      if (window.MinNoteDialog) {
+        await window.MinNoteDialog.prompt({
+          title: 'Sao chép liên kết',
+          message: 'Sao chép liên kết dưới đây:',
+          defaultValue: url,
+          confirmText: 'Đóng',
+          cancelText: 'Hủy'
         });
-      } else {
-        prompt('Sao chép liên kết dưới đây:', url);
       }
     };
   }
@@ -3241,8 +3268,8 @@
 
     if (typeof window.toast === 'function') {
       window.toast(`📸 Đã lưu bài chữa của ${group.name} thành 1 trang slide mới & tải ảnh PNG về máy!`);
-    } else {
-      alert(`📸 Đã lưu bài chữa của ${group.name} thành 1 trang slide mới!`);
+    } else if (window.MinNoteDialog) {
+      window.MinNoteDialog.alert(`Đã lưu bài chữa của ${group.name} thành 1 trang slide mới!`, 'Hoàn tất');
     }
   }
 
@@ -3255,8 +3282,8 @@
     if (!item) {
       if (typeof window.toast === 'function') {
         window.toast('Nhóm này chưa có bài làm để đưa lên bảng.');
-      } else {
-        alert('Nhóm này chưa có bài làm để đưa lên bảng.');
+      } else if (window.MinNoteDialog) {
+        window.MinNoteDialog.alert('Nhóm này chưa có bài làm để đưa lên bảng.', 'Lưu ý');
       }
       return;
     }
@@ -3812,8 +3839,17 @@
   };
 
   // Làm mới / Xóa toàn bộ
-  document.getElementById('ghResetAllBtn').onclick = () => {
-    if (confirm('Thầy cô có chắc chắn muốn làm mới toàn bộ bài nộp của các nhóm để bắt đầu hoạt động mới?')) {
+  document.getElementById('ghResetAllBtn').onclick = async () => {
+    const okReset = window.MinNoteDialog
+      ? await window.MinNoteDialog.confirm({
+          title: 'Làm mới bài nộp các nhóm',
+          message: 'Thầy cô có chắc chắn muốn làm mới toàn bộ bài nộp của các nhóm để bắt đầu hoạt động mới?',
+          confirmText: 'Làm mới',
+          cancelText: 'Hủy',
+          tone: 'danger'
+        })
+      : false;
+    if (okReset) {
       state = createInitialState(state.groups.length || 6);
       saveState();
       renderDashboard();
@@ -3937,11 +3973,11 @@
         });
         group.status = 'submitted';
       } else {
-        alert('Đường dẫn không hợp lệ. Vui lòng nhập link đầy đủ (bắt đầu bằng https://).');
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Đường dẫn không hợp lệ. Vui lòng nhập link đầy đủ (bắt đầu bằng https://).', 'Thông báo lỗi');
         return;
       }
     } else {
-      alert('Vui lòng dán liên kết hoặc chọn ảnh bài làm.');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Vui lòng dán liên kết hoặc chọn ảnh bài làm.', 'Lưu ý');
       return;
     }
 

@@ -1218,14 +1218,21 @@
         card.querySelector('[data-act="insert-img"]').addEventListener('click', () => insertFigureToBoard(fig, 'image'));
         card.querySelector('[data-act="insert-dyn"]').addEventListener('click', () => insertFigureToBoard(fig, 'dynamic'));
         card.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-          const ok = typeof window.meaConfirm === 'function'
-            ? await window.meaConfirm({
+          const ok = typeof window.MinNoteDialog === 'object' && typeof window.MinNoteDialog.confirm === 'function'
+            ? await window.MinNoteDialog.confirm({
                 title: 'Xóa hình khỏi Kho đồng bộ',
                 message: `Bạn có chắc muốn xóa hình #${fig.id} (${fig.title || 'Không tên'}) khỏi Kho hình MatrixExamAI Pro?`,
                 confirmText: 'Xóa hình',
-                isDanger: true
+                tone: 'danger'
               })
-            : window.confirm(`Xóa hình #${fig.id}?`);
+            : (typeof window.meaConfirm === 'function'
+                ? await window.meaConfirm({
+                    title: 'Xóa hình khỏi Kho đồng bộ',
+                    message: `Bạn có chắc muốn xóa hình #${fig.id} (${fig.title || 'Không tên'}) khỏi Kho hình MatrixExamAI Pro?`,
+                    confirmText: 'Xóa hình',
+                    isDanger: true
+                  })
+                : false);
           if (!ok) return;
           try {
             await request('MEA_FIG_DELETE', { figureId: fig.id });
@@ -1399,6 +1406,51 @@
   // ============================================================================
   // 4. LIVE QUESTION BANK QUERY, EMBEDDED BROWSER & 1-CLICK INSERT
   // ============================================================================
+  const QTYPE_LABELS = {
+    MultipleChoice4: 'Trắc nghiệm',
+    TrueFalse4: 'Đúng / Sai',
+    ShortAnswer: 'Trả lời ngắn',
+    Essay: 'Tự luận',
+    TN: 'Trắc nghiệm',
+    DS: 'Đúng / Sai',
+    TLN: 'Trả lời ngắn',
+    TL: 'Tự luận'
+  };
+
+  function formatQtypeLabel(qtype) {
+    const raw = String(qtype || '').trim();
+    if (!raw) return '';
+    return QTYPE_LABELS[raw] || raw;
+  }
+
+  function getLevelBadgeClass(level) {
+    const s = String(level || '').trim().toLowerCase();
+    if (s === 'nhận biết' || s === 'nb') return 'nb';
+    if (s === 'thông hiểu' || s === 'th') return 'th';
+    if (s === 'vận dụng' || s === 'vd') return 'vd';
+    if (s === 'vận dụng cao' || s === 'vdc') return 'vdc';
+    return 'neutral';
+  }
+
+  function parseCorrectAnswerBadge(q, norm) {
+    const ans = String(norm.correctAnswer || '').trim();
+    if (!ans) return '';
+    return ans;
+  }
+
+  function splitKeysForTrueFalse(correctAnswer, orderedKeys) {
+    if (!correctAnswer) return {};
+    const tokens = String(correctAnswer).match(/[đĐsStTfF10]/g) || [];
+    const map = {};
+    orderedKeys.forEach((k, i) => {
+      if (i < tokens.length) {
+        const ch = tokens[i].toUpperCase();
+        map[k.toLowerCase()] = ch === 'Đ' || ch === 'D' || ch === 'T' || ch === '1';
+      }
+    });
+    return map;
+  }
+
   async function queryQuestionBank(filter) {
     const f = filter || {};
     return await request('MEA_QB_LIST', {
@@ -1407,24 +1459,78 @@
       topic: f.topic || undefined,
       level: f.level || undefined,
       qtype: f.qtype || undefined,
-      limit: f.limit || 40,
+      sourceDb: f.sourceDb || undefined,
+      limit: f.limit || 50,
       offset: f.offset || 0
     });
   }
 
-  function renderMathLite(text) {
+  function renderMathChunk(text) {
     let s = String(text || '');
     if (typeof window.katex !== 'undefined') {
-      s = s.replace(/\$\$([\s\S]*?)\$\$/g, (_, tex) => {
-        try { return window.katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }); } catch (_) { return _; }
-      });
-      s = s.replace(/\$([^\$\n\r]+?)\$/g, (_, tex) => {
-        try { return window.katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }); } catch (_) { return _; }
-      });
-    } else {
-      s = esc(s);
+      const tokens = [];
+      let idx = 0;
+      const pushMath = (tex, displayMode) => {
+        const key = `\u0000MNKM${idx++}\u0000`;
+        try {
+          tokens.push({
+            key,
+            html: window.katex.renderToString(String(tex || '').trim(), {
+              displayMode: !!displayMode,
+              throwOnError: false
+            })
+          });
+        } catch (_) {
+          tokens.push({ key, html: esc(tex) });
+        }
+        return key;
+      };
+      s = s.replace(/\$\$([\s\S]*?)\$\$/g, (_, tex) => pushMath(tex, true));
+      s = s.replace(/\\\[([\s\S]*?)\\\]/g, (_, tex) => pushMath(tex, true));
+      s = s.replace(/\\\(([\s\S]*?)\\\)/g, (_, tex) => pushMath(tex, false));
+      s = s.replace(/\$([^\$\n\r]+?)\$/g, (_, tex) => pushMath(tex, false));
+      // Replace newlines ONLY in plain prose before re-inserting multi-line KaTeX SVGs
+      s = esc(s).replace(/\r?\n/g, '<br>');
+      for (const t of tokens) {
+        s = s.split(t.key).join(t.html);
+      }
+      return s;
     }
-    return s.replace(/\n/g, '<br>');
+    return esc(s).replace(/\r?\n/g, '<br>');
+  }
+
+  function renderRichQuestionHtml(text, inlineImages, usedNamesSet) {
+    const raw = String(text || '');
+    if (!raw) return '';
+    const parts = raw.split(/(\[HINH_ANH:\s*[^\]]+\])/gi);
+    return parts.map((part) => {
+      const m = /^\[HINH_ANH:\s*([^\]]+)\]$/i.exec(part);
+      if (m) {
+        const fname = m[1].trim();
+        const dataUrl = inlineImages && (inlineImages[fname] || inlineImages[m[1]]);
+        if (dataUrl) {
+          if (usedNamesSet) usedNamesSet.add(fname);
+          return `<span class="mn-qb-inline-img-wrap"><img class="mn-qb-inline-img" src="${esc(dataUrl)}" alt="${esc(fname)}" /></span>`;
+        }
+        return `<span class="mn-qb-missing-img">[Hình: ${esc(fname)}]</span>`;
+      }
+      return renderMathChunk(part);
+    }).join('');
+  }
+
+  function renderMathLite(text) {
+    return renderMathChunk(text);
+  }
+
+  function replaceInlineImageTokensForCard(text, inlineImages) {
+    let s = String(text || '');
+    if (!s || !inlineImages || typeof inlineImages !== 'object') return s;
+    return s.replace(/\[HINH_ANH:\s*([^\]]+)\]/gi, (m, fname) => {
+      const dataUrl = inlineImages[fname.trim()] || inlineImages[fname];
+      return dataUrl
+        ? `\n<img src="${dataUrl}" style="max-width:100%;max-height:220px;border-radius:6px;margin:6px 0;background:#fff;" />\n`
+        : m;
+    });
   }
 
   function normalizeMeaQuestionForCard(q) {
@@ -1442,17 +1548,14 @@
       Object.assign(opts, q.options);
     }
 
-    let content = String(q.content || q.question || '');
-    // Replace inline [HINH_ANH: ...] with resolved base64 img if present
-    if (q.inlineImages && typeof q.inlineImages === 'object') {
-      content = content.replace(/\[HINH_ANH:\s*([^\]]+)\]/gi, (m, fname) => {
-        const dataUrl = q.inlineImages[fname.trim()] || q.inlineImages[fname];
-        return dataUrl ? `\n<img src="${dataUrl}" style="max-width:100%;max-height:220px;border-radius:6px;margin:6px 0;" />\n` : m;
-      });
-    }
+    const inlineImgs = (q.inlineImages && typeof q.inlineImages === 'object') ? q.inlineImages : null;
+    const content = replaceInlineImageTokensForCard(String(q.content || q.question || ''), inlineImgs);
+    Object.keys(opts).forEach((k) => {
+      opts[k] = replaceInlineImageTokensForCard(opts[k], inlineImgs);
+    });
 
     const answerVal = String(q.correctAnswer || q.answer || '').trim();
-    const explVal = String(q.explanation || q.solution || '').trim();
+    const explVal = replaceInlineImageTokensForCard(String(q.explanation || q.solution || '').trim(), inlineImgs);
     const codeVal = q.code ? String(q.code).trim() : '';
 
     return {
@@ -1460,10 +1563,13 @@
       code: codeVal || (q.topic ? `Câu • ${q.topic}` : 'Câu MEA'),
       title: codeVal ? `Câu ${codeVal}` : (q.topic ? `Câu hỏi • ${q.topic}` : 'Câu hỏi MEA'),
       topic: q.topic || '',
+      chapterName: q.chapterName || '',
+      lessonName: q.lessonName || '',
+      sourceLabel: q.sourceLabel || '',
       grade: q.grade || '',
       level: q.level || '',
-      type: q.qtype || 'TN',
-      qtype: q.qtype || 'TN',
+      type: q.qtype || 'MultipleChoice4',
+      qtype: q.qtype || 'MultipleChoice4',
       content,
       options: opts,
       correctAnswer: answerVal,
@@ -1471,7 +1577,8 @@
       explanation: explVal,
       solution: explVal,
       tikzCode: q.tikzCode || '',
-      resolvedImages: Array.isArray(q.resolvedImages) ? q.resolvedImages : []
+      resolvedImages: Array.isArray(q.resolvedImages) ? q.resolvedImages : [],
+      inlineImages: inlineImgs || {}
     };
   }
 
@@ -1516,15 +1623,19 @@
       if (cardQ.tikzCode) {
         await insertFigureToBoard({ id: 'q_' + cardQ.id, title: cardQ.title, tikzCode: cardQ.tikzCode }, 'image');
       } else if (cardQ.resolvedImages && cardQ.resolvedImages[0]) {
-        b.insertItem({
-          id: 'meaqi_' + Date.now().toString(36),
-          type: 'image',
-          x: 0,
-          y: 0,
-          w: 320,
-          h: 220,
-          src: cardQ.resolvedImages[0]
-        });
+        const imgEntry = cardQ.resolvedImages[0];
+        const imgSrc = typeof imgEntry === 'string' ? imgEntry : (imgEntry.dataUrl || '');
+        if (imgSrc) {
+          b.insertItem({
+            id: 'meaqi_' + Date.now().toString(36),
+            type: 'image',
+            x: 0,
+            y: 0,
+            w: 320,
+            h: 220,
+            src: imgSrc
+          });
+        }
       }
       toast('✓ Đã chèn nội dung & hình vẽ câu hỏi lên bảng!');
       return true;
@@ -1533,118 +1644,334 @@
   }
 
   let activeBankHost = null;
-  let activeBankFilter = { keyword: '', grade: '', level: '', qtype: '', offset: 0 };
-  const BANK_PAGE_SIZE = 24;
+  let activeBankReloadFn = null;
+  let activeBankFilter = {
+    keyword: '',
+    grade: '',
+    topic: '',
+    level: '',
+    qtype: '',
+    sourceDb: '',
+    offset: 0,
+    pageSize: 50,
+    showAnswers: false
+  };
   let isLoadingBank = false;
   let lastBankSyncRefreshAt = 0;
+
+  function buildPageNumbers(curPage, totalPages) {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages = [1];
+    const start = Math.max(2, curPage - 1);
+    const end = Math.min(totalPages - 1, curPage + 1);
+    if (start > 2) pages.push('…');
+    for (let p = start; p <= end; p++) pages.push(p);
+    if (end < totalPages - 1) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   async function openBankIntoModal(containerEl) {
     if (!containerEl) return;
     activeBankHost = containerEl;
     containerEl.innerHTML = `
       <div class="mn-qb-mea-panel">
-        <div class="mn-qb-mea-filters">
-          <input type="search" id="mn-qb-kw" class="mn-v80-input" value="${esc(activeBankFilter.keyword)}" placeholder="Tìm nội dung, mã câu, chủ đề..." />
-          <select id="mn-qb-grade" class="mn-v80-select"><option value="">Tất cả lớp</option></select>
-          <select id="mn-qb-level" class="mn-v80-select"><option value="">Mọi mức độ</option></select>
-          <select id="mn-qb-type" class="mn-v80-select"><option value="">Mọi loại câu</option></select>
-          <button type="button" class="mn-v80-btn primary" id="mn-qb-search-btn">🔍 Lọc</button>
+        <div class="mn-qb-filter-bar">
+          <div class="mn-qb-filter-row">
+            <div class="mn-qb-search-wrap">
+              <svg class="mn-qb-search-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="mn-qb-kw" class="mn-qb-input mn-qb-search-input" value="${esc(activeBankFilter.keyword)}" placeholder="Tìm nội dung, mã câu, chủ đề, đáp án..." />
+              <button type="button" id="mn-qb-kw-clear" class="mn-qb-kw-clear" title="Xóa từ khóa" style="${activeBankFilter.keyword ? '' : 'display:none;'}">×</button>
+            </div>
+            <select id="mn-qb-grade" class="mn-qb-select" title="Lọc theo lớp"><option value="">Tất cả lớp</option></select>
+            <select id="mn-qb-topic" class="mn-qb-select mn-qb-select-topic" title="Lọc theo chủ đề / chương"><option value="">Tất cả chủ đề</option></select>
+            <select id="mn-qb-level" class="mn-qb-select" title="Lọc theo mức độ nhận thức"><option value="">Mọi mức độ</option></select>
+            <select id="mn-qb-type" class="mn-qb-select" title="Lọc theo dạng câu hỏi"><option value="">Mọi loại câu</option></select>
+          </div>
+
+          <div class="mn-qb-meta-strip">
+            <div class="mn-qb-meta-left">
+              <span id="mn-qb-meta" class="mn-qb-meta-text">Đang đồng bộ từ SQLite MatrixExamAI Pro...</span>
+              <select id="mn-qb-source" class="mn-qb-select sm mn-qb-select-source" title="Chọn nguồn dữ liệu SQLite" style="display:none;"><option value="">Tất cả kho</option></select>
+              <span id="mn-qb-sources-badge" class="mn-qb-sources-pill" style="display:none;"></span>
+            </div>
+            <div class="mn-qb-meta-right">
+              <label class="mn-qb-ans-toggle">
+                <input type="checkbox" id="mn-qb-show-ans" ${activeBankFilter.showAnswers ? 'checked' : ''} />
+                <span>Hiện đáp án</span>
+              </label>
+              <button type="button" id="mn-qb-reset-btn" class="mn-qb-tool-chip" style="display:none;">Đặt lại</button>
+              <button type="button" id="mn-qb-search-btn" class="mn-qb-tool-chip" title="Làm mới danh sách câu hỏi">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                <span>Làm mới</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <div id="mn-qb-meta" style="font-size:11.5px;color:var(--mn80-text-muted);">Đang đồng bộ từ SQLite MatrixExamAI Pro...</div>
-          <div id="mn-qb-pager" style="display:flex;align-items:center;gap:6px;"></div>
-        </div>
+
         <div class="mn-qb-mea-list" id="mn-qb-list"></div>
+
+        <div class="mn-qb-pager-bar">
+          <div class="mn-qb-pager-left">
+            <span id="mn-qb-db-summary" class="mn-qb-db-summary">MatrixExamAI Pro (SQLite)</span>
+            <label class="mn-qb-pagesize-wrap">
+              <span>Hiển thị</span>
+              <select id="mn-qb-pagesize" class="mn-qb-select sm">
+                <option value="25" ${activeBankFilter.pageSize === 25 ? 'selected' : ''}>25 / trang</option>
+                <option value="50" ${activeBankFilter.pageSize === 50 ? 'selected' : ''}>50 / trang</option>
+                <option value="100" ${activeBankFilter.pageSize === 100 ? 'selected' : ''}>100 / trang</option>
+                <option value="5000" ${activeBankFilter.pageSize >= 5000 ? 'selected' : ''}>Tất cả</option>
+              </select>
+            </label>
+          </div>
+          <div id="mn-qb-pager" class="mn-qb-pager-controls"></div>
+        </div>
       </div>
     `;
+
+    const hasActiveFilters = () => !!(
+      activeBankFilter.keyword ||
+      activeBankFilter.grade ||
+      activeBankFilter.topic ||
+      activeBankFilter.level ||
+      activeBankFilter.qtype ||
+      activeBankFilter.sourceDb
+    );
+
+    const updateResetVisibility = () => {
+      const resetBtn = containerEl.querySelector('#mn-qb-reset-btn');
+      const kwClear = containerEl.querySelector('#mn-qb-kw-clear');
+      if (resetBtn) resetBtn.style.display = hasActiveFilters() ? 'inline-flex' : 'none';
+      if (kwClear) kwClear.style.display = (containerEl.querySelector('#mn-qb-kw')?.value || '') ? 'inline-flex' : 'none';
+    };
 
     const load = async () => {
       if (isLoadingBank) return;
       const listEl = containerEl.querySelector('#mn-qb-list');
       const metaEl = containerEl.querySelector('#mn-qb-meta');
+      const sourcesBadgeEl = containerEl.querySelector('#mn-qb-sources-badge');
       const pagerEl = containerEl.querySelector('#mn-qb-pager');
+      const summaryEl = containerEl.querySelector('#mn-qb-db-summary');
       if (!listEl) return;
+
       isLoadingBank = true;
-      listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--mn80-text-muted);">Đang tải danh sách câu hỏi...</div>';
+      updateResetVisibility();
+      listEl.innerHTML = '<div class="mn-qb-loading-state"><div class="mn-qb-spinner"></div><span>Đang tải câu hỏi từ MatrixExamAI Pro...</span></div>';
+
       try {
+        const pageSize = Math.max(10, Number(activeBankFilter.pageSize) || 50);
         const res = await queryQuestionBank({
           keyword: activeBankFilter.keyword,
           grade: activeBankFilter.grade ? Number(activeBankFilter.grade) : undefined,
+          topic: activeBankFilter.topic,
           level: activeBankFilter.level,
           qtype: activeBankFilter.qtype,
-          limit: BANK_PAGE_SIZE,
+          sourceDb: activeBankFilter.sourceDb || undefined,
+          limit: pageSize,
           offset: activeBankFilter.offset || 0
         });
 
-        const fillSelect = (sel, values, placeholder, curVal, prefix) => {
+        const fillSelect = (sel, values, placeholder, curVal, labelFn) => {
           if (!sel || !Array.isArray(values)) return;
           const curStr = String(curVal || '');
           sel.innerHTML = `<option value="">${placeholder}</option>` +
             values.map((v) => {
               const sVal = String(v);
-              const lbl = prefix ? `${prefix}${sVal}` : sVal;
+              const lbl = labelFn ? labelFn(sVal) : sVal;
               return `<option value="${esc(sVal)}" ${sVal === curStr ? 'selected' : ''}>${esc(lbl)}</option>`;
             }).join('');
         };
+
         if (res && res.facets) {
-          fillSelect(containerEl.querySelector('#mn-qb-grade'), res.facets.grades, 'Tất cả lớp', activeBankFilter.grade, 'Lớp ');
-          fillSelect(containerEl.querySelector('#mn-qb-level'), res.facets.levels, 'Mọi mức độ', activeBankFilter.level, '');
-          fillSelect(containerEl.querySelector('#mn-qb-type'), res.facets.qtypes, 'Mọi loại câu', activeBankFilter.qtype, '');
+          fillSelect(containerEl.querySelector('#mn-qb-grade'), res.facets.grades, 'Tất cả lớp', activeBankFilter.grade, (v) => `Lớp ${v}`);
+          fillSelect(containerEl.querySelector('#mn-qb-topic'), res.facets.topics, 'Tất cả chủ đề', activeBankFilter.topic);
+          fillSelect(containerEl.querySelector('#mn-qb-level'), res.facets.levels, 'Mọi mức độ', activeBankFilter.level);
+          fillSelect(containerEl.querySelector('#mn-qb-type'), res.facets.qtypes, 'Mọi loại câu', activeBankFilter.qtype, formatQtypeLabel);
+        }
+
+        const sources = (res && Array.isArray(res.sources)) ? res.sources : [];
+        const srcSel = containerEl.querySelector('#mn-qb-source');
+        if (srcSel) {
+          if (sources.length > 1) {
+            srcSel.style.display = '';
+            srcSel.innerHTML = '<option value="">Tất cả kho (' + (res.total ?? 0) + ')</option>' +
+              sources.map((s) => `<option value="${esc(s.key)}" ${s.key === activeBankFilter.sourceDb ? 'selected' : ''}>${esc(s.label)} (${s.count})</option>`).join('');
+          } else {
+            srcSel.style.display = 'none';
+          }
         }
 
         const qs = (res && Array.isArray(res.questions)) ? res.questions : [];
+        const total = Number(res && res.total != null ? res.total : qs.length);
         const filteredTotal = Number(res && res.filteredTotal != null ? res.filteredTotal : qs.length);
-        const curOffset = activeBankFilter.offset || 0;
+        const curOffset = Math.min(activeBankFilter.offset || 0, Math.max(0, filteredTotal - 1));
         const fromIdx = filteredTotal > 0 ? (curOffset + 1) : 0;
         const toIdx = curOffset + qs.length;
 
         if (metaEl) {
-          metaEl.textContent = `Hiển thị ${fromIdx}–${toIdx} / ${filteredTotal} câu (Tổng kho: ${res.total ?? 0} câu)`;
+          metaEl.innerHTML = filteredTotal > 0
+            ? `Hiển thị <strong>${fromIdx}–${toIdx}</strong> / <strong>${filteredTotal}</strong> câu${filteredTotal !== total ? ` (Tổng kho: ${total} câu)` : ''}`
+            : `0 câu phù hợp (Tổng kho: ${total} câu)`;
+        }
+
+        if (sourcesBadgeEl) {
+          if (sources.length === 1) {
+            sourcesBadgeEl.style.display = 'inline-flex';
+            sourcesBadgeEl.textContent = sources[0].label;
+            sourcesBadgeEl.title = sources[0].path;
+          } else {
+            sourcesBadgeEl.style.display = 'none';
+          }
+        }
+
+        if (summaryEl) {
+          if (sources.length > 1) {
+            summaryEl.textContent = sources.map((s) => `${s.label} (${s.count})`).join('  •  ');
+            summaryEl.title = sources.map((s) => s.path).join('\n');
+          } else if (res && res.dbPath) {
+            summaryEl.textContent = res.dbPath;
+            summaryEl.title = res.dbPath;
+          }
         }
 
         if (pagerEl) {
-          const totalPages = Math.max(1, Math.ceil(filteredTotal / BANK_PAGE_SIZE));
-          const curPage = Math.floor(curOffset / BANK_PAGE_SIZE) + 1;
-          pagerEl.innerHTML = totalPages > 1
-            ? `<button type="button" class="mn-v80-btn sm" id="mn-qb-prev" ${curPage <= 1 ? 'disabled' : ''}>← Trước</button>` +
-              `<span style="font-size:11.5px;color:var(--mn80-text-muted);">${curPage}/${totalPages}</span>` +
-              `<button type="button" class="mn-v80-btn sm" id="mn-qb-next" ${curPage >= totalPages ? 'disabled' : ''}>Sau →</button>`
-            : '';
-          const prevBtn = pagerEl.querySelector('#mn-qb-prev');
-          const nextBtn = pagerEl.querySelector('#mn-qb-next');
-          if (prevBtn) prevBtn.addEventListener('click', () => { activeBankFilter.offset = Math.max(0, curOffset - BANK_PAGE_SIZE); load(); });
-          if (nextBtn) nextBtn.addEventListener('click', () => { if (curOffset + BANK_PAGE_SIZE < filteredTotal) { activeBankFilter.offset = curOffset + BANK_PAGE_SIZE; load(); } });
+          const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+          const curPage = Math.floor(curOffset / pageSize) + 1;
+          if (totalPages > 1) {
+            const pageBtns = buildPageNumbers(curPage, totalPages).map((p) => {
+              if (p === '…') return '<span class="mn-qb-page-ellipsis">…</span>';
+              return `<button type="button" class="mn-qb-page-btn ${p === curPage ? 'active' : ''}" data-page="${p}">${p}</button>`;
+            }).join('');
+            pagerEl.innerHTML = `
+              <button type="button" class="mn-qb-page-btn nav" id="mn-qb-prev" ${curPage <= 1 ? 'disabled' : ''} title="Trang trước">←</button>
+              ${pageBtns}
+              <button type="button" class="mn-qb-page-btn nav" id="mn-qb-next" ${curPage >= totalPages ? 'disabled' : ''} title="Trang sau">→</button>
+            `;
+            pagerEl.querySelectorAll('[data-page]').forEach((btn) => {
+              btn.addEventListener('click', () => {
+                const targetPage = Number(btn.dataset.page);
+                if (!Number.isFinite(targetPage)) return;
+                activeBankFilter.offset = Math.max(0, (targetPage - 1) * pageSize);
+                load();
+              });
+            });
+            const prevBtn = pagerEl.querySelector('#mn-qb-prev');
+            const nextBtn = pagerEl.querySelector('#mn-qb-next');
+            if (prevBtn) prevBtn.addEventListener('click', () => { activeBankFilter.offset = Math.max(0, curOffset - pageSize); load(); });
+            if (nextBtn) nextBtn.addEventListener('click', () => { if (curOffset + pageSize < filteredTotal) { activeBankFilter.offset = curOffset + pageSize; load(); } });
+          } else {
+            pagerEl.innerHTML = `<span class="mn-qb-page-single">Trang 1 / 1</span>`;
+          }
         }
 
+        window.dispatchEvent(new CustomEvent('minnote:mea-bank-loaded', {
+          detail: {
+            total,
+            filteredTotal,
+            sources,
+            dbPath: (res && res.dbPath) || ''
+          }
+        }));
+
         if (!qs.length) {
-          listEl.innerHTML = '<div style="text-align:center;padding:28px;color:var(--mn80-text-muted);">Không tìm thấy câu hỏi nào trong Ngân hàng câu hỏi MatrixExamAI Pro.</div>';
+          listEl.innerHTML = `
+            <div class="mn-qb-empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <div class="mn-qb-empty-title">Không tìm thấy câu hỏi phù hợp</div>
+              <div class="mn-qb-empty-sub">Thử đổi từ khóa hoặc đặt lại bộ lọc để xem toàn bộ ${total} câu trong kho.</div>
+            </div>
+          `;
           return;
         }
 
         const frag = document.createDocumentFragment();
+        const showAns = !!activeBankFilter.showAnswers;
+
         for (const q of qs) {
-          const item = document.createElement('div');
-          item.className = 'mn-qb-mea-item';
-          const norm = normalizeMeaQuestionForCard(q);
-          const optEntries = Object.entries(norm.options || {});
+          const item = document.createElement('article');
+          item.className = 'mn-qb-card';
+          const inlineImgs = (q.inlineImages && typeof q.inlineImages === 'object') ? q.inlineImages : {};
+          const usedImgs = new Set();
+
+          const contentHtml = renderRichQuestionHtml(q.content || q.question || '', inlineImgs, usedImgs);
+
+          const rawOpts = (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) ? q.options : {};
+          const orderedKeys = Object.keys(rawOpts).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+          const qtypeNorm = String(q.qtype || '').trim();
+          const isTrueFalse = qtypeNorm === 'TrueFalse4' || qtypeNorm === 'DS';
+          const correctUpper = String(q.correctAnswer || '').trim().toUpperCase();
+          const tfMarks = isTrueFalse ? splitKeysForTrueFalse(q.correctAnswer, orderedKeys) : {};
+
+          const optsHtml = orderedKeys.length
+            ? `<div class="mn-qb-opts-grid">${orderedKeys.map((k) => {
+                const isCorr = !isTrueFalse && showAns && correctUpper === k.toUpperCase();
+                const tfMark = isTrueFalse && showAns && (k.toLowerCase() in tfMarks)
+                  ? `<span class="mn-qb-tf-mark ${tfMarks[k.toLowerCase()] ? 't' : 'f'}">${tfMarks[k.toLowerCase()] ? 'Đ' : 'S'}</span>`
+                  : '';
+                return `
+                  <div class="mn-qb-opt-pill ${isCorr ? 'is-correct' : ''}">
+                    <span class="mn-qb-opt-key">${esc(k)}</span>
+                    <div class="mn-qb-opt-val">${renderRichQuestionHtml(rawOpts[k], inlineImgs, usedImgs)}</div>
+                    ${tfMark}
+                  </div>
+                `;
+              }).join('')}</div>`
+            : '';
+
+          const explHtml = q.explanation
+            ? `<div class="mn-qb-solution-body">${renderRichQuestionHtml(q.explanation, inlineImgs, usedImgs)}</div>`
+            : '';
+
+          const extraImgs = (Array.isArray(q.resolvedImages) ? q.resolvedImages : []).filter((im) => {
+            const name = im && im.name ? String(im.name).trim() : '';
+            const dataUrl = typeof im === 'string' ? im : (im && im.dataUrl);
+            return dataUrl && (!name || !usedImgs.has(name));
+          });
+          const galleryHtml = extraImgs.length
+            ? `<div class="mn-qb-card-gallery">${extraImgs.map((im) => {
+                const src = typeof im === 'string' ? im : im.dataUrl;
+                return `<img class="mn-qb-inline-img" src="${esc(src)}" alt="Hình câu hỏi" />`;
+              }).join('')}</div>`
+            : '';
+
+          const levelCls = getLevelBadgeClass(q.level);
+          const qtypeLabel = formatQtypeLabel(q.qtype);
+          const topicText = q.topic || q.lessonName || q.chapterName || '';
+          const ansText = String(q.correctAnswer || '').trim();
+          const hasDrawer = !!(ansText || explHtml);
+
           item.innerHTML = `
-            <div class="mn-qb-mea-head">
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                <span class="mn-v80-badge">${esc(q.code || ('#' + q.id))}</span>
-                ${q.grade ? `<span class="mn-fig-tag">Lớp ${esc(q.grade)}</span>` : ''}
-                ${q.level ? `<span class="mn-fig-tag">${esc(q.level)}</span>` : ''}
-                ${q.qtype ? `<span class="mn-fig-tag">${esc(q.qtype)}</span>` : ''}
-                ${q.tikzCode ? `<span class="mn-v80-badge ok">📐 Có TikZ</span>` : ''}
+            <div class="mn-qb-card-head">
+              <div class="mn-qb-badges">
+                <span class="mn-qb-code-pill">${esc(q.code || ('#' + q.id))}</span>
+                ${q.grade ? `<span class="mn-qb-chip">Lớp ${esc(q.grade)}</span>` : ''}
+                ${q.level ? `<span class="mn-qb-level-pill level-${levelCls}">${esc(q.level)}</span>` : ''}
+                ${qtypeLabel ? `<span class="mn-qb-chip muted">${esc(qtypeLabel)}</span>` : ''}
+                ${topicText ? `<span class="mn-qb-topic-pill" title="${esc(topicText)}">${esc(topicText)}</span>` : ''}
+                ${q.tikzCode ? `<span class="mn-qb-chip ok">TikZ</span>` : ''}
               </div>
-              <div style="display:flex;gap:6px;">
-                <button type="button" class="mn-v80-btn sm primary" data-ins="card">📋 Chèn Thẻ Câu Hỏi</button>
-                ${q.tikzCode ? '<button type="button" class="mn-v80-btn sm" data-ins="card_with_figure">📐 + Hình TikZ</button>' : ''}
-                <button type="button" class="mn-v80-btn sm" data-ins="new_page">➕ Trang mới</button>
+              <div class="mn-qb-card-actions">
+                <button type="button" class="mn-qb-act-btn primary" data-ins="card">Chèn thẻ</button>
+                ${q.tikzCode ? '<button type="button" class="mn-qb-act-btn" data-ins="card_with_figure">+ Hình TikZ</button>' : ''}
+                <button type="button" class="mn-qb-act-btn" data-ins="new_page">+ Trang mới</button>
               </div>
             </div>
-            <div class="mn-qb-mea-content">${renderMathLite(norm.content)}</div>
-            ${optEntries.length ? `<div class="mn-qb-mea-opts">${optEntries.map(([k, v]) => `<div><b>${esc(k)}.</b> ${renderMathLite(v)}</div>`).join('')}</div>` : ''}
+            <div class="mn-qb-card-content">${contentHtml}</div>
+            ${galleryHtml}
+            ${optsHtml}
+            ${hasDrawer ? `
+              <details class="mn-qb-solution" ${showAns ? 'open' : ''}>
+                <summary>
+                  <span>Đáp án &amp; Hướng dẫn giải</span>
+                  ${ansText ? `<span class="mn-qb-ans-pill">Đáp án: <strong>${esc(ansText)}</strong></span>` : ''}
+                </summary>
+                ${explHtml || `<div class="mn-qb-solution-body">Đáp án: <strong>${esc(ansText)}</strong></div>`}
+              </details>
+            ` : ''}
           `;
+
           item.querySelectorAll('[data-ins]').forEach((btn) => {
             btn.addEventListener('click', () => insertMeaQuestionToBoard(q, btn.dataset.ins));
           });
@@ -1652,27 +1979,83 @@
         }
         listEl.innerHTML = '';
         listEl.appendChild(frag);
+        listEl.scrollTop = 0;
       } catch (err) {
-        listEl.innerHTML = `<div style="padding:20px;color:var(--mn80-danger);">Lỗi kết nối NHCH MatrixExamAI Pro: ${esc(err.message || err)}</div>`;
+        listEl.innerHTML = `<div class="mn-qb-error-state">Không tải được NHCH MatrixExamAI Pro: ${esc(err.message || err)}</div>`;
       } finally {
         isLoadingBank = false;
       }
     };
 
+    activeBankReloadFn = load;
+
+    let kwDebounce = null;
     const syncFiltersAndLoad = () => {
       activeBankFilter.keyword = (containerEl.querySelector('#mn-qb-kw').value || '').trim();
       activeBankFilter.grade = containerEl.querySelector('#mn-qb-grade').value || '';
+      activeBankFilter.topic = containerEl.querySelector('#mn-qb-topic').value || '';
       activeBankFilter.level = containerEl.querySelector('#mn-qb-level').value || '';
       activeBankFilter.qtype = containerEl.querySelector('#mn-qb-type').value || '';
+      activeBankFilter.sourceDb = containerEl.querySelector('#mn-qb-source').value || '';
       activeBankFilter.offset = 0;
       load();
     };
 
-    containerEl.querySelector('#mn-qb-search-btn').addEventListener('click', syncFiltersAndLoad);
-    containerEl.querySelector('#mn-qb-kw').addEventListener('keydown', (e) => { if (e.key === 'Enter') syncFiltersAndLoad(); });
+    const kwInput = containerEl.querySelector('#mn-qb-kw');
+    const kwClearBtn = containerEl.querySelector('#mn-qb-kw-clear');
+    kwInput.addEventListener('input', () => {
+      updateResetVisibility();
+      if (kwDebounce) clearTimeout(kwDebounce);
+      kwDebounce = setTimeout(syncFiltersAndLoad, 220);
+    });
+    kwInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (kwDebounce) clearTimeout(kwDebounce);
+        syncFiltersAndLoad();
+      }
+    });
+    if (kwClearBtn) {
+      kwClearBtn.addEventListener('click', () => {
+        kwInput.value = '';
+        syncFiltersAndLoad();
+        kwInput.focus();
+      });
+    }
+
+    containerEl.querySelector('#mn-qb-search-btn').addEventListener('click', () => load());
     containerEl.querySelector('#mn-qb-grade').addEventListener('change', syncFiltersAndLoad);
+    containerEl.querySelector('#mn-qb-topic').addEventListener('change', syncFiltersAndLoad);
     containerEl.querySelector('#mn-qb-level').addEventListener('change', syncFiltersAndLoad);
     containerEl.querySelector('#mn-qb-type').addEventListener('change', syncFiltersAndLoad);
+    containerEl.querySelector('#mn-qb-source').addEventListener('change', syncFiltersAndLoad);
+
+    containerEl.querySelector('#mn-qb-show-ans').addEventListener('change', (e) => {
+      activeBankFilter.showAnswers = !!e.target.checked;
+      load();
+    });
+
+    containerEl.querySelector('#mn-qb-pagesize').addEventListener('change', (e) => {
+      activeBankFilter.pageSize = Number(e.target.value) || 50;
+      activeBankFilter.offset = 0;
+      load();
+    });
+
+    containerEl.querySelector('#mn-qb-reset-btn').addEventListener('click', () => {
+      activeBankFilter.keyword = '';
+      activeBankFilter.grade = '';
+      activeBankFilter.topic = '';
+      activeBankFilter.level = '';
+      activeBankFilter.qtype = '';
+      activeBankFilter.sourceDb = '';
+      activeBankFilter.offset = 0;
+      kwInput.value = '';
+      containerEl.querySelector('#mn-qb-grade').value = '';
+      containerEl.querySelector('#mn-qb-topic').value = '';
+      containerEl.querySelector('#mn-qb-level').value = '';
+      containerEl.querySelector('#mn-qb-type').value = '';
+      containerEl.querySelector('#mn-qb-source').value = '';
+      load();
+    });
 
     await load();
   }
@@ -1683,12 +2066,12 @@
       const el = document.createElement('div');
       el.className = 'mn-v80-backdrop';
       el.innerHTML = `
-        <div class="mn-v80-modal wide" role="dialog" aria-modal="true">
+        <div class="mn-v80-modal wide" role="dialog" aria-modal="true" style="height:min(820px,88vh);display:flex;flex-direction:column;">
           <div class="mn-v80-head">
-            <div class="mn-v80-title">📚 Ngân hàng Câu hỏi MatrixExamAI Pro</div>
+            <div class="mn-v80-title">Ngân hàng Câu hỏi MatrixExamAI Pro</div>
             <button type="button" class="mn-v80-close">✕</button>
           </div>
-          <div class="mn-v80-body" id="mn-standalone-qb-host"></div>
+          <div class="mn-v80-body" id="mn-standalone-qb-host" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;"></div>
         </div>
       `;
       el.querySelector('.mn-v80-close').addEventListener('click', () => el.classList.remove('open'));
@@ -1712,9 +2095,13 @@
         mountSettingsPanel(activeSettingsHost);
       }
     } else if (ev === 'question_bank_changed') {
-      if (activeBankHost && activeBankHost.isConnected && activeBankHost.offsetParent !== null && !isLoadingBank && (now - lastBankSyncRefreshAt) > 3000) {
+      if (activeBankHost && activeBankHost.isConnected && activeBankHost.offsetParent !== null && !isLoadingBank && (now - lastBankSyncRefreshAt) > 2500) {
         lastBankSyncRefreshAt = now;
-        openBankIntoModal(activeBankHost);
+        if (typeof activeBankReloadFn === 'function') {
+          activeBankReloadFn();
+        } else {
+          openBankIntoModal(activeBankHost);
+        }
       }
     }
   }
@@ -1731,7 +2118,10 @@
     pushCurrentFigure,
     queryQuestionBank,
     openBankIntoModal,
+    openStandaloneQbModal,
     insertMeaQuestionToBoard,
+    normalizeMeaQuestionForCard,
+    formatQtypeLabel,
     DEFAULT_PROVIDERS,
     DEFAULT_MODELS_BY_PROVIDER
   };

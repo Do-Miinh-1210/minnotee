@@ -1057,8 +1057,8 @@
     if (!htmlToCompile.trim() && !textToCompile.trim()) {
       if (typeof window.toast === 'function') {
         window.toast('Vui lòng dán văn bản từ Word vào ô trước khi biên dịch.');
-      } else {
-        alert('Vui lòng dán văn bản từ Word vào ô trước khi biên dịch.');
+      } else if (window.MinNoteDialog) {
+        window.MinNoteDialog.alert('Vui lòng dán văn bản từ Word vào ô trước khi biên dịch.', 'Lưu ý');
       }
       return;
     }

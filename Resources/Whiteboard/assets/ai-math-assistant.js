@@ -737,16 +737,26 @@
   document.getElementById("opt-formula").addEventListener("click", () => openModal("formula"));
 
   // Cấu hình AI Key (Ưu tiên mở Cài đặt -> API Key & MEA đồng bộ với MatrixExamAI Pro)
-  document.getElementById("opt-config-gemini").addEventListener("click", () => {
+  document.getElementById("opt-config-gemini").addEventListener("click", async () => {
     menu.style.display = "none";
     if (typeof window.openMinNoteMeaSettings === "function" && window.openMinNoteMeaSettings()) {
       return;
     }
     const current = localStorage.getItem("note_gemini_api_key") || "";
-    const key = prompt("Nhập Google Gemini API Key dự phòng để nhận diện chữ viết tay toán học (ưu tiên cấu hình chung tại Cài đặt → API Key & MEA):", current);
+    const key = window.MinNoteDialog
+      ? await window.MinNoteDialog.prompt({
+          title: "Cấu hình Gemini API Key",
+          message: "Nhập Google Gemini API Key dự phòng để nhận diện chữ viết tay toán học (ưu tiên cấu hình chung tại Cài đặt → API Key & MEA):",
+          defaultValue: current,
+          placeholder: "AIza...",
+          confirmText: "Lưu API Key",
+          cancelText: "Hủy"
+        })
+      : null;
     if (key !== null) {
       localStorage.setItem("note_gemini_api_key", key.trim());
-      alert(key.trim() ? "Đã lưu Gemini API Key thành công!" : "Đã xóa API Key.");
+      const msg = key.trim() ? "Đã lưu Gemini API Key thành công!" : "Đã xóa API Key.";
+      if (window.MinNoteDialog) window.MinNoteDialog.alert(msg, "Cấu hình API Key");
     }
   });
 
@@ -823,11 +833,11 @@
           };
           editor.insertItem(formulaItem);
         } else {
-          alert("Không thể dựng ảnh công thức toán. Vui lòng kiểm tra lại biểu thức LaTeX.");
+          if (window.MinNoteDialog) window.MinNoteDialog.alert("Không thể dựng ảnh công thức toán. Vui lòng kiểm tra lại biểu thức LaTeX.", "Lưu ý");
         }
       } catch (err) {
         console.error("Formula insertion error:", err);
-        alert("Lỗi khi chèn công thức: " + err.message);
+        if (window.MinNoteDialog) window.MinNoteDialog.alert("Lỗi khi chèn công thức: " + err.message, "Thông báo lỗi");
       }
     }
 

@@ -12,9 +12,6 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Wpf.Ui.Controls;
-using MessageBox = System.Windows.MessageBox;
-using MessageBoxButton = System.Windows.MessageBoxButton;
-using MessageBoxImage = System.Windows.MessageBoxImage;
 
 namespace MinNote
 {
@@ -345,10 +342,11 @@ namespace MinNote
                         WvWhiteboard.CoreWebView2.Settings.IsPinchZoomEnabled = true;
                         WvWhiteboard.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
                         WvWhiteboard.CoreWebView2.Settings.IsSwipeNavigationEnabled = false;
+                        WvWhiteboard.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
                     }
                     catch { }
 
-                    // Hộp thoại xác nhận phi đồng bộ chuẩn WPF, tránh đơ UI/deadlock
+                    // Hộp thoại chuẩn MinNote trong app (phi đồng bộ, chặn hoàn toàn popup "minnote.app cho biết")
                     WvWhiteboard.CoreWebView2.ScriptDialogOpening += (s, e) =>
                     {
                         var deferral = e.GetDeferral();
@@ -358,28 +356,38 @@ namespace MinNote
                             {
                                 if (e.Kind == CoreWebView2ScriptDialogKind.Confirm)
                                 {
-                                    var result = System.Windows.MessageBox.Show(
+                                    bool ok = MinNoteDialog.ShowConfirm(
                                         this,
                                         e.Message,
                                         "MinNote • Xác nhận thao tác",
-                                        MessageBoxButton.OKCancel,
-                                        MessageBoxImage.Question,
-                                        System.Windows.MessageBoxResult.Cancel
-                                    );
-                                    if (result == System.Windows.MessageBoxResult.OK)
+                                        MinNoteDialogTone.Question,
+                                        "Xác nhận",
+                                        "Hủy");
+                                    if (ok)
                                     {
+                                        e.Accept();
+                                    }
+                                }
+                                else if (e.Kind == CoreWebView2ScriptDialogKind.Prompt)
+                                {
+                                    string? val = MinNoteDialog.ShowPrompt(
+                                        this,
+                                        e.Message,
+                                        e.DefaultText ?? string.Empty,
+                                        "MinNote • Nhập thông tin");
+                                    if (val != null)
+                                    {
+                                        e.ResultText = val;
                                         e.Accept();
                                     }
                                 }
                                 else if (e.Kind == CoreWebView2ScriptDialogKind.Alert)
                                 {
-                                    System.Windows.MessageBox.Show(
+                                    MinNoteDialog.ShowAlert(
                                         this,
                                         e.Message,
                                         "MinNote • Thông báo",
-                                        MessageBoxButton.OK,
-                                        MessageBoxImage.Information
-                                    );
+                                        MinNoteDialogTone.Info);
                                     e.Accept();
                                 }
                                 else
@@ -705,11 +713,11 @@ namespace MinNote
                     }
                     else if (msgType == "INSERT_TO_MEA")
                     {
-                        MessageBox.Show(
+                        MinNoteDialog.ShowAlert(
+                            this,
                             "Bảng viết MinNote hoạt động độc lập!\nBạn có thể xuất ảnh PNG/SVG hoặc sao chép hình vẽ trực tiếp bằng các công cụ trên thanh bảng viết.",
                             "MinNote Độc Lập • Đỗ Miinh Math",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                            MinNoteDialogTone.Info);
                     }
                     else if (msgType == "CAPTURE_MINDMAP")
                     {
@@ -2247,6 +2255,7 @@ namespace MinNote
                         string? topic = GetJsonOptionalString(root, "topic");
                         string? level = GetJsonOptionalString(root, "level");
                         string? qtype = GetJsonOptionalString(root, "qtype");
+                        string? sourceDb = GetJsonOptionalString(root, "sourceDb");
                         int limit = GetJsonNullableInt(root, "limit") ?? 100;
                         int offset = GetJsonNullableInt(root, "offset") ?? 0;
                         bool resolveImages = !root.TryGetProperty("resolveImages", out var riEl) || riEl.ValueKind != JsonValueKind.False;
@@ -2256,7 +2265,7 @@ namespace MinNote
                             try
                             {
                                 var listRes = await MatrixExamSyncService.Instance.ListQuestionsAsync(
-                                    keyword, grade, topic, level, qtype, limit, offset, resolveImages);
+                                    keyword, grade, topic, level, qtype, limit, offset, resolveImages, sourceDb);
                                 await PostMeaSyncResultAsync(reqId, true, listRes);
                             }
                             catch (Exception exMea)
@@ -2850,6 +2859,14 @@ namespace MinNote
         private void OnMeaSyncChanged(string eventType, object summary)
         {
             _ = PostMeaSyncEventAsync(eventType, summary);
+            if (string.Equals(eventType, "question_bank_changed", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await LoadAndSendQuestionBankAsync(); }
+                    catch (Exception ex) { Log($"Auto sync question bank error: {ex.Message}"); }
+                });
+            }
         }
 
         private async Task PostMeaSyncEventAsync(string eventType, object summary)
@@ -3303,7 +3320,7 @@ namespace MinNote
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi chọn file HTML: " + ex.Message, "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                MinNoteDialog.ShowAlert(this, "Lỗi chọn file HTML: " + ex.Message, "Lỗi chọn file", MinNoteDialogTone.Danger);
             }
         }
 
@@ -3320,7 +3337,7 @@ namespace MinNote
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Không thể nạp file HTML: " + ex.Message, "Lỗi nạp file", MessageBoxButton.OK, MessageBoxImage.Error);
+                MinNoteDialog.ShowAlert(this, "Không thể nạp file HTML: " + ex.Message, "Lỗi nạp file", MinNoteDialogTone.Danger);
             }
         }
 
@@ -3427,12 +3444,12 @@ namespace MinNote
                 }
                 else
                 {
-                    MessageBox.Show(this, $"MinNote đang ở phiên bản mới nhất: v{GitHubUpdateService.Instance.CurrentVersion}!", "Kiểm tra cập nhật", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MinNoteDialog.ShowAlert(this, $"MinNote đang ở phiên bản mới nhất: v{GitHubUpdateService.Instance.CurrentVersion}!", "Kiểm tra cập nhật", MinNoteDialogTone.Success);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, $"Lỗi kiểm tra cập nhật: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MinNoteDialog.ShowAlert(this, $"Lỗi kiểm tra cập nhật: {ex.Message}", "Lỗi cập nhật", MinNoteDialogTone.Warning);
             }
             finally
             {
@@ -3769,8 +3786,8 @@ namespace MinNote
             var (state, reason) = LicenseGate.Evaluate(SupabaseLicenseService.Instance.GetCurrentLicense(), LicenseGate.Mindmap, _onlineCheckDone);
             if (state != GateState.Allowed)
             {
-                MessageBox.Show(this, state == GateState.Checking ? "Đang kiểm tra bản quyền, thử lại sau giây lát." : reason,
-                    "Sơ đồ tư duy", MessageBoxButton.OK, MessageBoxImage.Information);
+                MinNoteDialog.ShowAlert(this, state == GateState.Checking ? "Đang kiểm tra bản quyền, thử lại sau giây lát." : reason,
+                    "Sơ đồ tư duy", MinNoteDialogTone.Info);
                 return;
             }
             ExecuteScriptSafe("if (typeof toggleMindMapStudio === 'function') toggleMindMapStudio();");
@@ -3855,7 +3872,7 @@ namespace MinNote
 
         private async Task LoadAndSendQuestionBankAsync()
         {
-            var items = await MatrixExamSyncService.Instance.LoadAllQuestionsForLegacyBankAsync(500);
+            var items = await MatrixExamSyncService.Instance.LoadAllQuestionsForLegacyBankAsync(2000);
             if (items.Count == 0) return;
 
             var questions = items.Select((q, idx) => new Dictionary<string, object?>
@@ -3875,22 +3892,29 @@ namespace MinNote
                 ["images"] = q.Images,
                 ["resolvedImages"] = q.ResolvedImages,
                 ["inlineImages"] = q.InlineImages,
-                ["source"] = q.Source
+                ["source"] = q.Source,
+                ["sourceLabel"] = q.SourceLabel
             }).ToList();
 
             var grouped = questions
-                .GroupBy(q => (q["topic"]?.ToString() ?? "Tổng hợp"))
+                .GroupBy(q => (
+                    Grade: q["grade"] is int gi && gi > 0 ? gi : 12,
+                    Topic: q["topic"]?.ToString() ?? "Tổng hợp"))
+                .OrderByDescending(g => g.Key.Grade)
+                .ThenByDescending(g => g.Count())
                 .Select(g =>
                 {
-                    int firstGrade = g.Select(x => x["grade"] is int gi ? gi : 12).FirstOrDefault();
                     string firstSubject = g.Select(x => x["subject"]?.ToString()).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Toán học";
+                    string topicKey = $"{g.Key.Grade}|{g.Key.Topic.Trim().ToLowerInvariant()}";
+                    string stableHash = Convert.ToHexStringLower(
+                        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(topicKey)))[..8];
                     return new Dictionary<string, object?>
                     {
-                        ["id"] = "exam_sqlite_" + Math.Abs(g.Key.GetHashCode()),
-                        ["title"] = g.Key,
-                        ["source"] = "Kho SQLite MatrixExamAI (" + g.Count() + " câu)",
+                        ["id"] = $"exam_sqlite_{g.Key.Grade}_{stableHash}",
+                        ["title"] = $"Lớp {g.Key.Grade} • {g.Key.Topic}",
+                        ["source"] = $"Kho SQLite MatrixExamAI ({g.Count()} câu)",
                         ["subject"] = firstSubject,
-                        ["grade"] = firstGrade > 0 ? firstGrade : 12,
+                        ["grade"] = g.Key.Grade,
                         ["questions"] = g.ToList()
                     };
                 }).ToList();

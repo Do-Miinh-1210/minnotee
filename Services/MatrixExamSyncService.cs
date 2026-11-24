@@ -81,6 +81,12 @@ namespace MinNote.Services
         [JsonPropertyName("questionBankPath")]
         public string QuestionBankPath { get; set; } = string.Empty;
 
+        [JsonPropertyName("questionBankPaths")]
+        public List<string> QuestionBankPaths { get; set; } = new();
+
+        [JsonPropertyName("questionBankSources")]
+        public List<MeaQuestionSourceInfo> QuestionBankSources { get; set; } = new();
+
         [JsonPropertyName("questionBankExists")]
         public bool QuestionBankExists { get; set; }
 
@@ -98,6 +104,27 @@ namespace MinNote.Services
 
         [JsonPropertyName("figureCount")]
         public int FigureCount { get; set; }
+    }
+
+    public sealed class MeaQuestionSourceInfo
+    {
+        [JsonPropertyName("key")]
+        public string Key { get; set; } = string.Empty;
+
+        [JsonPropertyName("label")]
+        public string Label { get; set; } = string.Empty;
+
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+
+        [JsonPropertyName("schema")]
+        public string Schema { get; set; } = "None";
+
+        [JsonPropertyName("count")]
+        public int Count { get; set; }
+
+        [JsonPropertyName("isPrimary")]
+        public bool IsPrimary { get; set; }
     }
 
     public sealed class MeaAiConfigDto
@@ -211,6 +238,21 @@ namespace MinNote.Services
 
         [JsonPropertyName("createdAt")]
         public string CreatedAt { get; set; } = string.Empty;
+
+        [JsonPropertyName("updatedAt")]
+        public string UpdatedAt { get; set; } = string.Empty;
+
+        [JsonPropertyName("chapterName")]
+        public string ChapterName { get; set; } = string.Empty;
+
+        [JsonPropertyName("lessonName")]
+        public string LessonName { get; set; } = string.Empty;
+
+        [JsonPropertyName("sourceDb")]
+        public string SourceDb { get; set; } = string.Empty;
+
+        [JsonPropertyName("sourceLabel")]
+        public string SourceLabel { get; set; } = string.Empty;
     }
 
     public sealed class MeaQuestionFacets
@@ -232,6 +274,12 @@ namespace MinNote.Services
     {
         [JsonPropertyName("dbPath")]
         public string DbPath { get; set; } = string.Empty;
+
+        [JsonPropertyName("dbPaths")]
+        public List<string> DbPaths { get; set; } = new();
+
+        [JsonPropertyName("sources")]
+        public List<MeaQuestionSourceInfo> Sources { get; set; } = new();
 
         [JsonPropertyName("schema")]
         public string Schema { get; set; } = "None";
@@ -379,11 +427,12 @@ namespace MinNote.Services
         private readonly object _watcherLock = new();
         private readonly ConcurrentDictionary<string, long> _lastSelfWriteTicks = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, Timer> _debounceTimers = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, string> _emfPngCache = new(StringComparer.OrdinalIgnoreCase);
 
         private FileSystemWatcher? _configWatcher;
-        private FileSystemWatcher? _qbWatcher;
+        private readonly List<FileSystemWatcher> _qbWatchers = new();
         private FileSystemWatcher? _figuresWatcher;
-        private string _watchedQbDir = string.Empty;
+        private readonly HashSet<string> _watchedQbDirs = new(StringComparer.OrdinalIgnoreCase);
         private string _watchedFiguresDir = string.Empty;
         private bool _disposed;
 
@@ -1915,6 +1964,14 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
 
         public enum QuestionBankSchema { None, CSharp, Python }
 
+        private sealed class ResolvedQuestionDbSource
+        {
+            public string Key { get; init; } = string.Empty;
+            public string Label { get; init; } = string.Empty;
+            public string Path { get; init; } = string.Empty;
+            public bool IsPrimary { get; init; }
+        }
+
         public string ResolveDatabasePath()
         {
             var cfg = ReadInternalConfig();
@@ -1930,6 +1987,62 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             if (File.Exists(pyDbPath)) return pyDbPath;
             if (File.Exists(csDbPath)) return csDbPath;
             return pyDbPath;
+        }
+
+        private List<ResolvedQuestionDbSource> ResolveAllDatabasePaths()
+        {
+            var list = new List<ResolvedQuestionDbSource>();
+            var seenDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void TryAdd(string path, bool isPrimary)
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+                string dir = Path.GetDirectoryName(path) ?? string.Empty;
+                string normDir;
+                try { normDir = Path.GetFullPath(dir).TrimEnd('\\', '/'); }
+                catch { normDir = dir.TrimEnd('\\', '/'); }
+                if (string.IsNullOrEmpty(normDir) || !seenDirs.Add(normDir)) return;
+
+                string key;
+                string label;
+                if (SameDirectory(normDir, LocalAppDataMeaDir))
+                {
+                    key = "local_appdata";
+                    label = isPrimary ? "Kho chính (LocalAppData)" : "Kho MatrixExamAI (Local)";
+                }
+                else if (SameDirectory(normDir, ExamGeneratorDir))
+                {
+                    key = "legacy_py";
+                    label = isPrimary ? "Kho chính (.exam_generator)" : "Kho Legacy (.exam_generator)";
+                }
+                else
+                {
+                    string folderName = Path.GetFileName(normDir);
+                    key = "primary_custom";
+                    label = string.IsNullOrWhiteSpace(folderName)
+                        ? "Kho chính"
+                        : (isPrimary ? $"Kho chính ({folderName})" : $"Kho {folderName}");
+                }
+
+                list.Add(new ResolvedQuestionDbSource
+                {
+                    Key = key,
+                    Label = label,
+                    Path = path,
+                    IsPrimary = isPrimary
+                });
+            }
+
+            string primaryPath = ResolveDatabasePath();
+            TryAdd(primaryPath, isPrimary: true);
+
+            string localCsPath = Path.Combine(LocalAppDataMeaDir, DatabaseFileName);
+            TryAdd(localCsPath, isPrimary: false);
+
+            string pyPath = Path.Combine(ExamGeneratorDir, DatabaseFileName);
+            TryAdd(pyPath, isPrimary: false);
+
+            return list;
         }
 
         private static bool SameDirectory(string a, string b)
@@ -2034,7 +2147,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return "TN";
         }
 
-        public async Task<MeaQuestionListResult> ListQuestionsAsync(
+        public Task<MeaQuestionListResult> ListQuestionsAsync(
             string? keyword = null,
             int? grade = null,
             string? topic = null,
@@ -2042,54 +2155,240 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             string? qtype = null,
             int limit = 100,
             int offset = 0,
-            bool resolveImages = true)
+            bool resolveImages = true,
+            string? sourceDb = null)
         {
-            string dbPath = ResolveDatabasePath();
+            return ListQuestionsInternalAsync(keyword, grade, topic, level, qtype, limit, offset, resolveImages, sourceDb);
+        }
+
+        private static long ParseQuestionTimestampTicks(MeaQuestionDto q)
+        {
+            if (!string.IsNullOrWhiteSpace(q.UpdatedAt) &&
+                DateTimeOffset.TryParse(q.UpdatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var upd))
+            {
+                return upd.UtcTicks;
+            }
+            if (!string.IsNullOrWhiteSpace(q.CreatedAt) &&
+                DateTimeOffset.TryParse(q.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var cr))
+            {
+                return cr.UtcTicks;
+            }
+            return 0;
+        }
+
+        private static string ComputeQuestionDedupKey(MeaQuestionDto q)
+        {
+            string normContent = Regex.Replace((q.Content ?? string.Empty).Trim(), @"\s+", " ").ToLowerInvariant();
+            if (!string.IsNullOrEmpty(normContent))
+            {
+                return normContent;
+            }
+            return $"code:{(q.Code ?? string.Empty).Trim().ToLowerInvariant()}|id:{q.Id}";
+        }
+
+        private static void MergeMissingFields(MeaQuestionDto winner, MeaQuestionDto loser)
+        {
+            if (string.IsNullOrWhiteSpace(winner.TikzCode) && !string.IsNullOrWhiteSpace(loser.TikzCode))
+                winner.TikzCode = loser.TikzCode;
+            if (string.IsNullOrWhiteSpace(winner.Explanation) && !string.IsNullOrWhiteSpace(loser.Explanation))
+                winner.Explanation = loser.Explanation;
+            if (string.IsNullOrWhiteSpace(winner.CorrectAnswer) && !string.IsNullOrWhiteSpace(loser.CorrectAnswer))
+                winner.CorrectAnswer = loser.CorrectAnswer;
+            if (string.IsNullOrWhiteSpace(winner.ChapterName) && !string.IsNullOrWhiteSpace(loser.ChapterName))
+                winner.ChapterName = loser.ChapterName;
+            if (string.IsNullOrWhiteSpace(winner.LessonName) && !string.IsNullOrWhiteSpace(loser.LessonName))
+                winner.LessonName = loser.LessonName;
+            if (string.IsNullOrWhiteSpace(winner.Topic) && !string.IsNullOrWhiteSpace(loser.Topic))
+                winner.Topic = loser.Topic;
+            if ((winner.Options == null || winner.Options.Count == 0) && loser.Options != null && loser.Options.Count > 0)
+                winner.Options = new Dictionary<string, string>(loser.Options);
+            if ((winner.Images == null || winner.Images.Count == 0) && loser.Images != null && loser.Images.Count > 0)
+                winner.Images = new List<string>(loser.Images);
+        }
+
+        private sealed class LoadedQuestionBanksData
+        {
+            public string PrimaryPath { get; init; } = string.Empty;
+            public string PrimarySchema { get; init; } = "None";
+            public List<string> DbPaths { get; init; } = new();
+            public List<MeaQuestionSourceInfo> Sources { get; init; } = new();
+            public List<MeaQuestionDto> MergedQuestions { get; init; } = new();
+            public Dictionary<string, List<MeaQuestionDto>> RawBySource { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private async Task<LoadedQuestionBanksData> LoadMergedQuestionBanksAsync()
+        {
+            string defaultPrimary = ResolveDatabasePath();
+            var dbSources = ResolveAllDatabasePaths();
+            var sourceInfos = new List<MeaQuestionSourceInfo>();
+            var dbPaths = new List<string>();
+            var rawBySource = new Dictionary<string, List<MeaQuestionDto>>(StringComparer.OrdinalIgnoreCase);
+            var dedupMap = new Dictionary<string, (MeaQuestionDto Item, long Ts, bool IsPrimary)>(StringComparer.Ordinal);
+            var mergedOrder = new List<string>();
+            string primarySchema = "None";
+            string primaryPath = dbSources.FirstOrDefault()?.Path ?? defaultPrimary;
+
+            foreach (var src in dbSources)
+            {
+                var rawList = new List<MeaQuestionDto>();
+                string schemaStr = "None";
+                try
+                {
+                    using var conn = await OpenQuestionBankConnectionAsync(src.Path, readOnly: true).ConfigureAwait(false);
+                    var (schema, cols) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
+                    schemaStr = schema.ToString();
+                    if (src.IsPrimary || (primarySchema == "None" && schema != QuestionBankSchema.None))
+                    {
+                        primarySchema = schemaStr;
+                    }
+
+                    if (schema != QuestionBankSchema.None)
+                    {
+                        string sql = schema == QuestionBankSchema.CSharp
+                            ? BuildCSharpSelectSql(cols)
+                            : BuildPythonSelectSql(cols);
+
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = sql;
+                        using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                        while (await reader.ReadAsync().ConfigureAwait(false))
+                        {
+                            var item = schema == QuestionBankSchema.CSharp
+                                ? ReadCSharpQuestionRow(reader)
+                                : ReadPythonQuestionRow(reader);
+                            item.SourceDb = src.Key;
+                            item.SourceLabel = src.Label;
+                            rawList.Add(item);
+
+                            string key = ComputeQuestionDedupKey(item);
+                            long ts = ParseQuestionTimestampTicks(item);
+                            if (dedupMap.TryGetValue(key, out var existing))
+                            {
+                                bool replace = ts > existing.Ts || (ts == existing.Ts && src.IsPrimary && !existing.IsPrimary);
+                                if (replace)
+                                {
+                                    MergeMissingFields(item, existing.Item);
+                                    dedupMap[key] = (item, ts, src.IsPrimary);
+                                }
+                                else
+                                {
+                                    MergeMissingFields(existing.Item, item);
+                                }
+                            }
+                            else
+                            {
+                                dedupMap[key] = (item, ts, src.IsPrimary);
+                                mergedOrder.Add(key);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[MatrixExamSyncService] Failed loading DB '{src.Path}': {ex.Message}");
+                }
+
+                if (rawList.Count == 0 && !src.IsPrimary)
+                {
+                    continue;
+                }
+
+                dbPaths.Add(src.Path);
+                rawBySource[src.Key] = rawList;
+                sourceInfos.Add(new MeaQuestionSourceInfo
+                {
+                    Key = src.Key,
+                    Label = src.Label,
+                    Path = src.Path,
+                    Schema = schemaStr,
+                    Count = rawList.Count,
+                    IsPrimary = src.IsPrimary
+                });
+            }
+
+            var merged = mergedOrder
+                .Select(k => dedupMap[k])
+                .OrderByDescending(entry => entry.Ts)
+                .ThenByDescending(entry => entry.IsPrimary)
+                .ThenByDescending(entry => entry.Item.Id)
+                .Select(entry => entry.Item)
+                .ToList();
+
+            return new LoadedQuestionBanksData
+            {
+                PrimaryPath = primaryPath,
+                PrimarySchema = primarySchema,
+                DbPaths = dbPaths,
+                Sources = sourceInfos,
+                MergedQuestions = merged,
+                RawBySource = rawBySource
+            };
+        }
+
+        private static int LevelRank(string level)
+        {
+            return MapPythonLevelToVietnamese(level) switch
+            {
+                "Nhận biết" => 0,
+                "Thông hiểu" => 1,
+                "Vận dụng" => 2,
+                "Vận dụng cao" => 3,
+                _ => 4
+            };
+        }
+
+        private static int QtypeRank(string qtype)
+        {
+            return MapPythonQtypeToCSharp(qtype) switch
+            {
+                "MultipleChoice4" => 0,
+                "TrueFalse4" => 1,
+                "ShortAnswer" => 2,
+                "Essay" => 3,
+                _ => 4
+            };
+        }
+
+        private async Task<MeaQuestionListResult> ListQuestionsInternalAsync(
+            string? keyword,
+            int? grade,
+            string? topic,
+            string? level,
+            string? qtype,
+            int limit,
+            int offset,
+            bool resolveImages,
+            string? sourceDb)
+        {
+            var loaded = await LoadMergedQuestionBanksAsync().ConfigureAwait(false);
             var result = new MeaQuestionListResult
             {
-                DbPath = dbPath,
-                Limit = limit <= 0 ? 100 : Math.Min(limit, 500),
+                DbPath = loaded.PrimaryPath,
+                DbPaths = loaded.DbPaths,
+                Sources = loaded.Sources,
+                Schema = loaded.PrimarySchema,
+                Total = loaded.MergedQuestions.Count,
+                Limit = limit <= 0 ? 100 : Math.Min(limit, 5000),
                 Offset = Math.Max(0, offset)
             };
 
-            if (!File.Exists(dbPath))
+            List<MeaQuestionDto> sourcePool = loaded.MergedQuestions;
+            if (!string.IsNullOrWhiteSpace(sourceDb) &&
+                !sourceDb.Equals("all", StringComparison.OrdinalIgnoreCase) &&
+                loaded.RawBySource.TryGetValue(sourceDb.Trim(), out var selectedRaw))
             {
-                return result;
+                sourcePool = selectedRaw;
             }
 
-            var allItems = new List<MeaQuestionDto>();
-            using (var conn = await OpenQuestionBankConnectionAsync(dbPath, readOnly: true).ConfigureAwait(false))
-            {
-                var (schema, cols) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
-                result.Schema = schema.ToString();
-                if (schema == QuestionBankSchema.None) return result;
-
-                string sql = schema == QuestionBankSchema.CSharp
-                    ? BuildCSharpSelectSql(cols)
-                    : BuildPythonSelectSql(cols);
-
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = sql;
-                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
-                while (await reader.ReadAsync().ConfigureAwait(false))
-                {
-                    var item = schema == QuestionBankSchema.CSharp
-                        ? ReadCSharpQuestionRow(reader)
-                        : ReadPythonQuestionRow(reader);
-                    allItems.Add(item);
-                }
-            }
-
-            result.Total = allItems.Count;
             result.Facets = new MeaQuestionFacets
             {
-                Grades = allItems.Select(q => q.Grade).Where(g => g > 0).Distinct().OrderBy(g => g).ToList(),
-                Topics = allItems.Select(q => q.Topic).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(t => t).ToList(),
-                Levels = allItems.Select(q => q.Level).Where(l => !string.IsNullOrWhiteSpace(l)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                Qtypes = allItems.Select(q => q.Qtype).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                Grades = sourcePool.Select(q => q.Grade).Where(g => g > 0).Distinct().OrderBy(g => g).ToList(),
+                Topics = sourcePool.Select(q => q.Topic).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(t => t, StringComparer.CurrentCultureIgnoreCase).ToList(),
+                Levels = sourcePool.Select(q => MapPythonLevelToVietnamese(q.Level)).Where(l => !string.IsNullOrWhiteSpace(l)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(LevelRank).ThenBy(l => l, StringComparer.CurrentCultureIgnoreCase).ToList(),
+                Qtypes = sourcePool.Select(q => MapPythonQtypeToCSharp(q.Qtype)).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(QtypeRank).ThenBy(t => t, StringComparer.OrdinalIgnoreCase).ToList()
             };
 
-            IEnumerable<MeaQuestionDto> filtered = allItems;
+            IEnumerable<MeaQuestionDto> filtered = sourcePool;
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
@@ -2097,8 +2396,12 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 filtered = filtered.Where(q =>
                     q.Content.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                     q.Topic.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    q.ChapterName.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    q.LessonName.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                     q.Code.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
                     q.Explanation.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    q.SourceLabel.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    (q.Options != null && q.Options.Values.Any(v => v.Contains(kw, StringComparison.OrdinalIgnoreCase))) ||
                     q.Id.ToString(CultureInfo.InvariantCulture).Contains(kw, StringComparison.OrdinalIgnoreCase));
             }
 
@@ -2109,8 +2412,11 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
 
             if (!string.IsNullOrWhiteSpace(topic) && !topic.Equals("Tất cả", StringComparison.OrdinalIgnoreCase))
             {
-                filtered = filtered.Where(q => q.Topic.Equals(topic.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                                               q.Topic.Contains(topic.Trim(), StringComparison.OrdinalIgnoreCase));
+                string tp = topic.Trim();
+                filtered = filtered.Where(q => q.Topic.Equals(tp, StringComparison.OrdinalIgnoreCase) ||
+                                               q.Topic.Contains(tp, StringComparison.OrdinalIgnoreCase) ||
+                                               q.ChapterName.Contains(tp, StringComparison.OrdinalIgnoreCase) ||
+                                               q.LessonName.Contains(tp, StringComparison.OrdinalIgnoreCase));
             }
 
             if (!string.IsNullOrWhiteSpace(level) && !level.Equals("Tất cả", StringComparison.OrdinalIgnoreCase) && !level.Equals("Tất cả mức độ", StringComparison.OrdinalIgnoreCase))
@@ -2129,12 +2435,16 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             result.FilteredTotal = filteredList.Count;
 
             var page = filteredList.Skip(result.Offset).Take(result.Limit).ToList();
-            if (resolveImages)
+            if (resolveImages && page.Count > 0)
             {
-                string dbDir = Path.GetDirectoryName(dbPath) ?? string.Empty;
+                var dbDirs = loaded.DbPaths
+                    .Select(p => Path.GetDirectoryName(p) ?? string.Empty)
+                    .Where(d => !string.IsNullOrWhiteSpace(d))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
                 foreach (var q in page)
                 {
-                    PopulateQuestionImages(q, dbDir);
+                    PopulateQuestionImages(q, dbDirs);
                 }
             }
 
@@ -2142,9 +2452,9 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return result;
         }
 
-        public async Task<List<MeaQuestionDto>> LoadAllQuestionsForLegacyBankAsync(int maxQuestions = 250)
+        public async Task<List<MeaQuestionDto>> LoadAllQuestionsForLegacyBankAsync(int maxQuestions = 2000)
         {
-            var res = await ListQuestionsAsync(limit: maxQuestions, offset: 0, resolveImages: false).ConfigureAwait(false);
+            var res = await ListQuestionsAsync(limit: maxQuestions, offset: 0, resolveImages: true).ConfigureAwait(false);
             return res.Questions;
         }
 
@@ -2327,7 +2637,8 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return $"SELECT id, {Col("question_code")}, {Col("subject", "'Toán'")}, {Col("grade", "12")}, {Col("topic")}, " +
                    $"{Col("cognitive_level", "'Thông hiểu'")}, {Col("question_type", "'MultipleChoice4'")}, {Col("content")}, " +
                    $"{Col("options_json")}, {Col("correct_answer")}, {Col("explanation")}, {Col("tikz_code")}, " +
-                   $"{Col("images")}, {Col("source")}, {Col("created_at")} FROM questions ORDER BY id DESC;";
+                   $"{Col("images")}, {Col("source")}, {Col("created_at")}, {Col("updated_at")}, " +
+                   $"{Col("chapter_name")}, {Col("lesson_name")} FROM questions ORDER BY id DESC;";
         }
 
         private static string BuildPythonSelectSql(HashSet<string> cols)
@@ -2352,13 +2663,23 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             string gradeRaw = ReadStr(reader, "grade", "12");
             if (int.TryParse(Regex.Replace(gradeRaw, @"\D", ""), out int gParsed) && gParsed > 0) grade = gParsed;
 
+            string topic = ReadStr(reader, "topic");
+            string chapterName = ReadStr(reader, "chapter_name");
+            string lessonName = ReadStr(reader, "lesson_name");
+            if (string.IsNullOrWhiteSpace(topic))
+            {
+                topic = !string.IsNullOrWhiteSpace(lessonName) ? lessonName : chapterName;
+            }
+
             var q = new MeaQuestionDto
             {
                 Id = id,
                 Code = ReadStr(reader, "question_code"),
                 Subject = ReadStr(reader, "subject", "Toán"),
                 Grade = grade,
-                Topic = ReadStr(reader, "topic"),
+                Topic = topic,
+                ChapterName = chapterName,
+                LessonName = lessonName,
                 Level = MapPythonLevelToVietnamese(ReadStr(reader, "cognitive_level", "Thông hiểu")),
                 Qtype = MapPythonQtypeToCSharp(ReadStr(reader, "question_type", "MultipleChoice4")),
                 Content = ReadStr(reader, "content"),
@@ -2366,7 +2687,8 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 Explanation = ReadStr(reader, "explanation"),
                 TikzCode = ReadStr(reader, "tikz_code"),
                 Source = ReadStr(reader, "source"),
-                CreatedAt = ReadStr(reader, "created_at")
+                CreatedAt = ReadStr(reader, "created_at"),
+                UpdatedAt = ReadStr(reader, "updated_at")
             };
             if (string.IsNullOrWhiteSpace(q.Code)) q.Code = $"Q{id:D4}";
 
@@ -2548,7 +2870,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return JsonSerializer.Serialize(data, CompactJsonOptions);
         }
 
-        private static void PopulateQuestionImages(MeaQuestionDto q, string dbDir)
+        private void PopulateQuestionImages(MeaQuestionDto q, IEnumerable<string> dbDirs)
         {
             var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var img in q.Images)
@@ -2572,18 +2894,32 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
 
             if (refs.Count == 0) return;
 
-            string[] searchDirs =
+            var dirList = new List<string>();
+            var seenDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void AddSearchDir(string? dir)
             {
-                Path.Combine(LocalAppDataMeaDir, "question_images"),
-                Path.Combine(ExamGeneratorDir, "question_images"),
-                string.IsNullOrEmpty(dbDir) ? string.Empty : Path.Combine(dbDir, "question_images")
-            };
+                if (string.IsNullOrWhiteSpace(dir)) return;
+                if (seenDirs.Add(dir.TrimEnd('\\', '/'))) dirList.Add(dir);
+            }
 
+            AddSearchDir(Path.Combine(LocalAppDataMeaDir, "question_images"));
+            AddSearchDir(Path.Combine(ExamGeneratorDir, "question_images"));
+            if (dbDirs != null)
+            {
+                foreach (var dbDir in dbDirs)
+                {
+                    if (string.IsNullOrWhiteSpace(dbDir)) continue;
+                    AddSearchDir(Path.Combine(dbDir, "question_images"));
+                    AddSearchDir(dbDir);
+                }
+            }
+
+            string[] searchDirs = dirList.ToArray();
             foreach (string rawRef in refs)
             {
                 string? resolvedPath = ResolveQuestionImageFile(rawRef, searchDirs);
                 if (resolvedPath == null) continue;
-                string? dataUrl = ReadImageAsDataUrl(resolvedPath, maxBytes: 4 * 1024 * 1024);
+                string? dataUrl = ReadQuestionImageAsDataUrl(resolvedPath, maxBytes: 4 * 1024 * 1024);
                 if (string.IsNullOrEmpty(dataUrl)) continue;
 
                 q.InlineImages[rawRef] = dataUrl;
@@ -2617,7 +2953,235 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
         private static bool IsAllowedImageExt(string path)
         {
             string ext = Path.GetExtension(path).ToLowerInvariant();
-            return ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".svg" or ".bmp";
+            return ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".svg" or ".bmp" or ".emf";
+        }
+
+        private string? ReadQuestionImageAsDataUrl(string filePath, int maxBytes)
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext == ".emf")
+            {
+                string siblingPng = Path.ChangeExtension(filePath, ".png");
+                if (File.Exists(siblingPng))
+                {
+                    return ReadImageAsDataUrl(siblingPng, maxBytes);
+                }
+                return RenderEmfToPngDataUrl(filePath, maxBytes);
+            }
+            return ReadImageAsDataUrl(filePath, maxBytes);
+        }
+
+        private string? RenderEmfToPngDataUrl(string emfPath, int maxBytes)
+        {
+            try
+            {
+                var fi = new FileInfo(emfPath);
+                if (!fi.Exists || fi.Length == 0 || fi.Length > maxBytes) return null;
+
+                string cacheKey = $"{emfPath}|{fi.Length}|{fi.LastWriteTimeUtc.Ticks}";
+                if (_emfPngCache.TryGetValue(cacheKey, out string? cached))
+                {
+                    return cached;
+                }
+
+                IntPtr hEmf = NativeGdi.GetEnhMetaFile(emfPath);
+                if (hEmf == IntPtr.Zero) return null;
+
+                IntPtr hDc = IntPtr.Zero;
+                IntPtr hBmp = IntPtr.Zero;
+                IntPtr oldBmp = IntPtr.Zero;
+                try
+                {
+                    var hdr = new GdiEnhMetaHeader { CbSize = (uint)Marshal.SizeOf<GdiEnhMetaHeader>() };
+                    if (NativeGdi.GetEnhMetaFileHeader(hEmf, hdr.CbSize, out hdr) == 0)
+                    {
+                        return null;
+                    }
+
+                    long frameW = Math.Max(0, hdr.RclFrame.Right - hdr.RclFrame.Left);
+                    long frameH = Math.Max(0, hdr.RclFrame.Bottom - hdr.RclFrame.Top);
+                    double rawW;
+                    double rawH;
+                    if (frameW > 0 && frameH > 0)
+                    {
+                        // rclFrame is in 0.01 mm; render at ~192 DPI for sharp math formulas/lines
+                        const double pxPer01Mm = 192.0 / 2540.0;
+                        rawW = frameW * pxPer01Mm;
+                        rawH = frameH * pxPer01Mm;
+                    }
+                    else
+                    {
+                        rawW = Math.Max(1, hdr.RclBounds.Right - hdr.RclBounds.Left) * 2.0;
+                        rawH = Math.Max(1, hdr.RclBounds.Bottom - hdr.RclBounds.Top) * 2.0;
+                    }
+
+                    if (rawW <= 0 || rawH <= 0) return null;
+                    double maxSide = Math.Max(rawW, rawH);
+                    double scale = 1.0;
+                    if (maxSide > 1080.0) scale = 1080.0 / maxSide;
+                    else if (maxSide < 220.0) scale = 220.0 / maxSide;
+
+                    int w = Math.Clamp((int)Math.Round(rawW * scale), 32, 1080);
+                    int h = Math.Clamp((int)Math.Round(rawH * scale), 32, 1080);
+
+                    hDc = NativeGdi.CreateCompatibleDC(IntPtr.Zero);
+                    if (hDc == IntPtr.Zero) return null;
+
+                    var bmi = new GdiBitmapInfo
+                    {
+                        Header = new GdiBitmapInfoHeader
+                        {
+                            BiSize = (uint)Marshal.SizeOf<GdiBitmapInfoHeader>(),
+                            BiWidth = w,
+                            BiHeight = -h, // top-down DIB
+                            BiPlanes = 1,
+                            BiBitCount = 32,
+                            BiCompression = 0 // BI_RGB
+                        }
+                    };
+
+                    hBmp = NativeGdi.CreateDIBSection(hDc, ref bmi, 0, out IntPtr pBits, IntPtr.Zero, 0);
+                    if (hBmp == IntPtr.Zero || pBits == IntPtr.Zero) return null;
+
+                    oldBmp = NativeGdi.SelectObject(hDc, hBmp);
+                    NativeGdi.PatBlt(hDc, 0, 0, w, h, 0x00FF0062); // WHITENESS
+
+                    var rect = new GdiRect { Left = 0, Top = 0, Right = w, Bottom = h };
+                    NativeGdi.PlayEnhMetaFile(hDc, hEmf, ref rect);
+                    NativeGdi.GdiFlush();
+
+                    int stride = w * 4;
+                    byte[] pixels = new byte[stride * h];
+                    Marshal.Copy(pBits, pixels, 0, pixels.Length);
+
+                    // Use Bgr32 (opaque RGB) because GDI vector calls leave alpha byte at 0 on 32bpp DIBs
+                    var bmpSource = System.Windows.Media.Imaging.BitmapSource.Create(
+                        w, h, 96, 96,
+                        System.Windows.Media.PixelFormats.Bgr32,
+                        null, pixels, stride);
+                    bmpSource.Freeze();
+
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmpSource));
+                    using var ms = new MemoryStream();
+                    encoder.Save(ms);
+                    string dataUrl = $"data:image/png;base64,{Convert.ToBase64String(ms.ToArray())}";
+
+                    if (_emfPngCache.Count >= 400) _emfPngCache.Clear();
+                    _emfPngCache[cacheKey] = dataUrl;
+                    return dataUrl;
+                }
+                finally
+                {
+                    if (hDc != IntPtr.Zero && oldBmp != IntPtr.Zero) NativeGdi.SelectObject(hDc, oldBmp);
+                    if (hBmp != IntPtr.Zero) NativeGdi.DeleteObject(hBmp);
+                    if (hDc != IntPtr.Zero) NativeGdi.DeleteDC(hDc);
+                    NativeGdi.DeleteEnhMetaFile(hEmf);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MatrixExamSyncService] EMF rasterize error '{emfPath}': {ex.Message}");
+                return null;
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GdiRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GdiSize
+        {
+            public int Cx;
+            public int Cy;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GdiEnhMetaHeader
+        {
+            public uint IType;
+            public uint CbSize;
+            public GdiRect RclBounds;
+            public GdiRect RclFrame;
+            public uint DSignature;
+            public uint NVersion;
+            public uint NBytes;
+            public uint NRecords;
+            public ushort NHandles;
+            public ushort SReserved;
+            public uint NDescription;
+            public uint OffDescription;
+            public uint NPalEntries;
+            public GdiSize SzlDevice;
+            public GdiSize SzlMillimeters;
+            public uint CbPixelFormat;
+            public uint OffPixelFormat;
+            public uint BOpenGL;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GdiBitmapInfoHeader
+        {
+            public uint BiSize;
+            public int BiWidth;
+            public int BiHeight;
+            public ushort BiPlanes;
+            public ushort BiBitCount;
+            public uint BiCompression;
+            public uint BiSizeImage;
+            public int BiXPelsPerMeter;
+            public int BiYPelsPerMeter;
+            public uint BiClrUsed;
+            public uint BiClrImportant;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GdiBitmapInfo
+        {
+            public GdiBitmapInfoHeader Header;
+            public uint Colors;
+        }
+
+        private static class NativeGdi
+        {
+            [DllImport("gdi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+            public static extern IntPtr GetEnhMetaFile(string lpszMetaFile);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool DeleteEnhMetaFile(IntPtr hemf);
+
+            [DllImport("gdi32.dll")]
+            public static extern uint GetEnhMetaFileHeader(IntPtr hemf, uint cbBuffer, out GdiEnhMetaHeader lpemh);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool PlayEnhMetaFile(IntPtr hdc, IntPtr hemf, ref GdiRect lpRect);
+
+            [DllImport("gdi32.dll")]
+            public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool DeleteDC(IntPtr hdc);
+
+            [DllImport("gdi32.dll")]
+            public static extern IntPtr CreateDIBSection(IntPtr hdc, ref GdiBitmapInfo pbmi, uint iUsage, out IntPtr ppvBits, IntPtr hSection, uint dwOffset);
+
+            [DllImport("gdi32.dll")]
+            public static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool DeleteObject(IntPtr hObject);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool PatBlt(IntPtr hdc, int x, int y, int w, int h, uint rop);
+
+            [DllImport("gdi32.dll")]
+            public static extern bool GdiFlush();
         }
 
         private static string? ReadImageAsDataUrl(string filePath, int maxBytes)
@@ -3015,24 +3579,19 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 FiguresExists = Directory.Exists(figDir)
             };
 
-            if (info.QuestionBankExists)
+            try
             {
-                try
-                {
-                    using var conn = await OpenQuestionBankConnectionAsync(dbPath, readOnly: true).ConfigureAwait(false);
-                    var (schema, _) = await DetectQuestionSchemaAsync(conn).ConfigureAwait(false);
-                    info.QuestionBankSchema = schema.ToString();
-                    if (schema != QuestionBankSchema.None)
-                    {
-                        using var cmd = conn.CreateCommand();
-                        cmd.CommandText = "SELECT COUNT(*) FROM questions;";
-                        info.QuestionCount = Convert.ToInt64(await cmd.ExecuteScalarAsync().ConfigureAwait(false));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[MatrixExamSyncService] Question count status notice: {ex.Message}");
-                }
+                var loaded = await LoadMergedQuestionBanksAsync().ConfigureAwait(false);
+                info.QuestionBankPath = loaded.PrimaryPath;
+                info.QuestionBankPaths = loaded.DbPaths;
+                info.QuestionBankSources = loaded.Sources;
+                info.QuestionBankExists = loaded.DbPaths.Count > 0 || File.Exists(dbPath);
+                info.QuestionBankSchema = loaded.PrimarySchema;
+                info.QuestionCount = loaded.MergedQuestions.Count;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MatrixExamSyncService] Question count status notice: {ex.Message}");
             }
 
             if (info.FiguresExists)
@@ -3045,6 +3604,51 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             }
 
             return info;
+        }
+
+        private List<string> GetWatchableQuestionBankDirs()
+        {
+            var dirs = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddDir(string? dir)
+            {
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return;
+                string norm;
+                try { norm = Path.GetFullPath(dir).TrimEnd('\\', '/'); }
+                catch { norm = dir.TrimEnd('\\', '/'); }
+                if (seen.Add(norm)) dirs.Add(norm);
+            }
+
+            AddDir(Path.GetDirectoryName(ResolveDatabasePath()));
+            AddDir(LocalAppDataMeaDir);
+            AddDir(ExamGeneratorDir);
+            foreach (var src in ResolveAllDatabasePaths())
+            {
+                AddDir(Path.GetDirectoryName(src.Path));
+            }
+            return dirs;
+        }
+
+        private string ComputeAllQuestionBanksFingerprint()
+        {
+            var paths = ResolveAllDatabasePaths().Select(s => s.Path).ToList();
+            if (paths.Count == 0)
+            {
+                return ComputeQuestionBankFileFingerprint(ResolveDatabasePath());
+            }
+            return string.Join(";", paths.Select(p => $"{p}={ComputeQuestionBankFileFingerprint(p)}"));
+        }
+
+        private void DisposeAllQbWatchers()
+        {
+            foreach (var w in _qbWatchers)
+            {
+                var refW = (FileSystemWatcher?)w;
+                DisposeWatcher(ref refW);
+            }
+            _qbWatchers.Clear();
+            _watchedQbDirs.Clear();
         }
 
         public void EnsureWatchersStarted()
@@ -3070,39 +3674,46 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                     catch { }
                 }
 
-                // 2. Watch active question_bank.db (+ -wal only; NEVER -shm/-journal!)
-                string qbDir = Path.GetDirectoryName(ResolveDatabasePath()) ?? string.Empty;
-                if (!string.IsNullOrEmpty(qbDir) && Directory.Exists(qbDir) && !SameDirectory(qbDir, _watchedQbDir))
+                // 2. Watch all active question_bank.db directories (+ -wal only; NEVER -shm/-journal!)
+                var targetQbDirs = GetWatchableQuestionBankDirs();
+                bool qbDirsChanged = targetQbDirs.Count != _watchedQbDirs.Count ||
+                                     targetQbDirs.Any(d => !_watchedQbDirs.Contains(d));
+                if (qbDirsChanged)
                 {
-                    DisposeWatcher(ref _qbWatcher);
-                    try
+                    DisposeAllQbWatchers();
+                    FileSystemEventHandler onQbChange = (_, args) =>
                     {
-                        _qbWatcher = new FileSystemWatcher(qbDir, "question_bank.db*")
+                        string name = args.Name ?? string.Empty;
+                        if (name.EndsWith("-shm", StringComparison.OrdinalIgnoreCase) ||
+                            name.EndsWith("-journal", StringComparison.OrdinalIgnoreCase) ||
+                            name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
                         {
-                            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
-                            EnableRaisingEvents = true
-                        };
-                        FileSystemEventHandler onQbChange = (_, args) =>
+                            return;
+                        }
+                        if (name.Equals(DatabaseFileName, StringComparison.OrdinalIgnoreCase) ||
+                            name.Equals(DatabaseFileName + "-wal", StringComparison.OrdinalIgnoreCase))
                         {
-                            string name = args.Name ?? string.Empty;
-                            if (name.EndsWith("-shm", StringComparison.OrdinalIgnoreCase) ||
-                                name.EndsWith("-journal", StringComparison.OrdinalIgnoreCase) ||
-                                name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                            ScheduleDebouncedEvent("question_bank_changed");
+                        }
+                    };
+
+                    foreach (var qbDir in targetQbDirs)
+                    {
+                        try
+                        {
+                            var watcher = new FileSystemWatcher(qbDir, "question_bank.db*")
                             {
-                                return;
-                            }
-                            if (name.Equals(DatabaseFileName, StringComparison.OrdinalIgnoreCase) ||
-                                name.Equals(DatabaseFileName + "-wal", StringComparison.OrdinalIgnoreCase))
-                            {
-                                ScheduleDebouncedEvent("question_bank_changed");
-                            }
-                        };
-                        _qbWatcher.Changed += onQbChange;
-                        _qbWatcher.Created += onQbChange;
-                        _watchedQbDir = qbDir;
-                        _lastQbFingerprint = ComputeQuestionBankFileFingerprint(ResolveDatabasePath());
+                                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
+                                EnableRaisingEvents = true
+                            };
+                            watcher.Changed += onQbChange;
+                            watcher.Created += onQbChange;
+                            _qbWatchers.Add(watcher);
+                            _watchedQbDirs.Add(qbDir);
+                        }
+                        catch { }
                     }
-                    catch { }
+                    _lastQbFingerprint = ComputeAllQuestionBanksFingerprint();
                 }
 
                 // 3. Watch active figures directory
@@ -3220,10 +3831,10 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 }
                 else if (eventType == "question_bank_changed")
                 {
-                    string dbPath = ResolveDatabasePath();
-                    string qbFp = ComputeQuestionBankFileFingerprint(dbPath);
+                    string qbFp = ComputeAllQuestionBanksFingerprint();
                     if (!string.IsNullOrEmpty(qbFp) && qbFp == _lastQbFingerprint) return;
                     _lastQbFingerprint = qbFp;
+                    EnsureWatchersStarted();
                 }
                 else if (eventType == "figures_changed")
                 {
@@ -3283,7 +3894,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 if (_disposed) return;
                 _disposed = true;
                 DisposeWatcher(ref _configWatcher);
-                DisposeWatcher(ref _qbWatcher);
+                DisposeAllQbWatchers();
                 DisposeWatcher(ref _figuresWatcher);
                 foreach (var timer in _debounceTimers.Values)
                 {

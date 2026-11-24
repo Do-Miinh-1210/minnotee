@@ -48,7 +48,7 @@
     try {
       const board = getBoard();
       if (!board) {
-        alert('Bảng viết MinNote chưa sẵn sàng! Vui lòng chờ vài giây để bảng tải xong.');
+        if (window.MinNoteDialog) window.MinNoteDialog.alert('Bảng viết MinNote chưa sẵn sàng! Vui lòng chờ vài giây để bảng tải xong.', 'Lưu ý');
         return false;
       }
 
@@ -110,7 +110,7 @@
       return false;
     } catch (err) {
       console.error('[MinNote NoteBoard Bridge] Error inserting item to board:', err);
-      alert('Lỗi khi chèn vào bảng: ' + err.message);
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Lỗi khi chèn vào bảng: ' + err.message, 'Thông báo lỗi');
       return false;
     }
   };
@@ -121,7 +121,7 @@
 
     if (!window.NBVariation) {
 
-      alert('Chưa nạp module NoteBoard Variation. Hãy kiểm tra file assets/noteboard/math/variation.js.');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Chưa nạp module NoteBoard Variation. Hãy kiểm tra file assets/noteboard/math/variation.js.', 'Lưu ý');
 
       return;
 
@@ -437,7 +437,7 @@
 
     if (!window.NBSpatial) {
 
-      alert('Chưa nạp module NoteBoard Spatial 3D. Hãy kiểm tra file assets/noteboard/math/spatial.js.');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Chưa nạp module NoteBoard Spatial 3D. Hãy kiểm tra file assets/noteboard/math/spatial.js.', 'Lưu ý');
 
       return;
 
@@ -841,7 +841,7 @@
 
     if (!window.NBChemUnits) {
 
-      alert('Chưa nạp module NoteBoard ChemUnits. Hãy kiểm tra file assets/noteboard/math/chem-units.js.');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Chưa nạp module NoteBoard ChemUnits. Hãy kiểm tra file assets/noteboard/math/chem-units.js.', 'Lưu ý');
 
       return;
 
@@ -1126,7 +1126,7 @@
 
     } else {
 
-      alert('Đang nạp Quick Word Terminal...');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Đang nạp Quick Word Terminal...', 'Thông báo');
 
     }
 
@@ -1158,7 +1158,7 @@
 
     if (!board) {
 
-      alert('Bảng viết MinNote chưa sẵn sàng!');
+      if (window.MinNoteDialog) window.MinNoteDialog.alert('Bảng viết MinNote chưa sẵn sàng!', 'Lưu ý');
 
       return;
 

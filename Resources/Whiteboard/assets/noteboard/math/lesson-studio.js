@@ -247,10 +247,12 @@ html.nb-projector #nbClassTimer .nbt-presets,html.nb-projector #nbClassTimer .nb
    title.className='nb-cover-title';
    title.textContent=(isScratchCard?'📝 ':'🃏 ')+c.label+(cur>0&&!c.revealed?' ('+Math.round(cur/c.h*100)+'%)':'');
    title.title='Nhấp đúp để đổi tên tấm che';
-   title.ondblclick=e=>{
+   title.ondblclick=async e=>{
     if(isProjector)return;
     e.stopPropagation();
-    const next=prompt('Tên hiển thị trên tấm che:',c.label);
+    const next=window.MinNoteDialog
+      ? await window.MinNoteDialog.prompt({title:'Đổi tên tấm che',message:'Tên hiển thị trên tấm che:',defaultValue:c.label,confirmText:'Lưu tên',cancelText:'Hủy'})
+      : null;
     if(next!==null){c.label=next.trim().slice(0,120)||'Đáp án / Gợi ý';renderCovers();syncCovers(true);}
    };
 

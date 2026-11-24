@@ -254,27 +254,8 @@
           c.width = cw;
           c.height = ch;
           const ctx = c.getContext('2d');
-          ctx.fillStyle = '#020617';
-          ctx.fillRect(0, 0, cw, ch);
+          ctx.clearRect(0, 0, cw, ch);
           ctx.drawImage(vid, 0, 0, cw, ch);
-
-          // Crisp translucent play emblem on poster
-          ctx.beginPath();
-          ctx.arc(cw / 2, ch / 2, Math.min(cw, ch) * 0.11, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.56)';
-          ctx.fill();
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-          ctx.stroke();
-
-          const r = Math.min(cw, ch) * 0.045;
-          ctx.beginPath();
-          ctx.moveTo(cw / 2 - r * 0.6, ch / 2 - r);
-          ctx.lineTo(cw / 2 + r * 1.15, ch / 2);
-          ctx.lineTo(cw / 2 - r * 0.6, ch / 2 + r);
-          ctx.closePath();
-          ctx.fillStyle = '#ffffff';
-          ctx.fill();
 
           const poster = c.toDataURL('image/png');
           done({ poster, width: vw, height: vh });
@@ -288,13 +269,20 @@
       };
 
       vid.addEventListener('loadeddata', () => {
-        if (vid.duration && vid.duration > 0.35 && vid.currentTime < 0.1) {
-          try { vid.currentTime = 0.2; return; } catch (_) {}
+        if (Number.isFinite(vid.duration) && vid.duration > 0.35 && vid.currentTime < 0.1) {
+          try {
+            const seekFallback = setTimeout(() => { if (!settled) drawFrame(); }, 700);
+            vid.addEventListener('seeked', () => {
+              clearTimeout(seekFallback);
+              drawFrame();
+            }, { once: true });
+            vid.currentTime = 0.2;
+            return;
+          } catch (_) {}
         }
         drawFrame();
       }, { once: true });
 
-      vid.addEventListener('seeked', drawFrame, { once: true });
       vid.addEventListener('error', () => fallback(), { once: true });
       vid.src = videoUrl;
     });
@@ -355,8 +343,6 @@
     };
 
     board.insertItem(item);
-    // Activate overlay immediately so teacher sees the live video player ready
-    overlayForceActive.set(id, true);
     ensureOverlayLoop();
     syncOverlays();
     toast('🎬 Đã chèn video "' + title + '" vào bảng vẽ!');
@@ -364,11 +350,9 @@
   }
 
   // ============================================================================
-  // 4. SYNCED OVERLAY LAYER (#mn-video-overlay-layer, 60fps rAF)
+  // 4. SYNCED OVERLAY LAYER (#mn-video-overlay-layer, 60fps rAF) + DRAG / RESIZE
   // ============================================================================
-  const mountedBoxes = new Map(); // itemId -> { el, mediaEl, kind, url, drawLocked, badgePlayBtn, badgeDrawBtn }
-  const overlayForceActive = new Map(); // itemId -> boolean (user clicked play badge)
-  const overlayDrawLock = new Map(); // itemId -> boolean (user manually enabled annotate-over-video)
+  const mountedBoxes = new Map(); // itemId -> { el, wrapEl, mediaEl, dragSurface, isIframeKind, kind, url }
   let overlayLayer = null;
   let overlayRaf = 0;
 
@@ -387,14 +371,270 @@
     return overlayLayer;
   }
 
+  function findVideoItemRecord(board, itemId) {
+    if (!board || !board.doc || !Array.isArray(board.doc.pages)) return null;
+    for (let pageIdx = 0; pageIdx < board.doc.pages.length; pageIdx++) {
+      const pg = board.doc.pages[pageIdx];
+      if (!pg || !Array.isArray(pg.items)) continue;
+      for (let i = 0; i < pg.items.length; i++) {
+        if (pg.items[i] && pg.items[i].id === itemId) {
+          return { pageIdx, item: pg.items[i] };
+        }
+      }
+    }
+    return null;
+  }
+
+  function selectVideoItem(board, pageIdx, itemId) {
+    if (!board) return;
+    board.sel = {
+      page: pageIdx,
+      strokes: new Set(),
+      items: new Set([itemId]),
+      points: new Set(),
+      shapes: new Set()
+    };
+    if (typeof board.redraw === 'function') board.redraw();
+    if (typeof board.emit === 'function') board.emit();
+  }
+
+  function commitVideoItemRect(board, pageIdx, itemId, origRect, nextRect) {
+    if (!board || typeof board.updatePage !== 'function' || typeof board.commit !== 'function') return;
+    const found = findVideoItemRecord(board, itemId);
+    if (found && found.item) {
+      // Restore original geometry on existing reference so undoStack preserves pre-drag snapshot cleanly
+      found.item.x = origRect.x;
+      found.item.y = origRect.y;
+      found.item.w = origRect.w;
+      found.item.h = origRect.h;
+    }
+    board.commit(board.updatePage(pageIdx, (pg) => ({
+      ...pg,
+      items: (pg.items || []).map((it) => (it && it.id === itemId
+        ? Object.assign({}, it, {
+            x: nextRect.x,
+            y: nextRect.y,
+            w: nextRect.w,
+            h: nextRect.h
+          })
+        : it))
+    })));
+    selectVideoItem(board, pageIdx, itemId);
+    syncOverlays();
+  }
+
+  function attachVideoDragBehavior(box, dragSurface, mediaEl, itemId) {
+    let dragState = null;
+
+    dragSurface.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const board = getBoard();
+      if (!board || isDrawToolActive(board)) return;
+      const found = findVideoItemRecord(board, itemId);
+      if (!found) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const it = found.item;
+      dragState = {
+        pointerId: e.pointerId,
+        pageIdx: found.pageIdx,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        orig: { x: it.x, y: it.y, w: it.w, h: it.h },
+        moved: false
+      };
+
+      try { dragSurface.setPointerCapture(e.pointerId); } catch (_) {}
+      selectVideoItem(board, found.pageIdx, itemId);
+    });
+
+    dragSurface.addEventListener('pointermove', (e) => {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const board = getBoard();
+      if (!board) return;
+      const found = findVideoItemRecord(board, itemId);
+      if (!found) return;
+
+      const dist = Math.hypot(e.clientX - dragState.startClientX, e.clientY - dragState.startClientY);
+      if (!dragState.moved && dist < 3) return;
+      if (!dragState.moved) {
+        dragState.moved = true;
+        dragSurface.classList.add('dragging');
+      }
+
+      const zoom = board.zoom || 1;
+      found.item.x = dragState.orig.x + (e.clientX - dragState.startClientX) / zoom;
+      found.item.y = dragState.orig.y + (e.clientY - dragState.startClientY) / zoom;
+      if (typeof board.redraw === 'function') board.redraw();
+      syncOverlays();
+    });
+
+    const finishDrag = (e) => {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const st = dragState;
+      dragState = null;
+      dragSurface.classList.remove('dragging');
+      try {
+        if (dragSurface.hasPointerCapture(e.pointerId)) {
+          dragSurface.releasePointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+
+      const board = getBoard();
+      if (!board) return;
+      if (st.moved) {
+        const zoom = board.zoom || 1;
+        const nextX = st.orig.x + (e.clientX - st.startClientX) / zoom;
+        const nextY = st.orig.y + (e.clientY - st.startClientY) / zoom;
+        commitVideoItemRect(board, st.pageIdx, itemId, st.orig, {
+          x: nextX,
+          y: nextY,
+          w: st.orig.w,
+          h: st.orig.h
+        });
+      }
+    };
+
+    dragSurface.addEventListener('pointerup', finishDrag);
+    dragSurface.addEventListener('pointercancel', finishDrag);
+
+    dragSurface.addEventListener('dblclick', (e) => {
+      const board = getBoard();
+      if (!board || isDrawToolActive(board)) return;
+      if (mediaEl && mediaEl.tagName === 'VIDEO') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (mediaEl.paused) {
+          mediaEl.play().catch(() => {});
+        } else {
+          mediaEl.pause();
+        }
+      }
+    });
+  }
+
+  function attachVideoResizeBehavior(handleEl, corner, itemId) {
+    let resizeState = null;
+
+    handleEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const board = getBoard();
+      if (!board || isDrawToolActive(board)) return;
+      const found = findVideoItemRecord(board, itemId);
+      if (!found) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const it = found.item;
+      const aspect = it.w > 0 && it.h > 0 ? it.w / it.h : (16 / 9);
+      resizeState = {
+        pointerId: e.pointerId,
+        pageIdx: found.pageIdx,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        aspect,
+        orig: { x: it.x, y: it.y, w: it.w, h: it.h },
+        moved: false
+      };
+
+      try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
+      selectVideoItem(board, found.pageIdx, itemId);
+    });
+
+    const computeNextRect = (st, clientX, clientY, zoom) => {
+      const dx = (clientX - st.startClientX) / zoom;
+      const dy = (clientY - st.startClientY) / zoom;
+      const o = st.orig;
+      const aspect = st.aspect;
+
+      let candW = o.w;
+      if (corner === 'se') {
+        candW = Math.abs(dx) >= Math.abs(dy * aspect) ? o.w + dx : o.w + dy * aspect;
+      } else if (corner === 'nw') {
+        candW = Math.abs(dx) >= Math.abs(dy * aspect) ? o.w - dx : o.w - dy * aspect;
+      } else if (corner === 'ne') {
+        candW = Math.abs(dx) >= Math.abs(dy * aspect) ? o.w + dx : o.w - dy * aspect;
+      } else if (corner === 'sw') {
+        candW = Math.abs(dx) >= Math.abs(dy * aspect) ? o.w - dx : o.w + dy * aspect;
+      }
+
+      let newW = Math.max(140, Math.round(candW));
+      let newH = Math.round(newW / aspect);
+      if (newH < 80) {
+        newH = 80;
+        newW = Math.round(newH * aspect);
+      }
+
+      let newX = o.x;
+      let newY = o.y;
+      if (corner === 'nw') {
+        newX = o.x + (o.w - newW);
+        newY = o.y + (o.h - newH);
+      } else if (corner === 'ne') {
+        newY = o.y + (o.h - newH);
+      } else if (corner === 'sw') {
+        newX = o.x + (o.w - newW);
+      }
+
+      return { x: newX, y: newY, w: newW, h: newH };
+    };
+
+    handleEl.addEventListener('pointermove', (e) => {
+      if (!resizeState || e.pointerId !== resizeState.pointerId) return;
+      const board = getBoard();
+      if (!board) return;
+      const found = findVideoItemRecord(board, itemId);
+      if (!found) return;
+
+      const dist = Math.hypot(e.clientX - resizeState.startClientX, e.clientY - resizeState.startClientY);
+      if (!resizeState.moved && dist < 2) return;
+      resizeState.moved = true;
+
+      const next = computeNextRect(resizeState, e.clientX, e.clientY, board.zoom || 1);
+      found.item.x = next.x;
+      found.item.y = next.y;
+      found.item.w = next.w;
+      found.item.h = next.h;
+      if (typeof board.redraw === 'function') board.redraw();
+      syncOverlays();
+    });
+
+    const finishResize = (e) => {
+      if (!resizeState || e.pointerId !== resizeState.pointerId) return;
+      const st = resizeState;
+      resizeState = null;
+      try {
+        if (handleEl.hasPointerCapture(e.pointerId)) {
+          handleEl.releasePointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+
+      const board = getBoard();
+      if (!board || !st.moved) return;
+      const next = computeNextRect(st, e.clientX, e.clientY, board.zoom || 1);
+      commitVideoItemRect(board, st.pageIdx, itemId, st.orig, next);
+    };
+
+    handleEl.addEventListener('pointerup', finishResize);
+    handleEl.addEventListener('pointercancel', finishResize);
+  }
+
   function createOverlayBox(item) {
     const v = item.video || {};
     const box = document.createElement('div');
     box.className = 'mn-vid-box';
     box.dataset.vidItemId = item.id;
+    const isIframeKind = v.kind === 'youtube' || v.kind === 'vimeo' || v.kind === 'iframe';
+    box.dataset.kind = isIframeKind ? 'iframe' : 'video';
+
+    const wrapEl = document.createElement('div');
+    wrapEl.className = 'mn-vid-media-wrap';
 
     let mediaEl;
-    if (v.kind === 'youtube' || v.kind === 'vimeo' || v.kind === 'iframe') {
+    if (isIframeKind) {
       mediaEl = document.createElement('iframe');
       mediaEl.src = v.embedUrl || v.url || '';
       mediaEl.title = v.title || 'MinNote Video';
@@ -408,64 +648,35 @@
       mediaEl.playsInline = true;
       mediaEl.muted = !!v.muted;
       mediaEl.loop = !!v.loop;
-      mediaEl.preload = 'metadata';
+      mediaEl.preload = v.kind === 'local' ? 'auto' : 'metadata';
       if (item.src) mediaEl.poster = item.src;
     }
-    box.appendChild(mediaEl);
 
-    const badgeBar = document.createElement('div');
-    badgeBar.className = 'mn-vid-badge-bar';
+    const dragSurface = document.createElement('div');
+    dragSurface.className = 'mn-vid-drag-surface';
+    dragSurface.title = isIframeKind ? 'Kéo thanh này để di chuyển video' : 'Kéo để di chuyển video • Nháy đúp để Phát/Dừng';
+    attachVideoDragBehavior(box, dragSurface, mediaEl, item.id);
 
-    const playBtn = document.createElement('button');
-    playBtn.type = 'button';
-    playBtn.className = 'mn-vid-mini-btn';
-    playBtn.title = 'Phát / Tạm dừng hoặc tương tác với video';
-    playBtn.textContent = v.kind === 'local' || v.kind === 'direct' ? '▶ Phát' : '▶ Tương tác';
+    wrapEl.appendChild(mediaEl);
+    wrapEl.appendChild(dragSurface);
+    box.appendChild(wrapEl);
 
-    const drawBtn = document.createElement('button');
-    drawBtn.type = 'button';
-    drawBtn.className = 'mn-vid-mini-btn';
-    drawBtn.title = 'Cho phép vẽ bút / highlight trực tiếp lên trên video';
-    drawBtn.textContent = '✏ Vẽ đè';
-
-    playBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      overlayDrawLock.set(item.id, false);
-      overlayForceActive.set(item.id, true);
-      if (mediaEl.tagName === 'VIDEO') {
-        if (mediaEl.paused) {
-          mediaEl.play().catch(() => {});
-        } else {
-          mediaEl.pause();
-        }
-      }
-      syncOverlays();
+    ['nw', 'ne', 'sw', 'se'].forEach((corner) => {
+      const handle = document.createElement('div');
+      handle.className = `mn-vid-handle ${corner}`;
+      handle.title = 'Kéo để đổi kích thước video';
+      attachVideoResizeBehavior(handle, corner, item.id);
+      box.appendChild(handle);
     });
-
-    drawBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const next = !overlayDrawLock.get(item.id);
-      overlayDrawLock.set(item.id, next);
-      if (next) overlayForceActive.set(item.id, false);
-      syncOverlays();
-    });
-
-    if (mediaEl.tagName === 'VIDEO') {
-      mediaEl.addEventListener('play', () => { playBtn.textContent = '⏸ Dừng'; });
-      mediaEl.addEventListener('pause', () => { playBtn.textContent = '▶ Phát'; });
-    }
-
-    badgeBar.appendChild(playBtn);
-    badgeBar.appendChild(drawBtn);
-    box.appendChild(badgeBar);
 
     return {
       el: box,
+      wrapEl,
       mediaEl,
+      dragSurface,
+      isIframeKind,
       kind: v.kind,
-      url: v.embedUrl || v.url || '',
-      badgePlayBtn: playBtn,
-      badgeDrawBtn: drawBtn
+      url: v.embedUrl || v.url || ''
     };
   }
 
@@ -527,19 +738,21 @@
         rec.el.style.width = item.w + 'px';
         rec.el.style.height = item.h + 'px';
 
+        if (!rec.isIframeKind && rec.dragSurface) {
+          rec.dragSurface.style.bottom = Math.min(52, Math.max(24, Math.round(item.h * 0.32))) + 'px';
+        }
+
         const rotRad = Number.isFinite(item.rot) ? item.rot : 0;
         const rotPart = Math.abs(rotRad) > 1e-4 ? ` rotate(${rotRad.toFixed(4)}rad)` : '';
         rec.el.style.transform = `translate3d(${left.toFixed(2)}px, ${top.toFixed(2)}px, 0) scale(${zoom.toFixed(4)})${rotPart}`;
 
-        // Pointer mode: interactive in select mode (unless manually draw-locked), passthrough while drawing!
-        const manualDrawLock = !!overlayDrawLock.get(item.id);
-        const forceInteractive = !!overlayForceActive.get(item.id) && !drawToolOn;
-        const interactive = !manualDrawLock && (!drawToolOn || forceInteractive);
+        // Interactive when NOT using a drawing tool; passthrough while annotating over video
+        const interactive = !drawToolOn;
+        const isSelected = interactive && !!(board.sel && board.sel.page === pageIdx && board.sel.items && board.sel.items.has(item.id));
 
         rec.el.classList.toggle('interactive', interactive);
         rec.el.classList.toggle('draw-passthrough', !interactive);
-        rec.badgeDrawBtn.classList.toggle('active', manualDrawLock || drawToolOn);
-        rec.badgePlayBtn.classList.toggle('active', interactive);
+        rec.el.classList.toggle('selected', isSelected);
       }
     }
 
@@ -551,8 +764,6 @@
         }
         if (rec.el && rec.el.parentElement) rec.el.remove();
         mountedBoxes.delete(id);
-        overlayForceActive.delete(id);
-        overlayDrawLock.delete(id);
       }
     }
 
