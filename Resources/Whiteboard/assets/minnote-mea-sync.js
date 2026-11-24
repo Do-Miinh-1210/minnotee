@@ -439,6 +439,9 @@
       ? opts.rawKeys
       : ((cfg.keysByProvider && cfg.keysByProvider[provider]) || '');
     const keys = splitKeys(rawKeys);
+    const imgB64 = opts && opts.imageBase64 ? String(opts.imageBase64).replace(/^data:[^;]+;base64,/i, '').trim() : '';
+    const imgMime = (opts && opts.imageMimeType) || 'image/png';
+    const promptText = String(prompt || (imgB64 ? 'Hãy phân tích hình ảnh này và trả lời theo yêu cầu hệ thống.' : ''));
     const t0 = performance.now();
 
     if (provider === '9Router') {
@@ -446,11 +449,16 @@
       if (keys[0]) headers.Authorization = 'Bearer ' + keys[0];
       const messages = [];
       if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-      messages.push({ role: 'user', content: String(prompt || '') });
+      messages.push({
+        role: 'user',
+        content: imgB64
+          ? [{ type: 'text', text: promptText }, { type: 'image_url', image_url: { url: 'data:' + imgMime + ';base64,' + imgB64 } }]
+          : promptText
+      });
       const res = await fetch('http://localhost:20128/v1/chat/completions', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model, messages, temperature: 0.25 })
+        body: JSON.stringify({ model, messages, temperature: 0.2 })
       });
       if (!res.ok) throw new Error('9Router HTTP ' + res.status);
       const data = await res.json();
@@ -462,8 +470,12 @@
       const apiKey = keys[0];
       if (!apiKey) throw new Error('Chưa nhập API Key Google Gemini.');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const parts = [];
+      if (imgB64) parts.push({ inlineData: { mimeType: imgMime, data: imgB64 } });
+      parts.push({ text: promptText });
       const body = {
-        contents: [{ role: 'user', parts: [{ text: String(prompt || '') }] }]
+        contents: [{ role: 'user', parts }],
+        generationConfig: { temperature: 0.2 }
       };
       if (systemPrompt) {
         body.systemInstruction = { parts: [{ text: String(systemPrompt) }] };
@@ -475,8 +487,8 @@
       });
       if (!res.ok) throw new Error('Gemini HTTP ' + res.status);
       const data = await res.json();
-      const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-      const content = Array.isArray(parts) ? parts.map((x) => x.text || '').join('') : '';
+      const resParts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+      const content = Array.isArray(resParts) ? resParts.map((x) => x.text || '').join('') : '';
       return { content, provider, model, latencyMs: Math.round(performance.now() - t0) };
     }
 
@@ -488,11 +500,16 @@
         : 'https://api.openai.com/v1/chat/completions';
       const messages = [];
       if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-      messages.push({ role: 'user', content: String(prompt || '') });
+      messages.push({
+        role: 'user',
+        content: (imgB64 && provider === 'OpenAI GPT')
+          ? [{ type: 'text', text: promptText }, { type: 'image_url', image_url: { url: 'data:' + imgMime + ';base64,' + imgB64 } }]
+          : promptText
+      });
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model, messages, temperature: 0.25 })
+        body: JSON.stringify({ model, messages, temperature: 0.2 })
       });
       if (!res.ok) throw new Error(provider + ' HTTP ' + res.status);
       const data = await res.json();
@@ -530,6 +547,7 @@
 
   async function executeAiPrompt(prompt, systemPrompt, opts) {
     const o = opts || {};
+    const cleanImgB64 = o.imageBase64 ? String(o.imageBase64).replace(/^data:[^;]+;base64,/i, '').trim() : undefined;
     const data = await request(
       'MEA_AI_EXECUTE',
       {
@@ -538,8 +556,8 @@
         provider: o.provider || undefined,
         model: o.model || undefined,
         rawKeys: o.rawKeys || undefined,
-        imageBase64: o.imageBase64 || undefined,
-        imageMimeType: o.imageMimeType || undefined
+        imageBase64: cleanImgB64 || undefined,
+        imageMimeType: cleanImgB64 ? (o.imageMimeType || 'image/png') : undefined
       },
       o.timeoutMs || 90000
     );

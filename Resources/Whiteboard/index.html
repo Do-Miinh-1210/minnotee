@@ -841,6 +841,35 @@
           document.getElementById('tb-btn-mindmap').removeAttribute('style');
         }
 
+        // 2b. Nút AI Dựng Hình Từng Nét & Nạp TikZ Chuẩn (Ctrl + Alt + G) — đặt ngay cạnh Sơ Đồ
+        if (!document.getElementById('tb-btn-ai-geo')) {
+          const btnAG = document.createElement('button');
+          btnAG.id = 'tb-btn-ai-geo';
+          btnAG.className = 'tb';
+          btnAG.title = 'AI Dựng Hình Từng Nét & Nạp TikZ Chuẩn (Ctrl + Alt + G)';
+          btnAG.setAttribute('aria-label', 'AI Dựng Hình');
+          btnAG.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.4 3.4 3.4 1.4-3.4 1.4L12 12.6l-1.4-3.4-3.4-1.4 3.4-1.4L12 3z"></path>
+              <polygon points="12 14 19 20.5 5 20.5 12 14"></polygon>
+            </svg>
+            <span>AI Hình</span>
+          `;
+          btnAG.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.toggleAiGeoStudio === 'function') window.toggleAiGeoStudio();
+          };
+          const btnMindRef = document.getElementById('tb-btn-mindmap');
+          if (btnMindRef && btnMindRef.parentNode === targetGroup) {
+            targetGroup.insertBefore(btnAG, btnMindRef.nextSibling);
+          } else {
+            targetGroup.appendChild(btnAG);
+          }
+        } else {
+          document.getElementById('tb-btn-ai-geo').removeAttribute('style');
+        }
+
         // 3. Giữ nguyên 100% Bảng biến thiên gốc của app, bỏ nút BBT thêm vào
         const oldV = document.getElementById('tb-btn-variation');
         if (oldV) oldV.remove();
@@ -1248,6 +1277,7 @@
 
       // Dán ảnh từ Clipboard (Ctrl + V)
       window.addEventListener('paste', function(e) {
+        if (e.defaultPrevented || (window.MinNoteAiGeo && typeof window.MinNoteAiGeo.isOpen === 'function' && window.MinNoteAiGeo.isOpen())) return;
         if (e.clipboardData && e.clipboardData.items) {
           for (let i = 0; i < e.clipboardData.items.length; i++) {
             const item = e.clipboardData.items[i];
@@ -1278,5 +1308,7 @@
     <script src="./geo-params-studio.js" defer></script>
     <link rel="stylesheet" href="./geo-gsp-tools.css" />
     <script src="./geo-gsp-tools.js" defer></script>
+    <link rel="stylesheet" href="./assets/minnote-ai-geo.css" />
+    <script src="./assets/minnote-ai-geo.js" defer></script>
   </body>
 </html>

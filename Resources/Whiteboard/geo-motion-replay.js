@@ -2401,6 +2401,74 @@
       renderReplayUI();
     },
 
+    launchConstructedFigure(opts = {}) {
+      const b = getBoard();
+      if (!b || !b.doc || !Array.isArray(b.doc.pages)) return null;
+      const pageIdx = Number.isFinite(opts.pageIdx) ? opts.pageIdx : b.currentPage();
+      const pg = b.doc.pages[pageIdx];
+      if (!pg || !pg.geo) return null;
+
+      const scopeShapes = new Set(Array.isArray(opts.shapeIds) ? opts.shapeIds : []);
+      const scopePoints = new Set(Array.isArray(opts.pointIds) ? opts.pointIds : []);
+      for (const sh of (pg.geo.shapes || [])) {
+        if (scopeShapes.has(sh.id) && Array.isArray(sh.pts)) {
+          sh.pts.forEach(pid => scopePoints.add(pid));
+        }
+      }
+      if (!scopeShapes.size && !scopePoints.size) return null;
+
+      const scopeKey = 'sel_' + [...scopeShapes].sort().join(',') + '|' + [...scopePoints].sort().join(',');
+      const rawSteps = Array.isArray(opts.steps) && opts.steps.length ? opts.steps : null;
+      const steps = reconcileSavedScript(pg.geo, rawSteps, scopeShapes, scopePoints, pg, null, null);
+      if (!steps.length) return null;
+
+      const existing = getActiveReplays(b);
+      const kept = existing.filter(x => !(x.page === pageIdx && x.scopeKey === 'all'));
+      const title = (opts.title && String(opts.title).trim()) || buildFigureTitle(pg.geo, scopeShapes, scopePoints, kept.length + 1, null, null);
+
+      const session = {
+        id: 'rp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
+        title,
+        scriptKey: scopeKey,
+        active: true,
+        page: pageIdx,
+        playing: opts.autoPlay !== false,
+        stopAfterStep: false,
+        _editPreview: false,
+        stepIdx: 0,
+        stepProgress: 0,
+        speed: Number.isFinite(opts.speed) ? Math.max(0.2, Math.min(4, opts.speed)) : 1,
+        pauseBetween: !!opts.pauseBetween,
+        followCamera: !!opts.followCamera,
+        springCamera: true,
+        autoOrbitAfter: false,
+        stylePreset: opts.stylePreset || '',
+        scopeShapes,
+        scopePoints,
+        scopeItems: null,
+        scopeStrokes: null,
+        scopeKey,
+        steps
+      };
+
+      if (opts.handPen !== false && window.MinNoteHandCursor && typeof window.MinNoteHandCursor.setReplay === 'function') {
+        try { window.MinNoteHandCursor.setReplay(true); } catch {}
+      }
+
+      replayViewMode = opts.viewMode || 'pill';
+      stepsCollapsed = true;
+      closeEffectPopover();
+      b._replayHiddenCache = null;
+      b.sel = null;
+      persistScript(b, false, session);
+      if (typeof b.setReplays === 'function') b.setReplays([...kept, session], session.id);
+      else b.setReplay(session);
+      if (typeof b.redraw === 'function') b.redraw();
+      if (typeof b.emit === 'function') b.emit();
+      renderReplayUI();
+      return session;
+    },
+
     openSavedScript(key, pageIdxArg) {
       const b = getBoard();
       if (!b || !key) return;
