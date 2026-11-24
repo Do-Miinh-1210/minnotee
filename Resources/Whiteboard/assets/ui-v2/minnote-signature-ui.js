@@ -432,6 +432,7 @@
 
       if (shouldScrollTop) {
         menu.scrollTop = 0;
+        clampStudioPopoverViewport(menu);
       }
     } finally {
       if (menu._mnPopObserver) {
@@ -439,6 +440,86 @@
       }
       menu._mnSyncing = false;
     }
+  }
+
+  function computeSafePopoverBounds(menu) {
+    const vh = window.innerHeight;
+    let safeTop = 8;
+    try {
+      const bw = document.querySelector('.board-wrap');
+      if (bw) {
+        const bwr = bw.getBoundingClientRect();
+        if (bwr.height > 40 && bwr.top > safeTop) safeTop = Math.ceil(bwr.top) + 6;
+      }
+      const headerEls = document.querySelectorAll('header.toolbar > .tb-group:first-child, header.toolbar > .tb-title, header.toolbar > .tb-palette, header.toolbar > .nb-tools-dock');
+      headerEls.forEach(function (el) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.top < 80 && r.bottom < vh * 0.4) {
+          safeTop = Math.max(safeTop, Math.ceil(r.bottom) + 6);
+        }
+      });
+    } catch (_) {}
+
+    let safeBottom = vh - 10;
+    try {
+      const ownerBar = menu && menu.closest ? menu.closest('aside.tools-bar') : null;
+      const bottomBars = document.querySelectorAll('aside.tools-bar.side-bottom, .sheet-bar');
+      bottomBars.forEach(function (el) {
+        if (el === ownerBar) return;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.top > vh * 0.5) {
+          safeBottom = Math.min(safeBottom, Math.floor(r.top) - 8);
+        }
+      });
+    } catch (_) {}
+
+    return { safeTop: Math.min(safeTop, Math.max(8, vh - 180)), safeBottom: Math.max(safeBottom, 180) };
+  }
+
+  function clampStudioPopoverViewport(menu) {
+    if (!menu || !menu.isConnected) return;
+    requestAnimationFrame(function () {
+      if (!menu || !menu.isConnected) return;
+      try {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const bounds = computeSafePopoverBounds(menu);
+        const safeTop = bounds.safeTop;
+        const safeBottom = bounds.safeBottom;
+
+        // Vertical clamp: NEVER overlap the top bar or bottom bar!
+        const hasBottom = !!(menu.style.bottom && menu.style.bottom !== 'auto');
+        if (hasBottom) {
+          const bVal = parseFloat(menu.style.bottom) || 0;
+          const maxH = Math.max(150, Math.floor(vh - bVal - safeTop));
+          menu.style.maxHeight = maxH + 'px';
+          menu.style.top = 'auto';
+        } else {
+          const r0 = menu.getBoundingClientRect();
+          let tVal = parseFloat(menu.style.top);
+          if (!Number.isFinite(tVal)) tVal = r0.top;
+          if (tVal < safeTop) tVal = safeTop;
+          const availBelow = safeBottom - tVal;
+          const maxH = Math.max(150, Math.floor(availBelow));
+          menu.style.top = Math.round(tVal) + 'px';
+          menu.style.maxHeight = maxH + 'px';
+        }
+
+        // Horizontal clamp inside viewport
+        const r = menu.getBoundingClientRect();
+        if (r.right > vw - 10) {
+          menu.style.left = Math.max(10, Math.floor(vw - r.width - 10)) + 'px';
+          menu.style.right = 'auto';
+          menu.style.transform = '';
+        }
+        const r2 = menu.getBoundingClientRect();
+        if (r2.left < 10) {
+          menu.style.left = '10px';
+          menu.style.right = 'auto';
+          menu.style.transform = '';
+        }
+      } catch (_) {}
+    });
   }
 
   function enhanceStudioPopover(menu) {
@@ -458,6 +539,7 @@
       // Re-sync in case React re-rendered option pills / sections in-place
       studioPopState[popKey].lastSeen = Date.now();
       applyStudioFilter(menu, menu.dataset.mnActiveTab || studioPopState[popKey].tab || 'all', false);
+      clampStudioPopoverViewport(menu);
       return;
     }
 
@@ -566,22 +648,7 @@
     }
 
     applyStudioFilter(menu, initialTab, false);
-
-    // Clamp popover cleanly inside viewport horizontally after layout
-    requestAnimationFrame(function () {
-      try {
-        const r = menu.getBoundingClientRect();
-        const vw = window.innerWidth;
-        if (r.right > vw - 10) {
-          menu.style.left = Math.max(10, vw - r.width - 10) + 'px';
-          menu.style.right = 'auto';
-        }
-        if (r.left < 10) {
-          menu.style.left = '10px';
-          menu.style.right = 'auto';
-        }
-      } catch (_) {}
-    });
+    clampStudioPopoverViewport(menu);
   }
 
   // --------------------------------------------------------------------------

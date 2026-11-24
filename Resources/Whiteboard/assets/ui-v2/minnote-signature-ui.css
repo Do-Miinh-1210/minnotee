@@ -157,8 +157,14 @@ html[data-ui="v2"] .dropdown-menu.mn-studio-pop {
   box-shadow: 0 22px 50px -14px rgba(15, 23, 42, 0.28), 0 4px 12px rgba(15, 23, 42, 0.08) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  max-height: calc(100vh - 92px) !important;
+  max-height: calc(100vh - 140px);
   font-family: var(--v2-font) !important;
+}
+
+/* Raise floating toolbar stacking context above top bar only while a dropdown/studio popover is open */
+html[data-ui="v2"] .float-layer:has(.dropdown-menu),
+.float-layer:has(.dropdown-menu) {
+  z-index: 60 !important;
 }
 
 html[data-ui="v2"].dark .dropdown-menu.mn-studio-pop {
