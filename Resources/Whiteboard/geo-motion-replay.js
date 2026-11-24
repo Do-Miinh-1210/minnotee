@@ -1397,6 +1397,26 @@
     return savedCnt > 0;
   }
 
+  let listUserScrollUntil = 0;
+
+  function scrollStepRowIntoViewIfNeeded(listEl, curRowEl, r) {
+    if (!listEl || !curRowEl || !r) return;
+    // Chỉ tự cuộn danh sách bước khi đang phát chuyển động liên tục, KHÔNG cuộn khi đang chỉnh sửa / xem thử 1 bước
+    if (!r.playing || r.stopAfterStep || r._editPreview) return;
+    if (effectPopover && effectPopover.classList.contains('open')) return;
+    if (Date.now() < listUserScrollUntil) return;
+    const lr = listEl.getBoundingClientRect();
+    const rr = curRowEl.getBoundingClientRect();
+    if (lr.height <= 0 || rr.height <= 0) return;
+    const relTop = rr.top - lr.top;
+    const relBot = rr.bottom - lr.top;
+    if (relTop < 4) {
+      listEl.scrollTop = Math.max(0, listEl.scrollTop + relTop - 6);
+    } else if (relBot > lr.height - 4) {
+      listEl.scrollTop = Math.max(0, listEl.scrollTop + (relBot - lr.height) + 6);
+    }
+  }
+
   function ensureReplayUI() {
     if (!replayPanel) {
       const el = document.createElement('div');
@@ -1457,6 +1477,14 @@
       `;
       document.body.appendChild(el);
       makeDraggable(el, el.querySelector('.mn-rp-head'));
+
+      const listNode = el.querySelector('#mn-rp-list');
+      if (listNode) {
+        const markListUserScroll = () => { listUserScrollUntil = Date.now() + 2500; };
+        listNode.addEventListener('wheel', markListUserScroll, { passive: true });
+        listNode.addEventListener('touchstart', markListUserScroll, { passive: true });
+        listNode.addEventListener('pointerdown', markListUserScroll, { passive: true });
+      }
 
       el.querySelector('#mn-rp-undo-script').addEventListener('click', () => {
         window.MinNoteGeoReplay.undoScriptChange();
@@ -1806,12 +1834,7 @@
             if (isCurrent) curRowEl = row;
           }
           if (curRowEl) {
-            const rTop = curRowEl.offsetTop;
-            const rBot = rTop + curRowEl.offsetHeight;
-            const vTop = listElFast.scrollTop;
-            const vBot = vTop + listElFast.clientHeight;
-            if (rTop < vTop) listElFast.scrollTop = Math.max(0, rTop - 6);
-            else if (rBot > vBot) listElFast.scrollTop = Math.max(0, rBot - listElFast.clientHeight + 6);
+            scrollStepRowIntoViewIfNeeded(listElFast, curRowEl, r);
           }
         }
       }
@@ -2057,12 +2080,8 @@
         row.classList.toggle('done', isDone);
         if (isCurrent) curRowEl = row;
       }
-      if (curRowEl && r.playing) {
-        const lr = listEl.getBoundingClientRect();
-        const rr = curRowEl.getBoundingClientRect();
-        if (rr.top < lr.top || rr.bottom > lr.bottom) {
-          curRowEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
+      if (curRowEl) {
+        scrollStepRowIntoViewIfNeeded(listEl, curRowEl, r);
       }
       return;
     }
@@ -2487,8 +2506,11 @@
       if (!activeSteps.length) return;
       if (r.playing) {
         r.playing = false;
+        r._editPreview = false;
       } else {
+        r._editPreview = false;
         r.stopAfterStep = false;
+        listUserScrollUntil = 0;
         if (r.stepIdx >= activeSteps.length - 1 && r.stepProgress >= 1) {
           r.stepIdx = 0; r.stepProgress = 0;
         } else if (r.stepProgress >= 1 && r.stepIdx < activeSteps.length - 1) {
@@ -2629,8 +2651,11 @@
       if (!activeSteps.length) return;
       if (r.playing) {
         r.playing = false;
+        r._editPreview = false;
       } else {
+        r._editPreview = false;
         r.stopAfterStep = false;
+        listUserScrollUntil = 0;
         if (r.stepIdx >= activeSteps.length - 1 && r.stepProgress >= 1) {
           r.stepIdx = 0; r.stepProgress = 0;
         } else if (r.stepProgress >= 1 && r.stepIdx < activeSteps.length - 1) {
@@ -2646,9 +2671,11 @@
       const actives = getActiveReplays(b);
       if (!b || !actives.length) return;
       const anyPlaying = actives.some(r => r.playing);
+      if (!anyPlaying) listUserScrollUntil = 0;
       for (const r of actives) {
         const activeSteps = r.steps.filter(s => s.enabled !== false);
         if (!activeSteps.length) continue;
+        r._editPreview = false;
         if (anyPlaying) {
           r.playing = false;
         } else {
@@ -2676,6 +2703,7 @@
       }
       r.stepProgress = 0;
       r.stopAfterStep = true;
+      r._editPreview = false;
       r.playing = true;
       commitReplayChange(b, r, true);
     },
@@ -2685,6 +2713,7 @@
       const r = getFocusedReplay(b);
       if (!b || !r) return;
       r.playing = false;
+      r._editPreview = false;
       if (r.stepProgress > 0 && r.stepProgress < 1) {
         r.stepProgress = 0;
       } else if (r.stepIdx > 0) {
@@ -2704,12 +2733,13 @@
       const activeSteps = r.steps.filter(s => s.enabled !== false);
       const n = Math.max(0, Math.min(activeSteps.length, completedCount));
       r.playing = false;
+      r._editPreview = false;
       if (n === 0) {
         r.stepIdx = 0; r.stepProgress = 0;
       } else if (instant) {
         r.stepIdx = n - 1; r.stepProgress = 1;
       } else {
-        r.stepIdx = n - 1; r.stepProgress = 0; r.stopAfterStep = true; r.playing = true;
+        r.stepIdx = n - 1; r.stepProgress = 0; r.stopAfterStep = true; r._editPreview = true; r.playing = true;
       }
       commitReplayChange(b, r, true);
     },
@@ -2721,6 +2751,7 @@
       r.stepIdx = Math.max(0, activeIdx);
       r.stepProgress = 0;
       r.stopAfterStep = true;
+      r._editPreview = true;
       r.playing = true;
       commitReplayChange(b, r, true);
     },
