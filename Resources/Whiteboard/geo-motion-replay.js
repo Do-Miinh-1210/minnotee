@@ -225,23 +225,61 @@
   let savedFlashTimer = 0;
   const SPEED_CYCLE = [0.5, 1, 1.5, 2, 3];
 
-  const STEP_EFFECTS = [
-    { id: 'draw',   icon: '✏', label: 'Vẽ nét' },
-    { id: 'glow',   icon: '✨', label: 'Phát sáng' },
-    { id: 'spring', icon: '⚡', label: 'Bật nảy' },
-    { id: 'fade',   icon: '🌫', label: 'Hiện dần' },
-    { id: 'zoom',   icon: '🔍', label: 'Phóng to' },
-    { id: 'slide',  icon: '⬆', label: 'Trượt vào' },
-    { id: 'wipe',   icon: '▬', label: 'Quét ngang' },
-    { id: 'pulse',  icon: '◉', label: 'Nhịp nhấn' }
+  const FALLBACK_EFFECTS = [
+    { id: 'draw',   icon: '✏', label: 'Vẽ nét', cat: 'stroke' },
+    { id: 'glow',   icon: '✨', label: 'Phát sáng', cat: 'stroke' },
+    { id: 'spring', icon: '⚡', label: 'Bật nảy', cat: 'transform' },
+    { id: 'fade',   icon: '🌫', label: 'Hiện dần', cat: 'transform' },
+    { id: 'zoom',   icon: '🔍', label: 'Phóng to', cat: 'transform' },
+    { id: 'slide',  icon: '⬆', label: 'Trượt vào', cat: 'transform' },
+    { id: 'wipe',   icon: '▬', label: 'Quét ngang', cat: 'transform' },
+    { id: 'pulse',  icon: '◉', label: 'Nhịp nhấn', cat: 'emphasis' }
   ];
-  const STEP_EASINGS = [
+  const FALLBACK_EASINGS = [
     { id: 'easeInOut', label: 'Mượt đều' },
     { id: 'easeOut',   label: 'Nhanh→Chậm' },
     { id: 'spring',    label: 'Đàn hồi' },
     { id: 'linear',    label: 'Tuyến tính' }
   ];
-  const EFFECT_LABEL_MAP = Object.fromEntries(STEP_EFFECTS.map(e => [e.id, e]));
+  let effectPopoverCategory = 'fit';
+
+  function getMotionFX() {
+    return (typeof window !== 'undefined' && window.MinNoteMotionFX) ? window.MinNoteMotionFX : null;
+  }
+
+  function getEffectMeta(id) {
+    const mfx = getMotionFX();
+    if (mfx && mfx.EFFECT_MAP && mfx.EFFECT_MAP[id]) return mfx.EFFECT_MAP[id];
+    return FALLBACK_EFFECTS.find(e => e.id === id) || FALLBACK_EFFECTS[0];
+  }
+
+  function getEasingCatalog() {
+    const mfx = getMotionFX();
+    return (mfx && Array.isArray(mfx.EASINGS) && mfx.EASINGS.length) ? mfx.EASINGS : FALLBACK_EASINGS;
+  }
+
+  function getStepTargetMeta(geo, pg, st) {
+    const first = (st.items && st.items.length) ? st.items[0] : st;
+    const isCueOnly = st.mode === 'cue';
+    if (first.kind === 'point') {
+      return { kind: 'point', isCueOnly };
+    }
+    if (first.kind === 'stroke') {
+      return { kind: 'stroke', isCueOnly };
+    }
+    if (first.kind === 'item') {
+      const obj = pg && Array.isArray(pg.items) ? pg.items.find(x => x.id === first.refId) : null;
+      return { kind: 'item', itemType: obj ? obj.type : 'text', isCueOnly };
+    }
+    const sh = geo && Array.isArray(geo.shapes) ? geo.shapes.find(s => s.id === first.refId) : null;
+    return {
+      kind: 'shape',
+      shapeKind: sh ? sh.kind : 'segment',
+      isDashed: !!(sh && sh.dashed),
+      is3D: !!(sh && (sh.look3 || sh.group || ['cone', 'cylinder', 'sphere'].includes(sh.kind))),
+      isCueOnly
+    };
+  }
 
   function closeEffectPopover() {
     if (effectPopover) {
@@ -275,7 +313,7 @@
     return pop;
   }
 
-  function openEffectPopover(rawIdx, clientX, clientY) {
+  function openEffectPopover(rawIdx, clientX, clientY, keepCategory = false) {
     const b = getBoard();
     const r = getFocusedReplay(b);
     if (!b || !r || !r.steps[rawIdx]) return;
@@ -285,17 +323,35 @@
     const st = r.steps[rawIdx];
     const pop = ensureEffectPopover();
     effectPopoverState = { rawIdx, replayId: r.id };
+    if (!keepCategory) {
+      effectPopoverCategory = st.mode === 'cue' ? 'emphasis' : 'fit';
+    }
 
-    const isShape = st.kind === 'shape';
-    const sh = isShape ? pg.geo.shapes.find(s => s.id === st.refId) : null;
-    const hasDir = isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind);
-    const isInterPt = st.kind === 'point' && pg.geo.points[st.refId] && pg.geo.points[st.refId].def && pg.geo.points[st.refId].def.t === 'inter';
-    const labelText = stepDisplayLabel(pg.geo, st);
+    const first = (st.items && st.items.length) ? st.items[0] : st;
+    const isShape = first.kind === 'shape';
+    const sh = isShape ? pg.geo.shapes.find(s => s.id === first.refId) : null;
+    const hasDir = (isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind)) || first.kind === 'stroke' || first.kind === 'item';
+    const isInterPt = first.kind === 'point' && pg.geo.points[first.refId] && pg.geo.points[first.refId].def && pg.geo.points[first.refId].def.t === 'inter';
+    const isCueOnly = st.mode === 'cue';
+    const labelText = stepDisplayLabel(pg.geo, st, pg);
+
+    const mfx = getMotionFX();
+    const targetMeta = getStepTargetMeta(pg.geo, pg, st);
+    const categories = (mfx && Array.isArray(mfx.EFFECT_CATEGORIES)) ? mfx.EFFECT_CATEGORIES : [{ id: 'fit', label: 'Phù hợp' }];
+    const activeCat = isCueOnly ? 'emphasis' : effectPopoverCategory;
+    const fxList = (mfx && typeof mfx.getEffectsForStep === 'function')
+      ? mfx.getEffectsForStep(targetMeta, activeCat)
+      : FALLBACK_EFFECTS;
+    const easings = getEasingCatalog();
 
     const curFx = st.effect || 'draw';
     const curEase = st.easing || 'easeInOut';
     const curDur = Math.max(0.5, Math.min(3.0, Number(st.durationMul) || 1));
     const curPause = Math.max(0, Math.min(3.0, Number(st.pauseAfter) || 0));
+
+    const morphShapes = (isShape && curFx === 'morph_bezier')
+      ? pg.geo.shapes.filter(s => s.id !== first.refId && s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!r.scopeShapes || r.scopeShapes.has(s.id)))
+      : [];
 
     const activeIdx = (() => {
       let k = 0;
@@ -312,15 +368,27 @@
         <button type="button" class="mn-icon-btn" data-fx-close title="Đóng">✕</button>
       </div>
       <div class="mn-fx-sec">
-        <div class="mn-fx-label">Kiểu hiệu ứng (8 hiệu ứng)</div>
+        <div class="mn-fx-label">${isCueOnly ? 'Hiệu ứng nhấn mạnh (không vẽ lại)' : 'Chọn hiệu ứng theo đối tượng'}</div>
+        ${!isCueOnly && categories.length > 1 ? `
+        <div class="mn-fx-tabs">
+          ${categories.map(cat => `<button type="button" class="mn-fx-tab${activeCat === cat.id ? ' on' : ''}" data-fx-cat="${cat.id}">${cat.label}</button>`).join('')}
+        </div>` : ''}
         <div class="mn-fx-grid">
-          ${STEP_EFFECTS.map(ef => `<button type="button" class="mn-fx-pill${curFx === ef.id ? ' on' : ''}" data-fx-effect="${ef.id}"><span>${ef.icon}</span><span>${ef.label}</span></button>`).join('')}
+          ${fxList.map(ef => `<button type="button" class="mn-fx-pill${curFx === ef.id ? ' on' : ''}" data-fx-effect="${ef.id}" title="${escapeHtml(ef.label)}"><span>${ef.icon}</span><span>${escapeHtml(ef.label)}</span></button>`).join('')}
         </div>
+        ${(isShape && curFx === 'morph_bezier' && !isCueOnly) ? `
+        <div class="mn-fx-morph-row">
+          <span>Biến hình từ:</span>
+          <select class="mn-fx-select" data-fx-morph-from>
+            <option value="">Vòng tròn tâm (tự động)</option>
+            ${morphShapes.map(s2 => `<option value="${escapeHtml(s2.id)}"${st.morphFromId === s2.id ? ' selected' : ''}>${escapeHtml(describeShape(pg.geo, s2, false, false))}</option>`).join('')}
+          </select>
+        </div>` : ''}
       </div>
       <div class="mn-fx-sec">
         <div class="mn-fx-label">Đường cong chuyển động (Easing)</div>
         <div class="mn-fx-ease-row">
-          ${STEP_EASINGS.map(ea => `<button type="button" class="mn-fx-chip${curEase === ea.id ? ' on' : ''}" data-fx-easing="${ea.id}">${ea.label}</button>`).join('')}
+          ${easings.map(ea => `<button type="button" class="mn-fx-chip${curEase === ea.id ? ' on' : ''}" data-fx-easing="${ea.id}">${escapeHtml(ea.label)}</button>`).join('')}
         </div>
       </div>
       <div class="mn-fx-sec mn-fx-sliders">
@@ -335,14 +403,14 @@
           <span class="mn-fx-val" data-fx-pause-val>${curPause.toFixed(1)}s</span>
         </div>
       </div>
-      ${(hasDir || isShape || isInterPt) ? `
       <div class="mn-fx-sec mn-fx-toggles">
-        ${hasDir ? `<button type="button" class="mn-fx-chip${st.rev ? ' on' : ''}" data-fx-toggle="rev">⇄ Đảo chiều</button>` : ''}
-        ${isShape ? `<button type="button" class="mn-fx-chip${st.tempHide ? ' on' : ''}" data-fx-toggle="tempHide">👻 Vẽ rồi ẩn</button>` : ''}
-        ${isInterPt ? `<button type="button" class="mn-fx-chip${st.showGuides !== false ? ' on' : ''}" data-fx-toggle="showGuides">✛ 2 đường dẫn</button>` : ''}
-      </div>` : ''}
+        ${hasDir && !isCueOnly ? `<button type="button" class="mn-fx-chip${st.rev ? ' on' : ''}" data-fx-toggle="rev">⇄ Đảo chiều</button>` : ''}
+        ${isShape && !isCueOnly ? `<button type="button" class="mn-fx-chip${st.tempHide ? ' on' : ''}" data-fx-toggle="tempHide">👻 Vẽ rồi ẩn</button>` : ''}
+        ${isInterPt && !isCueOnly ? `<button type="button" class="mn-fx-chip${st.showGuides !== false ? ' on' : ''}" data-fx-toggle="showGuides">✛ 2 đường dẫn</button>` : ''}
+        <button type="button" class="mn-fx-chip${isCueOnly ? ' on' : ''}" data-fx-toggle="cue" title="Bật nếu bước này chỉ dùng để làm nổi bật đối tượng sẵn có">✦ Chỉ nhấn mạnh</button>
+      </div>
       <div class="mn-fx-foot">
-        <button type="button" class="mn-fx-btn primary" data-fx-preview>▶ Xem thử bước</button>
+        <button type="button" class="mn-fx-btn primary" data-fx-preview>▶ Thử</button>
         <button type="button" class="mn-fx-btn" data-fx-apply-all>Áp dụng cho tất cả bước</button>
       </div>
     `;
@@ -350,8 +418,8 @@
     pop.classList.add('open');
 
     // Smart viewport clamp positioning (prefer clean side-by-side left of #mn-replay-panel so step rows stay visible!)
-    const pw = pop.offsetWidth || 328;
-    const ph = pop.offsetHeight || 320;
+    const pw = pop.offsetWidth || 360;
+    const ph = pop.offsetHeight || 380;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const panelRect = (replayPanel && replayPanel.classList.contains('open')) ? replayPanel.getBoundingClientRect() : null;
@@ -372,15 +440,36 @@
 
     pop.querySelector('[data-fx-close]').addEventListener('click', closeEffectPopover);
 
+    pop.querySelectorAll('[data-fx-cat]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        effectPopoverCategory = btn.dataset.fxCat || 'fit';
+        openEffectPopover(rawIdx, clientX, clientY, true);
+      });
+    });
+
     pop.querySelectorAll('[data-fx-effect]').forEach(btn => {
       btn.addEventListener('click', () => {
-        st.effect = btn.dataset.fxEffect;
+        const nextFx = btn.dataset.fxEffect;
+        const needRefresh = (curFx === 'morph_bezier') !== (nextFx === 'morph_bezier');
+        st.effect = nextFx;
         pop.querySelectorAll('[data-fx-effect]').forEach(x => x.classList.toggle('on', x === btn));
+        b._replayHiddenCache = null;
+        persistScript(b, false, r);
+        renderReplayUI();
+        if (needRefresh) openEffectPopover(rawIdx, clientX, clientY, true);
+        if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
+      });
+    });
+
+    const morphSel = pop.querySelector('[data-fx-morph-from]');
+    if (morphSel) {
+      morphSel.addEventListener('change', () => {
+        st.morphFromId = morphSel.value || undefined;
         persistScript(b, false, r);
         renderReplayUI();
         if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
       });
-    });
+    }
 
     pop.querySelectorAll('[data-fx-easing]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -388,6 +477,7 @@
         pop.querySelectorAll('[data-fx-easing]').forEach(x => x.classList.toggle('on', x === btn));
         persistScript(b, false, r);
         renderReplayUI();
+        if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
       });
     });
 
@@ -417,6 +507,18 @@
         if (key === 'rev') st.rev = !st.rev;
         else if (key === 'tempHide') st.tempHide = !st.tempHide;
         else if (key === 'showGuides') st.showGuides = st.showGuides === false;
+        else if (key === 'cue') {
+          st.mode = st.mode === 'cue' ? undefined : 'cue';
+          if (st.mode === 'cue' && !(mfx && mfx.OVERLAY_END_EFFECTS && mfx.OVERLAY_END_EFFECTS.has(st.effect))) {
+            st.effect = 'mention_glow';
+          }
+          b._replayHiddenCache = null;
+          persistScript(b, false, r);
+          renderReplayUI();
+          openEffectPopover(rawIdx, clientX, clientY, true);
+          if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
+          return;
+        }
         btn.classList.toggle('on', key === 'showGuides' ? st.showGuides !== false : !!st[key]);
         persistScript(b, false, r);
         renderReplayUI();
@@ -439,6 +541,7 @@
         item.durationMul = dm;
         item.pauseAfter = pa;
       }
+      b._replayHiddenCache = null;
       persistScript(b, true, r);
       renderReplayUI();
       closeEffectPopover();
@@ -513,24 +616,94 @@
     }
   }
 
-  function stepDisplayLabel(geo, step) {
+  function isReplayableItem(it) {
+    if (!it || !it.id) return false;
+    const K = window.__mnGeoKernel;
+    if (K && typeof K.xr === 'function' && K.xr(it)) return false;
+    return true;
+  }
+
+  function defaultItemEffect(it) {
+    if (!it) return 'fade';
+    if (it.type === 'text' || it.type === 'problem') return 'typewriter';
+    if (it.type === 'graph' || it.type === 'oxyz') return 'graph_trace';
+    if (it.type === 'vartable') return 'wipe';
+    if (it.type === 'image') return 'zoom';
+    return 'fade';
+  }
+
+  function describeItem(it) {
+    if (!it) return 'Nội dung';
+    switch (it.type) {
+      case 'text': {
+        const raw = String(it.text || '').replace(/\s+/g, ' ').trim();
+        const short = raw.length > 26 ? raw.slice(0, 26) + '…' : raw;
+        return short ? `Chữ/Toán: "${short}"` : 'Công thức / Văn bản';
+      }
+      case 'problem':
+        return it.title ? `Bài toán: ${it.title}` : 'Khung bài toán';
+      case 'graph':
+        return 'Đồ thị hàm số';
+      case 'vartable':
+        return 'Bảng biến thiên';
+      case 'oxyz':
+        return 'Hệ trục Oxyz';
+      case 'image':
+        return 'Hình ảnh';
+      default:
+        return 'Mục bảng';
+    }
+  }
+
+  function describeStroke(pg, sk) {
+    if (!sk) return 'Nét viết tay';
+    const list = (pg && Array.isArray(pg.strokes)) ? pg.strokes : [];
+    const idx = list.findIndex(x => x.id === sk.id);
+    const num = idx >= 0 ? ` #${idx + 1}` : '';
+    return sk.kind === 'highlighter' ? `Nét tô sáng${num}` : `Nét viết tay${num}`;
+  }
+
+  function stepDisplayLabel(geo, step, pg) {
+    const prefix = step.mode === 'cue'
+      ? '✦ Nhấn mạnh: '
+      : (step.effect === 'morph_bezier' ? '⟳ Biến hình: ' : '');
+
     if (step.items && step.items.length > 1) {
-      if (step.customTitle) return step.customTitle;
+      if (step.customTitle) return prefix + step.customTitle;
       const first = step.items[0];
-      const sh = first.kind === 'shape' ? geo.shapes.find(s => s.id === first.refId) : null;
-      const firstLbl = sh ? describeShape(geo, sh, !!(first.rev ?? step.rev), !!step.tempHide) : (first.kind === 'point' ? `Điểm ${ptName(geo, first.refId)}` : 'Nét');
-      return `Nhóm (${step.items.length} nét): ${firstLbl}…`;
+      let firstLbl = 'Nét';
+      if (first.kind === 'shape') {
+        const sh = geo.shapes.find(s => s.id === first.refId);
+        firstLbl = sh ? describeShape(geo, sh, !!(first.rev ?? step.rev), !!step.tempHide) : 'Hình';
+      } else if (first.kind === 'point') {
+        firstLbl = `Điểm ${ptName(geo, first.refId)}`;
+      } else if (first.kind === 'item') {
+        const obj = pg && Array.isArray(pg.items) ? pg.items.find(x => x.id === first.refId) : null;
+        firstLbl = describeItem(obj);
+      } else if (first.kind === 'stroke') {
+        const sk = pg && Array.isArray(pg.strokes) ? pg.strokes.find(x => x.id === first.refId) : null;
+        firstLbl = describeStroke(pg, sk);
+      }
+      return `${prefix}Nhóm (${step.items.length} mục): ${firstLbl}…`;
     }
     const it = (step.items && step.items[0]) || step;
     if (it.kind === 'point') {
       const p = geo.points[it.refId];
       if (p && p.def && p.def.t === 'inter') {
-        return `Giao điểm ${ptName(geo, it.refId)}`;
+        return `${prefix}Giao điểm ${ptName(geo, it.refId)}`;
       }
-      return `Điểm ${ptName(geo, it.refId)}`;
+      return `${prefix}Điểm ${ptName(geo, it.refId)}`;
+    }
+    if (it.kind === 'item') {
+      const obj = pg && Array.isArray(pg.items) ? pg.items.find(x => x.id === it.refId) : null;
+      return prefix + describeItem(obj);
+    }
+    if (it.kind === 'stroke') {
+      const sk = pg && Array.isArray(pg.strokes) ? pg.strokes.find(x => x.id === it.refId) : null;
+      return prefix + describeStroke(pg, sk);
     }
     const sh = geo.shapes.find(s => s.id === it.refId);
-    return sh ? describeShape(geo, sh, !!(it.rev ?? step.rev), !!step.tempHide) : 'Đối tượng';
+    return prefix + (sh ? describeShape(geo, sh, !!(it.rev ?? step.rev), !!step.tempHide) : 'Đối tượng');
   }
 
   function parseNtTimestamp(id) {
@@ -553,8 +726,8 @@
     return [...groups].sort();
   }
 
-  function buildFigureTitle(geo, scopeShapes, scopePoints, fallbackIndex) {
-    if (!scopeShapes && !scopePoints) return 'Cả trang';
+  function buildFigureTitle(geo, scopeShapes, scopePoints, fallbackIndex, scopeItems, scopeStrokes) {
+    if (!scopeShapes && !scopePoints && !scopeItems && !scopeStrokes) return 'Cả trang';
     const labels = [];
     const seen = new Set();
     const ptSet = scopePoints || new Set();
@@ -574,11 +747,47 @@
       }
       return `Hình ${rest.slice(0, 5).join('')}`;
     }
+    const geoCnt = (scopeShapes ? scopeShapes.size : 0) + ptSet.size;
+    const boardCnt = (scopeItems ? scopeItems.size : 0) + (scopeStrokes ? scopeStrokes.size : 0);
+    if (geoCnt === 0 && boardCnt > 0) {
+      return `Bài giảng #${fallbackIndex || 1} (${boardCnt} mục)`;
+    }
     const cnt = scopeShapes ? scopeShapes.size : ptSet.size;
     return `Hình #${fallbackIndex || 1} (${cnt} nét)`;
   }
 
-  function buildDefaultSteps(geo, scopeShapes, scopePoints) {
+  function buildBoardContentSteps(pg, scopeItems, scopeStrokes) {
+    if (!pg) return [];
+    const out = [];
+    const items = (Array.isArray(pg.items) ? pg.items : [])
+      .filter(it => isReplayableItem(it) && (!scopeItems || scopeItems.has(it.id)))
+      .sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
+    for (const it of items) {
+      out.push({
+        id: 'st_i_' + it.id,
+        kind: 'item',
+        refId: it.id,
+        effect: defaultItemEffect(it),
+        easing: 'easeInOut',
+        enabled: true
+      });
+    }
+    const strokes = (Array.isArray(pg.strokes) ? pg.strokes : [])
+      .filter(sk => sk && sk.id && (!scopeStrokes || scopeStrokes.has(sk.id)));
+    for (const sk of strokes) {
+      out.push({
+        id: 'st_k_' + sk.id,
+        kind: 'stroke',
+        refId: sk.id,
+        effect: 'draw',
+        easing: 'easeInOut',
+        enabled: true
+      });
+    }
+    return out;
+  }
+
+  function buildDefaultSteps(geo, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes, opts = {}) {
     const shapes = geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id)));
     const usedPtsByShape = new Set();
     for (const s of shapes) s.pts.forEach(id => usedPtsByShape.add(id));
@@ -677,6 +886,14 @@
         out.push(st);
       }
     }
+
+    const explicitBoard = !!(scopeItems && scopeItems.size) || !!(scopeStrokes && scopeStrokes.size);
+    const hasBoardContent = pg && ((Array.isArray(pg.items) && pg.items.some(isReplayableItem)) || (Array.isArray(pg.strokes) && pg.strokes.length > 0));
+    const shouldIncludeBoard = !!(opts && opts.includeBoardContent) || explicitBoard || (!out.length && hasBoardContent);
+    if (shouldIncludeBoard && pg) {
+      const boardSteps = buildBoardContentSteps(pg, scopeItems, scopeStrokes);
+      out.push(...boardSteps);
+    }
     return out;
   }
 
@@ -684,25 +901,47 @@
    * PER-FIGURE PERSISTENT SCRIPT STORAGE (Remembers each figure independently!)
    * ============================================================================ */
   function loadSavedScriptsMap(pg) {
-    const merged = {};
-    if (pg && pg.id) {
-      try {
-        const rawMap = localStorage.getItem('mn_geo_scripts_' + pg.id);
-        if (rawMap) {
-          const parsed = JSON.parse(rawMap);
-          if (parsed && typeof parsed === 'object') Object.assign(merged, parsed);
-        }
-      } catch {}
+    const b = getBoard();
+    if (b && typeof b._readMergedScriptsForPage === 'function' && pg) {
+      return b._readMergedScriptsForPage(pg).scripts;
     }
-    if (pg && pg.geo && pg.geo.scripts && typeof pg.geo.scripts === 'object') {
-      for (const [k, v] of Object.entries(pg.geo.scripts)) {
-        if (!merged[k] || ((v && v.updatedAt) || 0) >= ((merged[k] && merged[k].updatedAt) || 0)) {
+    const merged = {};
+    const del = {};
+    const addDel = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const [k, ts] of Object.entries(obj)) {
+        const n = Number(ts) || 0;
+        if (n > (del[k] || 0)) del[k] = n;
+      }
+    };
+    const addMap = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const [k, v] of Object.entries(obj)) {
+        if (!v || typeof v !== 'object' || !Array.isArray(v.steps) || !v.steps.length) continue;
+        const cur = merged[k];
+        const vTs = Number(v.updatedAt) || 0;
+        const cTs = cur ? (Number(cur.updatedAt) || 0) : 0;
+        if (!cur || vTs > cTs || (vTs === cTs && v.steps.length > cur.steps.length)) {
           merged[k] = v;
         }
       }
+    };
+    if (pg && pg.id) {
+      try {
+        const rawDel = localStorage.getItem('mn_geo_scripts_del_' + pg.id);
+        if (rawDel) addDel(JSON.parse(rawDel));
+      } catch {}
+      try {
+        const rawMap = localStorage.getItem('mn_geo_scripts_' + pg.id);
+        if (rawMap) addMap(JSON.parse(rawMap));
+      } catch {}
+    }
+    if (pg && pg.geo) {
+      addDel(pg.geo._deletedScripts);
+      addMap(pg.geo.scripts);
     }
     // Legacy single-script fallback
-    if (!merged.all) {
+    if (!merged.all && !(del.all > 0)) {
       let legacy = (pg && pg.geo && Array.isArray(pg.geo.script) && pg.geo.script.length) ? pg.geo.script : null;
       if (!legacy && pg && pg.id) {
         try {
@@ -717,24 +956,69 @@
         merged.all = { key: 'all', title: 'Cả trang', shapeIds: null, pointIds: null, solidGroups: [], steps: legacy, speed: 1, pauseBetween: false, updatedAt: 0 };
       }
     }
+    for (const [k, dTs] of Object.entries(del)) {
+      if (merged[k] && dTs > (Number(merged[k].updatedAt) || 0)) delete merged[k];
+    }
     return merged;
   }
 
-  function computeOverlapScore(entry, scopeShapes, scopePoints, solidGroups) {
+  function collectStepRefs(steps) {
+    const shapes = new Set(), points = new Set(), items = new Set(), strokes = new Set();
+    if (!Array.isArray(steps)) return { shapes, points, items, strokes };
+    for (const st of steps) {
+      if (!st) continue;
+      const list = (st.items && st.items.length) ? st.items : [st];
+      for (const it of list) {
+        if (!it || !it.refId) continue;
+        if (it.kind === 'shape') shapes.add(it.refId);
+        else if (it.kind === 'point') points.add(it.refId);
+        else if (it.kind === 'item') items.add(it.refId);
+        else if (it.kind === 'stroke') strokes.add(it.refId);
+      }
+    }
+    return { shapes, points, items, strokes };
+  }
+
+  function isScriptCustomized(r, pg) {
+    if (!r || !Array.isArray(r.steps) || !r.steps.length) return false;
+    for (const st of r.steps) {
+      if (!st) continue;
+      if (st.items && st.items.length > 1) return true;
+      if (st.mode === 'cue' || st.tempHide || st.rev || st.includeHidden || st.enabled === false) return true;
+      if (st.effect && st.effect !== 'draw') return true;
+      if (st.easing && st.easing !== 'easeInOut') return true;
+      if (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) return true;
+      if (Number(st.pauseAfter) > 0) return true;
+      if (st.customTitle || st.morphFromId) return true;
+    }
+    if (pg && pg.geo) {
+      const def = buildDefaultSteps(pg.geo, r.scopeShapes, r.scopePoints, pg, r.scopeItems, r.scopeStrokes);
+      if (def.length !== r.steps.length) return true;
+      for (let i = 0; i < def.length; i++) {
+        if ((def[i].refId || '') !== (r.steps[i].refId || '') || (def[i].kind || '') !== (r.steps[i].kind || '')) return true;
+      }
+    }
+    return false;
+  }
+
+  function computeOverlapScore(entry, scopeShapes, scopePoints, solidGroups, scopeItems, scopeStrokes) {
     if (!entry || entry.key === 'all') return 0;
     const eShapes = new Set(Array.isArray(entry.shapeIds) ? entry.shapeIds : []);
     const ePoints = new Set(Array.isArray(entry.pointIds) ? entry.pointIds : []);
-    // Also collect refs directly from saved steps in case shapeIds was partial
+    const eItems = new Set(Array.isArray(entry.itemIds) ? entry.itemIds : []);
+    const eStrokes = new Set(Array.isArray(entry.strokeIds) ? entry.strokeIds : []);
     for (const st of (entry.steps || [])) {
       const items = (st.items && st.items.length) ? st.items : [st];
       for (const it of items) {
         if (it.kind === 'shape' && it.refId) eShapes.add(it.refId);
         if (it.kind === 'point' && it.refId) ePoints.add(it.refId);
+        if (it.kind === 'item' && it.refId) eItems.add(it.refId);
+        if (it.kind === 'stroke' && it.refId) eStrokes.add(it.refId);
       }
     }
 
     let inter = 0;
-    let unionSet = new Set();
+    const unionSet = new Set();
     if (scopeShapes) {
       for (const id of scopeShapes) { unionSet.add('s:' + id); if (eShapes.has(id)) inter++; }
       for (const id of eShapes) unionSet.add('s:' + id);
@@ -743,9 +1027,16 @@
       for (const id of scopePoints) { unionSet.add('p:' + id); if (ePoints.has(id)) inter++; }
       for (const id of ePoints) unionSet.add('p:' + id);
     }
+    if (scopeItems) {
+      for (const id of scopeItems) { unionSet.add('i:' + id); if (eItems.has(id)) inter++; }
+      for (const id of eItems) unionSet.add('i:' + id);
+    }
+    if (scopeStrokes) {
+      for (const id of scopeStrokes) { unionSet.add('k:' + id); if (eStrokes.has(id)) inter++; }
+      for (const id of eStrokes) unionSet.add('k:' + id);
+    }
     let score = unionSet.size > 0 ? (inter / unionSet.size) : 0;
 
-    // Bonus if they share the exact same 3D solid group (survives adding/removing edges on the same 3D solid!)
     if (solidGroups && solidGroups.length && Array.isArray(entry.solidGroups) && entry.solidGroups.length) {
       const sgSet = new Set(solidGroups);
       const sharedSolid = entry.solidGroups.some(g => sgSet.has(g));
@@ -754,20 +1045,18 @@
     return score;
   }
 
-  function findSavedScriptForScope(pg, scopeKey, scopeShapes, scopePoints) {
+  function findSavedScriptForScope(pg, scopeKey, scopeShapes, scopePoints, scopeItems, scopeStrokes) {
     const map = loadSavedScriptsMap(pg);
-    // 1. Exact key match
     if (map[scopeKey] && Array.isArray(map[scopeKey].steps) && map[scopeKey].steps.length) {
       return map[scopeKey];
     }
-    // 2. For specific figure selection, find best overlapping figure script (even if strokes were added/edited or other shapes changed!)
-    if (scopeShapes || scopePoints) {
+    if (scopeShapes || scopePoints || scopeItems || scopeStrokes) {
       const solidGroups = extractSolidGroups(pg.geo, scopeShapes, scopePoints);
       let best = null;
-      let bestScore = 0.34; // threshold: >= 35% shared geometry or shared 3D solid
+      let bestScore = 0.34;
       for (const entry of Object.values(map)) {
         if (!entry || entry.key === 'all' || !Array.isArray(entry.steps) || !entry.steps.length) continue;
-        const sc = computeOverlapScore(entry, scopeShapes, scopePoints, solidGroups);
+        const sc = computeOverlapScore(entry, scopeShapes, scopePoints, solidGroups, scopeItems, scopeStrokes);
         if (sc > bestScore || (sc === bestScore && best && (entry.updatedAt || 0) > (best.updatedAt || 0))) {
           bestScore = sc;
           best = entry;
@@ -775,29 +1064,54 @@
       }
       if (best) return best;
     }
-    // 3. Whole-page fallback
     if (scopeKey === 'all' && map.all && Array.isArray(map.all.steps) && map.all.steps.length) {
       return map.all;
     }
     return null;
   }
 
-  function reconcileSavedScript(geo, saved, scopeShapes, scopePoints) {
-    if (!Array.isArray(saved) || !saved.length) return buildDefaultSteps(geo, scopeShapes, scopePoints);
-    const allShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
-    const visShIds = new Set(geo.shapes.filter(s => s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!scopeShapes || scopeShapes.has(s.id))).map(s => s.id));
-    const ptIds = new Set(Object.values(geo.points).filter(p => p.show && !p.hidden && (!scopePoints || scopePoints.has(p.id))).map(p => p.id));
+  function reconcileSavedScript(geo, saved, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes) {
+    if (!Array.isArray(saved) || !saved.length) {
+      return buildDefaultSteps(geo, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes);
+    }
+    // Check existence against ALL still-existing objects on the page (NEVER drop a saved step just because
+    // a shape/point was temporarily hidden or omitted from a partial re-selection — only drop if deleted!)
+    const existShIds = new Set((geo.shapes || []).filter(s => s.kind !== 'solid' && s.kind !== 'flatLink').map(s => s.id));
+    const existPtIds = new Set(Object.keys(geo.points || {}));
+    const existItemIds = new Set((pg && Array.isArray(pg.items) ? pg.items : []).filter(isReplayableItem).map(it => it.id));
+    const existStrokeIds = new Set((pg && Array.isArray(pg.strokes) ? pg.strokes : []).filter(sk => sk && sk.id).map(sk => sk.id));
 
     const seenSh = new Set();
     const seenPt = new Set();
+    const seenItem = new Set();
+    const seenStroke = new Set();
     const out = [];
+    let hadBoardRefs = false;
 
     for (const st of saved) {
+      if (!st) continue;
+      const isCue = st.mode === 'cue';
       if (st.items && st.items.length) {
         const items = st.items.filter(it => {
-          const validSh = (st.tempHide || st.includeHidden) ? allShIds.has(it.refId) : visShIds.has(it.refId);
-          if (it.kind === 'shape' && validSh && !seenSh.has(it.refId)) { seenSh.add(it.refId); return true; }
-          if (it.kind === 'point' && ptIds.has(it.refId) && !seenPt.has(it.refId)) { seenPt.add(it.refId); return true; }
+          if (!it || !it.refId) return false;
+          if (it.kind === 'shape' && existShIds.has(it.refId)) {
+            if (isCue) return true;
+            if (!seenSh.has(it.refId)) { seenSh.add(it.refId); return true; }
+          }
+          if (it.kind === 'point' && existPtIds.has(it.refId)) {
+            if (isCue) return true;
+            if (!seenPt.has(it.refId)) { seenPt.add(it.refId); return true; }
+          }
+          if (it.kind === 'item' && existItemIds.has(it.refId)) {
+            hadBoardRefs = true;
+            if (isCue) return true;
+            if (!seenItem.has(it.refId)) { seenItem.add(it.refId); return true; }
+          }
+          if (it.kind === 'stroke' && existStrokeIds.has(it.refId)) {
+            hadBoardRefs = true;
+            if (isCue) return true;
+            if (!seenStroke.has(it.refId)) { seenStroke.add(it.refId); return true; }
+          }
           return false;
         });
         if (items.length === 1) {
@@ -805,28 +1119,35 @@
         } else if (items.length > 1) {
           out.push({ ...st, items, enabled: st.enabled !== false });
         }
-      } else if (st.kind === 'shape') {
-        const validSh = (st.tempHide || st.includeHidden) ? allShIds.has(st.refId) : visShIds.has(st.refId);
-        if (validSh && !seenSh.has(st.refId)) {
-          seenSh.add(st.refId);
-          out.push({ ...st, enabled: st.enabled !== false });
-        }
-      } else if (st.kind === 'point' && ptIds.has(st.refId) && !seenPt.has(st.refId)) {
-        seenPt.add(st.refId);
+      } else if (st.kind === 'shape' && existShIds.has(st.refId) && (isCue || !seenSh.has(st.refId))) {
+        if (!isCue) seenSh.add(st.refId);
+        out.push({ ...st, enabled: st.enabled !== false });
+      } else if (st.kind === 'point' && existPtIds.has(st.refId) && (isCue || !seenPt.has(st.refId))) {
+        if (!isCue) seenPt.add(st.refId);
+        out.push({ ...st, enabled: st.enabled !== false });
+      } else if (st.kind === 'item' && existItemIds.has(st.refId) && (isCue || !seenItem.has(st.refId))) {
+        hadBoardRefs = true;
+        if (!isCue) seenItem.add(st.refId);
+        out.push({ ...st, enabled: st.enabled !== false });
+      } else if (st.kind === 'stroke' && existStrokeIds.has(st.refId) && (isCue || !seenStroke.has(st.refId))) {
+        hadBoardRefs = true;
+        if (!isCue) seenStroke.add(st.refId);
         out.push({ ...st, enabled: st.enabled !== false });
       }
     }
 
-    const fresh = buildDefaultSteps(geo, scopeShapes, scopePoints);
+    const fresh = buildDefaultSteps(geo, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes, { includeBoardContent: hadBoardRefs });
     for (const st of fresh) {
       if (st.kind === 'shape' && !seenSh.has(st.refId)) out.push(st);
       else if (st.kind === 'point' && !seenPt.has(st.refId)) out.push(st);
+      else if (st.kind === 'item' && !seenItem.has(st.refId)) out.push(st);
+      else if (st.kind === 'stroke' && !seenStroke.has(st.refId)) out.push(st);
     }
     return out;
   }
 
-  function buildSolidFirstPreset(geo, scopeShapes, scopePoints) {
-    const baseSteps = buildDefaultSteps(geo, scopeShapes, scopePoints);
+  function buildSolidFirstPreset(geo, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes, opts) {
+    const baseSteps = buildDefaultSteps(geo, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes, opts);
     const solidGroups = new Set(geo.shapes.filter(s => s.kind === 'solid').map(s => s.group).filter(Boolean));
     if (!solidGroups.size) return baseSteps;
 
@@ -877,37 +1198,84 @@
     }, 1500);
   }
 
-  function persistScript(b, showFeedback = false, targetReplay = null) {
+  function persistScript(b, showFeedback = false, targetReplay = null, extraMeta = null) {
     const r = targetReplay || getFocusedReplay(b);
     if (!b || !r) return false;
     const pg = b.doc.pages[r.page];
     if (!pg) return false;
     const key = r.scriptKey || r.scopeKey || 'all';
+    // Ensure saved scope metadata ALWAYS includes every refId currently in r.steps so reopening NEVER truncates!
+    let shapeIds = null, pointIds = null, itemIds = null, strokeIds = null;
+    if (key !== 'all') {
+      const refs = collectStepRefs(r.steps);
+      const shSet = new Set(r.scopeShapes || []);
+      const ptSet = new Set(r.scopePoints || []);
+      for (const id of refs.shapes) shSet.add(id);
+      for (const id of refs.points) ptSet.add(id);
+      for (const sh of (pg.geo && pg.geo.shapes ? pg.geo.shapes : [])) {
+        if (shSet.has(sh.id) && Array.isArray(sh.pts)) sh.pts.forEach(pid => ptSet.add(pid));
+      }
+      shapeIds = shSet.size ? [...shSet] : (r.scopeShapes ? [...r.scopeShapes] : null);
+      pointIds = ptSet.size ? [...ptSet] : (r.scopePoints ? [...r.scopePoints] : null);
+      const itSet = new Set(r.scopeItems || []);
+      const skSet = new Set(r.scopeStrokes || []);
+      for (const id of refs.items) itSet.add(id);
+      for (const id of refs.strokes) skSet.add(id);
+      itemIds = itSet.size ? [...itSet] : null;
+      strokeIds = skSet.size ? [...skSet] : null;
+      if (shapeIds && r.scopeShapes) shapeIds.forEach(id => r.scopeShapes.add(id));
+      if (pointIds && r.scopePoints) pointIds.forEach(id => r.scopePoints.add(id));
+    }
     const solidGroups = extractSolidGroups(pg.geo, r.scopeShapes, r.scopePoints);
     const meta = {
       key,
-      title: r.title || buildFigureTitle(pg.geo, r.scopeShapes, r.scopePoints, 1),
-      shapeIds: r.scopeShapes ? [...r.scopeShapes] : null,
-      pointIds: r.scopePoints ? [...r.scopePoints] : null,
+      title: r.title || buildFigureTitle(pg.geo, r.scopeShapes, r.scopePoints, 1, r.scopeItems, r.scopeStrokes),
+      shapeIds,
+      pointIds,
+      itemIds,
+      strokeIds,
       solidGroups,
       speed: r.speed || 1,
       pauseBetween: !!r.pauseBetween,
       followCamera: r.followCamera !== false,
-      autoOrbitAfter: !!r.autoOrbitAfter
+      springCamera: r.springCamera !== false,
+      autoOrbitAfter: !!r.autoOrbitAfter,
+      stylePreset: r.stylePreset || '',
+      ...(extraMeta || {})
     };
     const ok = b.saveBuildScript(r.page, r.steps, meta);
     if (ok && showFeedback) flashSavedBadge(1);
     return ok;
   }
 
-  function persistAllActiveScripts(b, showFeedback = true) {
+  function flushNotebookAfterScriptSave(reason = 'replay_save') {
+    try {
+      if (window.__minnotePersistence && typeof window.__minnotePersistence.saveAllAndFlush === 'function') {
+        window.__minnotePersistence.saveAllAndFlush(reason).catch(() => {});
+        return;
+      }
+      if (window.__minnoteAppBridge && typeof window.__minnoteAppBridge.saveAllNow === 'function') {
+        window.__minnoteAppBridge.saveAllNow(reason).catch(() => {});
+      }
+    } catch {}
+  }
+
+  function persistAllActiveScripts(b, showFeedback = true, flushNow = true) {
     const actives = getActiveReplays(b);
     if (!actives.length) return false;
     let savedCnt = 0;
     for (const item of actives) {
       if (persistScript(b, false, item)) savedCnt++;
     }
-    if (savedCnt > 0 && showFeedback) flashSavedBadge(savedCnt);
+    if (savedCnt > 0) {
+      if (flushNow) flushNotebookAfterScriptSave('replay_save');
+      if (showFeedback) {
+        flashSavedBadge(savedCnt);
+        if (typeof window.showToast === 'function') {
+          window.showToast(savedCnt > 1 ? `Đã lưu an toàn ${savedCnt} kịch bản hình!` : 'Đã lưu an toàn kịch bản dựng hình!', 'success');
+        }
+      }
+    }
     return savedCnt > 0;
   }
 
@@ -923,6 +1291,7 @@
             <span class="mn-rp-count-badge" id="mn-rp-count-badge" style="display:none;"></span>
           </div>
           <div class="mn-mp-head-btns">
+            <button class="mn-icon-btn" id="mn-rp-undo-script" title="Khôi phục bản lưu kịch bản trước đó" style="display:none;">↶</button>
             <button class="mn-icon-btn" id="mn-rp-save" title="Lưu kịch bản riêng cho từng hình đang mở">💾</button>
             <button class="mn-icon-btn" id="mn-rp-steps-toggle" title="Mở / Ẩn danh sách bước để sắp xếp">☰</button>
             <button class="mn-icon-btn" id="mn-rp-collapse" title="Thu gọn thành thanh nổi siêu gọn">─</button>
@@ -945,7 +1314,7 @@
             <input type="range" id="mn-rp-scrub" min="0" max="0" step="1" value="0" />
           </div>
           <div class="mn-rp-tools-bar">
-            <button type="button" class="mn-rp-tool-btn active" id="mn-rp-follow" title="Tự động theo dõi nét vẽ (Auto-Follow Camera)">🎥 <span>Theo dõi</span></button>
+            <button type="button" class="mn-rp-tool-btn active" id="mn-rp-follow" title="Camera lò xo giảm chấn tự động theo dõi nét vẽ">🎥 <span>Camera lò xo</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-hand" title="Bật / Tắt tay cầm bút khi dựng lại">✍ <span>Tay bút</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-now" title="Xoay tròn đều 360° khối 3D">↻ <span>360°</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-after" title="Tự xoay 360° sau khi dựng xong hình 3D">⟳ <span>Tự xoay</span></button>
@@ -953,19 +1322,30 @@
           </div>
         </div>
         <div class="mn-rp-presets-pop" id="mn-rp-presets-pop">
-          <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục thứ tự gốc">Gốc</button>
-          <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khối 3D gốc thành Bước 1">Khối→Nét</button>
-          <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường ẩn vào kịch bản">+Ẩn</button>
-          <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách tất cả nhóm bước">Tách</button>
+          <div class="mn-rp-preset-row">
+            <button class="mn-chip" id="mn-rp-preset-orig" title="Khôi phục thứ tự gốc">Gốc</button>
+            <button class="mn-chip" id="mn-rp-preset-solid" title="Gộp khối 3D gốc thành Bước 1">Khối→Nét</button>
+            <button class="mn-chip" id="mn-rp-preset-hidden" title="Thêm các đường ẩn vào kịch bản">+Ẩn</button>
+            <button class="mn-chip" id="mn-rp-preset-ungroup" title="Tách tất cả nhóm bước">Tách</button>
+          </div>
+          <div class="mn-rp-preset-row mn-rp-style-row" id="mn-rp-style-row">
+            <button class="mn-chip mn-style-chip" data-style-preset="domiinh" title="Phong cách Đỗ Miinh: phấn bảng, hào quang điểm nhấn, camera lò xo">✨ Đỗ Miinh</button>
+            <button class="mn-chip mn-style-chip" data-style-preset="manim" title="Phong cách Manim: tia Laser, Viền→Tô, Vòng Fourier & đồ thị">🎬 Manim</button>
+            <button class="mn-chip mn-style-chip" data-style-preset="geo3d" title="Phong cách 3D: nâng khối, soi nét khuất & tự xoay 360°">🧊 3D Chuẩn</button>
+            <button class="mn-chip" id="mn-rp-toggle-board" title="Đưa thêm Công thức, Văn bản, Đồ thị & Nét viết tay trên trang vào kịch bản">+ Công thức/Nét</button>
+          </div>
         </div>
         <div class="mn-rp-list" id="mn-rp-list"></div>
       `;
       document.body.appendChild(el);
       makeDraggable(el, el.querySelector('.mn-rp-head'));
 
+      el.querySelector('#mn-rp-undo-script').addEventListener('click', () => {
+        window.MinNoteGeoReplay.undoScriptChange();
+      });
       el.querySelector('#mn-rp-save').addEventListener('click', () => {
         const b = getBoard();
-        persistAllActiveScripts(b, true);
+        persistAllActiveScripts(b, true, true);
         renderReplayUI();
       });
       el.querySelector('#mn-rp-close').addEventListener('click', () => window.MinNoteGeoReplay.close());
@@ -1015,6 +1395,10 @@
       el.querySelector('#mn-rp-preset-solid').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('solidFirst'));
       el.querySelector('#mn-rp-preset-hidden').addEventListener('click', () => window.MinNoteGeoReplay.addHiddenLines());
       el.querySelector('#mn-rp-preset-ungroup').addEventListener('click', () => window.MinNoteGeoReplay.applyPreset('ungroup'));
+      el.querySelectorAll('[data-style-preset]').forEach(btn => {
+        btn.addEventListener('click', () => window.MinNoteGeoReplay.applyStylePreset(btn.dataset.stylePreset));
+      });
+      el.querySelector('#mn-rp-toggle-board').addEventListener('click', () => window.MinNoteGeoReplay.toggleIncludeBoardContent());
 
       el.querySelector('#mn-rp-follow').addEventListener('click', () => {
         window.MinNoteGeoReplay.toggleFollowCamera();
@@ -1269,6 +1653,18 @@
 
     const headTitle = replayPanel.querySelector('#mn-rp-head-title');
     if (headTitle) headTitle.textContent = isMulti ? 'Kịch bản' : (r.title && r.title !== 'Cả trang' ? r.title : 'Kịch bản');
+    const undoScriptBtn = replayPanel.querySelector('#mn-rp-undo-script');
+    if (undoScriptBtn) {
+      const curKey = r.scriptKey || r.scopeKey || 'all';
+      const backups = (typeof b.getScriptBackups === 'function') ? b.getScriptBackups(r.page, curKey) : [];
+      const anyPageBackups = (!backups.length && typeof b.getScriptBackups === 'function') ? b.getScriptBackups(r.page) : backups;
+      undoScriptBtn.style.display = anyPageBackups.length ? 'inline-flex' : 'none';
+      if (backups.length) {
+        undoScriptBtn.title = `Khôi phục phiên bản trước của "${r.title || 'kịch bản'}" (${backups[0].steps ? backups[0].steps.length : 0} bước)`;
+      } else if (anyPageBackups.length) {
+        undoScriptBtn.title = `Khôi phục kịch bản vừa sửa/xóa "${anyPageBackups[0].title || anyPageBackups[0].key}"`;
+      }
+    }
     const countBadge = replayPanel.querySelector('#mn-rp-count-badge');
     if (countBadge) {
       if (isMulti) {
@@ -1359,6 +1755,8 @@
           chip.addEventListener('click', (e) => {
             if (e.target.closest('.mn-rp-saved-del')) {
               e.stopPropagation();
+              const okDel = window.confirm(`Xóa kịch bản đã lưu "${name}"? (Vẫn có thể khôi phục bằng nút ↶)`);
+              if (!okDel) return;
               if (typeof b.deleteBuildScript === 'function') b.deleteBuildScript(r.page, entry.key);
               renderReplayUI();
               return;
@@ -1425,13 +1823,27 @@
     const presetsPop = replayPanel.querySelector('#mn-rp-presets-pop');
     if (presetsPop) presetsPop.classList.toggle('open', !stepsCollapsed);
 
+    replayPanel.querySelectorAll('[data-style-preset]').forEach(btn => {
+      btn.classList.toggle('on', !!r.stylePreset && r.stylePreset === btn.dataset.stylePreset);
+    });
+    const toggleBoardBtn = replayPanel.querySelector('#mn-rp-toggle-board');
+    if (toggleBoardBtn) {
+      const boardItemsCount = (Array.isArray(pg.items) ? pg.items.filter(isReplayableItem).length : 0) + (Array.isArray(pg.strokes) ? pg.strokes.length : 0);
+      const hasBoardSteps = r.steps.some(st => st.kind === 'item' || st.kind === 'stroke' || (st.items && st.items.some(it => it.kind === 'item' || it.kind === 'stroke')));
+      toggleBoardBtn.classList.toggle('on', hasBoardSteps);
+      toggleBoardBtn.disabled = !hasBoardSteps && boardItemsCount === 0;
+      toggleBoardBtn.textContent = hasBoardSteps
+        ? '✓ Công thức/Nét'
+        : (boardItemsCount > 0 ? `+ Công thức/Nét (${boardItemsCount})` : '+ Công thức/Nét');
+    }
+
     if (stepsCollapsed) return;
 
     const listEl = replayPanel.querySelector('#mn-rp-list');
     const prevScroll = listEl.scrollTop;
     listEl.innerHTML = '';
     if (!r.steps.length) {
-      listEl.innerHTML = '<div class="mn-rp-empty">Chưa có hình học nào để dựng lại.</div>';
+      listEl.innerHTML = '<div class="mn-rp-empty">Chưa có hình học hoặc nội dung nào để dựng lại.</div>';
       return;
     }
 
@@ -1446,20 +1858,23 @@
       row.className = `mn-step-item mn-rp-step compact${isCurrent ? ' current' : ''}${isDone ? ' done' : ''}${!isEnabled ? ' disabled' : ''}`;
       row.dataset.idx = String(rawIdx);
 
-      const isShape = st.kind === 'shape';
-      const sh = isShape ? geo.shapes.find(s => s.id === st.refId) : null;
-      const hasDir = isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind);
-      const isInterPt = st.kind === 'point' && geo.points[st.refId] && geo.points[st.refId].def && geo.points[st.refId].def.t === 'inter';
+      const first = (st.items && st.items.length) ? st.items[0] : st;
+      const isShape = first.kind === 'shape';
+      const sh = isShape ? geo.shapes.find(s => s.id === first.refId) : null;
+      const hasDir = (isShape && sh && ['segment', 'line', 'ray', 'extend', 'circle', 'polygon'].includes(sh.kind)) || first.kind === 'stroke' || first.kind === 'item';
+      const isInterPt = first.kind === 'point' && geo.points[first.refId] && geo.points[first.refId].def && geo.points[first.refId].def.t === 'inter';
       const isGroup = !!(st.items && st.items.length > 1);
-      const labelText = stepDisplayLabel(geo, st);
+      const isCue = st.mode === 'cue';
+      const labelText = stepDisplayLabel(geo, st, pg);
       const fxId = st.effect || 'draw';
-      const hasCustomFx = fxId !== 'draw' || (st.easing && st.easing !== 'easeInOut') || (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) || (Number(st.pauseAfter) > 0);
-      const fxMeta = EFFECT_LABEL_MAP[fxId] || STEP_EFFECTS[0];
+      const hasCustomFx = isCue || fxId !== 'draw' || (st.easing && st.easing !== 'easeInOut') || (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) || (Number(st.pauseAfter) > 0);
+      const fxMeta = getEffectMeta(fxId);
       const fxTagBits = [];
-      if (fxId !== 'draw') fxTagBits.push(`${fxMeta.icon} ${fxMeta.label}`);
+      if (fxId !== 'draw' || isCue) fxTagBits.push(`${fxMeta.icon} ${fxMeta.label}`);
       if (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) fxTagBits.push(`${Number(st.durationMul).toFixed(1)}×`);
       if (Number(st.pauseAfter) > 0) fxTagBits.push(`+${Number(st.pauseAfter).toFixed(1)}s`);
-      const fxTagHtml = fxTagBits.length ? `<span class="mn-step-fx-tag">${escapeHtml(fxTagBits.join(' · '))}</span>` : '';
+      const cueBadgeHtml = isCue ? '<span class="mn-step-cue-badge">NHẤN MẠNH</span>' : '';
+      const fxTagHtml = (fxTagBits.length || cueBadgeHtml) ? `<span class="mn-step-fx-tag">${cueBadgeHtml}${escapeHtml(fxTagBits.join(' · '))}</span>` : '';
 
       row.innerHTML = `
         <span class="mn-step-drag" title="Kéo để đổi thứ tự">⋮⋮</span>
@@ -1470,9 +1885,10 @@
         </div>
         <div class="mn-step-actions">
           <button class="mn-mini-btn ${hasCustomFx ? 'on' : ''}" data-act="fx" title="Tùy chỉnh hiệu ứng bước (hoặc nhấp chuột phải)">✨</button>
-          ${isInterPt ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="Vẽ 2 đường giao nhau rồi ẩn">✛</button>` : ''}
-          ${isShape ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="Vẽ tạm rồi tự ẩn">👻</button>` : ''}
-          ${hasDir ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ">⇄</button>` : ''}
+          ${(!isCue && isEnabled) ? `<button class="mn-mini-btn" data-act="addcue" title="Chèn bước nhấn mạnh sau bước này">✦</button>` : ''}
+          ${(isInterPt && !isCue) ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="Vẽ 2 đường giao nhau rồi ẩn">✛</button>` : ''}
+          ${(isShape && !isCue) ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="Vẽ tạm rồi tự ẩn">👻</button>` : ''}
+          ${(hasDir && !isCue) ? `<button class="mn-mini-btn ${st.rev ? 'on' : ''}" data-act="rev" title="Đảo chiều vẽ">⇄</button>` : ''}
           ${rawIdx > 0 ? `<button class="mn-mini-btn" data-act="merge" title="Gộp vẽ cùng bước trên">⊕</button>` : ''}
           ${isGroup ? `<button class="mn-mini-btn on" data-act="split" title="Tách nhóm">⊖</button>` : ''}
           <button class="mn-mini-btn ${isEnabled ? '' : 'on'}" data-act="toggle" title="${isEnabled ? 'Bỏ qua bước này' : 'Bật lại'}">${isEnabled ? '👁' : '✕'}</button>
@@ -1499,6 +1915,24 @@
         if (act === 'fx') {
           const br = btn.getBoundingClientRect();
           openEffectPopover(rawIdx, br.left, br.top + br.height / 2);
+        } else if (act === 'addcue') {
+          const cueStep = {
+            id: 'st_cue_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 4),
+            mode: 'cue',
+            kind: st.kind || first.kind,
+            refId: first.refId,
+            items: (st.items && st.items.length > 1) ? st.items.map(it => ({ kind: it.kind, refId: it.refId })) : undefined,
+            effect: 'mention_glow',
+            easing: 'smoothstep',
+            durationMul: 1,
+            enabled: true
+          };
+          r.steps.splice(rawIdx + 1, 0, cueStep);
+          b._replayHiddenCache = null;
+          persistScript(b, false, r);
+          b.redraw();
+          renderReplayUI();
+          if (isEnabled) window.MinNoteGeoReplay.playSingleStep(myActiveIdx + 1);
         } else if (act === 'guides') {
           st.showGuides = st.showGuides === false;
           persistScript(b, false, r);
@@ -1522,17 +1956,35 @@
           persistScript(b, false, r); b.redraw(); renderReplayUI();
         } else if (act === 'toggle') {
           st.enabled = st.enabled === false;
+          b._replayHiddenCache = null;
           persistScript(b, false, r); b.redraw(); renderReplayUI();
         } else if (act === 'merge' && rawIdx > 0) {
           const prev = r.steps[rawIdx - 1];
           const pItems = prev.items && prev.items.length ? prev.items : [{ kind: prev.kind, refId: prev.refId, rev: !!prev.rev }];
           const cItems = st.items && st.items.length ? st.items : [{ kind: st.kind, refId: st.refId, rev: !!st.rev }];
-          r.steps[rawIdx - 1] = { id: prev.id, kind: 'group', items: [...pItems, ...cItems], enabled: prev.enabled !== false };
+          r.steps[rawIdx - 1] = {
+            ...prev,
+            id: prev.id,
+            kind: 'group',
+            items: [...pItems, ...cItems],
+            enabled: prev.enabled !== false
+          };
           r.steps.splice(rawIdx, 1);
+          b._replayHiddenCache = null;
           persistScript(b, false, r); b.redraw(); renderReplayUI();
         } else if (act === 'split' && isGroup) {
-          const expanded = st.items.map((it, k) => ({ id: `${st.id}_${k}`, kind: it.kind, refId: it.refId, rev: !!it.rev, enabled: true }));
+          const expanded = st.items.map((it, k) => ({
+            ...st,
+            id: `${st.id}_${k}`,
+            kind: it.kind,
+            refId: it.refId,
+            items: undefined,
+            customTitle: undefined,
+            rev: !!(it.rev ?? st.rev),
+            enabled: st.enabled !== false
+          }));
           r.steps.splice(rawIdx, 1, ...expanded);
+          b._replayHiddenCache = null;
           persistScript(b, false, r); b.redraw(); renderReplayUI();
         }
       });
@@ -1556,28 +2008,32 @@
       const pg = b.doc.pages[pageIdx];
       if (!pg) return;
 
-      let scopeShapes = null, scopePoints = null, scopeKey = 'all';
-      if (selectionOnly && b.sel && b.sel.page === pageIdx && (b.sel.shapes.size || b.sel.points.size)) {
+      let scopeShapes = null, scopePoints = null, scopeItems = null, scopeStrokes = null, scopeKey = 'all';
+      if (selectionOnly && b.sel && b.sel.page === pageIdx && (b.sel.shapes.size || b.sel.points.size || b.sel.items.size || b.sel.strokes.size)) {
         scopeShapes = new Set(b.sel.shapes);
         scopePoints = new Set(b.sel.points);
+        scopeItems = b.sel.items.size ? new Set(b.sel.items) : null;
+        scopeStrokes = b.sel.strokes.size ? new Set(b.sel.strokes) : null;
         for (const sh of pg.geo.shapes) {
           if (scopeShapes.has(sh.id)) sh.pts.forEach(pid => scopePoints.add(pid));
         }
         scopeKey = 'sel_' + [...scopeShapes].sort().join(',') + '|' + [...scopePoints].sort().join(',');
+        if (scopeItems || scopeStrokes) {
+          scopeKey += '|I:' + (scopeItems ? [...scopeItems].sort().join(',') : '') + '|S:' + (scopeStrokes ? [...scopeStrokes].sort().join(',') : '');
+        }
         b.sel = null;
         b.emit();
       }
 
       const existing = getActiveReplays(b);
 
-      // If opening a specific figure while other figures are already open -> ADD concurrently!
-      if (scopeShapes || scopePoints) {
+      // If opening a specific figure/selection while other figures are already open -> ADD concurrently!
+      if (scopeShapes || scopePoints || scopeItems || scopeStrokes) {
         const solidGroups = extractSolidGroups(pg.geo, scopeShapes, scopePoints);
-        // Check if this exact/overlapping figure is already open in active tabs
         const already = existing.find(x =>
           x.page === pageIdx && (
             x.scopeKey === scopeKey ||
-            (x.scopeShapes && computeOverlapScore({ key: x.scriptKey || x.scopeKey, shapeIds: [...x.scopeShapes], pointIds: x.scopePoints ? [...x.scopePoints] : [], solidGroups: extractSolidGroups(pg.geo, x.scopeShapes, x.scopePoints), steps: x.steps }, scopeShapes, scopePoints, solidGroups) >= 0.8)
+            (x.scopeShapes && computeOverlapScore({ key: x.scriptKey || x.scopeKey, shapeIds: [...x.scopeShapes], pointIds: x.scopePoints ? [...x.scopePoints] : [], itemIds: x.scopeItems ? [...x.scopeItems] : [], strokeIds: x.scopeStrokes ? [...x.scopeStrokes] : [], solidGroups: extractSolidGroups(pg.geo, x.scopeShapes, x.scopePoints), steps: x.steps }, scopeShapes, scopePoints, solidGroups, scopeItems, scopeStrokes) >= 0.8)
           )
         );
         if (already) {
@@ -1589,10 +2045,39 @@
           return;
         }
 
-        const matchedSaved = findSavedScriptForScope(pg, scopeKey, scopeShapes, scopePoints);
-        const steps = reconcileSavedScript(pg.geo, matchedSaved ? matchedSaved.steps : null, scopeShapes, scopePoints);
+        const matchedSaved = findSavedScriptForScope(pg, scopeKey, scopeShapes, scopePoints, scopeItems, scopeStrokes);
+        if (matchedSaved) {
+          // Union existing saved scope + step refs into current selection so a partial re-selection NEVER truncates saved steps!
+          const validSh = new Set((pg.geo && pg.geo.shapes ? pg.geo.shapes : []).map(s => s.id));
+          const validPt = new Set(Object.keys((pg.geo && pg.geo.points) || {}));
+          const validIt = new Set((pg.items || []).filter(isReplayableItem).map(it => it.id));
+          const validSk = new Set((pg.strokes || []).map(sk => sk.id));
+          const savedRefs = collectStepRefs(matchedSaved.steps);
+          if (!scopeShapes) scopeShapes = new Set();
+          if (!scopePoints) scopePoints = new Set();
+          for (const id of (matchedSaved.shapeIds || [])) if (validSh.has(id)) scopeShapes.add(id);
+          for (const id of savedRefs.shapes) if (validSh.has(id)) scopeShapes.add(id);
+          for (const id of (matchedSaved.pointIds || [])) if (validPt.has(id)) scopePoints.add(id);
+          for (const id of savedRefs.points) if (validPt.has(id)) scopePoints.add(id);
+          const mergedIt = new Set(scopeItems || []);
+          for (const id of (matchedSaved.itemIds || [])) if (validIt.has(id)) mergedIt.add(id);
+          for (const id of savedRefs.items) if (validIt.has(id)) mergedIt.add(id);
+          scopeItems = mergedIt.size ? mergedIt : null;
+          const mergedSk = new Set(scopeStrokes || []);
+          for (const id of (matchedSaved.strokeIds || [])) if (validSk.has(id)) mergedSk.add(id);
+          for (const id of savedRefs.strokes) if (validSk.has(id)) mergedSk.add(id);
+          scopeStrokes = mergedSk.size ? mergedSk : null;
+          for (const sh of (pg.geo && pg.geo.shapes ? pg.geo.shapes : [])) {
+            if (scopeShapes.has(sh.id) && Array.isArray(sh.pts)) sh.pts.forEach(pid => scopePoints.add(pid));
+          }
+          scopeKey = 'sel_' + [...scopeShapes].sort().join(',') + '|' + [...scopePoints].sort().join(',');
+          if (scopeItems || scopeStrokes) {
+            scopeKey += '|I:' + (scopeItems ? [...scopeItems].sort().join(',') : '') + '|S:' + (scopeStrokes ? [...scopeStrokes].sort().join(',') : '');
+          }
+        }
+        const steps = reconcileSavedScript(pg.geo, matchedSaved ? matchedSaved.steps : null, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes);
         const scriptKey = matchedSaved ? matchedSaved.key : scopeKey;
-        const title = (matchedSaved && matchedSaved.title) || buildFigureTitle(pg.geo, scopeShapes, scopePoints, existing.length + 1);
+        const title = (matchedSaved && matchedSaved.title) || buildFigureTitle(pg.geo, scopeShapes, scopePoints, existing.length + 1, scopeItems, scopeStrokes);
 
         // Drop any whole-page 'all' replay if user now adds a scoped figure script
         const kept = existing.filter(x => !(x.page === pageIdx && x.scopeKey === 'all'));
@@ -1608,9 +2093,13 @@
           speed: (matchedSaved && typeof matchedSaved.speed === 'number') ? matchedSaved.speed : 1,
           pauseBetween: !!(matchedSaved && matchedSaved.pauseBetween),
           followCamera: matchedSaved && typeof matchedSaved.followCamera === 'boolean' ? matchedSaved.followCamera : true,
+          springCamera: matchedSaved && typeof matchedSaved.springCamera === 'boolean' ? matchedSaved.springCamera : true,
           autoOrbitAfter: !!(matchedSaved && matchedSaved.autoOrbitAfter),
+          stylePreset: (matchedSaved && matchedSaved.stylePreset) || '',
           scopeShapes,
           scopePoints,
+          scopeItems,
+          scopeStrokes,
           scopeKey,
           steps
         };
@@ -1628,8 +2117,19 @@
         return;
       }
 
-      const matchedSaved = findSavedScriptForScope(pg, 'all', null, null);
-      const steps = reconcileSavedScript(pg.geo, matchedSaved ? matchedSaved.steps : null, null, null);
+      // If page has saved figure scripts (e.g. "Hình A1B1D1E1F1") and no custom 'all' script, open the most recent saved script directly!
+      const pageSavedMap = loadSavedScriptsMap(pg);
+      const pageSavedList = Object.values(pageSavedMap).filter(e => e && e.key && Array.isArray(e.steps) && e.steps.length);
+      if (pageSavedList.length > 1) savedShelfOpen = true;
+      if (!pageSavedMap.all && pageSavedList.length > 0) {
+        pageSavedList.sort((a, b2) => (b2.updatedAt || 0) - (a.updatedAt || 0));
+        replayViewMode = 'full';
+        this.openSavedScript(pageSavedList[0].key, pageIdx);
+        return;
+      }
+
+      const matchedSaved = findSavedScriptForScope(pg, 'all', null, null, null, null);
+      const steps = reconcileSavedScript(pg.geo, matchedSaved ? matchedSaved.steps : null, null, null, pg, null, null);
       const session = {
         id: 'rp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
         title: (matchedSaved && matchedSaved.title) || 'Cả trang',
@@ -1642,9 +2142,13 @@
         speed: (matchedSaved && typeof matchedSaved.speed === 'number') ? matchedSaved.speed : 1,
         pauseBetween: !!(matchedSaved && matchedSaved.pauseBetween),
         followCamera: matchedSaved && typeof matchedSaved.followCamera === 'boolean' ? matchedSaved.followCamera : true,
+        springCamera: matchedSaved && typeof matchedSaved.springCamera === 'boolean' ? matchedSaved.springCamera : true,
         autoOrbitAfter: !!(matchedSaved && matchedSaved.autoOrbitAfter),
+        stylePreset: (matchedSaved && matchedSaved.stylePreset) || '',
         scopeShapes: null,
         scopePoints: null,
+        scopeItems: null,
+        scopeStrokes: null,
         scopeKey: 'all',
         steps
       };
@@ -1674,13 +2178,23 @@
         return;
       }
 
-      let scopeShapes = null, scopePoints = null, scopeKey = 'all';
+      let scopeShapes = null, scopePoints = null, scopeItems = null, scopeStrokes = null, scopeKey = 'all';
       if (key !== 'all') {
         const validSh = new Set(pg.geo.shapes.map(s => s.id));
         const validPt = new Set(Object.keys(pg.geo.points || {}));
+        const validIt = new Set((pg.items || []).filter(isReplayableItem).map(it => it.id));
+        const validSk = new Set((pg.strokes || []).map(sk => sk.id));
+        const stepRefs = collectStepRefs(entry.steps);
         scopeShapes = new Set((entry.shapeIds || []).filter(id => validSh.has(id)));
+        for (const id of stepRefs.shapes) if (validSh.has(id)) scopeShapes.add(id);
         scopePoints = new Set((entry.pointIds || []).filter(id => validPt.has(id)));
-        // Also include shapes belonging to the same 3D solidGroup if present
+        for (const id of stepRefs.points) if (validPt.has(id)) scopePoints.add(id);
+        const itSet = new Set((entry.itemIds || []).filter(id => validIt.has(id)));
+        for (const id of stepRefs.items) if (validIt.has(id)) itSet.add(id);
+        const skSet = new Set((entry.strokeIds || []).filter(id => validSk.has(id)));
+        for (const id of stepRefs.strokes) if (validSk.has(id)) skSet.add(id);
+        scopeItems = itSet.size ? itSet : null;
+        scopeStrokes = skSet.size ? skSet : null;
         if (Array.isArray(entry.solidGroups) && entry.solidGroups.length) {
           const sgSet = new Set(entry.solidGroups);
           for (const sh of pg.geo.shapes) {
@@ -1694,13 +2208,16 @@
           if (scopeShapes.has(sh.id)) sh.pts.forEach(pid => scopePoints.add(pid));
         }
         scopeKey = 'sel_' + [...scopeShapes].sort().join(',') + '|' + [...scopePoints].sort().join(',');
+        if (scopeItems || scopeStrokes) {
+          scopeKey += '|I:' + (scopeItems ? [...scopeItems].sort().join(',') : '') + '|S:' + (scopeStrokes ? [...scopeStrokes].sort().join(',') : '');
+        }
       }
 
-      const steps = reconcileSavedScript(pg.geo, entry.steps, scopeShapes, scopePoints);
+      const steps = reconcileSavedScript(pg.geo, entry.steps, scopeShapes, scopePoints, pg, scopeItems, scopeStrokes);
       const kept = key === 'all' ? [] : existing.filter(x => !(x.page === pageIdx && x.scopeKey === 'all'));
       const session = {
         id: 'rp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 5),
-        title: entry.title || buildFigureTitle(pg.geo, scopeShapes, scopePoints, kept.length + 1),
+        title: entry.title || buildFigureTitle(pg.geo, scopeShapes, scopePoints, kept.length + 1, scopeItems, scopeStrokes),
         scriptKey: entry.key,
         active: true,
         page: pageIdx,
@@ -1710,9 +2227,13 @@
         speed: typeof entry.speed === 'number' ? entry.speed : 1,
         pauseBetween: !!entry.pauseBetween,
         followCamera: typeof entry.followCamera === 'boolean' ? entry.followCamera : true,
+        springCamera: typeof entry.springCamera === 'boolean' ? entry.springCamera : true,
         autoOrbitAfter: !!entry.autoOrbitAfter,
+        stylePreset: entry.stylePreset || '',
         scopeShapes,
         scopePoints,
+        scopeItems,
+        scopeStrokes,
         scopeKey,
         steps
       };
@@ -1779,9 +2300,53 @@
 
     save() {
       const b = getBoard();
-      const ok = persistAllActiveScripts(b, true);
+      const ok = persistAllActiveScripts(b, true, true);
       renderReplayUI();
       return ok;
+    },
+
+    undoScriptChange() {
+      const b = getBoard();
+      const r = getFocusedReplay(b);
+      if (!b || !r || typeof b.getScriptBackups !== 'function' || typeof b.restoreScriptBackup !== 'function') return false;
+      const pg = b.doc.pages[r.page];
+      if (!pg) return false;
+      const curKey = r.scriptKey || r.scopeKey || 'all';
+      const ownBackups = b.getScriptBackups(r.page, curKey);
+      if (ownBackups.length) {
+        const restored = b.restoreScriptBackup(r.page, curKey, 0);
+        if (!restored) return false;
+        r.steps = reconcileSavedScript(pg.geo, restored.steps, r.scopeShapes, r.scopePoints, pg, r.scopeItems, r.scopeStrokes);
+        if (typeof restored.speed === 'number') r.speed = restored.speed;
+        r.pauseBetween = !!restored.pauseBetween;
+        if (typeof restored.followCamera === 'boolean') r.followCamera = restored.followCamera;
+        if (typeof restored.springCamera === 'boolean') r.springCamera = restored.springCamera;
+        r.autoOrbitAfter = !!restored.autoOrbitAfter;
+        r.stylePreset = restored.stylePreset || '';
+        r.stepIdx = 0;
+        r.stepProgress = 0;
+        r.playing = false;
+        b._replayHiddenCache = null;
+        commitReplayChange(b, r, true);
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Đã khôi phục phiên bản trước (${r.steps.length} bước)!`, 'success');
+        }
+        return true;
+      }
+      // Fallback: restore most recently deleted/modified sibling script on this page
+      const pageBackups = b.getScriptBackups(r.page);
+      if (pageBackups.length) {
+        const target = pageBackups[0];
+        const restored = b.restoreScriptBackup(r.page, target.key, 0);
+        if (restored) {
+          this.openSavedScript(target.key, r.page);
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Đã khôi phục kịch bản "${target.title || target.key}"!`, 'success');
+          }
+          return true;
+        }
+      }
+      return false;
     },
 
     addHiddenLines() {
@@ -1945,21 +2510,50 @@
       renderReplayUI();
     },
 
-    applyPreset(mode) {
+    applyPreset(mode, force = false) {
       const b = getBoard();
       const r = getFocusedReplay(b);
-      if (!b || !r) return;
+      if (!b || !r) return false;
       const pg = b.doc.pages[r.page];
-      if (!pg) return;
+      if (!pg) return false;
+      if ((mode === 'orig' || mode === 'solidFirst') && !force && isScriptCustomized(r, pg)) {
+        const label = mode === 'orig' ? 'khôi phục thứ tự Gốc' : 'áp dụng mẫu Khối→Nét';
+        if (!window.confirm(`Bạn có chắc muốn ${label}? Các thiết lập bước hiện tại sẽ được sao lưu (có thể bấm ↶ để hoàn tác).`)) {
+          return false;
+        }
+      }
+      const prevCopy = JSON.parse(JSON.stringify(r.steps));
+      const curKey = r.scriptKey || r.scopeKey || 'all';
+      if (typeof b._pushScriptBackup === 'function' && prevCopy.length) {
+        b._pushScriptBackup(pg.id, curKey, {
+          key: curKey,
+          title: r.title || '',
+          shapeIds: r.scopeShapes ? [...r.scopeShapes] : null,
+          pointIds: r.scopePoints ? [...r.scopePoints] : null,
+          itemIds: r.scopeItems ? [...r.scopeItems] : null,
+          strokeIds: r.scopeStrokes ? [...r.scopeStrokes] : null,
+          solidGroups: extractSolidGroups(pg.geo, r.scopeShapes, r.scopePoints),
+          speed: r.speed || 1,
+          pauseBetween: !!r.pauseBetween,
+          followCamera: r.followCamera !== false,
+          springCamera: r.springCamera !== false,
+          autoOrbitAfter: !!r.autoOrbitAfter,
+          stylePreset: r.stylePreset || '',
+          steps: prevCopy,
+          updatedAt: Date.now()
+        }, 'preset_' + mode);
+      }
+      const hadBoard = r.steps.some(st => st.kind === 'item' || st.kind === 'stroke' || (st.items && st.items.some(it => it.kind === 'item' || it.kind === 'stroke')));
       if (mode === 'orig') {
-        r.steps = buildDefaultSteps(pg.geo, r.scopeShapes, r.scopePoints);
+        r.steps = buildDefaultSteps(pg.geo, r.scopeShapes, r.scopePoints, pg, r.scopeItems, r.scopeStrokes, { includeBoardContent: hadBoard });
+        r.stylePreset = '';
       } else if (mode === 'solidFirst') {
-        r.steps = buildSolidFirstPreset(pg.geo, r.scopeShapes, r.scopePoints);
+        r.steps = buildSolidFirstPreset(pg.geo, r.scopeShapes, r.scopePoints, pg, r.scopeItems, r.scopeStrokes, { includeBoardContent: hadBoard });
       } else if (mode === 'ungroup') {
         const out = [];
         for (const st of r.steps) {
           if (st.items && st.items.length > 1) {
-            st.items.forEach((it, k) => out.push({ id: `${st.id}_${k}`, kind: it.kind, refId: it.refId, rev: !!it.rev, enabled: st.enabled !== false }));
+            st.items.forEach((it, k) => out.push({ ...st, id: `${st.id}_${k}`, kind: it.kind, refId: it.refId, items: undefined, customTitle: undefined, rev: !!(it.rev ?? st.rev), enabled: st.enabled !== false }));
           } else out.push(st);
         }
         r.steps = out;
@@ -1967,8 +2561,104 @@
       r.stepIdx = 0;
       r.stepProgress = 0;
       r.playing = false;
+      b._replayHiddenCache = null;
+      persistScript(b, false, r, { _backupPrev: true, _backupReason: 'preset_' + mode });
+      commitReplayChange(b, r, true);
+      return true;
+    },
+
+    applyStylePreset(presetId) {
+      const b = getBoard();
+      const r = getFocusedReplay(b);
+      const mfx = getMotionFX();
+      if (!b || !r || !mfx || typeof mfx.applyStylePresetToSteps !== 'function') return false;
+      const pg = b.doc.pages[r.page];
+      if (!pg) return false;
+      const curKey = r.scriptKey || r.scopeKey || 'all';
+      if (typeof b._pushScriptBackup === 'function' && Array.isArray(r.steps) && r.steps.length) {
+        b._pushScriptBackup(pg.id, curKey, {
+          key: curKey,
+          title: r.title || '',
+          shapeIds: r.scopeShapes ? [...r.scopeShapes] : null,
+          pointIds: r.scopePoints ? [...r.scopePoints] : null,
+          itemIds: r.scopeItems ? [...r.scopeItems] : null,
+          strokeIds: r.scopeStrokes ? [...r.scopeStrokes] : null,
+          solidGroups: extractSolidGroups(pg.geo, r.scopeShapes, r.scopePoints),
+          speed: r.speed || 1,
+          pauseBetween: !!r.pauseBetween,
+          followCamera: r.followCamera !== false,
+          springCamera: r.springCamera !== false,
+          autoOrbitAfter: !!r.autoOrbitAfter,
+          stylePreset: r.stylePreset || '',
+          steps: JSON.parse(JSON.stringify(r.steps)),
+          updatedAt: Date.now()
+        }, 'style_' + presetId);
+      }
+      const res = mfx.applyStylePresetToSteps(presetId, r.steps, pg.geo, pg);
+      r.steps = res.steps;
+      if (res.replayMeta) {
+        r.stylePreset = res.replayMeta.stylePreset || presetId;
+        if (typeof res.replayMeta.followCamera === 'boolean') r.followCamera = res.replayMeta.followCamera;
+        if (typeof res.replayMeta.springCamera === 'boolean') r.springCamera = res.replayMeta.springCamera;
+        if (typeof res.replayMeta.autoOrbitAfter === 'boolean') r.autoOrbitAfter = res.replayMeta.autoOrbitAfter;
+      }
+      r.stepIdx = 0;
+      r.stepProgress = 0;
+      r.playing = false;
+      b._replayHiddenCache = null;
+      persistScript(b, true, r, { _backupPrev: true, _backupReason: 'style_' + presetId });
+      commitReplayChange(b, r, true);
+      return true;
+    },
+
+    toggleIncludeBoardContent() {
+      const b = getBoard();
+      const r = getFocusedReplay(b);
+      if (!b || !r) return false;
+      const pg = b.doc.pages[r.page];
+      if (!pg) return false;
+
+      const hasBoardSteps = r.steps.some(st => st.kind === 'item' || st.kind === 'stroke' || (st.items && st.items.some(it => it.kind === 'item' || it.kind === 'stroke')));
+      if (hasBoardSteps) {
+        const next = [];
+        for (const st of r.steps) {
+          if (st.kind === 'item' || st.kind === 'stroke') continue;
+          if (st.items && st.items.length) {
+            const kept = st.items.filter(it => it.kind !== 'item' && it.kind !== 'stroke');
+            if (!kept.length) continue;
+            if (kept.length === 1) next.push({ ...st, kind: kept[0].kind, refId: kept[0].refId, items: undefined, rev: !!kept[0].rev });
+            else next.push({ ...st, items: kept });
+          } else {
+            next.push(st);
+          }
+        }
+        r.steps = next;
+        r.scopeItems = null;
+        r.scopeStrokes = null;
+      } else {
+        const boardSteps = buildBoardContentSteps(pg, null, null);
+        if (!boardSteps.length) return false;
+        const existingItemIds = new Set();
+        const existingStrokeIds = new Set();
+        for (const st of r.steps) {
+          if (st.kind === 'item') existingItemIds.add(st.refId);
+          if (st.kind === 'stroke') existingStrokeIds.add(st.refId);
+        }
+        for (const st of boardSteps) {
+          if (st.kind === 'item' && !existingItemIds.has(st.refId)) r.steps.push(st);
+          else if (st.kind === 'stroke' && !existingStrokeIds.has(st.refId)) r.steps.push(st);
+        }
+      }
+      const activeLen = r.steps.filter(s => s.enabled !== false).length;
+      if (r.stepIdx >= activeLen) {
+        r.stepIdx = Math.max(0, activeLen - 1);
+        r.stepProgress = activeLen ? 1 : 0;
+      }
+      r.playing = false;
+      b._replayHiddenCache = null;
       persistScript(b, false, r);
       commitReplayChange(b, r, true);
+      return !hasBoardSteps;
     },
 
     toggleFollowCamera() {
@@ -2003,7 +2693,7 @@
         const pageIdx = b.currentPage();
         const pg0 = b.doc.pages[pageIdx];
         if (!pg0 || !pg0.geo) return null;
-        const steps = buildDefaultSteps(pg0.geo, null, null);
+        const steps = buildDefaultSteps(pg0.geo, null, null, pg0, null, null);
         if (!steps.length) return null;
         r = {
           id: 'rp_export_tmp',
@@ -2017,6 +2707,7 @@
           speed: 1,
           pauseBetween: false,
           followCamera: true,
+          springCamera: true,
           autoOrbitAfter: false,
           scopeShapes: null,
           scopePoints: null,
@@ -2053,6 +2744,29 @@
           for (const pid of (sh.pts || [])) {
             const p = coords.get(pid);
             if (p) addPt(p.x, p.y, 8);
+          }
+        }
+      }
+      // Include bounding boxes of item/stroke steps if present
+      const itemMap = new Map((pg.items || []).map(x => [x.id, x]));
+      const strokeMap = new Map((pg.strokes || []).map(x => [x.id, x]));
+      for (const st of activeSteps) {
+        const its = (st.items && st.items.length) ? st.items : [st];
+        for (const it of its) {
+          if (it.kind === 'item') {
+            const obj = itemMap.get(it.refId);
+            if (obj) {
+              const bb = K && typeof K.z2 === 'function' ? K.z2(obj) : { x0: obj.x, y0: obj.y, x1: obj.x + (obj.w || 60), y1: obj.y + (obj.h || 32) };
+              addPt(bb.x0, bb.y0, 10);
+              addPt(bb.x1, bb.y1, 10);
+            }
+          } else if (it.kind === 'stroke') {
+            const sk = strokeMap.get(it.refId);
+            if (sk && Array.isArray(sk.pts)) {
+              for (let k = 0; k < sk.pts.length; k += 3) {
+                addPt(sk.pts[k], sk.pts[k + 1], Math.max(8, sk.width || 4));
+              }
+            }
           }
         }
       }

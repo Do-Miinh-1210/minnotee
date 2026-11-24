@@ -166,6 +166,79 @@
     } catch (_) {}
   }
 
+  function collectGeoScriptsJson() {
+    try {
+      const out = {};
+      let totalLen = 0;
+      const MAX_TOTAL = 2 * 1024 * 1024;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !(k.startsWith('mn_geo_scripts_') || k.startsWith('mn_geo_script_'))) continue;
+        const v = localStorage.getItem(k);
+        if (!v || v === '{}' || v === '[]') continue;
+        if (totalLen + v.length > MAX_TOTAL) continue;
+        out[k] = v;
+        totalLen += v.length;
+      }
+      return Object.keys(out).length ? JSON.stringify(out) : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function mergeGeoScriptsJson(diskGeoScriptsJson) {
+    if (!diskGeoScriptsJson) return;
+    try {
+      const diskBundle = JSON.parse(diskGeoScriptsJson);
+      if (!diskBundle || typeof diskBundle !== 'object' || Array.isArray(diskBundle)) return;
+      for (const [lsKey, rawVal] of Object.entries(diskBundle)) {
+        if (!lsKey || typeof rawVal !== 'string' || !rawVal) continue;
+        if (!(lsKey.startsWith('mn_geo_scripts_') || lsKey.startsWith('mn_geo_script_'))) continue;
+        const curRaw = localStorage.getItem(lsKey);
+        if (!curRaw) {
+          localStorage.setItem(lsKey, rawVal);
+          continue;
+        }
+        // Merge per-script maps by newest updatedAt so neither disk nor localStorage loses any script
+        if (lsKey.startsWith('mn_geo_scripts_') && !lsKey.startsWith('mn_geo_scripts_bak_') && !lsKey.startsWith('mn_geo_scripts_del_')) {
+          try {
+            const diskMap = JSON.parse(rawVal);
+            const curMap = JSON.parse(curRaw);
+            if (diskMap && typeof diskMap === 'object' && curMap && typeof curMap === 'object') {
+              const merged = Object.assign({}, curMap);
+              let changed = false;
+              for (const [sk, entry] of Object.entries(diskMap)) {
+                if (!entry || typeof entry !== 'object' || !Array.isArray(entry.steps) || !entry.steps.length) continue;
+                const curEntry = merged[sk];
+                if (!curEntry || !Array.isArray(curEntry.steps) || !curEntry.steps.length || ((entry.updatedAt || 0) > (curEntry.updatedAt || 0))) {
+                  merged[sk] = entry;
+                  changed = true;
+                }
+              }
+              if (changed) localStorage.setItem(lsKey, JSON.stringify(merged));
+            }
+          } catch (_) {}
+        } else if (lsKey.startsWith('mn_geo_scripts_del_')) {
+          try {
+            const diskDel = JSON.parse(rawVal);
+            const curDel = JSON.parse(curRaw);
+            if (diskDel && typeof diskDel === 'object' && curDel && typeof curDel === 'object') {
+              const merged = Object.assign({}, curDel);
+              let changed = false;
+              for (const [sk, ts] of Object.entries(diskDel)) {
+                if ((Number(ts) || 0) > (Number(merged[sk]) || 0)) {
+                  merged[sk] = Number(ts) || 0;
+                  changed = true;
+                }
+              }
+              if (changed) localStorage.setItem(lsKey, JSON.stringify(merged));
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   function safeParseTabs(json) {
     try {
       const obj = JSON.parse(json || 'null');
@@ -196,6 +269,9 @@
       count++;
     }
 
+    if (sessionObj && sessionObj.geoScriptsJson) {
+      mergeGeoScriptsJson(sessionObj.geoScriptsJson);
+    }
     if (sessionObj && sessionObj.tabsJson) {
       const curTabs = safeParseTabs(localStorage.getItem('tabs'));
       const diskTabs = safeParseTabs(sessionObj.tabsJson);
@@ -273,9 +349,12 @@
           .filter(f => !diskKeys.has(`${f.dir}/${f.name}`))
           .map(f => ({ dir: f.dir, name: f.name, modified: f.modified }));
 
-        // 4. Khôi phục danh sách tab & sheet đang mở (tabs + places) nếu bị mất hoặc sau cập nhật/tắt ngang
+        // 4. Khôi phục danh sách tab & sheet đang mở (tabs + places) và toàn bộ kịch bản hình (mn_geo_scripts_*) nếu bị mất hoặc sau cập nhật/tắt ngang
         const recovery = res.recovery || {};
         const session = res.session || null;
+        if (session && session.geoScriptsJson) {
+          mergeGeoScriptsJson(session.geoScriptsJson);
+        }
         if (session && session.tabsJson) {
           const curTabs = safeParseTabs(localStorage.getItem('tabs'));
           const diskTabs = safeParseTabs(session.tabsJson);
@@ -416,6 +495,7 @@
     onSessionSaved(reason, overrideMeta) {
       const tabsJson = localStorage.getItem('tabs') || '';
       const placesJson = localStorage.getItem('places') || '{}';
+      const geoScriptsJson = collectGeoScriptsJson();
       const nowMs = Date.now();
       try { localStorage.setItem('mn_session_saved_ms', String(nowMs)); } catch (_) {}
 
@@ -426,6 +506,7 @@
         callHost('PERSIST_SAVE_SESSION', {
           tabsJson,
           placesJson,
+          geoScriptsJson,
           tabCount: st ? (st.tabCount || 1) : 1,
           sheetCount: st ? (st.sheetCount || 1) : 1,
           activeTabName: st ? (st.activeTabName || '') : '',

@@ -1697,6 +1697,7 @@ namespace MinNote
                         string reqId = GetJsonString(root, "id");
                         string tabsJson = GetJsonString(root, "tabsJson");
                         string placesJson = GetJsonString(root, "placesJson");
+                        string geoScriptsJson = GetJsonString(root, "geoScriptsJson");
                         int tabCount = root.TryGetProperty("tabCount", out var tcEl) && tcEl.TryGetInt32(out var tc) ? tc : 0;
                         int sheetCount = root.TryGetProperty("sheetCount", out var scEl) && scEl.TryGetInt32(out var sc) ? sc : 1;
                         string activeTabName = GetJsonString(root, "activeTabName");
@@ -1705,7 +1706,7 @@ namespace MinNote
                         {
                             try
                             {
-                                NotebookBackupService.Instance.SaveSessionSnapshot(tabsJson, placesJson, tabCount, sheetCount, activeTabName, reason);
+                                NotebookBackupService.Instance.SaveSessionSnapshot(tabsJson, placesJson, tabCount, sheetCount, activeTabName, reason, geoScriptsJson);
                                 string hhmm = DateTime.Now.ToString("HH:mm:ss");
                                 await Dispatcher.InvokeAsync(() =>
                                 {

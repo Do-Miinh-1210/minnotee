@@ -61,6 +61,9 @@ namespace MinNote.Services
         [JsonPropertyName("placesJson")]
         public string PlacesJson { get; set; } = "";
 
+        [JsonPropertyName("geoScriptsJson")]
+        public string GeoScriptsJson { get; set; } = "";
+
         [JsonPropertyName("tabCount")]
         public int TabCount { get; set; }
 
@@ -551,13 +554,24 @@ namespace MinNote.Services
             int tabCount,
             int sheetCount,
             string activeTabName,
-            string reason)
+            string reason,
+            string? geoScriptsJson = null)
         {
             EnsureDirectoriesExist();
+            string resolvedGeoScripts = geoScriptsJson ?? "";
+            if (string.IsNullOrWhiteSpace(resolvedGeoScripts) || resolvedGeoScripts == "{}")
+            {
+                var prevSnap = ReadSessionSnapshot();
+                if (!string.IsNullOrWhiteSpace(prevSnap?.GeoScriptsJson) && prevSnap.GeoScriptsJson != "{}")
+                {
+                    resolvedGeoScripts = prevSnap.GeoScriptsJson;
+                }
+            }
             var snap = new SessionSnapshotData
             {
                 TabsJson = tabsJson ?? "",
                 PlacesJson = placesJson ?? "",
+                GeoScriptsJson = resolvedGeoScripts,
                 TabCount = tabCount,
                 SheetCount = sheetCount,
                 ActiveTabName = activeTabName ?? "",
