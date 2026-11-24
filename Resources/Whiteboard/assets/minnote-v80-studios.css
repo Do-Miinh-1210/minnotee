@@ -416,7 +416,8 @@ html.dark {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 6;
+  /* Giữ video dưới thanh công cụ nổi (.float-layer z4), ô sửa chữ (z5), thanh chọn/toast (z6) nhưng trên canvas */
+  z-index: 3;
   overflow: hidden;
 }
 
