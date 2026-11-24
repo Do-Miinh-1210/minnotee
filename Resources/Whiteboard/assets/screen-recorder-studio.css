@@ -8,12 +8,12 @@
 
 .mnrec-root {
   --mnrec-bg: #ffffff;
-  --mnrec-bg-soft: #f6f5f9;
-  --mnrec-bg-card: #faf9fc;
-  --mnrec-border: rgba(23, 22, 29, 0.12);
-  --mnrec-ink: #17161d;
-  --mnrec-ink-2: #5b5869;
-  --mnrec-ink-3: #8a8699;
+  --mnrec-bg-soft: #f1f5f9;
+  --mnrec-bg-card: #f8fafc;
+  --mnrec-border: rgba(15, 23, 42, 0.12);
+  --mnrec-ink: #0f172a;
+  --mnrec-ink-2: #475569;
+  --mnrec-ink-3: #64748b;
   --mnrec-accent: #2563eb;
   --mnrec-accent-dark: #1d4ed8;
   --mnrec-accent-soft: rgba(37, 99, 235, 0.12);
@@ -25,16 +25,16 @@
 }
 
 html.dark .mnrec-root {
-  --mnrec-bg: #181820;
-  --mnrec-bg-soft: #22212d;
-  --mnrec-bg-card: #1f1e29;
-  --mnrec-border: rgba(255, 255, 255, 0.11);
-  --mnrec-ink: #f3f2f8;
-  --mnrec-ink-2: #b5b1c7;
-  --mnrec-ink-3: #837f96;
+  --mnrec-bg: #0f172a;
+  --mnrec-bg-soft: #1e293b;
+  --mnrec-bg-card: #111827;
+  --mnrec-border: rgba(148, 163, 184, 0.18);
+  --mnrec-ink: #f8fafc;
+  --mnrec-ink-2: #cbd5e1;
+  --mnrec-ink-3: #94a3b8;
   --mnrec-accent: #3b82f6;
   --mnrec-accent-dark: #2563eb;
-  --mnrec-accent-soft: rgba(59, 130, 246, 0.18);
+  --mnrec-accent-soft: rgba(59, 130, 246, 0.20);
   --mnrec-danger: #f87171;
   --mnrec-danger-soft: rgba(248, 113, 113, 0.16);
   --mnrec-success: #34d399;
@@ -157,28 +157,33 @@ html.dark .mnrec-root {
    Ultra-compact Icon-Only Floating Control Bar (Setup & Web Live Pill)
    ============================================================================ */
 .mnrec-bar {
-  position: fixed;
+  position: fixed !important;
   z-index: 960;
   transform: translateX(-50%);
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
   gap: 4px;
-  width: max-content;
-  max-width: calc(100vw - 24px);
+  height: 44px !important;
+  max-height: 48px !important;
+  width: fit-content !important;
+  max-width: calc(100vw - 24px) !important;
+  flex: none !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
   padding: 5px 6px;
   background: rgba(255, 255, 255, 0.96);
   color: var(--mnrec-ink);
   border: 1px solid var(--mnrec-border);
   border-radius: 999px;
-  box-shadow: 0 10px 28px -8px rgba(15, 14, 24, 0.34), 0 2px 6px rgba(15, 14, 24, 0.10);
+  box-shadow: 0 10px 28px -8px rgba(15, 23, 42, 0.34), 0 2px 6px rgba(15, 23, 42, 0.10);
   pointer-events: auto;
   user-select: none;
 }
 
 html.dark .mnrec-bar {
-  background: rgba(24, 24, 34, 0.96);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
 }
 
 .mnrec-bar button {
@@ -231,7 +236,7 @@ html.dark .mnrec-bar {
 }
 
 .mnrec-seg .mnrec-ico-btn:hover {
-  background: rgba(108, 92, 245, 0.08);
+  background: rgba(37, 99, 235, 0.10);
   color: var(--mnrec-ink);
 }
 
@@ -311,7 +316,8 @@ html.dark .mnrec-bar {
 
 .mnrec-bar.live.mini {
   padding: 0 12px;
-  height: 34px;
+  height: 36px !important;
+  max-height: 40px !important;
   cursor: pointer;
 }
 
@@ -671,7 +677,7 @@ html.dark .mnrec-track {
 }
 
 .mnrec-card:hover {
-  border-color: rgba(108, 92, 245, 0.45);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
 .mnrec-card.on {
@@ -717,7 +723,7 @@ html.dark .mnrec-track {
 
 .mnrec-btn:hover {
   background: var(--mnrec-bg-card);
-  border-color: rgba(108, 92, 245, 0.45);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 
 .mnrec-btn.primary {
@@ -865,7 +871,7 @@ html.dark .mnrec-track {
 
 .mnrec-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #7c3aed, #10b981);
+  background: linear-gradient(90deg, #2563eb, #10b981);
   transition: width 0.12s linear;
 }
 

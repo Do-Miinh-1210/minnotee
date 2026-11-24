@@ -1,21 +1,26 @@
 # Build MinNote trên Windows, đóng bộ cài, cài thử + chạy thử, rồi tạo bản phát hành GitHub.
-# App kiểm tra cập nhật qua /releases/latest và tải MinNote_Setup.exe, nên bản phát hành
-# chỉ được tạo khi mọi bước kiểm tra ở dưới đều đạt.
+# App kiểm tra cập nhật qua /releases/latest và xác thực tệp MinNote_Setup.exe, nên bản phát hành
+# chỉ được tạo khi mọi bước build + cài thử + chạy thử ở dưới đều đạt.
 #
-# Kích hoạt: đẩy tag dạng v0.0.5.6 (phải khớp <Version> trong MinNote.csproj),
-# hoặc chạy tay trong tab Actions (workflow_dispatch) với tag đó.
+# Kích hoạt tự động:
+# - Push lên nhánh `main`: tự đọc <Version> trong MinNote.csproj -> TAG=v<Version>.
+#   Nếu Release v<Version> đã có sẵn MinNote_Setup.exe -> bỏ qua ngay (~5 giây).
+#   Nếu chưa có -> tự động build, smoke test, tạo tag v<Version> và phát hành GitHub Release (--latest).
+# - Push tag dạng `v*` hoặc chạy tay qua tab Actions (workflow_dispatch).
 # Ghi chú phát hành: release_notes/<tag>.md, dòng đầu dạng <!-- title: ... -->.
 
 name: Build and release MinNote
 
 on:
   push:
+    branches: ['main']
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag cần phát hành, ví dụ v0.0.5.6'
-        required: true
+        description: 'Tag cần phát hành, ví dụ v0.0.7.6 (để trống để tự lấy từ MinNote.csproj)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -28,30 +33,77 @@ jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 40
-    env:
-      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - name: Xác định phiên bản & kiểm tra bản phát hành
+        id: check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = (Select-Xml -Path MinNote.csproj -XPath '//Version').Node.InnerText.Trim()
+          if ([string]::IsNullOrWhiteSpace($ver)) { throw "Không đọc được <Version> trong MinNote.csproj" }
+
+          $tag = if ($env:EVENT_NAME -eq 'workflow_dispatch' -and -not [string]::IsNullOrWhiteSpace($env:INPUT_TAG)) {
+            $env:INPUT_TAG.Trim()
+          } elseif ($env:EVENT_NAME -eq 'push' -and $env:REF_NAME -like 'v*') {
+            $env:REF_NAME.Trim()
+          } else {
+            "v$ver"
+          }
+
+          Write-Host "event=$env:EVENT_NAME ref=$env:REF_NAME tag=$tag csproj=$ver"
+
+          # Khi push lên main hoặc push tag: nếu bản phát hành đã có sẵn MinNote_Setup.exe thì thoát sạch ngay để tránh build trùng lặp
+          if ($env:EVENT_NAME -ne 'workflow_dispatch') {
+            $prevPref = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            $relJson = gh release view $tag --json assets 2>$null
+            $relExit = $LASTEXITCODE
+            $ErrorActionPreference = $prevPref
+            if ($relExit -eq 0 -and $relJson) {
+              $relObj = $relJson | ConvertFrom-Json
+              $hasSetup = @($relObj.assets | Where-Object { $_.name -eq 'MinNote_Setup.exe' -and $_.size -gt 0 }).Count -gt 0
+              if ($hasSetup) {
+                Write-Host "Release $tag đã tồn tại cùng MinNote_Setup.exe — bỏ qua build trùng lặp."
+                "should_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                "app_version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                exit 0
+              }
+            }
+          }
+
+          $issMatch = Select-String -Path installer.iss -Pattern '#define MyAppVersion "(.+)"'
+          $iss = if ($issMatch) { $issMatch.Matches[0].Groups[1].Value.Trim() } else { '' }
+          $svcMatch = Select-String -Path Services/GitHubUpdateService.cs -Pattern '(?:FallbackVersion|CurrentVersion \{ get; set; \}) = "(.+)"'
+          $svc = if ($svcMatch) { $svcMatch.Matches[0].Groups[1].Value.Trim() } else { $ver }
+          Write-Host "version_check: tag=$tag csproj=$ver installer=$iss updateService=$svc"
+          if ("v$ver" -ne $tag -or $iss -ne $ver -or $svc -ne $ver) {
+            throw "Phiên bản không khớp: tag=$tag csproj=$ver installer=$iss updateService=$svc"
+          }
+
+          "should_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "app_version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Cài đặt .NET 10 SDK
+        if: steps.check.outputs.should_release == 'true'
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Kiểm tra phiên bản khớp tag
-        shell: pwsh
-        run: |
-          $ver = (Select-Xml -Path MinNote.csproj -XPath '//Version').Node.InnerText
-          $iss = (Select-String -Path installer.iss -Pattern '#define MyAppVersion "(.+)"').Matches[0].Groups[1].Value
-          $svc = (Select-String -Path Services/GitHubUpdateService.cs -Pattern 'CurrentVersion \{ get; set; \} = "(.+)"').Matches[0].Groups[1].Value
-          Write-Host "tag=$env:TAG csproj=$ver installer=$iss updateService=$svc"
-          if ("v$ver" -ne $env:TAG -or $iss -ne $ver -or $svc -ne $ver) { throw "Phiên bản không khớp tag $env:TAG" }
-          if (-not (Test-Path "release_notes/$env:TAG.md")) { throw "Thiếu release_notes/$env:TAG.md" }
-          "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
       - name: Build app (self-contained)
+        if: steps.check.outputs.should_release == 'true'
         run: dotnet publish MinNote.csproj -c Release -r win-x64 --self-contained true -o publish_selfcontained
 
       - name: Đóng bộ cài (Inno Setup)
+        if: steps.check.outputs.should_release == 'true'
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -65,13 +117,17 @@ jobs:
           Get-Item dist/installer/MinNote_Setup.exe | Format-List Name, Length
 
       - name: Lưu bộ cài làm artifact
+        if: steps.check.outputs.should_release == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: MinNote_Setup_${{ env.TAG }}
+          name: MinNote_Setup_${{ steps.check.outputs.tag }}
           path: dist/installer/MinNote_Setup.exe
 
       - name: Cài thử và chạy thử
+        if: steps.check.outputs.should_release == 'true'
         shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.check.outputs.app_version }}
         run: |
           $p = Start-Process dist/installer/MinNote_Setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=','/LOG=install.log' -Wait -PassThru
           if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 40; throw "Cài đặt lỗi $($p.ExitCode)" }
@@ -89,19 +145,43 @@ jobs:
           Write-Host "MinNote.exe vẫn chạy sau 20 giây"
           Stop-Process -Id $run.Id -Force
 
-      - name: Tạo bản phát hành GitHub
+      - name: Tạo tag & phát hành GitHub Release
+        if: steps.check.outputs.should_release == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.check.outputs.tag }}
         run: |
-          $notes = "release_notes/$env:TAG.md"
-          $first = Get-Content $notes -TotalCount 1 -Encoding utf8
-          $title = if ($first -match '<!--\s*title:\s*(.+?)\s*-->') { $Matches[1] } else { "MinNote $env:TAG" }
-          gh release view $env:TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:TAG dist/installer/MinNote_Setup.exe --clobber
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:TAG
+          $notes = "release_notes/$tag.md"
+          if (Test-Path $notes) {
+            $first = Get-Content $notes -TotalCount 1 -Encoding utf8
+            if ($first -match '<!--\s*title:\s*(.+?)\s*-->') {
+              $title = $Matches[1]
+              Get-Content $notes -Encoding utf8 | Select-Object -Skip 1 | Set-Content body.md -Encoding utf8
+            } else {
+              $title = "MinNote $tag"
+              Copy-Item $notes body.md -Force
+            }
           } else {
-            Get-Content $notes -Encoding utf8 | Select-Object -Skip 1 | Set-Content body.md -Encoding utf8
-            gh release create $env:TAG dist/installer/MinNote_Setup.exe --title "$title" --notes-file body.md --target $env:GITHUB_SHA --latest
+            $title = "MinNote $tag"
+            "Bản phát hành chính thức MinNote $tag." | Set-Content body.md -Encoding utf8
           }
-          if ($LASTEXITCODE -ne 0) { throw "gh release lỗi $LASTEXITCODE" }
+
+          $prevPref = $ErrorActionPreference
+          $ErrorActionPreference = 'Continue'
+          gh release view $tag *> $null
+          $releaseExists = ($LASTEXITCODE -eq 0)
+          $ErrorActionPreference = $prevPref
+
+          if ($releaseExists) {
+            gh release upload $tag dist/installer/MinNote_Setup.exe --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload lỗi $LASTEXITCODE" }
+            gh release edit $tag --title "$title" --notes-file body.md --latest
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit lỗi $LASTEXITCODE" }
+          } else {
+            # Tự động tạo tag $tag gắn với $env:GITHUB_SHA và phát hành Release --latest cùng MinNote_Setup.exe
+            gh release create $tag dist/installer/MinNote_Setup.exe --title "$title" --notes-file body.md --target $env:GITHUB_SHA --latest
+            if ($LASTEXITCODE -ne 0) { throw "gh release create lỗi $LASTEXITCODE" }
+          }

@@ -7,14 +7,17 @@
 /* ==================== ON-CANVAS KATEX PARAMETER CHIPS ==================== */
 #mn-param-canvas-layer {
   position: fixed;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
-  z-index: 860;
+  z-index: 5;
   overflow: hidden;
 }
 
 .mn-katex-param {
-  position: fixed;
+  position: absolute;
   pointer-events: auto;
   display: inline-flex;
   align-items: center;

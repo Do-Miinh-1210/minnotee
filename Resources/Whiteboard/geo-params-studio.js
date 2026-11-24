@@ -344,7 +344,12 @@
     const nm = ptName(geo, ptId);
     const d = pt.def;
     if (d.t === "path") {
-      const map = { circle: "đường tròn", ellipse: "elip", parabola: "parabol", hyperbola: "hypebol", polygon: "đa giác" };
+      const map = {
+        circle: "đường tròn", arc: "cung tròn", arc3: "cung tròn", sector: "hình quạt",
+        ellipse: "elip", parabola: "parabol", hyperbola: "hypebol", annulus: "hình vành khuyên",
+        polygon: "đa giác", plane: "mặt phẳng", cone: "hình nón", cylinder: "hình trụ",
+        sphere: "hình cầu", frustumCone: "hình nón cụt", truncCylinder: "hình trụ cụt", cap: "chỏm cầu"
+      };
       if (d.kind === "circle" && d.pts && d.pts[0]) return `${nm} ∈ (${ptName(geo, d.pts[0])})`;
       return `${nm} ∈ ${map[d.kind] || "đường cong"}`;
     }
@@ -1844,9 +1849,10 @@
     if (!ed || !ed.scroller) return null;
     const sr = ed.scroller.getBoundingClientRect();
     const z = ed.zoom || 1;
+    const ox = Number.isFinite(ed.offsetX) ? ed.offsetX : 0;
     const topOff = typeof ed.pageTop === "function" ? ed.pageTop(pageIdx) : (pageIdx * 1150);
     return {
-      sx: sr.left + x * z - ed.scroller.scrollLeft,
+      sx: sr.left + ox + x * z - ed.scroller.scrollLeft,
       sy: sr.top + (y + topOff) * z - ed.scroller.scrollTop,
       zoom: z,
       scrollerRect: sr
@@ -1872,18 +1878,24 @@
   function renderCanvasChips(force = false) {
     const layer = document.getElementById("mn-param-canvas-layer");
     const ed = getEditor();
-    if (!layer || !ed || !ed.doc || !ed.doc.pages) return;
+    if (!layer || !ed || !ed.doc || !ed.doc.pages || !ed.scroller) return;
 
     if (isLibraryOpen()) {
       layer.style.display = "none";
       return;
     }
+    const sr0 = ed.scroller.getBoundingClientRect();
     layer.style.display = "block";
+    layer.style.left = `${sr0.left}px`;
+    layer.style.top = `${sr0.top}px`;
+    layer.style.width = `${Math.max(0, sr0.width)}px`;
+    layer.style.height = `${Math.max(0, sr0.height)}px`;
 
     const selSet = new Set(STATE.selectedParamIds);
     const keepKeys = new Set();
+    const pages = ed.view && ed.view.pages ? ed.view.pages : ed.doc.pages;
 
-    ed.doc.pages.forEach((pg, pIdx) => {
+    pages.forEach((pg, pIdx) => {
       const params = pg && pg.geo && Array.isArray(pg.geo.params) ? pg.geo.params : [];
       params.forEach((p, idx) => {
         const key = `${pIdx}:${p.id}`;
@@ -1892,8 +1904,8 @@
         const pos = pageToScreen(pIdx, px, py);
         if (!pos) return;
         const sr = pos.scrollerRect;
-        // Skip chips outside visible viewport vertically
-        if (pos.sy < sr.top - 50 || pos.sy > sr.bottom + 20 || pos.sx < sr.left - 240 || pos.sx > sr.right + 40) {
+        // Hide chips cleanly whenever (sx, sy) is outside scroller viewport
+        if (pos.sy < sr.top || pos.sy > sr.bottom || pos.sx < sr.left || pos.sx > sr.right) {
           return;
         }
         keepKeys.add(key);
@@ -1911,8 +1923,8 @@
           layer.appendChild(chip);
         }
 
-        chip.style.left = `${Math.round(pos.sx)}px`;
-        chip.style.top = `${Math.round(pos.sy)}px`;
+        chip.style.left = `${Math.round(pos.sx - sr.left)}px`;
+        chip.style.top = `${Math.round(pos.sy - sr.top)}px`;
         chip.style.transform = `scale(${Math.max(0.7, Math.min(1.5, pos.zoom))})`;
         chip.classList.toggle("selected", selSet.has(p.id));
         chip.classList.toggle("animating", !!p.animating);
@@ -3652,7 +3664,9 @@
     createPointLocus,
     createShapeLocus,
     updateLocusShape,
-    deleteLocusShape
+    deleteLocusShape,
+    pageToScreen,
+    renderCanvasChips
   };
 
   if (document.readyState === "loading") {

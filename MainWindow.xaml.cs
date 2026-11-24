@@ -36,6 +36,7 @@ namespace MinNote
         private RecorderOverlayController? _recOverlay;
         private int _nativeRecStopping;
         private string _nativeRecDocName = "";
+        private UpdateInfo? _availableUpdate;
 
         public static void Log(string msg)
         {
@@ -80,6 +81,45 @@ namespace MinNote
 
             // Khởi chạy ngầm WebView2 ngay từ constructor để loại bỏ hoàn toàn độ trễ
             _ = InitializeWhiteboardAsync();
+
+            // Tự động kiểm tra bản cập nhật mới âm thầm sau 3 giây khi mở cửa sổ
+            Loaded += (_, _) => _ = CheckForUpdateSilentlyOnStartupAsync();
+        }
+
+        private async Task CheckForUpdateSilentlyOnStartupAsync()
+        {
+            try
+            {
+                await Task.Delay(3000);
+                if (!IsLoaded) return;
+
+                var update = await GitHubUpdateService.Instance.CheckForUpdatesAsync();
+                if (update == null || !IsLoaded) return;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (!IsLoaded || !BtnUpdateTop.IsEnabled) return;
+                    _availableUpdate = update;
+                    ApplyAvailableUpdateHighlight(update);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"Silent startup update check skipped: {ex.Message}");
+            }
+        }
+
+        private void ApplyAvailableUpdateHighlight(UpdateInfo update)
+        {
+            BtnUpdateTop.Content = $"Cập nhật v{update.Version}";
+            BtnUpdateTop.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(147, 197, 253));
+            BtnUpdateTop.Background = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(56, 37, 99, 235));
+            BtnUpdateTop.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(165, 59, 130, 246));
+            BtnUpdateTop.BorderThickness = new Thickness(1);
+            BtnUpdateTop.ToolTip = $"Đã có MinNote v{update.Version} trên GitHub (hiện tại v{GitHubUpdateService.Instance.CurrentVersion}) • Bấm để cập nhật ngay";
         }
 
         private static string? FindWhiteboardDirectory()
@@ -1811,10 +1851,16 @@ namespace MinNote
             try
             {
                 BtnUpdateTop.IsEnabled = false;
-                BtnUpdateTop.Content = "Đang kiểm tra…";
-                var update = await GitHubUpdateService.Instance.CheckForUpdatesAsync();
+                UpdateInfo? update = _availableUpdate;
+                if (update == null)
+                {
+                    BtnUpdateTop.Content = "Đang kiểm tra…";
+                    update = await GitHubUpdateService.Instance.CheckForUpdatesAsync();
+                }
+
                 if (update != null)
                 {
+                    _availableUpdate = update;
                     var res = MessageBox.Show(this,
                         $"Đã có phiên bản mới v{update.Version} trên GitHub!\n\nChi tiết:\n{update.ReleaseNotes}\n\nBạn có muốn tải và cài đặt ngay không?",
                         "Cập nhật MinNote",
@@ -1824,10 +1870,14 @@ namespace MinNote
                     if (res == System.Windows.MessageBoxResult.Yes)
                     {
                         BtnUpdateTop.Content = "Đang tải…";
-                        await GitHubUpdateService.Instance.DownloadAndInstallUpdateAsync(update, pct =>
+                        bool ok = await GitHubUpdateService.Instance.DownloadAndInstallUpdateAsync(update, pct =>
                         {
                             Dispatcher.Invoke(() => BtnUpdateTop.Content = $"{pct:F0}%");
                         });
+                        if (!ok)
+                        {
+                            _availableUpdate = null;
+                        }
                     }
                 }
                 else
@@ -1842,7 +1892,14 @@ namespace MinNote
             finally
             {
                 BtnUpdateTop.IsEnabled = true;
-                BtnUpdateTop.Content = "Cập nhật";
+                if (_availableUpdate != null)
+                {
+                    ApplyAvailableUpdateHighlight(_availableUpdate);
+                }
+                else
+                {
+                    BtnUpdateTop.Content = "Cập nhật";
+                }
             }
         }
 

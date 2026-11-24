@@ -373,6 +373,17 @@
         else if (sh.kind === "ray") k = Math.max(0, k);
         newDef = { t: "on", a: sh.pts[0], b: sh.pts[1], k, seg: sh.kind === "segment" };
       }
+    } else if (sh.kind === "locus" && typeof K._mnLocusStrokes === "function") {
+      const stList = K._mnLocusStrokes(geo, sh, coords) || [];
+      let bestK = 0.5, bestD = Infinity;
+      const flat = stList.flatMap(st => st.pts || []);
+      flat.forEach((p, idx) => {
+        const d = Math.hypot(p.x - pos.x, p.y - pos.y);
+        if (d < bestD) { bestD = d; bestK = flat.length > 1 ? idx / (flat.length - 1) : 0.5; }
+      });
+      newDef = { t: "onLocus", locusId: sh.id, k: bestK, deps: sh.pts ? [...sh.pts] : [] };
+    } else if (typeof K.LY === "function" && typeof K.NY === "function" && K.NY(sh.kind)) {
+      newDef = K.LY(sh, coords, pos);
     } else if (sh.kind === "circle" && sh.pts.length >= 2) {
       const O = coords.get(sh.pts[0]);
       if (O) {
@@ -398,15 +409,6 @@
         }
         newDef = { t: "path", kind: "polygon", pts: [...sh.pts], k: total > 1e-6 ? bestL / total : 0 };
       }
-    } else if (sh.kind === "locus" && typeof K._mnLocusStrokes === "function") {
-      const stList = K._mnLocusStrokes(geo, sh, coords) || [];
-      let bestK = 0.5, bestD = Infinity;
-      const flat = stList.flatMap(st => st.pts || []);
-      flat.forEach((p, idx) => {
-        const d = Math.hypot(p.x - pos.x, p.y - pos.y);
-        if (d < bestD) { bestD = d; bestK = flat.length > 1 ? idx / (flat.length - 1) : 0.5; }
-      });
-      newDef = { t: "onLocus", locusId: sh.id, k: bestK, deps: sh.pts ? [...sh.pts] : [] };
     }
 
     if (!newDef) return toast("Loại hình này chưa hỗ trợ ghép điểm trực tiếp.");
@@ -571,7 +573,8 @@
     }
     if (selPts.length === 1 && selShapes.length === 1) {
       const sh = selShapes[0];
-      if (["segment", "line", "ray", "circle", "polygon", "locus"].includes(sh.kind)) {
+      const isPathable = ["segment", "line", "ray", "circle", "polygon", "locus"].includes(sh.kind) || (K && typeof K.NY === "function" && K.NY(sh.kind));
+      if (isPathable) {
         edit.push({ label: `Ghép điểm ${ptName(geo, selPts[0])} vào đường`, hint: "Ràng buộc", run: mergePointToPath });
       }
     }
@@ -589,13 +592,131 @@
     return { pIdx, measure, edit, graph };
   }
 
+  function getPageBounds(pIdx) {
+    const ed = getEditor();
+    const K = getKernel();
+    const pg = getPage(pIdx);
+    const doc = ed && ed.doc;
+    let pageW = 1240;
+    let pageH = 1754;
+    if (K && typeof K.Kt === "function" && doc) {
+      const w = K.Kt(doc);
+      if (Number.isFinite(w) && w > 100) pageW = w;
+    } else if (doc && Number.isFinite(doc.width) && doc.width > 100) {
+      pageW = doc.width;
+    }
+    if (ed && typeof ed.phOf === "function") {
+      const h = ed.phOf(pIdx);
+      if (Number.isFinite(h) && h > 100) pageH = h;
+    } else if (pg && Number.isFinite(pg.height) && pg.height > 100) {
+      pageH = pg.height;
+    }
+    return { pageW, pageH };
+  }
+
+  function computeMeasuredBBox(pg, spec, coords) {
+    const K = getKernel();
+    const geo = pg && pg.geo;
+    if (!geo || !coords) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const addPt = p => {
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    };
+    const addShape = sh => {
+      if (!sh || !Array.isArray(sh.pts)) return;
+      const pts = sh.pts.map(id => coords.get(id)).filter(Boolean);
+      if ((sh.kind === "circle" || sh.kind === "sphere") && pts.length >= 2) {
+        const r = distPx(pts[0], pts[1]);
+        if (Number.isFinite(r) && r > 0) {
+          addPt({ x: pts[0].x - r, y: pts[0].y - r });
+          addPt({ x: pts[0].x + r, y: pts[0].y + r });
+          return;
+        }
+      }
+      if (K && typeof K.pI === "function" && pts.length === sh.pts.length) {
+        const polys = K.pI(sh, pts, geo);
+        if (Array.isArray(polys) && polys.length) {
+          for (const poly of polys) for (const p of poly) addPt(p);
+          return;
+        }
+      }
+      for (const p of pts) addPt(p);
+    };
+
+    if (spec && spec.shapeId) {
+      const sh = (geo.shapes || []).find(s => s.id === spec.shapeId);
+      if (sh) addShape(sh);
+    }
+    if (spec && Array.isArray(spec.pts) && spec.pts.length) {
+      for (const pid of spec.pts) addPt(coords.get(pid));
+    }
+    if (!Number.isFinite(minX)) {
+      const ed = getEditor();
+      if (ed && ed.sel && ed.sel.page !== undefined) {
+        for (const pid of (ed.sel.points || [])) addPt(coords.get(pid));
+        for (const sid of (ed.sel.shapes || [])) {
+          const sh = (geo.shapes || []).find(s => s.id === sid);
+          if (sh) addShape(sh);
+        }
+      }
+    }
+    return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+  }
+
   function addMeasurement(pIdx, spec) {
     const pg = getPage(pIdx);
     if (!pg || !pg.geo) return;
+    const K = getKernel();
     const list = Array.isArray(pg.geo.measurements) ? pg.geo.measurements : [];
     const { id, varName } = makeMeasId(list);
-    const x = 48;
-    const y = 136 + ((pg.geo.params || []).length + list.length) * 42;
+    const { pageW, pageH } = getPageBounds(pIdx);
+    const maxXClamp = Math.max(24, pageW - 190);
+    const maxYClamp = Math.max(60, pageH - 48);
+    const clampX = v => Math.round(Math.max(24, Math.min(maxXClamp, v)));
+    const clampY = v => Math.round(Math.max(60, Math.min(maxYClamp, v)));
+
+    const coords = K ? K.Tt(pg.geo) : null;
+    const bbox = computeMeasuredBBox(pg, spec, coords);
+    let x, y;
+    if (bbox) {
+      const preferRight = bbox.maxX + 18 <= maxXClamp;
+      if (preferRight) {
+        x = clampX(bbox.maxX + 18);
+        y = clampY(Math.max(bbox.minY, (bbox.minY + bbox.maxY) * 0.5 - 18));
+      } else {
+        x = clampX((bbox.minX + bbox.maxX) * 0.5 - 80);
+        y = bbox.maxY + 18 <= maxYClamp ? clampY(bbox.maxY + 18) : clampY(bbox.minY - 46);
+      }
+    } else if (list.length > 0 && Number.isFinite(list[list.length - 1].x) && Number.isFinite(list[list.length - 1].y)) {
+      x = clampX(list[list.length - 1].x);
+      y = clampY(list[list.length - 1].y + 42);
+    } else {
+      x = clampX(48);
+      y = clampY(136 + (pg.geo.params || []).length * 42);
+    }
+
+    const existing = [
+      ...list.map(m => ({ x: m.x, y: m.y })),
+      ...(pg.geo.params || []).map(p => ({ x: p.x, y: p.y }))
+    ].filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+    const startY = y;
+    for (let tries = 0; tries < 18; tries++) {
+      const collides = existing.some(o => Math.abs(o.x - x) < 165 && Math.abs(o.y - y) < 38);
+      if (!collides) break;
+      y += 42;
+      if (y > maxYClamp) {
+        y = startY;
+        x = clampX(x > 220 ? x - 175 : x + 175);
+      }
+    }
+    x = clampX(x);
+    y = clampY(y);
+
     mutateGeo(pIdx, g => ({
       ...g,
       measurements: [...(g.measurements || []), { id, varName, x, y, ...spec }]
@@ -617,9 +738,10 @@
     if (!ed || !ed.scroller) return null;
     const sr = ed.scroller.getBoundingClientRect();
     const z = ed.zoom || 1;
+    const ox = Number.isFinite(ed.offsetX) ? ed.offsetX : 0;
     const topOff = typeof ed.pageTop === "function" ? ed.pageTop(pIdx) : (pIdx * 1150);
     return {
-      sx: sr.left + x * z - ed.scroller.scrollLeft,
+      sx: sr.left + ox + x * z - ed.scroller.scrollLeft,
       sy: sr.top + (y + topOff) * z - ed.scroller.scrollTop,
       zoom: z,
       sr
@@ -651,13 +773,18 @@
   function renderMeasurements(force = false) {
     const ed = getEditor();
     const K = getKernel();
-    if (!ed || !K || !ed.doc || !ed.doc.pages) return;
+    if (!ed || !K || !ed.doc || !ed.doc.pages || !ed.scroller) return;
     const layer = ensureLayer();
     if (isLibraryOpen()) {
       layer.style.display = "none";
       return;
     }
+    const sr0 = ed.scroller.getBoundingClientRect();
     layer.style.display = "block";
+    layer.style.left = `${sr0.left}px`;
+    layer.style.top = `${sr0.top}px`;
+    layer.style.width = `${Math.max(0, sr0.width)}px`;
+    layer.style.height = `${Math.max(0, sr0.height)}px`;
 
     const keep = new Set();
     const pages = ed.view && ed.view.pages ? ed.view.pages : ed.doc.pages;
@@ -675,7 +802,7 @@
         const pos = pageToScreen(pIdx, px, py);
         if (!pos) return;
         const { sr } = pos;
-        if (pos.sy < sr.top - 50 || pos.sy > sr.bottom + 20 || pos.sx < sr.left - 260 || pos.sx > sr.right + 40) return;
+        if (pos.sy < sr.top || pos.sy > sr.bottom || pos.sx < sr.left || pos.sx > sr.right) return;
         keep.add(key);
 
         let card = layer.querySelector(`.mn-meas-card[data-key="${key}"]`);
@@ -688,8 +815,8 @@
           attachCardEvents(card, pIdx, m.id, m.varName);
           layer.appendChild(card);
         }
-        card.style.left = `${Math.round(pos.sx)}px`;
-        card.style.top = `${Math.round(pos.sy)}px`;
+        card.style.left = `${Math.round(pos.sx - sr.left)}px`;
+        card.style.top = `${Math.round(pos.sy - sr.top)}px`;
         card.style.transform = `scale(${Math.max(0.7, Math.min(1.5, pos.zoom))})`;
         card.classList.toggle("calc-pickable", STATE.calcOpen);
         card.querySelector(".mn-meas-tag").textContent = m.varName || "m";
@@ -1013,7 +1140,12 @@
         }
         const pages = ed.view && ed.view.pages ? ed.view.pages : (ed.doc && ed.doc.pages);
         const hasMeas = Array.isArray(pages) && pages.some(pg => pg && pg.geo && pg.geo.measurements && pg.geo.measurements.length > 0);
-        if (hasMeas) renderMeasurements(false);
+        if (hasMeas) {
+          renderMeasurements(false);
+        } else {
+          const layer = document.getElementById("mn-meas-canvas-layer");
+          if (layer && layer.childElementCount > 0) layer.innerHTML = "";
+        }
       }
       requestAnimationFrame(tick);
     };
@@ -1031,7 +1163,8 @@
     mergePointToPath,
     mergeTwoPoints,
     eraseTracesNow,
-    renderMeasurements
+    renderMeasurements,
+    pageToScreen
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

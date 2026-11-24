@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using MinNote.Services;
@@ -35,6 +34,12 @@ namespace MinNote.Views
 
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        private const double ExpandedPillWidth = 186;
+        private const double ExpandedPillHeight = 46;
+        private const double MinimizedPillWidth = 96;
+        private const double MinimizedPillHeight = 40;
+        private const double WorkAreaMargin = 4;
 
         private readonly Window _owner;
         private Window? _frameWin;
@@ -82,6 +87,7 @@ namespace MinNote.Views
 
             _frameWin = new Window
             {
+                Style = null,
                 WindowStyle = WindowStyle.None,
                 AllowsTransparency = true,
                 Background = Brushes.Transparent,
@@ -118,23 +124,20 @@ namespace MinNote.Views
         {
             var rootBorder = new Border
             {
-                CornerRadius = new CornerRadius(999),
-                Background = new SolidColorBrush(Color.FromArgb(236, 24, 24, 34)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)),
+                CornerRadius = new CornerRadius(19),
+                Background = new SolidColorBrush(Color.FromArgb(242, 15, 23, 42)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(65, 255, 255, 255)),
                 BorderThickness = new Thickness(1),
-                Padding = new Thickness(10, 5, 6, 5),
-                Effect = new DropShadowEffect
-                {
-                    Color = Colors.Black,
-                    Opacity = 0.38,
-                    BlurRadius = 16,
-                    ShadowDepth = 4
-                }
+                Margin = new Thickness(3),
+                Padding = new Thickness(8, 3, 6, 3),
+                SnapsToDevicePixels = true,
+                UseLayoutRounding = true
             };
 
             var row = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
 
@@ -143,9 +146,9 @@ namespace MinNote.Views
             {
                 Text = "⋮⋮",
                 Foreground = new SolidColorBrush(Color.FromArgb(145, 255, 255, 255)),
-                FontSize = 12,
+                FontSize = 11.5,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 7, 0),
+                Margin = new Thickness(0, 0, 5, 0),
                 Cursor = Cursors.SizeAll,
                 ToolTip = "Kéo để di chuyển thanh quay (ẩn khỏi video)"
             };
@@ -158,7 +161,7 @@ namespace MinNote.Views
                 Height = 8,
                 Fill = new SolidColorBrush(Color.FromRgb(239, 68, 68)),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0)
+                Margin = new Thickness(0, 0, 5, 0)
             };
             row.Children.Add(_recDot);
 
@@ -168,7 +171,7 @@ namespace MinNote.Views
                 Text = "00:00",
                 Foreground = Brushes.White,
                 FontFamily = new FontFamily("Segoe UI"),
-                FontSize = 12.5,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 6, 0)
@@ -205,24 +208,17 @@ namespace MinNote.Views
             row.Children.Add(_actionsPanel);
             rootBorder.Child = row;
 
-            // Wrap with transparent margin so drop-shadow isn't clipped
-            var container = new Grid { Background = Brushes.Transparent, Margin = new Thickness(14) };
-            container.Children.Add(rootBorder);
-
-            // Position cleanly above the recording frame (or inside top if frame touches top of virtual screen)
-            double pillW = 196;
-            double pillH = 66;
-            double minX = SystemParameters.VirtualScreenLeft + 4;
-            double minY = SystemParameters.VirtualScreenTop + 4;
-            double maxX = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - pillW - 4;
-            double maxY = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - pillH - 4;
-            double left = captureRectDip.Left + (captureRectDip.Width - pillW) / 2.0;
-            double top = (captureRectDip.Top - minY) >= 54 ? captureRectDip.Top - 52 : captureRectDip.Top + 4;
-            left = Math.Clamp(left, minX, Math.Max(minX, maxX));
-            top = Math.Clamp(top, minY, Math.Max(minY, maxY));
+            // Position cleanly above the recording frame, strictly clamped inside monitor WorkArea
+            Rect workArea = SystemParameters.WorkArea;
+            double desiredLeft = captureRectDip.Left + (captureRectDip.Width - ExpandedPillWidth) / 2.0;
+            double desiredTop = (captureRectDip.Top - (workArea.Top + WorkAreaMargin)) >= (ExpandedPillHeight + 6)
+                ? captureRectDip.Top - ExpandedPillHeight - 4
+                : captureRectDip.Top + 6;
+            (double left, double top) = ClampToWorkArea(desiredLeft, desiredTop, ExpandedPillWidth, ExpandedPillHeight);
 
             _pillWin = new Window
             {
+                Style = null,
                 WindowStyle = WindowStyle.None,
                 AllowsTransparency = true,
                 Background = Brushes.Transparent,
@@ -230,11 +226,17 @@ namespace MinNote.Views
                 Topmost = true,
                 ShowActivated = false,
                 ResizeMode = ResizeMode.NoResize,
-                SizeToContent = SizeToContent.WidthAndHeight,
+                SizeToContent = SizeToContent.Manual,
+                Width = ExpandedPillWidth,
+                Height = ExpandedPillHeight,
+                MinWidth = 88,
+                MinHeight = 38,
+                MaxWidth = 216,
+                MaxHeight = 52,
                 Owner = _owner,
                 Left = left,
                 Top = top,
-                Content = container
+                Content = rootBorder
             };
 
             _pillWin.SourceInitialized += (_, _) =>
@@ -245,7 +247,7 @@ namespace MinNote.Views
                 SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
             };
 
-            // Drag pill freely; clicking while minimized restores it
+            // Drag pill freely (clamped inside WorkArea); clicking while minimized restores it
             Point dragStart = default;
             bool dragging = false;
             bool moved = false;
@@ -267,8 +269,13 @@ namespace MinNote.Views
                 double dy = cur.Y - dragStart.Y;
                 if (!moved && Math.Abs(dx) + Math.Abs(dy) < 4) return;
                 moved = true;
-                _pillWin.Left += dx;
-                _pillWin.Top += dy;
+                (double clampedX, double clampedY) = ClampToWorkArea(
+                    _pillWin.Left + dx,
+                    _pillWin.Top + dy,
+                    _pillWin.Width,
+                    _pillWin.Height);
+                _pillWin.Left = clampedX;
+                _pillWin.Top = clampedY;
             };
             rootBorder.MouseLeftButtonUp += (s, e) =>
             {
@@ -283,6 +290,16 @@ namespace MinNote.Views
             };
 
             _pillWin.Show();
+        }
+
+        private static (double Left, double Top) ClampToWorkArea(double left, double top, double width, double height)
+        {
+            Rect workArea = SystemParameters.WorkArea;
+            double minX = workArea.Left + WorkAreaMargin;
+            double minY = workArea.Top + WorkAreaMargin;
+            double maxX = Math.Max(minX, workArea.Right - width - WorkAreaMargin);
+            double maxY = Math.Max(minY, workArea.Bottom - height - WorkAreaMargin);
+            return (Math.Clamp(left, minX, maxX), Math.Clamp(top, minY, maxY));
         }
 
         public void SetPaused(bool paused)
@@ -314,7 +331,17 @@ namespace MinNote.Views
             }
             if (_timeText != null)
             {
-                _timeText.Margin = mini ? new Thickness(0, 0, 4, 0) : new Thickness(0, 0, 6, 0);
+                _timeText.Margin = mini ? new Thickness(0, 0, 2, 0) : new Thickness(0, 0, 6, 0);
+            }
+            if (_pillWin != null)
+            {
+                double targetW = mini ? MinimizedPillWidth : ExpandedPillWidth;
+                double targetH = mini ? MinimizedPillHeight : ExpandedPillHeight;
+                _pillWin.Width = targetW;
+                _pillWin.Height = targetH;
+                (double clampedX, double clampedY) = ClampToWorkArea(_pillWin.Left, _pillWin.Top, targetW, targetH);
+                _pillWin.Left = clampedX;
+                _pillWin.Top = clampedY;
             }
         }
 
@@ -366,7 +393,7 @@ namespace MinNote.Views
 
             var borderFactory = new FrameworkElementFactory(typeof(Border));
             borderFactory.Name = "bd";
-            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(999));
+            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(13));
             borderFactory.SetValue(Border.BackgroundProperty, bgBrush);
             borderFactory.SetValue(Border.WidthProperty, 26.0);
             borderFactory.SetValue(Border.HeightProperty, 26.0);
@@ -383,8 +410,12 @@ namespace MinNote.Views
 
             return new Button
             {
+                Style = null,
                 Content = content,
                 Template = tpl,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
                 Cursor = Cursors.Hand,
                 ToolTip = tooltip,
                 Focusable = false,

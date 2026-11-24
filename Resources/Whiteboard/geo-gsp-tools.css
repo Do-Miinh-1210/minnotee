@@ -3,14 +3,17 @@
  */
 #mn-meas-canvas-layer {
   position: fixed;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
-  z-index: 9;
+  z-index: 5;
   overflow: hidden;
 }
 
 .mn-meas-card {
-  position: fixed;
+  position: absolute;
   pointer-events: auto;
   display: inline-flex;
   align-items: center;

@@ -337,20 +337,25 @@
   // --------------------------------------------------------------------------
   // 2. Shapes & Geometry Studio Popovers (.dropdown-menu.columns)
   // --------------------------------------------------------------------------
-  function enhanceStudioPopover(menu) {
-    if (!menu || menu.dataset.mnPopReady === '1') return;
-    // Detect Shapes or Geo popover by presence of "Kịch bản dựng hình" or .menu-section
+  const studioPopState = {
+    shapes: { tab: 'all', lastSeen: 0 },
+    geo: { tab: 'all', lastSeen: 0 }
+  };
+
+  function ensureClass(el, cls, want) {
+    if (!el) return;
+    const has = el.classList.contains(cls);
+    if (want && !has) el.classList.add(cls);
+    else if (!want && has) el.classList.remove(cls);
+  }
+
+  function ensureAttr(el, name, val) {
+    if (!el) return;
+    if (el.getAttribute(name) !== val) el.setAttribute(name, val);
+  }
+
+  function classifyStudioSections(menu) {
     const sections = Array.from(menu.querySelectorAll('.menu-section'));
-    if (sections.length < 2) return;
-    const txt = menu.textContent || '';
-    const isShapesOrGeo = txt.includes('Kịch bản dựng hình') || txt.includes('Bắt điểm lưới');
-    if (!isShapesOrGeo) return;
-
-    menu.dataset.mnPopReady = '1';
-    const isGeo = menu.classList.contains('by-section') || !!menu.querySelector('.menu-stack');
-    menu.classList.add('mn-studio-pop', isGeo ? 'mn-geo-pop' : 'mn-shapes-pop');
-
-    // Classify sections non-destructively via data-mn-sec
     const filterItems = [{ id: 'all', label: 'Tất cả' }];
     let secIdx = 0;
     sections.forEach(function (sec) {
@@ -358,47 +363,193 @@
       const hTxt = headingEl ? headingEl.textContent.trim() : '';
       const hasScriptBtn = (sec.textContent || '').includes('Kịch bản dựng hình');
       if (hasScriptBtn) {
-        sec.setAttribute('data-mn-sec', 'options');
-        // Cleanly shorten verbose "▶ Kịch bản dựng hình" only via tooltip? Keep text clear and concise.
+        ensureAttr(sec, 'data-mn-sec', 'options');
       } else {
         const slug = 'sec-' + (++secIdx);
-        sec.setAttribute('data-mn-sec', slug);
+        ensureAttr(sec, 'data-mn-sec', slug);
         if (hTxt) {
-          // Title-case compact chip label
           const nice = hTxt.charAt(0).toUpperCase() + hTxt.slice(1).toLowerCase();
           filterItems.push({ id: slug, label: nice });
         }
       }
     });
+    return { sections: sections, filterItems: filterItems };
+  }
+
+  function applyStudioFilter(menu, target, shouldScrollTop) {
+    if (!menu || !menu.isConnected) return;
+    if (menu._mnSyncing) return;
+    menu._mnSyncing = true;
+    try {
+      const popKey = menu.dataset.mnPopKind || (menu.classList.contains('by-section') || !!menu.querySelector('.menu-stack') ? 'geo' : 'shapes');
+      const isGeo = popKey === 'geo';
+
+      // Re-assert studio classes without no-op DOM writes
+      ensureClass(menu, 'mn-studio-pop', true);
+      ensureClass(menu, isGeo ? 'mn-geo-pop' : 'mn-shapes-pop', true);
+
+      const info = classifyStudioSections(menu);
+      const validIds = info.filterItems.map(function (f) { return f.id; });
+      const activeId = validIds.indexOf(target) !== -1 ? target : 'all';
+
+      if (menu.dataset.mnActiveTab !== activeId) {
+        menu.dataset.mnActiveTab = activeId;
+      }
+      studioPopState[popKey] = { tab: activeId, lastSeen: Date.now() };
+      ensureAttr(menu, 'data-mn-filtered', activeId === 'all' ? '0' : '1');
+
+      const filterBar = menu.querySelector(':scope > .mn-pop-filter');
+      if (filterBar) {
+        filterBar.querySelectorAll('.mn-pop-ftab').forEach(function (b) {
+          ensureClass(b, 'active', b.getAttribute('data-mn-f') === activeId);
+        });
+      }
+
+      info.sections.forEach(function (sec) {
+        const sid = sec.getAttribute('data-mn-sec');
+        if (sid === 'options') {
+          ensureClass(sec, 'mn-sec-hidden', false);
+          return;
+        }
+        ensureClass(sec, 'mn-sec-hidden', activeId !== 'all' && sid !== activeId);
+      });
+
+      if (shouldScrollTop) {
+        menu.scrollTop = 0;
+      }
+    } finally {
+      if (menu._mnPopObserver) {
+        menu._mnPopObserver.takeRecords();
+      }
+      menu._mnSyncing = false;
+    }
+  }
+
+  function enhanceStudioPopover(menu) {
+    if (!menu) return;
+    const sections = Array.from(menu.querySelectorAll('.menu-section'));
+    if (sections.length < 2) return;
+    const txt = menu.textContent || '';
+    const isShapesOrGeo = txt.includes('Kịch bản dựng hình') || txt.includes('Bắt điểm lưới');
+    if (!isShapesOrGeo) return;
+
+    const isGeo = menu.dataset.mnPopKind
+      ? menu.dataset.mnPopKind === 'geo'
+      : (menu.classList.contains('by-section') || !!menu.querySelector('.menu-stack'));
+    const popKey = isGeo ? 'geo' : 'shapes';
+
+    if (menu.dataset.mnPopReady === '1') {
+      // Re-sync in case React re-rendered option pills / sections in-place
+      studioPopState[popKey].lastSeen = Date.now();
+      applyStudioFilter(menu, menu.dataset.mnActiveTab || studioPopState[popKey].tab || 'all', false);
+      return;
+    }
+
+    const now = Date.now();
+    const prev = studioPopState[popKey];
+    const initialTab = (prev && prev.tab && prev.tab !== 'all' && (now - prev.lastSeen) < 600)
+      ? prev.tab
+      : 'all';
+
+    menu.dataset.mnPopReady = '1';
+    menu.dataset.mnPopKind = popKey;
+    menu.dataset.mnActiveTab = initialTab;
+    studioPopState[popKey] = { tab: initialTab, lastSeen: now };
+    ensureClass(menu, 'mn-studio-pop', true);
+    ensureClass(menu, isGeo ? 'mn-geo-pop' : 'mn-shapes-pop', true);
+
+    const info = classifyStudioSections(menu);
 
     // Prepend compact non-destructive filter bar
-    const filterBar = document.createElement('div');
-    filterBar.className = 'mn-pop-filter';
-    filterBar.innerHTML =
-      '<div class="mn-pop-filter-tabs">' +
-        filterItems.map(function (f, idx) {
-          return '<button type="button" class="mn-pop-ftab' + (idx === 0 ? ' active' : '') + '" data-mn-f="' + f.id + '">' + f.label + '</button>';
-        }).join('') +
-      '</div>' +
-      '<span class="mn-pop-brand">' + (isGeo ? 'MinNote Hình học' : 'MinNote Hình mẫu') + '</span>';
+    if (!menu.querySelector(':scope > .mn-pop-filter')) {
+      const filterBar = document.createElement('div');
+      filterBar.className = 'mn-pop-filter';
+      filterBar.innerHTML =
+        '<div class="mn-pop-filter-tabs">' +
+          info.filterItems.map(function (f) {
+            return '<button type="button" class="mn-pop-ftab' + (f.id === initialTab ? ' active' : '') + '" data-mn-f="' + f.id + '">' + f.label + '</button>';
+          }).join('') +
+        '</div>' +
+        '<span class="mn-pop-brand">' + (isGeo ? 'MinNote Hình học' : 'MinNote Hình mẫu') + '</span>';
 
-    filterBar.addEventListener('click', function (e) {
-      e.stopPropagation();
-      const btn = e.target.closest('[data-mn-f]');
-      if (!btn) return;
-      const target = btn.getAttribute('data-mn-f');
-      filterBar.querySelectorAll('.mn-pop-ftab').forEach(function (b) {
-        b.classList.toggle('active', b === btn);
+      filterBar.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const btn = e.target.closest('[data-mn-f]');
+        if (!btn) return;
+        const target = btn.getAttribute('data-mn-f');
+        applyStudioFilter(menu, target, true);
       });
-      menu.setAttribute('data-mn-filtered', target === 'all' ? '0' : '1');
-      sections.forEach(function (sec) {
-        const sid = sec.getAttribute('data-mn-sec');
-        if (sid === 'options') return;
-        sec.classList.toggle('mn-sec-hidden', target !== 'all' && sid !== target);
-      });
-    });
 
-    menu.insertBefore(filterBar, menu.firstChild);
+      menu.insertBefore(filterBar, menu.firstChild);
+    }
+
+    // Persist active filter tab when user clicks option pills (Hiện chấm tròn, Bắt điểm lưới, Tự động nét liền / đứt)
+    if (!menu._mnOptionListenerBound) {
+      menu._mnOptionListenerBound = true;
+      menu.addEventListener('click', function (e) {
+        if (e.target.closest('.menu-section[data-mn-sec="options"]')) {
+          const savedTab = menu.dataset.mnActiveTab || 'all';
+          studioPopState[popKey] = { tab: savedTab, lastSeen: Date.now() };
+          const restore = function () {
+            if (menu.isConnected) {
+              applyStudioFilter(menu, savedTab, false);
+            }
+          };
+          requestAnimationFrame(restore);
+          setTimeout(restore, 40);
+        }
+      }, true);
+    }
+
+    // Watch relevant class/child mutations via rAF (never microtask!) so React re-renders never wipe active filter tab
+    if (!menu._mnPopObserver) {
+      let pendingSync = false;
+      const kindClass = isGeo ? 'mn-geo-pop' : 'mn-shapes-pop';
+      const popObs = new MutationObserver(function (records) {
+        if (!menu.isConnected) {
+          popObs.disconnect();
+          return;
+        }
+        if (menu._mnSyncing || pendingSync) return;
+
+        let needsSync = !menu.classList.contains('mn-studio-pop') || !menu.classList.contains(kindClass);
+        if (!needsSync && records) {
+          const activeId = menu.dataset.mnActiveTab || 'all';
+          for (let i = 0; i < records.length; i++) {
+            const rec = records[i];
+            const tgt = rec.target;
+            if (!tgt || (tgt.closest && tgt.closest('.mn-pop-filter'))) continue;
+            if (rec.type === 'childList' && (tgt === menu || tgt.classList.contains('menu-stack'))) {
+              needsSync = true;
+              break;
+            }
+            if (rec.type === 'attributes' && tgt.classList && tgt.classList.contains('menu-section')) {
+              const sid = tgt.getAttribute('data-mn-sec');
+              const wantHidden = activeId !== 'all' && sid && sid !== 'options' && sid !== activeId;
+              if (!sid || tgt.classList.contains('mn-sec-hidden') !== wantHidden) {
+                needsSync = true;
+                break;
+              }
+            }
+          }
+        }
+        if (!needsSync) return;
+
+        pendingSync = true;
+        requestAnimationFrame(function () {
+          pendingSync = false;
+          if (!menu.isConnected) {
+            popObs.disconnect();
+            return;
+          }
+          applyStudioFilter(menu, menu.dataset.mnActiveTab || 'all', false);
+        });
+      });
+      popObs.observe(menu, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+      menu._mnPopObserver = popObs;
+    }
+
+    applyStudioFilter(menu, initialTab, false);
 
     // Clamp popover cleanly inside viewport horizontally after layout
     requestAnimationFrame(function () {
@@ -453,12 +604,19 @@
   // 4. Pen, Fill, Instruments & Main Command Menu Popovers
   // --------------------------------------------------------------------------
   function enhanceOtherPopovers(menu) {
-    if (!menu || menu.dataset.mnOtherReady === '1') return;
-    if (menu.classList.contains('mn-studio-pop')) return;
+    if (!menu) return;
+    if (menu.classList.contains('mn-studio-pop') || menu.dataset.mnPopReady === '1') return;
+    if (menu.dataset.mnOtherReady === '1') {
+      if (menu.dataset.mnOtherClass && !menu.classList.contains(menu.dataset.mnOtherClass)) {
+        menu.classList.add(menu.dataset.mnOtherClass);
+      }
+      return;
+    }
 
     // Pen Picker Popover
     if (menu.querySelector('.pp-kinds')) {
       menu.dataset.mnOtherReady = '1';
+      menu.dataset.mnOtherClass = 'mn-pen-pop';
       menu.classList.add('mn-pen-pop');
       return;
     }
@@ -466,6 +624,7 @@
     // Fill Popover
     if (menu.querySelector('.fill-opacity')) {
       menu.dataset.mnOtherReady = '1';
+      menu.dataset.mnOtherClass = 'mn-fill-pop';
       menu.classList.add('mn-fill-pop');
       return;
     }
@@ -475,6 +634,7 @@
     // Instruments Popover (Thước kẻ, Thước đo độ, Ê-ke, Compa, Cất dụng cụ)
     if (txt.includes('Thước đo độ') && txt.includes('Compa')) {
       menu.dataset.mnOtherReady = '1';
+      menu.dataset.mnOtherClass = 'mn-inst-pop';
       menu.classList.add('mn-inst-pop');
       menu.querySelectorAll('button').forEach(function (b) {
         const bt = (b.textContent || '').trim();
@@ -488,6 +648,7 @@
     // Main App Command Menu
     if (menu.querySelector('.zoom-input') && (txt.includes('Thư viện') || txt.includes('Sổ mới') || txt.includes('Library'))) {
       menu.dataset.mnOtherReady = '1';
+      menu.dataset.mnOtherClass = 'mn-main-menu';
       menu.classList.add('mn-main-menu');
       if (!menu.querySelector('.mn-menu-brand-head')) {
         const head = document.createElement('div');

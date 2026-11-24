@@ -1,6 +1,6 @@
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.7.5"
+#define MyAppVersion "0.0.7.6"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
@@ -24,7 +24,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
-RestartApplications=yes
+RestartApplications=no
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 SetupLogging=yes
@@ -57,17 +57,17 @@ Name: "{group}\Gỡ cài đặt {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Khởi chạy MinNote"; Flags: nowait postinstall skipifsilent
-Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent; Check: ShouldAutoLaunchSilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Khởi chạy MinNote"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent runasoriginaluser; Check: ShouldAutoLaunchSilent
 
 [Code]
-function IsVerySilentInstall(): Boolean;
+function HasSwitch(const SwitchName: String): Boolean;
 var
   I: Integer;
 begin
   Result := False;
   for I := 1 to ParamCount do begin
-    if CompareText(ParamStr(I), '/VERYSILENT') = 0 then begin
+    if CompareText(ParamStr(I), SwitchName) = 0 then begin
       Result := True;
       Exit;
     end;
@@ -76,7 +76,16 @@ end;
 
 function ShouldAutoLaunchSilent(): Boolean;
 begin
-  Result := WizardSilent() and (not IsVerySilentInstall());
+  Result := (WizardSilent() and (not HasSwitch('/VERYSILENT'))) or HasSwitch('/AUTORELAUNCH');
+end;
+
+procedure EnsureMinNoteClosed();
+var
+  iResultCode: Integer;
+begin
+  // Đóng sạch mọi tiến trình MinNote đang chạy trước khi ghi đè file để tránh lỗi khóa file (phải cập nhật 2 lần)
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+  Sleep(600);
 end;
 
 function GetUninstallString(AppIdStr: String): String;
@@ -97,19 +106,28 @@ procedure UnInstallOldVersion(AppIdStr: String);
 var
   sUnInstallString: String;
   iResultCode: Integer;
+  Retries: Integer;
 begin
   sUnInstallString := GetUninstallString(AppIdStr);
   if sUnInstallString <> '' then begin
     sUnInstallString := RemoveQuotes(sUnInstallString);
-    Exec(sUnInstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+    if FileExists(sUnInstallString) then begin
+      Exec(sUnInstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, iResultCode);
+      // Trình gỡ Inno tự nhân bản ra %TEMP% và thoát ngay; đợi tiến trình gỡ bỏ xóa xong hẳn rồi mới cài mới để tránh xung đột ghi file
+      Retries := 0;
+      while FileExists(sUnInstallString) and (Retries < 40) do begin
+        Sleep(250);
+        Retries := Retries + 1;
+      end;
+    end;
   end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssInstall) then begin
-    // Tự động gỡ bỏ sạch sẽ các phiên bản MinNote trước đó trên ổ C
-    UnInstallOldVersion('{#MyAppId}');
+    EnsureMinNoteClosed();
+    // Chỉ gỡ các AppId cũ khác mã định danh; cùng AppId {#MyAppId} được Inno Setup nâng cấp ghi đè trực tiếp an toàn không race condition
     UnInstallOldVersion('MinNote');
     UnInstallOldVersion('NoteRenderer');
   end;
