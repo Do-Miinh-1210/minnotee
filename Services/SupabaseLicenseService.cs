@@ -34,6 +34,9 @@ public class LicenseInfo
     public string ServerSignature { get; set; } = string.Empty;
     public bool IsServerSigned => !string.IsNullOrEmpty(ServerPayload);
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsAdminMachine { get; set; }
+
     public bool IsActive => (string.Equals(Status, "active", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(Status, "trial", StringComparison.OrdinalIgnoreCase)) && !IsExpired;
 
@@ -139,6 +142,8 @@ public class SupabaseLicenseService
     private LicenseInfo? _currentLicense;
     private readonly bool _isCustomCache;
     private LicenseRpcClient? _licenseRpcClient;
+    private bool _adminChecked;
+    private LicenseInfo? _adminLicense;
 
     // Lazy: Instance (static) khởi tạo trước các mảng URL/key làm rối nên không dùng SupabaseUrl trong constructor
     private LicenseRpcClient _licenseRpc => _licenseRpcClient ??= new LicenseRpcClient(_httpClient, SupabaseUrl, SupabaseAnonKey);
@@ -168,38 +173,96 @@ public class SupabaseLicenseService
         }
     }
 
+    private LicenseInfo? TryGetAdminMachineLicense()
+    {
+        if (_adminChecked) return _adminLicense;
+        _adminChecked = true;
+#if DEBUG
+        if (Environment.GetEnvironmentVariable("MINNOTE_IGNORE_ADMIN_KEY") == "1") return null;
+#endif
+        try
+        {
+            string pem = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".matrixexamai", "license_signing_key.pem");
+            if (!File.Exists(pem)) return null;
+            using var priv = ECDsa.Create();
+            priv.ImportFromPem(File.ReadAllText(pem));
+            byte[] challenge = RandomNumberGenerator.GetBytes(32);
+            byte[] sig = priv.SignData(challenge, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+            if (!LicenseRpcClient.TryVerify(Convert.ToBase64String(challenge), Convert.ToBase64String(sig), out _)) return null;
+            _adminLicense = new LicenseInfo
+            {
+                Ok = true,
+                MachineId = _machineId,
+                Status = "active",
+                Tier = "ULTRA",
+                Name = "Quản trị viên MatrixExamAI",
+                Expiry = "Vĩnh viễn",
+                Features = FeatureGateService.Catalog.Select(c => c.Id).ToList(),
+                Message = "Máy quản trị: đã xác minh khóa ký bản quyền",
+                IsAdminMachine = true
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException or ArgumentException)
+        {
+            System.Diagnostics.Debug.WriteLine($"[License] Admin key check failed: {ex.Message}");
+        }
+        return _adminLicense;
+    }
+
     public LicenseInfo GetCurrentLicense()
     {
-        _currentLicense ??= CreateUnlockedLicense(_machineId);
+        if (TryGetAdminMachineLicense() is { } admin) return _currentLicense = admin;
+        if (_currentLicense != null) return _currentLicense;
+        _currentLicense = LoadCache() ?? CreateDefaultFallback(_machineId);
         return _currentLicense;
     }
 
-    public Task<LicenseInfo> CheckLicenseAsync(bool forceOnline = false, CancellationToken ct = default)
+    public async Task<LicenseInfo> CheckLicenseAsync(bool forceOnline = false, CancellationToken ct = default)
     {
-        var lic = CreateUnlockedLicense(_machineId);
-        _currentLicense = lic;
-        LicenseChanged?.Invoke(this, lic);
-        return Task.FromResult(lic);
-    }
-
-    private static LicenseInfo CreateUnlockedLicense(string mid)
-    {
-        return new LicenseInfo
+        if (TryGetAdminMachineLicense() is { } admin)
         {
-            Ok = true,
-            MachineId = mid,
-            Status = "active",
-            Tier = "ULTRA",
-            Features = new List<string> { "whiteboard", "mindmap", "minnote", "convert", "matrix", "ultra", "pro", "all" },
-            Name = "admin_matrixexamAI",
-            Expiry = "Vĩnh viễn",
-            Message = "Bản quyền duy nhất thuộc admin_matrixexamAI",
-            FromCache = true,
-            Offline = false,
-            ServerPayload = "ADMIN_MATRIXEXAMAI_ULTRA_LIFETIME",
-            ServerSignature = "ADMIN_MATRIXEXAMAI",
-            AdminApiKey = "admin_matrixexamAI"
-        };
+            _currentLicense = admin;
+            LicenseChanged?.Invoke(this, admin);
+            return admin;
+        }
+
+        string mid = _machineId;
+
+        if (!forceOnline)
+        {
+            var cached = LoadCache();
+            if (cached != null && string.Equals(cached.MachineId, mid, StringComparison.OrdinalIgnoreCase))
+            {
+                cached.FromCache = true;
+                _currentLicense = cached;
+                // Đồng bộ ngầm với Supabase Cloud ngay khi có mạng không làm chậm khởi động app
+                _ = Task.Run(async () =>
+                {
+                    try { await CheckLicenseAsync(forceOnline: true, ct); } catch { }
+                });
+                return cached;
+            }
+        }
+
+        // SEC-18 pha D: chỉ đọc qua RPC get_license và CHỈ tin license có chữ ký hợp lệ của admin.
+        // Không còn đọc/ghi bảng licenses trực tiếp (anon sẽ bị thu hồi quyền).
+        var rpc = await _licenseRpc.GetLicenseAsync(mid, ct);
+        if (rpc.Reachable)
+        {
+            if (!rpc.Found) return Commit(CreateUnregistered(mid));
+            using var rowDoc = JsonDocument.Parse(rpc.RowJson);
+            string adminApiKey = Prop(rowDoc.RootElement, "admin_api_key");
+            var info = BuildFromSigned(rpc.SignedPayload, rpc.Signature, adminApiKey, mid) ?? CreateUnsigned(mid, rpc.Signature);
+            _ = _licenseRpc.TouchAsync(mid);
+            return Commit(info);
+        }
+
+        // Offline/lỗi mạng: chỉ dùng cache có chữ ký admin, không có thì về chế độ dùng thử
+        var fallback = LoadCache() ?? CreateDefaultFallback(mid);
+        fallback.Offline = true;
+        _currentLicense = fallback;
+        LicenseChanged?.Invoke(this, fallback);
+        return fallback;
     }
 
     private LicenseInfo Commit(LicenseInfo info)

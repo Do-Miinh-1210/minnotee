@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,6 +19,10 @@ namespace MinNote
     public partial class MainWindow : FluentWindow
     {
         private static readonly string LogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "minnote_debug.log");
+        private static readonly Regex SensitiveJsonRegex = new("\"(rawKeys|apiKey|apiKeys|key|keys|token|password|secret)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static bool IsTrustedAppUri(string? uri) =>
+            Uri.TryCreate(uri, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps &&
+            string.Equals(u.Host, "minnote.app", StringComparison.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _initLock = new(1, 1);
         private bool _isInitialized = false;
         private bool _eventsAttached = false;
@@ -335,7 +340,11 @@ namespace MinNote
                     };
                     try
                     {
+#if DEBUG
                         WvWhiteboard.CoreWebView2.Settings.AreDevToolsEnabled = true;
+#else
+                        WvWhiteboard.CoreWebView2.Settings.AreDevToolsEnabled = false;
+#endif
                         WvWhiteboard.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         WvWhiteboard.CoreWebView2.Settings.IsStatusBarEnabled = false;
                         WvWhiteboard.CoreWebView2.Settings.IsZoomControlEnabled = false;
@@ -550,6 +559,7 @@ namespace MinNote
                         });
                     };
 
+                    WvWhiteboard.CoreWebView2.NavigationStarting += CoreWebView2_NavigationStarting;
                     WvWhiteboard.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
 
                     WvWhiteboard.CoreWebView2.ProcessFailed += (s, e) =>
@@ -673,17 +683,56 @@ namespace MinNote
             throw new InvalidOperationException("Không thể chuyển đổi Word sang PDF. Vui lòng cài đặt Microsoft Word hoặc LibreOffice.");
         }
 
+        private void CoreWebView2_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+        {
+            string uri = e.Uri ?? string.Empty;
+            if (IsTrustedAppUri(uri) || uri.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
+                uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) || uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                return;
+            if (Uri.TryCreate(uri, UriKind.Absolute, out var u) &&
+                (string.Equals(u.Host, "minnote-rec.local", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(u.Host, "minnote-media.local", StringComparison.OrdinalIgnoreCase)))
+                return;
+            e.Cancel = true;
+            Log($"[Navigation] Chặn điều hướng ra ngoài app: {uri}");
+            if (u != null && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp))
+            {
+                try { Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true }); }
+                catch (Exception ex) { Log($"[Navigation] Không mở được trình duyệt: {ex.Message}"); }
+            }
+        }
+
         async void CoreWebView2_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             try
             {
+                if (!IsTrustedAppUri(e.Source))
+                {
+                    Log($"[WebMessage] Bỏ qua message từ nguồn không tin cậy: {e.Source}");
+                    return;
+                }
                 string json = e.WebMessageAsJson;
-                Log($"[WebMessage] {(json.Length > 300 ? json.Substring(0, 300) + "...(truncated)" : json)}");
+                string safeLog = SensitiveJsonRegex.Replace(json, "\"$1\":\"***\"");
+                Log($"[WebMessage] {(safeLog.Length > 300 ? safeLog.Substring(0, 300) + "...(truncated)" : safeLog)}");
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("type", out var typeElem))
                 {
                     string msgType = typeElem.GetString() ?? string.Empty;
+                    string? requiredFeature = LicenseGate.RequiredFeatureForMessage(msgType);
+                    if (requiredFeature != null)
+                    {
+                        var (gateState, gateReason) = LicenseGate.Evaluate(SupabaseLicenseService.Instance.GetCurrentLicense(), requiredFeature, _onlineCheckDone);
+                        if (gateState != GateState.Allowed)
+                        {
+                            Log($"[WebMessage] {msgType} bị chặn: thiếu quyền '{requiredFeature}' ({gateState}).");
+                            string deniedReqId = GetJsonString(root, "id");
+                            if (!string.IsNullOrEmpty(deniedReqId))
+                                await PostMeaSyncResultAsync(deniedReqId, false, null,
+                                    gateState == GateState.Checking ? "Đang kiểm tra bản quyền, thử lại sau giây lát." : gateReason);
+                            return;
+                        }
+                    }
                     if (msgType == "NAVIGATE_TO_MINDMAP")
                     {
                         BtnMindmapTop_Click(this, new RoutedEventArgs());

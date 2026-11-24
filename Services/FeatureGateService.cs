@@ -173,21 +173,21 @@ public class FeatureGateService
             "Gói Cơ Bản (BASIC)",
             399000,
             "1 Năm",
-            "Phù hợp giáo viên cần chuyển đổi đề PDF sang Word, trộn đề, bảng viết và sơ đồ tư duy cơ bản",
-            new() { "convert", "shuffle", "whiteboard", "mindmap" }
+            "Soạn đề ma trận, tạo đề siêu tốc & ngân hàng câu hỏi MatrixExamAI",
+            new() { "matrix", "quick_gen", "bank" }
         ),
         ["PRO"] = new(
             "PRO",
             "Gói Chuyên Nghiệp (PRO)",
             899000,
             "1 Năm",
-            "Đầy đủ công cụ soạn đề AI, ma trận BGD, vẽ hình TikZ, mô hình 3D, sơ đồ tư duy và MathType Studio",
-            new() { "convert", "shuffle", "whiteboard", "mindmap", "matrix", "tikz", "html_model", "mathtype", "quick_gen" }
+            "Đầy đủ công cụ soạn đề AI, ma trận BGD, vẽ hình TikZ và bộ tiện ích Word",
+            new() { "matrix", "quick_gen", "bank", "convert", "shuffle", "tikz", "minmath_editor", "minmath_latex", "toolmm_mathpix", "toolmm_chiadapan", "ttw" }
         ),
         ["ULTRA"] = new(
             "ULTRA",
             "Gói Toàn Năng (ULTRA VIP)",
-            1499000,
+            1999000,
             "Vĩnh viễn",
             "Mở khóa 100% tất cả tính năng, không giới hạn thời gian, ưu tiên cập nhật AI cao cấp nhất",
             Catalog.Select(c => c.Id).ToList()
@@ -195,7 +195,7 @@ public class FeatureGateService
         ["MINNOTE"] = new(
             "MINNOTE",
             "Gói MinNote Bảng viết & Sơ đồ tư duy",
-            299000,
+            49000,
             "1 Năm",
             "Không gian bảng viết MinNote Studio & Sơ đồ tư duy Toán học",
             new() { "whiteboard", "mindmap" }
