@@ -902,12 +902,13 @@
         ctx.save();
         const r = Math.min(14, Math.min(w, h) * 0.25);
         _drawRoundedRect(ctx, x0, y0, w, h, r);
-        ctx.strokeStyle = `rgba(245, 158, 11, ${(alpha * 0.95).toFixed(3)})`;
         ctx.fillStyle = `rgba(254, 240, 138, ${(alpha * 0.22).toFixed(3)})`;
-        ctx.lineWidth = 3.2 + 2.2 * alpha;
-        ctx.shadowColor = 'rgba(245, 158, 11, 0.75)';
-        ctx.shadowBlur = 18 * alpha;
         ctx.fill();
+        ctx.strokeStyle = `rgba(245, 158, 11, ${(alpha * 0.28).toFixed(3)})`;
+        ctx.lineWidth = 10 + 3 * alpha;
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(245, 158, 11, ${(alpha * 0.95).toFixed(3)})`;
+        ctx.lineWidth = 3.0 + 1.8 * alpha;
         ctx.stroke();
         ctx.restore();
         break;
@@ -928,20 +929,19 @@
         ctx.lineWidth = 2.6;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(234, 179, 8, 0.45)';
-        ctx.shadowBlur = 8;
         const { segs, total } = _extractSegments([{ pts: corners, closed: true }], false);
         let rem = total * drawT;
+        ctx.beginPath();
+        let moved = false;
         for (const sg of segs) {
           if (rem <= 0) break;
           const f = Math.min(1, rem / sg.d);
           const end = f >= 1 ? sg.b : lerpPt(sg.a, sg.b, f);
-          ctx.beginPath();
-          ctx.moveTo(sg.a.x, sg.a.y);
+          if (!moved) { ctx.moveTo(sg.a.x, sg.a.y); moved = true; }
           ctx.lineTo(end.x, end.y);
-          ctx.stroke();
           rem -= sg.d;
         }
+        ctx.stroke();
         ctx.restore();
         break;
       }
@@ -1155,8 +1155,13 @@
     const teeFn = helpers && helpers.tee;
     const drawPartialFn = helpers && helpers._drawPolylinesPartial;
     const drawTipFn = helpers && helpers._drawTip;
+    let _cachedPolylines = null;
+    const getPolylines = () => {
+      if (_cachedPolylines === null) _cachedPolylines = extractShapePolylines(sh, coords, helpers);
+      return _cachedPolylines;
+    };
     const bb = (helpers && helpers._mnShapeBBox ? helpers._mnShapeBBox(sh, coords) : null)
-      || _bboxFromPolylines(extractShapePolylines(sh, coords, helpers));
+      || _bboxFromPolylines(getPolylines());
     const color = sh.color || '#1a1a1a';
     const lineW = sh.width || 2.5;
     const defaultTip = bb ? { x: bb.cx, y: bb.cy, dx: 1, dy: 0 } : null;
@@ -1165,7 +1170,7 @@
     if (OVERLAY_END_EFFECTS.has(fx)) {
       const revealP = clamp01(rawP / 0.56);
       const easeRev = evalEase(revealP, 'easeOut');
-      const polylines = extractShapePolylines(sh, coords, helpers);
+      const polylines = revealP < 0.999 ? getPolylines() : [];
       let tip = defaultTip;
 
       ctx.save();
@@ -1202,39 +1207,43 @@
       return { handled: true, tip: defaultTip };
     }
 
-    const polylines = extractShapePolylines(sh, coords, helpers);
+    const polylines = getPolylines();
 
-    // 3) LASER SCAN: cyan-white neon glow sweep + bright laser bead at head
+    // 3) LASER SCAN: zero-shadowBlur 60fps cyan-white neon glow sweep + bright laser bead at head
     if (fx === 'laser_scan') {
       if (!polylines.length || !drawPartialFn) {
-        if (teeFn) { ctx.save(); ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 14; ctx.globalAlpha *= clamp01(prog); teeFn(ctx, sh, coords); ctx.restore(); }
+        if (teeFn) { ctx.save(); ctx.globalAlpha *= clamp01(prog); teeFn(ctx, sh, coords); ctx.restore(); }
         return { handled: true, tip: defaultTip };
       }
       const laserFade = rawP < 0.78 ? 1 : clamp01(1 - smoothstep((rawP - 0.78) / 0.22));
+      const drawT = clamp01(prog);
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      if (laserFade > 0.02) {
+        // Fast crisp additive neon halo (0 Gaussian blur passes!)
+        ctx.strokeStyle = `rgba(6, 182, 212, ${(0.24 * laserFade).toFixed(3)})`;
+        ctx.lineWidth = lineW + 7;
+        drawPartialFn(ctx, polylines, drawT, !!rev);
+      }
       ctx.strokeStyle = color;
       ctx.lineWidth = lineW;
-      if (laserFade > 0.02) {
-        ctx.shadowColor = '#06b6d4';
-        ctx.shadowBlur = 16 * laserFade;
-      }
-      const tip = drawPartialFn(ctx, polylines, clamp01(prog), !!rev);
+      const tip = drawPartialFn(ctx, polylines, drawT, !!rev);
       if (tip && laserFade > 0.02) {
-        // Luminous white-cyan laser flare at tip (feathers smoothly to 0 at end!)
+        // Luminous white-cyan laser flare at tip (layered radial rings, zero shadowBlur!)
         ctx.globalAlpha *= laserFade;
-        ctx.shadowColor = '#22d3ee';
-        ctx.shadowBlur = 22 * laserFade;
         ctx.beginPath();
-        ctx.arc(tip.x, tip.y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(34, 211, 238, 0.28)';
+        ctx.arc(tip.x, tip.y, 13.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(34, 211, 238, 0.14)';
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(tip.x, tip.y, 4.4, 0, Math.PI * 2);
+        ctx.arc(tip.x, tip.y, 8.8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(34, 211, 238, 0.30)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(tip.x, tip.y, 4.3, 0, Math.PI * 2);
         ctx.fillStyle = '#06b6d4';
         ctx.fill();
-        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(tip.x, tip.y, 2.0, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
@@ -1449,14 +1458,17 @@
 
       ctx.save();
       if (tracePts.length >= 2) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = lineW;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(245, 158, 11, 0.45)';
-        ctx.shadowBlur = 10 * epAlpha;
         ctx.beginPath();
         tracePts.forEach((p, idx) => (idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+        if (epAlpha > 0.03) {
+          ctx.strokeStyle = `rgba(245, 158, 11, ${(0.24 * epAlpha).toFixed(3)})`;
+          ctx.lineWidth = lineW + 5.5;
+          ctx.stroke();
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineW;
         ctx.stroke();
       }
       // Paint remaining secondary polylines softly after 70%
@@ -1536,8 +1548,7 @@
       ctx.lineWidth = lineW;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.shadowColor = 'rgba(245, 158, 11, 0.35)';
-      ctx.shadowBlur = 12 * evalEase(rawP, 'bump');
+      const morphGlow = evalEase(rawP, 'bump');
       if (morphed.length >= 2) {
         ctx.beginPath();
         morphed.forEach((p, idx) => (idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
@@ -1547,6 +1558,13 @@
           ctx.fillStyle = sh.fill;
           ctx.globalAlpha = clamp01((prog - 0.45) / 0.55);
           ctx.fill();
+          ctx.restore();
+        }
+        if (morphGlow > 0.03) {
+          ctx.save();
+          ctx.strokeStyle = `rgba(245, 158, 11, ${(0.26 * morphGlow).toFixed(3)})`;
+          ctx.lineWidth = lineW + 6;
+          ctx.stroke();
           ctx.restore();
         }
         ctx.stroke();
@@ -1596,27 +1614,36 @@
       return { handled: true, tip: { x: bb.cx, y: bb.cy + dropY, dx: 0, dy: -1 } };
     }
 
-    // 13) XRAY HIDDEN: amber-cyan scanner sweep illuminating dashed/hidden edges
+    // 13) XRAY HIDDEN: zero-shadowBlur 60fps amber scanner sweep illuminating dashed/hidden edges
     if (fx === 'xray_hidden') {
+      const xrayGlow = evalEase(rawP, 'bump');
+      const drawT = clamp01(prog);
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = lineW;
-      ctx.shadowColor = '#f59e0b';
-      ctx.shadowBlur = 11 * evalEase(rawP, 'bump');
       let tip = defaultTip;
       if (drawPartialFn && polylines.length) {
-        tip = drawPartialFn(ctx, polylines, clamp01(prog), !!rev) || defaultTip;
+        if (xrayGlow > 0.03) {
+          ctx.strokeStyle = `rgba(245, 158, 11, ${(0.28 * xrayGlow).toFixed(3)})`;
+          ctx.lineWidth = lineW + 6.5;
+          drawPartialFn(ctx, polylines, drawT, !!rev);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineW;
+        tip = drawPartialFn(ctx, polylines, drawT, !!rev) || defaultTip;
       } else if (teeFn) {
-        ctx.globalAlpha *= clamp01(prog);
+        ctx.globalAlpha *= drawT;
         teeFn(ctx, sh, coords);
       }
       if (tip && rawP < 0.96) {
-        ctx.shadowBlur = 14;
+        const ringAlpha = rawP < 0.80 ? 1 : clamp01(1 - (rawP - 0.80) / 0.16);
+        ctx.beginPath();
+        ctx.arc(tip.x, tip.y, 10.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(245, 158, 11, ${(0.16 * ringAlpha).toFixed(3)})`;
+        ctx.fill();
         ctx.beginPath();
         ctx.arc(tip.x, tip.y, 7, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
+        ctx.strokeStyle = `rgba(245, 158, 11, ${(0.88 * ringAlpha).toFixed(3)})`;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -1809,10 +1836,6 @@
       ctx.beginPath();
       ctx.rect(rx, bb.y0 - pad, fullW * e, bb.h + pad * 2);
       ctx.clip();
-      if (fx === 'laser_scan') {
-        ctx.shadowColor = '#06b6d4';
-        ctx.shadowBlur = 10;
-      }
       paintItemFn(ctx, item);
       ctx.restore();
       if (e > 0.02 && e < 0.98) {
@@ -2056,8 +2079,13 @@
 
     ctx.save();
     if (fx === 'glow' || fx === 'laser_scan') {
-      ctx.shadowColor = fx === 'laser_scan' ? '#06b6d4' : '#38bdf8';
-      ctx.shadowBlur = fx === 'laser_scan' ? 15 : 11;
+      const haloStroke = {
+        ...stroke,
+        pts: subPts,
+        color: fx === 'laser_scan' ? 'rgba(6, 182, 212, 0.24)' : 'rgba(56, 189, 248, 0.26)',
+        width: (stroke.width || 3) + 6
+      };
+      paintStrokeFn(ctx, haloStroke);
     }
     paintStrokeFn(ctx, { ...stroke, pts: subPts });
     if (fx === 'arrow_slide') {

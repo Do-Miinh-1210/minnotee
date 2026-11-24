@@ -245,6 +245,8 @@
   let effectPopoverPos = null;   // { left, top } remembered after user drags popover
   let effectPopoverPeek = false; // translucent see-through mode
   let lastRenderedStepSig = '';  // avoids innerHTML teardown during live playback!
+  let lastTabsRenderSig = '';    // avoids tearing down #mn-rp-tabs on every step tick!
+  let lastFullUiMetaSig = '';    // enables ultra-lightweight 0-storage playback tick updates!
 
   function getMotionFX() {
     return (typeof window !== 'undefined' && window.MinNoteMotionFX) ? window.MinNoteMotionFX : null;
@@ -1767,6 +1769,59 @@
     replayPanel.classList.add('open');
     replayPanel.classList.toggle('steps-hidden', stepsCollapsed);
 
+    // ULTRA-FAST PLAYBACK TICK PATH (0 localStorage JSON.parse, 0 #mn-rp-tabs rebuild, 0 layout thrash!)
+    const stepSigFast = r.id + '|' + r.page + '|' + r.steps.map(s =>
+      `${s.id}:${s.enabled !== false ? 1 : 0}:${s.effect || ''}:${s.easing || ''}:${s.durationMul || 1}:${s.pauseAfter || 0}:${s.rev ? 1 : 0}:${s.tempHide ? 1 : 0}:${s.showGuides !== false ? 1 : 0}:${s.mode || ''}:${s.customTitle || ''}:${s.items ? s.items.length : 0}`
+    ).join(',');
+    const fullMetaSig = `${actives.map(x => x.id).join(',')}|${r.id}|${r.page}|${r.title || ''}|${r.speed || 1}|${r.pauseBetween ? 1 : 0}|${r.followCamera !== false ? 1 : 0}|${r.autoOrbitAfter ? 1 : 0}|${r.stylePreset || ''}|${stepsCollapsed ? 1 : 0}|${savedShelfOpen ? 1 : 0}|${(typeof b.isAutoOrbiting === 'function' && b.isAutoOrbiting()) ? 1 : 0}`;
+    if (r.playing && !isMulti && lastFullUiMetaSig === fullMetaSig && (stepsCollapsed || lastRenderedStepSig === stepSigFast)) {
+      const playBtnFast = replayPanel.querySelector('#mn-rp-play');
+      if (playBtnFast && playBtnFast.textContent !== '⏸') {
+        playBtnFast.textContent = '⏸';
+        playBtnFast.title = 'Tạm dừng';
+      }
+      const stepCountEl = replayPanel.querySelector('#mn-rp-step-count');
+      const nextStepTxt = `${curDisplay}/${total}`;
+      if (stepCountEl && stepCountEl.textContent !== nextStepTxt) stepCountEl.textContent = nextStepTxt;
+      const scrubFast = replayPanel.querySelector('#mn-rp-scrub');
+      if (scrubFast) {
+        if (scrubFast.max !== String(total)) scrubFast.max = String(total);
+        if (scrubFast.value !== String(curDisplay)) scrubFast.value = String(curDisplay);
+      }
+      if (!stepsCollapsed) {
+        const listElFast = replayPanel.querySelector('#mn-rp-list');
+        if (listElFast && listElFast.children.length === r.steps.length) {
+          let ap = 0;
+          let curRowEl = null;
+          for (let rawIdx = 0; rawIdx < r.steps.length; rawIdx++) {
+            const st = r.steps[rawIdx];
+            const row = listElFast.children[rawIdx];
+            if (!row) break;
+            const isEnabled = st.enabled !== false;
+            const myActiveIdx = isEnabled ? ap++ : -1;
+            const isCurrent = isEnabled && myActiveIdx === r.stepIdx && (r.stepProgress > 0 || r.playing);
+            const isDone = isEnabled && (myActiveIdx < r.stepIdx || (myActiveIdx === r.stepIdx && r.stepProgress >= 1));
+            row.classList.toggle('current', isCurrent);
+            row.classList.toggle('done', isDone);
+            if (isCurrent) curRowEl = row;
+          }
+          if (curRowEl) {
+            const rTop = curRowEl.offsetTop;
+            const rBot = rTop + curRowEl.offsetHeight;
+            const vTop = listElFast.scrollTop;
+            const vBot = vTop + listElFast.clientHeight;
+            if (rTop < vTop) listElFast.scrollTop = Math.max(0, rTop - 6);
+            else if (rBot > vBot) listElFast.scrollTop = Math.max(0, rBot - listElFast.clientHeight + 6);
+          }
+        }
+      }
+      if (effectPopover && effectPopover.classList.contains('open')) {
+        updateEffectPopoverPreviewFade();
+      }
+      return;
+    }
+    lastFullUiMetaSig = fullMetaSig;
+
     const headTitle = replayPanel.querySelector('#mn-rp-head-title');
     if (headTitle) headTitle.textContent = isMulti ? 'Kịch bản' : (r.title && r.title !== 'Cả trang' ? r.title : 'Kịch bản');
     const undoScriptBtn = replayPanel.querySelector('#mn-rp-undo-script');
@@ -3010,18 +3065,32 @@
 
   function startSheetPillObserver() {
     let raf = 0;
+    let timer = 0;
     const schedule = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        positionSheetRestorePill();
-      });
+      if (document.body && document.body.classList.contains('mn-animating')) return;
+      if (raf || timer) return;
+      timer = setTimeout(() => {
+        timer = 0;
+        if (document.body && document.body.classList.contains('mn-animating')) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          positionSheetRestorePill();
+        });
+      }, 120);
     };
-    const mo = new MutationObserver(schedule);
-    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    const mo = new MutationObserver((records) => {
+      if (document.body && document.body.classList.contains('mn-animating')) return;
+      for (let i = 0; i < records.length; i++) {
+        const tgt = records[i].target;
+        if (tgt && tgt.closest && (tgt.closest('#mn-replay-panel') || tgt.closest('#mn-rp-fx-popover') || tgt.closest('#mn-motion-panel'))) continue;
+        schedule();
+        return;
+      }
+    });
+    mo.observe(document.body, { childList: true, subtree: false });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-ui'] });
-    window.addEventListener('resize', schedule);
-    schedule();
+    window.addEventListener('resize', schedule, { passive: true });
+    positionSheetRestorePill();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSheetPillObserver);
   else startSheetPillObserver();

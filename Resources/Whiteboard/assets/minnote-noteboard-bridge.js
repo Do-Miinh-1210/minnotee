@@ -1425,8 +1425,14 @@
     }
   }
 
+  let tbBalanceRaf = 0;
   const tbObserver = new MutationObserver(() => {
-    balanceToolbarRows();
+    if (document.body && document.body.classList.contains('mn-animating')) return;
+    if (tbBalanceRaf) return;
+    tbBalanceRaf = requestAnimationFrame(() => {
+      tbBalanceRaf = 0;
+      balanceToolbarRows();
+    });
   });
 
   const setupToolbarLayout = () => {

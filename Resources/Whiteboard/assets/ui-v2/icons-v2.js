@@ -442,8 +442,15 @@
   function start() {
     patchDock();
     if (document.body) {
-      new MutationObserver(function () { patchDock(); })
-        .observe(document.body, { childList: true, subtree: true });
+      var pendingRaf = 0;
+      new MutationObserver(function () {
+        if (document.body.classList.contains('mn-animating')) return;
+        if (pendingRaf) return;
+        pendingRaf = requestAnimationFrame(function () {
+          pendingRaf = 0;
+          patchDock();
+        });
+      }).observe(document.body, { childList: true, subtree: true });
     }
   }
 

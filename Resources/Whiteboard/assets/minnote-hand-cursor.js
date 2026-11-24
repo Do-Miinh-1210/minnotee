@@ -52,6 +52,7 @@
   let fallbackImg = null;
   let loadPromise = null;
   const cursorCache = new Map(); // heightPx -> { css, url, w, h, hotX, hotY }
+  const replayShadowCache = new Map(); // 'light'|'dark' -> { canvas, padX, padY, srcW, srcH }
 
   function ensureImages() {
     if (!fallbackImg && typeof Image !== 'undefined') {
@@ -64,6 +65,7 @@
         handImg.onload = () => {
           imgReady = true;
           cursorCache.clear();
+          replayShadowCache.clear();
           refreshBoardCursorVar();
           resolve(handImg);
         };
@@ -74,6 +76,36 @@
       handImg.src = PNG_SRC;
     }
     return loadPromise || Promise.resolve(fallbackImg);
+  }
+
+  function getShadowedReplaySprite(img, isDark) {
+    if (typeof document === 'undefined' || !img || !img.naturalWidth || !img.naturalHeight) return null;
+    const key = (img === handImg ? 'png_' : 'svg_') + (isDark ? 'd' : 'l');
+    if (replayShadowCache.has(key)) return replayShadowCache.get(key);
+    try {
+      const targetH = 196;
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const srcW = Math.max(64, Math.round(targetH * aspect));
+      const srcH = targetH;
+      const pad = 16;
+      const cv = document.createElement('canvas');
+      cv.width = srcW + pad * 2;
+      cv.height = srcH + pad * 2;
+      const c = cv.getContext('2d');
+      if (!c) return null;
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = 'high';
+      c.shadowColor = isDark ? 'rgba(0, 0, 0, 0.36)' : 'rgba(15, 23, 42, 0.18)';
+      c.shadowBlur = targetH * 0.04;
+      c.shadowOffsetX = targetH * 0.01;
+      c.shadowOffsetY = targetH * 0.022;
+      c.drawImage(img, pad, pad, srcW, srcH);
+      const entry = { canvas: cv, pad, srcW, srcH, totalW: cv.width, totalH: cv.height };
+      replayShadowCache.set(key, entry);
+      return entry;
+    } catch (_) {
+      return null;
+    }
   }
 
   function getDrawableImage() {
@@ -341,12 +373,18 @@
     const isDark = (opts && typeof opts.isDark === 'boolean')
       ? opts.isDark
       : (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
-    ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.36)' : 'rgba(15, 23, 42, 0.18)';
-    ctx.shadowBlur = drawH * 0.04;
-    ctx.shadowOffsetX = drawH * 0.01;
-    ctx.shadowOffsetY = drawH * 0.022;
 
-    ctx.drawImage(img, -nibX, -nibY, drawW, drawH);
+    // Zero-shadowBlur 60fps fast path: draw pre-baked shadowed offscreen sprite!
+    const sprite = getShadowedReplaySprite(img, isDark);
+    if (sprite) {
+      const sx = drawW / sprite.srcW;
+      const sy = drawH / sprite.srcH;
+      const padW = sprite.pad * sx;
+      const padH = sprite.pad * sy;
+      ctx.drawImage(sprite.canvas, -nibX - padW, -nibY - padH, drawW + padW * 2, drawH + padH * 2);
+    } else {
+      ctx.drawImage(img, -nibX, -nibY, drawW, drawH);
+    }
     ctx.restore();
   }
 

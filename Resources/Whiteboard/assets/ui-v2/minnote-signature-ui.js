@@ -891,7 +891,23 @@
     document.querySelectorAll('.selection-bar').forEach(enhanceSelectionBar);
   }
 
-  function scheduleScan() {
+  function scheduleScan(records) {
+    if (document.body && document.body.classList.contains('mn-animating')) {
+      let relevant = false;
+      if (Array.isArray(records)) {
+        for (let i = 0; i < records.length && !relevant; i++) {
+          const added = records[i].addedNodes;
+          for (let j = 0; j < added.length; j++) {
+            const n = added[j];
+            if (n && n.nodeType === 1 && (n.classList.contains('dialog') || n.classList.contains('dropdown-menu') || n.classList.contains('selection-bar') || (n.querySelector && n.querySelector('.dialog, .dropdown-menu')))) {
+              relevant = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!relevant) return;
+    }
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(scan);
