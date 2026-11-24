@@ -3392,13 +3392,9 @@ namespace MinNote
                 if (update != null)
                 {
                     _availableUpdate = update;
-                    var res = MessageBox.Show(this,
-                        $"Đã có phiên bản mới v{update.Version} trên GitHub!\n\nChi tiết:\n{update.ReleaseNotes}\n\nBạn có muốn tải và cài đặt ngay không?",
-                        "Cập nhật MinNote",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Information);
+                    bool shouldInstall = ShowUpdatePromptDialog(update);
 
-                    if (res == System.Windows.MessageBoxResult.Yes)
+                    if (shouldInstall)
                     {
                         BtnUpdateTop.Content = "Đang lưu dữ liệu…";
                         await FlushAndSaveWhiteboardAsync("pre_update_download", 6000);
@@ -3449,6 +3445,268 @@ namespace MinNote
                     BtnUpdateTop.Content = "Cập nhật";
                 }
             }
+        }
+
+        private bool ShowUpdatePromptDialog(UpdateInfo update)
+        {
+            string cleanNotes = FormatReleaseNotesForDialog(update.ReleaseNotes);
+            string sizeLabel = update.FileSize > 0
+                ? $" • {update.FileSize / (1024.0 * 1024.0):F1} MB"
+                : "";
+
+            double maxWinHeight = Math.Max(360, Math.Min(500, SystemParameters.WorkArea.Height - 96));
+            double scrollMaxH = Math.Max(150, maxWinHeight - 195);
+
+            var dlg = new Window
+            {
+                Owner = this,
+                Title = "Cập nhật MinNote",
+                Width = 540,
+                MaxHeight = maxWinHeight,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = System.Windows.Media.Brushes.Transparent,
+                ShowInTaskbar = false,
+                Style = null
+            };
+
+            bool accepted = false;
+
+            var rootBorder = new System.Windows.Controls.Border
+            {
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(15, 23, 42)),
+                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 65, 85)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(6)
+            };
+
+            var layout = new System.Windows.Controls.Grid();
+            layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+
+            // Header (draggable)
+            var header = new System.Windows.Controls.Border
+            {
+                Padding = new Thickness(20, 16, 16, 14),
+                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 41, 59)),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Background = System.Windows.Media.Brushes.Transparent
+            };
+            header.MouseLeftButtonDown += (_, args) =>
+            {
+                if (args.ButtonState == MouseButtonState.Pressed)
+                {
+                    try { dlg.DragMove(); } catch { }
+                }
+            };
+
+            var headerGrid = new System.Windows.Controls.Grid();
+            headerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+
+            var titleStack = new System.Windows.Controls.StackPanel();
+            var titleRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            titleRow.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = "Cập nhật MinNote",
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(248, 250, 252)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            var badge = new System.Windows.Controls.Border
+            {
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)),
+                CornerRadius = new CornerRadius(999),
+                Padding = new Thickness(9, 2, 9, 3),
+                Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new System.Windows.Controls.TextBlock
+                {
+                    Text = $"v{update.Version}",
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = System.Windows.Media.Brushes.White
+                }
+            };
+            titleRow.Children.Add(badge);
+            titleStack.Children.Add(titleRow);
+            titleStack.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = $"Phiên bản hiện tại: v{GitHubUpdateService.Instance.CurrentVersion} → v{update.Version}{sizeLabel}",
+                FontSize = 12,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184)),
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+            System.Windows.Controls.Grid.SetColumn(titleStack, 0);
+            headerGrid.Children.Add(titleStack);
+
+            var btnClose = BuildUpdateDialogButton(
+                "✕",
+                System.Windows.Media.Color.FromRgb(30, 41, 59),
+                System.Windows.Media.Color.FromRgb(51, 65, 85),
+                System.Windows.Media.Color.FromRgb(203, 213, 225),
+                width: 30,
+                height: 30);
+            btnClose.IsCancel = true;
+            btnClose.VerticalAlignment = VerticalAlignment.Top;
+            btnClose.Click += (_, _) => dlg.DialogResult = false;
+            System.Windows.Controls.Grid.SetColumn(btnClose, 1);
+            headerGrid.Children.Add(btnClose);
+            header.Child = headerGrid;
+            System.Windows.Controls.Grid.SetRow(header, 0);
+            layout.Children.Add(header);
+
+            // Scrollable notes body (strictly capped so footer buttons NEVER leave viewport!)
+            var notesBox = new System.Windows.Controls.TextBlock
+            {
+                Text = string.IsNullOrWhiteSpace(cleanNotes)
+                    ? "Bản cập nhật mới đã sẵn sàng để tải và cài đặt tự động."
+                    : cleanNotes,
+                FontSize = 13,
+                LineHeight = 20,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 232, 240)),
+                TextWrapping = TextWrapping.Wrap,
+                Padding = new Thickness(20, 14, 20, 14)
+            };
+            var scroll = new System.Windows.Controls.ScrollViewer
+            {
+                MaxHeight = scrollMaxH,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+                Content = notesBox
+            };
+            System.Windows.Controls.Grid.SetRow(scroll, 1);
+            layout.Children.Add(scroll);
+
+            // Pinned footer buttons
+            var footer = new System.Windows.Controls.Border
+            {
+                Padding = new Thickness(20, 12, 20, 16),
+                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 41, 59)),
+                BorderThickness = new Thickness(0, 1, 0, 0),
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 18, 32)),
+                CornerRadius = new CornerRadius(0, 0, 13, 13)
+            };
+            var footerGrid = new System.Windows.Controls.Grid();
+            footerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            footerGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+
+            var hintTxt = new System.Windows.Controls.TextBlock
+            {
+                Text = "Dữ liệu bảng viết sẽ tự động sao lưu trước khi cài.",
+                FontSize = 11.5,
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184)),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+            System.Windows.Controls.Grid.SetColumn(hintTxt, 0);
+            footerGrid.Children.Add(hintTxt);
+
+            var btnRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            var btnLater = BuildUpdateDialogButton(
+                "Để sau",
+                System.Windows.Media.Color.FromRgb(30, 41, 59),
+                System.Windows.Media.Color.FromRgb(51, 65, 85),
+                System.Windows.Media.Color.FromRgb(226, 232, 240),
+                minWidth: 88,
+                height: 36);
+            btnLater.IsCancel = true;
+            btnLater.Margin = new Thickness(0, 0, 8, 0);
+            btnLater.Click += (_, _) => dlg.DialogResult = false;
+
+            var btnInstall = BuildUpdateDialogButton(
+                "Cập nhật ngay",
+                System.Windows.Media.Color.FromRgb(37, 99, 235),
+                System.Windows.Media.Color.FromRgb(29, 78, 216),
+                System.Windows.Media.Colors.White,
+                minWidth: 132,
+                height: 36);
+            btnInstall.IsDefault = true;
+            btnInstall.Click += (_, _) =>
+            {
+                accepted = true;
+                dlg.DialogResult = true;
+            };
+
+            btnRow.Children.Add(btnLater);
+            btnRow.Children.Add(btnInstall);
+            System.Windows.Controls.Grid.SetColumn(btnRow, 1);
+            footerGrid.Children.Add(btnRow);
+            footer.Child = footerGrid;
+            System.Windows.Controls.Grid.SetRow(footer, 2);
+            layout.Children.Add(footer);
+
+            rootBorder.Child = layout;
+            dlg.Content = rootBorder;
+
+            bool? res = dlg.ShowDialog();
+            return accepted || res == true;
+        }
+
+        private static System.Windows.Controls.Button BuildUpdateDialogButton(
+            string text,
+            System.Windows.Media.Color normalBg,
+            System.Windows.Media.Color hoverBg,
+            System.Windows.Media.Color fg,
+            double? width = null,
+            double? minWidth = null,
+            double height = 34)
+        {
+            var normalBrush = new System.Windows.Media.SolidColorBrush(normalBg);
+            var hoverBrush = new System.Windows.Media.SolidColorBrush(hoverBg);
+            var fgBrush = new System.Windows.Media.SolidColorBrush(fg);
+
+            var borderFactory = new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
+            borderFactory.Name = "bd";
+            borderFactory.SetValue(System.Windows.Controls.Border.BackgroundProperty, normalBrush);
+            borderFactory.SetValue(System.Windows.Controls.Border.CornerRadiusProperty, new CornerRadius(8));
+            borderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty, width.HasValue ? new Thickness(0) : new Thickness(14, 0, 14, 0));
+
+            var cp = new FrameworkElementFactory(typeof(System.Windows.Controls.ContentPresenter));
+            cp.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            cp.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
+            borderFactory.AppendChild(cp);
+
+            var tpl = new System.Windows.Controls.ControlTemplate(typeof(System.Windows.Controls.Button))
+            {
+                VisualTree = borderFactory
+            };
+            var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hoverTrigger.Setters.Add(new Setter(System.Windows.Controls.Border.BackgroundProperty, hoverBrush, "bd"));
+            tpl.Triggers.Add(hoverTrigger);
+
+            var btn = new System.Windows.Controls.Button
+            {
+                Content = text,
+                Height = height,
+                Foreground = fgBrush,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                Cursor = Cursors.Hand,
+                Style = null,
+                Template = tpl
+            };
+            if (width.HasValue) btn.Width = width.Value;
+            if (minWidth.HasValue) btn.MinWidth = minWidth.Value;
+            return btn;
+        }
+
+        private static string FormatReleaseNotesForDialog(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "";
+            string s = raw.Replace("\r\n", "\n");
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"<!--[\s\S]*?-->", "");
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"^\s*#{1,6}\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+            s = s.Replace("**", "").Replace("`", "");
+            s = System.Text.RegularExpressions.Regex.Replace(s, @"\n{3,}", "\n\n");
+            return s.Trim();
         }
 
         private void BtnLicenseTop_Click(object sender, RoutedEventArgs e)
