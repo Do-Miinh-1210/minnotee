@@ -468,32 +468,32 @@ namespace MinNote.Services
             },
             ["Antigravity"] = new()
             {
-                "gemini-3.8-flash-medium",
-                "gemini-3.8-flash-high",
                 "gemini-3.8-flash-low",
-                "gemini-4-neon-medium",
-                "gemini-4-neon-high",
-                "gemini-4-neon-low",
-                "gemini-4-neon-xhigh",
-                "gemini-4-carbon-medium",
-                "gemini-4-carbon-high",
-                "gemini-4-carbon-low",
-                "gemini-4-argon-medium",
-                "gemini-4-argon-high",
+                "gemini-3.8-flash-medium",
                 "gemini-4-argon-low",
-                "gemini-4-hydrogen-medium",
-                "gemini-4-hydrogen-high",
+                "gemini-4-argon-medium",
+                "gemini-4-neon-low",
+                "gemini-4-neon-medium",
+                "gemini-4-carbon-low",
+                "gemini-4-carbon-medium",
                 "gemini-4-hydrogen-low",
+                "gemini-4-hydrogen-medium",
+                "claude-sonnet-5-5-low",
+                "claude-sonnet-5-5-medium",
+                "claude-opus-5-5-low",
+                "claude-opus-5-5-medium",
+                "gemini-3.8-flash-high",
+                "gemini-4-argon-high",
+                "gemini-4-neon-high",
+                "gemini-4-carbon-high",
+                "gemini-4-hydrogen-high",
+                "claude-sonnet-5-5-high",
+                "claude-opus-5-5-high",
+                "gemini-4-neon-xhigh",
                 "gemini-4-hydrogen-xhigh",
                 "gemini-pro-orchestrator-neon",
-                "gemini-pro-orchestrator",
                 "gemini-pro-orchestrator-argon",
-                "claude-sonnet-5-5-medium",
-                "claude-sonnet-5-5-high",
-                "claude-sonnet-5-5-low",
-                "claude-opus-5-5-medium",
-                "claude-opus-5-5-high",
-                "claude-opus-5-5-low",
+                "gemini-pro-orchestrator",
                 "gpt-oss-120b-medium"
             },
             ["9Router"] = new()
@@ -1219,8 +1219,9 @@ namespace MinNote.Services
 
                             if (models.Count > 0)
                             {
-                                _cachedLiveModels[targetProv] = (models, DateTime.UtcNow);
-                                return (models, true, $"Tìm thấy {models.Count} mô hình khả dụng từ Antigravity CLI.");
+                                var sorted = SortAntigravityModels(models);
+                                _cachedLiveModels[targetProv] = (sorted, DateTime.UtcNow);
+                                return (sorted, true, $"Tìm thấy {sorted.Count} mô hình khả dụng từ Antigravity CLI.");
                             }
                         }
                         return (defaults, false,
@@ -1428,6 +1429,29 @@ namespace MinNote.Services
                 };
             }
             return SplitKeys(raw).FirstOrDefault() ?? string.Empty;
+        }
+
+        private static List<string> SortAntigravityModels(IEnumerable<string> models)
+        {
+            var preferredOrder = DefaultModelsByProvider.TryGetValue("Antigravity", out var defs) ? defs : new List<string>();
+            var rankMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < preferredOrder.Count; i++)
+            {
+                rankMap[preferredOrder[i]] = i;
+            }
+            static int FallbackRank(string id)
+            {
+                if (id.EndsWith("-low", StringComparison.OrdinalIgnoreCase)) return 100;
+                if (id.EndsWith("-medium", StringComparison.OrdinalIgnoreCase)) return 200;
+                if (id.EndsWith("-high", StringComparison.OrdinalIgnoreCase)) return 300;
+                if (id.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase)) return 400;
+                return 350;
+            }
+            return models
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => rankMap.TryGetValue(id, out int r) ? r : FallbackRank(id))
+                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static List<string> Sort9RouterModels(IEnumerable<string> models)
@@ -2099,6 +2123,54 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             return null;
         }
 
+        private static string MapAntigravityModelForFastExecution(string model, bool hasImage)
+        {
+            string m = (model ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(m)) return "gemini-3.8-flash-low";
+
+            if (hasImage)
+            {
+                if (m.StartsWith("gemini-4-neon", StringComparison.OrdinalIgnoreCase) ||
+                    m.Equals("gemini-pro-orchestrator-neon", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-4-neon-low";
+
+                if (m.StartsWith("gemini-4-argon", StringComparison.OrdinalIgnoreCase) ||
+                    m.Equals("gemini-pro-orchestrator-argon", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-4-argon-low";
+
+                if (m.StartsWith("gemini-4-carbon", StringComparison.OrdinalIgnoreCase) ||
+                    m.Equals("gemini-pro-orchestrator", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-4-carbon-low";
+
+                if (m.StartsWith("gemini-4-hydrogen", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-4-hydrogen-low";
+
+                if (m.StartsWith("gemini-3.8-flash", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-3.8-flash-low";
+
+                if (m.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase))
+                    return "claude-opus-5-5-low";
+
+                if (m.StartsWith("claude-sonnet-5-5", StringComparison.OrdinalIgnoreCase))
+                    return "claude-sonnet-5-5-low";
+
+                if (m.StartsWith("gpt-oss", StringComparison.OrdinalIgnoreCase))
+                    return "gemini-3.8-flash-low";
+
+                if (m.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase))
+                    return m[..^6] + "-low";
+                if (m.EndsWith("-high", StringComparison.OrdinalIgnoreCase))
+                    return m[..^5] + "-low";
+            }
+            else
+            {
+                if (m.EndsWith("-xhigh", StringComparison.OrdinalIgnoreCase))
+                    return m[..^6] + "-medium";
+            }
+
+            return m;
+        }
+
         private static async Task<MeaAiExecutionResult> ExecuteAntigravityAsync(
             string prompt, string? systemPrompt, string model, string imageBase64, string imageMimeType, Stopwatch sw, CancellationToken ct)
         {
@@ -2120,7 +2192,16 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
             if (normalizedModel.StartsWith("ag/", StringComparison.OrdinalIgnoreCase))
                 normalizedModel = normalizedModel.Substring(3);
             if (!SafeModelIdRegex.IsMatch(normalizedModel))
-                normalizedModel = "gemini-3.8-flash-medium";
+                normalizedModel = "gemini-3.8-flash-low";
+
+            bool hasImage = !string.IsNullOrEmpty(imageBase64);
+            string effectiveModel = MapAntigravityModelForFastExecution(normalizedModel, hasImage);
+
+            var candidates = new List<string> { effectiveModel };
+            if (!candidates.Contains("gemini-3.8-flash-low", StringComparer.OrdinalIgnoreCase))
+                candidates.Add("gemini-3.8-flash-low");
+            if (!candidates.Contains("gemini-4-argon-low", StringComparer.OrdinalIgnoreCase))
+                candidates.Add("gemini-4-argon-low");
 
             string workDir = Path.Combine(Path.GetTempPath(), "MinNote", "agy", Guid.NewGuid().ToString("N"));
             try
@@ -2133,7 +2214,7 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                 {
                     sb.AppendLine().AppendLine("Hướng dẫn hệ thống:").AppendLine(systemPrompt.Trim());
                 }
-                if (!string.IsNullOrEmpty(imageBase64))
+                if (hasImage)
                 {
                     string mimeLow = (imageMimeType ?? string.Empty).ToLowerInvariant();
                     string ext = mimeLow.Contains("jpeg") || mimeLow.Contains("jpg") ? ".jpg"
@@ -2166,114 +2247,121 @@ QUY TẮC CẤU TRÚC BẮT BUỘC:
                     message = new { role = "user", content = sb.ToString() }
                 }, CompactJsonOptions) + "\n";
 
-                var args = new[]
+                string lastErr = string.Empty;
+                for (int attempt = 0; attempt < candidates.Count; attempt++)
                 {
-                    "-p", string.Empty,
-                    "--input-format", "stream-json",
-                    "--output-format", "stream-json",
-                    "--dangerously-skip-permissions",
-                    "--disable-slash-commands",
-                    "--add-dir", workDir,
-                    "--model", normalizedModel,
-                    "--print-timeout", "240s"
-                };
+                    ct.ThrowIfCancellationRequested();
+                    string candidateModel = candidates[attempt];
+                    int printTimeoutSec = attempt == 0 ? 105 : 90;
 
-                var (stdout, stderr, exitCode, timedOut) = await RunAgyProcessAsync(exe, args, stdinLine, workDir, TimeSpan.FromSeconds(255), ct).ConfigureAwait(false);
-                sw.Stop();
-
-                if (timedOut)
-                {
-                    return new MeaAiExecutionResult
+                    var args = new[]
                     {
-                        Ok = false,
-                        Provider = "Antigravity",
-                        Model = normalizedModel,
-                        LatencyMs = sw.ElapsedMilliseconds,
-                        Error = "Antigravity CLI hết thời gian chờ phản hồi (255s). Với ảnh phức tạp, hãy thử model nhanh hơn như gemini-3.8-flash-medium."
+                        "-p", string.Empty,
+                        "--input-format", "stream-json",
+                        "--output-format", "stream-json",
+                        "--dangerously-skip-permissions",
+                        "--disable-slash-commands",
+                        "--add-dir", workDir,
+                        "--model", candidateModel,
+                        "--print-timeout", $"{printTimeoutSec}s"
                     };
-                }
 
-                // Parse stream-json result event and streamed text fallback
-                JsonElement? resultEl = null;
-                var streamText = new StringBuilder();
-                foreach (var line in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (!line.TrimStart().StartsWith("{", StringComparison.Ordinal)) continue;
-                    try
+                    var (stdout, stderr, exitCode, timedOut) = await RunAgyProcessAsync(
+                        exe, args, stdinLine, workDir, TimeSpan.FromSeconds(printTimeoutSec + 12), ct).ConfigureAwait(false);
+
+                    // Parse stream-json result event and streamed text fallback
+                    JsonElement? resultEl = null;
+                    var streamText = new StringBuilder();
+                    foreach (var line in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                     {
-                        using var doc = JsonDocument.Parse(line);
-                        if (doc.RootElement.TryGetProperty("event", out var ev))
+                        if (!line.TrimStart().StartsWith("{", StringComparison.Ordinal)) continue;
+                        try
                         {
-                            string evName = ev.GetString() ?? string.Empty;
-                            if (string.Equals(evName, "step_update", StringComparison.OrdinalIgnoreCase) &&
-                                doc.RootElement.TryGetProperty("step_update", out var suObj) &&
-                                suObj.TryGetProperty("step_type", out var stType) &&
-                                string.Equals(stType.GetString(), "agent_response", StringComparison.OrdinalIgnoreCase) &&
-                                suObj.TryGetProperty("text_delta", out var tdEl) &&
-                                tdEl.ValueKind == JsonValueKind.String)
+                            using var doc = JsonDocument.Parse(line);
+                            if (doc.RootElement.TryGetProperty("event", out var ev))
                             {
-                                streamText.Append(tdEl.GetString());
-                            }
-                            else if (string.Equals(evName, "result", StringComparison.OrdinalIgnoreCase) &&
-                                     doc.RootElement.TryGetProperty("result", out var resObj) &&
-                                     resObj.ValueKind == JsonValueKind.Object)
-                            {
-                                resultEl = resObj.Clone();
+                                string evName = ev.GetString() ?? string.Empty;
+                                if (string.Equals(evName, "step_update", StringComparison.OrdinalIgnoreCase) &&
+                                    doc.RootElement.TryGetProperty("step_update", out var suObj) &&
+                                    suObj.TryGetProperty("step_type", out var stType) &&
+                                    string.Equals(stType.GetString(), "agent_response", StringComparison.OrdinalIgnoreCase) &&
+                                    suObj.TryGetProperty("text_delta", out var tdEl) &&
+                                    tdEl.ValueKind == JsonValueKind.String)
+                                {
+                                    streamText.Append(tdEl.GetString());
+                                }
+                                else if (string.Equals(evName, "result", StringComparison.OrdinalIgnoreCase) &&
+                                         doc.RootElement.TryGetProperty("result", out var resObj) &&
+                                         resObj.ValueKind == JsonValueKind.Object)
+                                {
+                                    resultEl = resObj.Clone();
+                                }
                             }
                         }
+                        catch { }
                     }
-                    catch { }
-                }
 
-                if (resultEl is JsonElement res)
-                {
-                    string status = res.TryGetProperty("status", out var st) ? (st.GetString() ?? "") : "";
-                    string responseText = res.TryGetProperty("response", out var rp) ? (rp.GetString() ?? "").Trim() : "";
+                    string responseText = string.Empty;
+                    string status = string.Empty;
+                    string errText = string.Empty;
+
+                    if (resultEl is JsonElement res)
+                    {
+                        status = res.TryGetProperty("status", out var st) ? (st.GetString() ?? "") : "";
+                        responseText = res.TryGetProperty("response", out var rp) ? (rp.GetString() ?? "").Trim() : "";
+                        errText = res.TryGetProperty("error", out var er) ? (er.GetString() ?? "") : "";
+                    }
+
                     if (string.IsNullOrEmpty(responseText) && streamText.Length > 0)
                     {
                         responseText = streamText.ToString().Trim();
                     }
-                    if (string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(responseText))
+
+                    if (!string.IsNullOrEmpty(responseText) &&
+                        (string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase) || responseText.Contains("{", StringComparison.Ordinal)))
                     {
+                        sw.Stop();
                         return new MeaAiExecutionResult
                         {
                             Ok = true,
                             Content = responseText,
                             Provider = "Antigravity",
-                            Model = normalizedModel,
+                            Model = candidateModel,
                             LatencyMs = sw.ElapsedMilliseconds
                         };
                     }
-                    string errText = res.TryGetProperty("error", out var er) ? (er.GetString() ?? "") : "";
-                    return new MeaAiExecutionResult
+
+                    if (timedOut ||
+                        errText.Contains("print timeout", StringComparison.OrdinalIgnoreCase) ||
+                        stderr.Contains("print timeout", StringComparison.OrdinalIgnoreCase) ||
+                        stderr.Contains("DEADLINE_EXCEEDED", StringComparison.OrdinalIgnoreCase))
                     {
-                        Ok = false,
-                        Provider = "Antigravity",
-                        Model = normalizedModel,
-                        LatencyMs = sw.ElapsedMilliseconds,
-                        Error = !string.IsNullOrWhiteSpace(errText) ? errText : (string.IsNullOrWhiteSpace(stderr) ? "Antigravity trả về kết quả rỗng." : Shorten(stderr, 300))
-                    };
+                        lastErr = $"Model {candidateModel} phản hồi quá thời gian chờ ({printTimeoutSec}s).";
+                    }
+                    else if (!string.IsNullOrWhiteSpace(errText))
+                    {
+                        lastErr = errText;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(stderr))
+                    {
+                        lastErr = Shorten(stderr, 260);
+                    }
+                    else
+                    {
+                        lastErr = $"Antigravity ({candidateModel}) kết thúc với mã {exitCode}.";
+                    }
                 }
 
-                if (streamText.Length > 0)
-                {
-                    return new MeaAiExecutionResult
-                    {
-                        Ok = true,
-                        Content = streamText.ToString().Trim(),
-                        Provider = "Antigravity",
-                        Model = normalizedModel,
-                        LatencyMs = sw.ElapsedMilliseconds
-                    };
-                }
-
+                sw.Stop();
                 return new MeaAiExecutionResult
                 {
                     Ok = false,
                     Provider = "Antigravity",
-                    Model = normalizedModel,
+                    Model = effectiveModel,
                     LatencyMs = sw.ElapsedMilliseconds,
-                    Error = string.IsNullOrWhiteSpace(stderr) ? $"Antigravity kết thúc với mã {exitCode}." : Shorten(stderr, 300)
+                    Error = string.IsNullOrWhiteSpace(lastErr)
+                        ? "Antigravity CLI không trả về kết quả hợp lệ. Hãy chọn gemini-3.8-flash-low hoặc gemini-4-argon-low rồi thử lại."
+                        : $"{lastErr} Hãy thử chọn gemini-3.8-flash-low hoặc gemini-4-argon-low."
                 };
             }
             catch (OperationCanceledException)

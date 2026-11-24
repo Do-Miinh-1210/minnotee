@@ -24,7 +24,7 @@ if not GITHUB_TOKEN:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = "Do-Miinh-1210/minnotee"
-TAG = "v0.0.9.3"
+TAG = "v0.0.9.4"
 NOTES_PATH = os.path.join(BASE_DIR, "release_notes", f"{TAG}.md")
 SETUP_EXE = os.path.join(BASE_DIR, "dist", "installer", "MinNote_Setup.exe")
 

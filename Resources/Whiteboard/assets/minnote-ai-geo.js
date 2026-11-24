@@ -1690,7 +1690,7 @@ SCHEMA "ops":
     const prov = modalState.selectedProvider || '';
     const mod = modalState.selectedModel || '';
     if (prov === 'Antigravity' && (/(?:^|-)(?:high|xhigh)$/i.test(mod) || /orchestrator/i.test(mod))) {
-      hintEl.textContent = '💡 Model suy luận sâu qua Antigravity CLI thường mất ~1–2 phút; muốn nhanh hơn hãy chọn gemini-3.8-flash-medium.';
+      hintEl.textContent = `⚡ Đã bật chế độ Tăng tốc Đọc ảnh cho ${mod}: tự động tối ưu luồng suy luận cùng dòng model để dựng hình trong ~45–60 giây (không bị timeout).`;
       hintEl.style.display = 'block';
     } else if (prov === 'DeepSeek') {
       hintEl.textContent = '💡 DeepSeek API chỉ đọc đề bằng chữ; để dựng hình từ ảnh, hãy chọn Antigravity, Google Gemini, OpenAI hoặc 9Router.';
@@ -1889,11 +1889,11 @@ SCHEMA "ops":
     const userPrompt = [
       promptInput
         ? `Đề bài / Yêu cầu dựng hình:\n${promptInput}`
-        : 'Hãy đọc kỹ đề bài Toán Hình học trong ảnh đính kèm và dựng hình chính xác toàn bộ giả thiết.',
+        : 'Hãy đọc kỹ đề bài Toán Hình học trong ảnh đính kèm (kể cả đề tự luận, trắc nghiệm hoặc bảng Đúng/Sai 4 mệnh đề) và dựng hình chính xác toàn bộ giả thiết.',
       wantAux
-        ? 'Hãy dựng thêm cả các nét phụ, giao tuyến, giao điểm, góc vuông gợi ý phục vụ các câu hỏi a, b, c (nếu đề bài có).'
-        : 'Chỉ dựng các yếu tố trong giả thiết đề bài (chưa cần dựng nét phụ chứng minh câu hỏi).',
-      'Trả về DUY NHẤT 1 đối tượng JSON theo schema quy định.'
+        ? 'Hãy dựng thêm các điểm, giao tuyến, giao điểm, góc vuông chính phục vụ các câu hỏi / mệnh đề a, b, c, d (nếu đề bài hoặc bảng Đúng/Sai có). Giữ tổng số lệnh "ops" gọn gàng khoảng 20–35 bước cốt lõi.'
+        : 'Chỉ dựng các yếu tố trong giả thiết chính của đề bài (chưa cần dựng nét phụ của các câu hỏi a, b, c, d).',
+      'Trả về DUY NHẤT 1 đối tượng JSON gọn sạch theo schema quy định (không viết giải thích ngoài JSON).'
     ].join('\n\n');
 
     setError('');
