@@ -67,7 +67,6 @@ namespace MinNote
         private bool _isTogglingFullScreen = false;
         private bool _onlineCheckDone;
         private DateTime _lastAutoRecover = DateTime.MinValue;
-        private string? _pendingWordPath;
         private string? _lastBatchDownloadDir;
         private DateTime _lastBatchDownloadUtc = DateTime.MinValue;
         private readonly System.Windows.Threading.DispatcherTimer _licenseTimer = new() { Interval = TimeSpan.FromMinutes(10) };
@@ -781,92 +780,6 @@ namespace MinNote
             }
         }
 
-        private string ConvertWordToPdf(string inputPath)
-        {
-            string ext = Path.GetExtension(inputPath).ToLowerInvariant();
-            if (ext != ".doc" && ext != ".docx")
-            {
-                throw new InvalidOperationException("Chỉ hỗ trợ chuyển đổi tệp Word (.doc, .docx).");
-            }
-
-            string tmpDir = Path.Combine(Path.GetTempPath(), "minnote_word_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(tmpDir);
-            string outPdf = Path.Combine(tmpDir, "document.pdf");
-            string absIn = Path.GetFullPath(inputPath);
-
-            // Method 1: Microsoft Word COM via PowerShell (paths passed via environment variables to prevent command injection)
-            const string psScript = "$w = New-Object -ComObject Word.Application; try { $w.Visible = $false; $d = $w.Documents.Open($env:MINNOTE_WORD_IN, $false, $true, $false); $d.ExportAsFixedFormat($env:MINNOTE_WORD_OUT, 17); $d.Close(0) } finally { $w.Quit() }";
-            try
-            {
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
-                };
-                psi.ArgumentList.Add("-NoProfile");
-                psi.ArgumentList.Add("-NonInteractive");
-                psi.ArgumentList.Add("-Command");
-                psi.ArgumentList.Add(psScript);
-                psi.Environment["MINNOTE_WORD_IN"] = absIn;
-                psi.Environment["MINNOTE_WORD_OUT"] = outPdf;
-                using var proc = System.Diagnostics.Process.Start(psi);
-                proc?.WaitForExit(35000);
-            }
-            catch (Exception ex)
-            {
-                Log($"PowerShell Word COM conversion failed: {ex.Message}");
-            }
-
-            if (File.Exists(outPdf))
-            {
-                return outPdf;
-            }
-
-            // Method 2: LibreOffice fallback
-            string[] libreCandidates = new[]
-            {
-                @"C:\Program Files\LibreOffice\program\soffice.exe",
-                @"C:\Program Files (x86)\LibreOffice\program\soffice.exe"
-            };
-            foreach (var soffice in libreCandidates)
-            {
-                if (File.Exists(soffice))
-                {
-                    try
-                    {
-                        var lpsi = new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = soffice,
-                            CreateNoWindow = true,
-                            UseShellExecute = false,
-                            WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
-                        };
-                        lpsi.ArgumentList.Add("--headless");
-                        lpsi.ArgumentList.Add("--convert-to");
-                        lpsi.ArgumentList.Add("pdf");
-                        lpsi.ArgumentList.Add(absIn);
-                        lpsi.ArgumentList.Add("--outdir");
-                        lpsi.ArgumentList.Add(tmpDir);
-                        using var lproc = System.Diagnostics.Process.Start(lpsi);
-                        lproc?.WaitForExit(35000);
-
-                        string baseName = Path.GetFileNameWithoutExtension(absIn);
-                        string candPdf = Path.Combine(tmpDir, baseName + ".pdf");
-                        if (File.Exists(candPdf)) return candPdf;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"LibreOffice conversion failed: {ex.Message}");
-                    }
-                }
-            }
-
-            try { Directory.Delete(tmpDir, recursive: true); } catch { }
-            throw new InvalidOperationException("Không thể chuyển đổi Word sang PDF. Vui lòng cài đặt Microsoft Word hoặc LibreOffice.");
-        }
-
         private void CoreWebView2_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
         {
             string uri = e.Uri ?? string.Empty;
@@ -1087,76 +1000,6 @@ namespace MinNote
                             Log($"CAPTURE_MINDMAP error: {ex.Message}");
                             await ShowWebToastAsync($"Lỗi chụp sơ đồ tư duy: {ex.Message}", "error");
                         }
-                    }
-                    else if (msgType == "PICK_WORD")
-                    {
-                        var dlg = new Microsoft.Win32.OpenFileDialog
-                        {
-                            Title = "Chọn tài liệu Word (.docx, .doc)",
-                            Filter = "Tài liệu Word (*.docx;*.doc)|*.docx;*.doc|Tất cả tệp (*.*)|*.*"
-                        };
-                        bool? res = dlg.ShowDialog(this);
-                        if (res == true && !string.IsNullOrEmpty(dlg.FileName))
-                        {
-                            _pendingWordPath = dlg.FileName;
-                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordPickCallback) window.__wordPickCallback(true);");
-                        }
-                        else
-                        {
-                            _pendingWordPath = null;
-                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordPickCallback) window.__wordPickCallback(false);");
-                        }
-                    }
-                    else if (msgType == "CONVERT_WORD")
-                    {
-                        // Chỉ chấp nhận tệp người dùng tự chọn qua OpenFileDialog (PICK_WORD); không nhận đường dẫn tùy ý từ JS.
-                        string? target = _pendingWordPath;
-                        _ = Task.Run(async () =>
-                        {
-                            string ext = string.IsNullOrEmpty(target) ? string.Empty : Path.GetExtension(target).ToLowerInvariant();
-                            if (string.IsNullOrEmpty(target) || !File.Exists(target) || (ext != ".doc" && ext != ".docx"))
-                            {
-                                Log($"CONVERT_WORD rejected invalid or missing pending Word path (ext='{ext}')");
-                                await Dispatcher.InvokeAsync(async () =>
-                                {
-                                    if (WvWhiteboard?.CoreWebView2 != null)
-                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'not_found'});");
-                                });
-                                return;
-                            }
-
-                            try
-                            {
-                                string outPdf = ConvertWordToPdf(target);
-                                byte[] bytes = File.ReadAllBytes(outPdf);
-                                string base64 = Convert.ToBase64String(bytes);
-                                try
-                                {
-                                    File.Delete(outPdf);
-                                    string? tmpParent = Path.GetDirectoryName(outPdf);
-                                    if (!string.IsNullOrEmpty(tmpParent) && Directory.Exists(tmpParent))
-                                        Directory.Delete(tmpParent, recursive: true);
-                                }
-                                catch { }
-
-                                await Dispatcher.InvokeAsync(async () =>
-                                {
-                                    if (WvWhiteboard?.CoreWebView2 == null) return;
-                                    string s = $"if(window.__wordConvertCallback) window.__wordConvertCallback({{pdf: Uint8Array.from(atob('{base64}'), c => c.charCodeAt(0))}});";
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(s);
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                Log($"CONVERT_WORD error: {ex.Message}");
-                                await ShowWebToastAsync($"Lỗi chuyển đổi Word: {ex.Message}", "error");
-                                await Dispatcher.InvokeAsync(async () =>
-                                {
-                                    if (WvWhiteboard?.CoreWebView2 != null)
-                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'failed'});");
-                                });
-                            }
-                        });
                     }
                     else if (msgType == "COPY_EMF_SELECTION")
                     {
@@ -1956,8 +1799,7 @@ namespace MinNote
                             try
                             {
                                 var backup = NotebookBackupService.Instance.GetStatusInfo();
-                                var drive = await GoogleDriveService.Instance.GetStateAsync();
-                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { backup, drive });
+                                await PostBridgeResultAsync("PERSIST_RESULT", reqId, true, new { backup });
                             }
                             catch (Exception exSt)
                             {
@@ -1987,7 +1829,7 @@ namespace MinNote
                             var current = NotebookBackupService.Instance.GetSettings().SyncFolderPath;
                             var ofd = new Microsoft.Win32.OpenFolderDialog
                             {
-                                Title = "Chọn thư mục đồng bộ (Google Drive / OneDrive / USB...)",
+                                Title = "Chọn thư mục sao lưu ngoài (OneDrive / USB / Ổ đĩa khác...)",
                                 InitialDirectory = !string.IsNullOrWhiteSpace(current) && Directory.Exists(current)
                                     ? current
                                     : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -2082,139 +1924,6 @@ namespace MinNote
                             catch (Exception exSs)
                             {
                                 await PostBridgeResultAsync("PERSIST_RESULT", reqId, false, null, exSs.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_GET_STATE")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var st = await GoogleDriveService.Instance.GetStateAsync();
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
-                            }
-                            catch (Exception exDr)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDr.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_SAVE_CONFIG")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        string clientId = GetJsonString(root, "clientId");
-                        string clientSecret = GetJsonString(root, "clientSecret");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var st = GoogleDriveService.Instance.SaveOAuthConfig(clientId, clientSecret);
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
-                            }
-                            catch (Exception exDc)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDc.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_SIGN_IN")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var st = await GoogleDriveService.Instance.SignInAsync();
-                                await Dispatcher.InvokeAsync(() => { Activate(); });
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
-                            }
-                            catch (Exception exSi)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exSi.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_SIGN_OUT")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var st = await GoogleDriveService.Instance.SignOutAsync();
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, st);
-                            }
-                            catch (Exception exSo)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exSo.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_BACKUP_NOW")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var resObj = await GoogleDriveService.Instance.BackupAllNotebooksAsync();
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
-                            }
-                            catch (Exception exDb)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDb.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_RESTORE_NOW")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var resObj = await GoogleDriveService.Instance.RestoreAllNotebooksAsync();
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
-                            }
-                            catch (Exception exDr)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exDr.Message);
-                            }
-                        });
-                    }
-                    else if (msgType == "DRIVE_OPEN_WEB_FOLDER")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        try
-                        {
-                            GoogleDriveService.Instance.OpenDriveFolderInBrowser();
-                            await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, new { opened = true });
-                        }
-                        catch (Exception exOw)
-                        {
-                            await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exOw.Message);
-                        }
-                    }
-                    else if (msgType == "DRIVE_API_REQUEST")
-                    {
-                        string reqId = GetJsonString(root, "id");
-                        string method = GetJsonString(root, "method");
-                        string url = GetJsonString(root, "url");
-                        string? ctype = root.TryGetProperty("type", out var ctEl) ? ctEl.GetString() : null;
-                        string? body = root.TryGetProperty("body", out var bEl) ? bEl.GetString() : null;
-                        bool binary = root.TryGetProperty("binary", out var binEl) && binEl.ValueKind == JsonValueKind.True;
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                var resObj = await GoogleDriveService.Instance.ProxyRequestAsync(method, url, ctype, body, binary);
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, true, resObj);
-                            }
-                            catch (Exception exApi)
-                            {
-                                await PostBridgeResultAsync("DRIVE_RESULT", reqId, false, null, exApi.Message);
                             }
                         });
                     }

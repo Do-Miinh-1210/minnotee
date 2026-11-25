@@ -86,53 +86,7 @@
     
     <script>
       // MinNote NoteRenderer Bridge for WPF WebView2 & Web
-      window.noteRenderer = window.noteRenderer || {
-        pickWord: function() {
-          return new Promise(function(resolve) {
-            window.__wordPickCallback = resolve;
-            if (window.chrome && window.chrome.webview) {
-              window.chrome.webview.postMessage({ type: 'PICK_WORD' });
-            } else {
-              const inp = document.getElementById('minnote-word-file-fallback') || document.createElement('input');
-              inp.id = 'minnote-word-file-fallback';
-              inp.type = 'file';
-              inp.accept = '.docx,.doc';
-              inp.style.display = 'none';
-              inp.onchange = function() {
-                if (inp.files && inp.files[0]) {
-                  window._pendingWordFile = inp.files[0];
-                  resolve(true);
-                } else {
-                  resolve(false);
-                }
-              };
-              document.body.appendChild(inp);
-              inp.click();
-            }
-          });
-        },
-        convertWord: function(p) {
-          return new Promise(function(resolve) {
-            window.__wordConvertCallback = resolve;
-            if (window.chrome && window.chrome.webview) {
-              window.chrome.webview.postMessage({ type: 'CONVERT_WORD', path: p });
-            } else {
-              if (window.MinNoteDialog) {
-                window.MinNoteDialog.alert('Tính năng chuyển đổi Word trực tiếp hoạt động trên ứng dụng MinNote cài đặt trên Windows.', 'Thông báo');
-              }
-              resolve({ error: 'requires_app' });
-            }
-          });
-        },
-        openFile: function() {
-          return new Promise(function(resolve) {
-            window.__openFileCallback = resolve;
-            if (window.chrome && window.chrome.webview) {
-              window.chrome.webview.postMessage({ type: 'PICK_WORD' });
-            }
-          });
-        }
-      };
+      window.noteRenderer = window.noteRenderer || {};
 
       // Native TikZ compiler bridge for WPF WebView2 (renderTikz & traceTikz)
       if (window.__isMinNoteWebView2 && window.chrome && window.chrome.webview) {
@@ -227,9 +181,6 @@
     <script src="./assets/noteboard/math/shape-assist.js" defer></script>
     <script src="./assets/noteboard/math/wmf.js" defer></script>
     <script src="./assets/noteboard/math/emf.js" defer></script>
-    <script src="./assets/noteboard/math/word-core.js" defer></script>
-    <script src="./assets/noteboard/math/word-import.js" defer></script>
-    <script src="./assets/noteboard/math/quick-word-terminal.js" defer></script>
     <script src="./assets/minnote-noteboard-bridge.js" defer></script>
       <!-- MathJax with MHChem Chemical Formula Extension -->
     <script>
@@ -762,15 +713,6 @@
         } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'h' || e.key === 'H')) {
           e.preventDefault();
           if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
-        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W') && e.shiftKey) {
-          e.preventDefault();
-          if (e.__qwtHandled) return;
-          e.__qwtHandled = true;
-          if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.toggle === 'function') {
-            window.NBQuickWordTerminal.toggle();
-          } else if (typeof window.openNBWordTerminalModal === 'function') {
-            window.openNBWordTerminalModal();
-          }
         }
       });
 
@@ -917,90 +859,13 @@
           targetGroup.appendChild(sep);
         }
 
-        // 6. Nút Dán Word / MathType không lỗi font (Ctrl + Shift + W)
-        if (!document.getElementById('tb-btn-word')) {
-          const btnW = document.createElement('button');
-          btnW.id = 'tb-btn-word';
-          btnW.className = 'tb';
-          btnW.title = 'Dán Word & MathType không nhảy dòng (Ctrl + Shift + W)';
-          btnW.setAttribute('aria-label', 'Word Terminal');
-          btnW.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="9" y1="13" x2="15" y2="13"></line>
-              <line x1="9" y1="17" x2="15" y2="17"></line>
-            </svg>
-            <span>Dán Word</span>
-          `;
-          btnW.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.openNBWordTerminalModal === 'function') window.openNBWordTerminalModal();
-          };
-          targetGroup.appendChild(btnW);
-        } else {
-          document.getElementById('tb-btn-word').removeAttribute('style');
-        }
-
-        // 6b. Đã gỡ nút Nhập file Word trực tiếp trên thanh công cụ
+        // 6. Đã gỡ các nút Dán Word, Nhập file Word và Google Drive trên thanh công cụ
+        const oldW = document.getElementById('tb-btn-word');
+        if (oldW) oldW.remove();
         const oldIW = document.getElementById('tb-btn-import-word');
         if (oldIW) oldIW.remove();
-
-        // 6c. Nút Google Drive
-        if (!document.getElementById('tb-btn-google-drive')) {
-          const btnDrive = document.createElement('button');
-          btnDrive.id = 'tb-btn-google-drive';
-          btnDrive.className = 'tb';
-          btnDrive.title = 'Đồng bộ & Sao lưu Google Drive';
-          btnDrive.setAttribute('aria-label', 'Google Drive');
-          btnDrive.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-            </svg>
-            <span>Drive</span>
-          `;
-          btnDrive.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.openGoogleDriveModal === 'function') {
-              window.openGoogleDriveModal();
-            }
-          };
-          targetGroup.appendChild(btnDrive);
-        } else {
-          document.getElementById('tb-btn-google-drive').removeAttribute('style');
-        }
-
-        if (!window._wordDropRegistered) {
-          window._wordDropRegistered = true;
-          window.addEventListener('dragover', (e) => {
-            if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-              e.preventDefault();
-            }
-          }, false);
-
-          window.addEventListener('drop', async (e) => {
-            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-              const file = e.dataTransfer.files[0];
-              const ext = (file.name || '').split('.').pop().toLowerCase();
-              if (ext === 'docx' || ext === 'doc') {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.noteRenderer && typeof window.noteRenderer.convertWord === 'function') {
-                  try {
-                    const res = await window.noteRenderer.convertWord(file.path);
-                    if (res && res.pdf && typeof window.minnoteImportPdf === 'function') {
-                      await window.minnoteImportPdf(res.pdf);
-                    }
-                  } catch (err) {
-                    console.error('Lỗi nạp file Word thả vào bảng:', err);
-                  }
-                }
-              }
-            }
-          }, true);
-        }
+        const oldD = document.getElementById('tb-btn-google-drive');
+        if (oldD) oldD.remove();
 
         // 7. Nút Chèn Hình Ảnh từ máy tính (Ctrl + I)
         if (!document.getElementById('tb-btn-insert-image')) {

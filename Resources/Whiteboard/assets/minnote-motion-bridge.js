@@ -838,6 +838,77 @@
     return { sym: fb, tikzId: fb, texLabel: clean || '' };
   }
 
+  function formatShapeLabelTex(raw) {
+    let s = String(raw == null ? '' : raw).trim().replace(/^\$+|\$+$/g, '').trim();
+    if (!s) return '';
+    const greekMap = {
+      'α': '\\alpha',
+      'β': '\\beta',
+      'γ': '\\gamma',
+      'δ': '\\delta',
+      'ε': '\\varepsilon',
+      'ζ': '\\zeta',
+      'η': '\\eta',
+      'θ': '\\theta',
+      'λ': '\\lambda',
+      'μ': '\\mu',
+      'π': '\\pi',
+      'ρ': '\\rho',
+      'σ': '\\sigma',
+      'τ': '\\tau',
+      'φ': '\\varphi',
+      'ψ': '\\psi',
+      'ω': '\\omega',
+      'Δ': '\\Delta',
+      'Γ': '\\Gamma',
+      'Λ': '\\Lambda',
+      'Σ': '\\Sigma',
+      'Φ': '\\Phi',
+      'Ψ': '\\Psi',
+      'Ω': '\\Omega'
+    };
+    s = s.replace(/[αβγδεζηθλμπρστφψωΔΓΛΣΦΨΩ]/g, (ch, offset, full) => {
+      const cmd = greekMap[ch] || ch;
+      const next = full[offset + 1] || '';
+      return /[A-Za-z]/.test(next) ? cmd + ' ' : cmd;
+    });
+    const subMatch = s.match(/^(\\[A-Za-z]+|[A-Za-z])('*)_?\{?(\d+)\}?$/);
+    if (subMatch) {
+      const base = subMatch[1];
+      const primes = subMatch[2] || '';
+      const digits = subMatch[3];
+      return digits.length === 1 ? `${base}${primes}_${digits}` : `${base}${primes}_{${digits}}`;
+    }
+    s = s.replace(/_([A-Za-z0-9]{2,})(?!\})/g, '_{$1}');
+    return s;
+  }
+
+  function computeShapeLabelAngleDeg(pa, pb, nameAt) {
+    let deg;
+    if (nameAt && Number.isFinite(Number(nameAt.x)) && Number.isFinite(Number(nameAt.y)) && Math.hypot(Number(nameAt.x), Number(nameAt.y)) > 1e-3) {
+      deg = Math.atan2(-Number(nameAt.y), Number(nameAt.x)) * 180 / Math.PI;
+    } else if (pa && pb) {
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) {
+        deg = 90;
+      } else {
+        let nx = -dy / len;
+        let ny = dx / len;
+        if (!(ny > 0.15 || (Math.abs(ny) <= 0.15 && nx > 0))) {
+          nx = -nx;
+          ny = -ny;
+        }
+        deg = Math.atan2(ny, nx) * 180 / Math.PI;
+      }
+    } else {
+      deg = 90;
+    }
+    deg = ((deg % 360) + 360) % 360;
+    return (Math.round(deg / 15) * 15) % 360;
+  }
+
   function buildDemoGeoModel() {
     const points = {
       A: { id: 'A', label: 'A', show: true, def: { t: 'free', x: 260, y: 360 } },
@@ -1449,12 +1520,19 @@
       const shSym = shapeSymMap.get(sh.id);
       const pSyms = (sh.pts || []).filter((id) => idMap.has(id)).map(S);
       if (!pSyms.length) continue;
+      const isNameable = sh.kind === 'line' || sh.kind === 'ray' || sh.kind === 'segment' || sh.kind === 'plane';
+      const cleanName = isNameable && sh.name != null ? String(sh.name).trim() : '';
+      const validNameAt = isNameable && sh.nameAt && Number.isFinite(Number(sh.nameAt.x)) && Number.isFinite(Number(sh.nameAt.y))
+        ? { x: Number(sh.nameAt.x), y: Number(sh.nameAt.y) }
+        : null;
       const rec = {
         id: shSym,
         origId: sh.id,
         kind: sh.kind,
         pts: pSyms,
         dashed: !!sh.dashed,
+        ...(cleanName ? { name: cleanName } : {}),
+        ...(validNameAt ? { nameAt: validNameAt } : {}),
         ...(sh.aux ? { aux: true } : {}),
         ...(sh.fill ? { fill: sh.fill } : {}),
         ...(sh.arrow ? { arrow: true } : {}),
@@ -1464,9 +1542,38 @@
       normShapes.push(rec);
 
       if (sh.kind === 'segment' && pSyms.length >= 2) {
-        ops.push({ op: 'segment', id: shSym, a: pSyms[0], b: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}), ...(sh.arrow ? { arrow: true } : {}) });
+        ops.push({
+          op: 'segment',
+          id: shSym,
+          a: pSyms[0],
+          b: pSyms[1],
+          dashed: !!sh.dashed,
+          ...(cleanName ? { name: cleanName } : {}),
+          ...(validNameAt ? { nameAt: validNameAt } : {}),
+          ...(sh.aux ? { aux: true } : {}),
+          ...(sh.arrow ? { arrow: true } : {})
+        });
       } else if ((sh.kind === 'line' || sh.kind === 'ray') && pSyms.length >= 2) {
-        ops.push({ op: sh.kind, id: shSym, a: pSyms[0], b: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
+        ops.push({
+          op: sh.kind,
+          id: shSym,
+          a: pSyms[0],
+          b: pSyms[1],
+          dashed: !!sh.dashed,
+          ...(cleanName ? { name: cleanName } : {}),
+          ...(validNameAt ? { nameAt: validNameAt } : {}),
+          ...(sh.aux ? { aux: true } : {})
+        });
+      } else if (sh.kind === 'plane' && pSyms.length >= 3) {
+        ops.push({
+          op: 'plane',
+          id: shSym,
+          pts: pSyms,
+          ...(sh.dashed ? { dashed: true } : {}),
+          ...(cleanName ? { name: cleanName } : {}),
+          ...(validNameAt ? { nameAt: validNameAt } : {}),
+          ...(sh.aux ? { aux: true } : {})
+        });
       } else if (sh.kind === 'circle' && pSyms.length >= 2) {
         ops.push({ op: 'circle', id: shSym, center: pSyms[0], rim: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
       } else if ((sh.kind === 'arc' || sh.kind === 'sector' || sh.kind === 'arc3') && pSyms.length >= 3) {
@@ -1934,6 +2041,23 @@
                 geomCmds.push(`      \\fill[${strokeCol}, opacity={0.75*bump(${pVar})}] ${progExpr} circle (1.2pt);`);
               }
             }
+            const shapeLbl = formatShapeLabelTex(sh.name || sh.label);
+            if (shapeLbl) {
+              const pa = ptById.get(sh.pts[0]);
+              const pb = ptById.get(sh.pts[1]);
+              const deg = computeShapeLabelAngleDeg(pa, pb, sh.nameAt);
+              if (sh.kind === 'segment') {
+                markCmds.push(`      \\path[opacity={${pVar}}] ($(${rawA})!0.5!(${rawB})$) node[shift={(${deg}:9pt)}]{$${shapeLbl}$};`);
+              } else if (sh.kind === 'line') {
+                const lStart = `($(${rawA})!-0.22!(${rawB})$)`;
+                const lEnd = `($(${rawA})!1.22!(${rawB})$)`;
+                const anchorExpr = (pa && pb && (pa.x > pb.x + 1e-4 || (Math.abs(pa.x - pb.x) <= 1e-4 && pa.y > pb.y))) ? lStart : lEnd;
+                markCmds.push(`      \\path[opacity={${pVar}}] ${anchorExpr} node[shift={(${deg}:8pt)}]{$${shapeLbl}$};`);
+              } else {
+                const rEnd = `($(${rawA})!1.22!(${rawB})$)`;
+                markCmds.push(`      \\path[opacity={${pVar}}] ${rEnd} node[shift={(${deg}:8pt)}]{$${shapeLbl}$};`);
+              }
+            }
             break;
           }
           case 'circle': {
@@ -2011,6 +2135,10 @@
                 const v = isRev ? rawU : rawV;
                 geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${u}) -- ($(${u})!${pVar}!(${v})$);`);
               }
+            }
+            if (sh.kind === 'plane') {
+              const pname = formatShapeLabelTex(sh.name || sh.label || 'P') || 'P';
+              markCmds.push(`      \\path[opacity={${pVar}}] (${tidOf(sh.pts[0])}) node[shift={(45:14pt)}]{$(${pname})$};`);
             }
             break;
           }
@@ -2874,7 +3002,19 @@
               { noDot: op.noDot }
             );
             if (op.drawSegment !== false) {
-              const sh = { id: mkId('sh'), kind: op.asLine ? 'line' : 'segment', pts: [o.id, pt.id], dashed: !!op.dashed, aux: true };
+              const rawName = op.name != null ? String(op.name).trim() : '';
+              const validNameAt = op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y))
+                ? { x: Number(op.nameAt.x), y: Number(op.nameAt.y) }
+                : null;
+              const sh = {
+                id: mkId('sh'),
+                kind: op.asLine ? 'line' : 'segment',
+                pts: [o.id, pt.id],
+                dashed: !!op.dashed,
+                ...(rawName ? { name: rawName } : {}),
+                ...(validNameAt ? { nameAt: validNameAt } : {}),
+                aux: true
+              };
               shapes.push(sh);
               if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
             } else if (op.id) {
@@ -2947,9 +3087,49 @@
         case 'segment':
         case 'line':
         case 'ray': {
-          const a = getP(op.a), b = getP(op.b);
+          let aSym = op.a, bSym = op.b;
+          if ((!aSym || !bSym) && typeof op.s === 'string' && op.s.includes('-')) {
+            const pr = op.s.split('-').map((x) => x.trim());
+            aSym = aSym || pr[0];
+            bSym = bSym || pr[1];
+          }
+          const a = getP(aSym), b = getP(bSym);
           if (a && b) {
-            const sh = { id: mkId('sh'), kind: op.op, pts: [a.id, b.id], dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}), ...(op.arrow ? { arrow: true } : {}) };
+            const rawName = op.name != null ? String(op.name).trim() : (op.label != null ? String(op.label).trim() : '');
+            const validNameAt = op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y))
+              ? { x: Number(op.nameAt.x), y: Number(op.nameAt.y) }
+              : null;
+            const sh = {
+              id: mkId('sh'),
+              kind: op.op,
+              pts: [a.id, b.id],
+              dashed: !!op.dashed,
+              ...(rawName ? { name: rawName } : {}),
+              ...(validNameAt ? { nameAt: validNameAt } : {}),
+              ...(op.aux ? { aux: true } : {}),
+              ...(op.arrow ? { arrow: true } : {})
+            };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'plane': {
+          const pList = (op.pts || []).map(getP).filter(Boolean);
+          if (pList.length >= 3) {
+            const rawName = op.name != null ? String(op.name).trim() : (op.label != null ? String(op.label).trim() : '');
+            const validNameAt = op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y))
+              ? { x: Number(op.nameAt.x), y: Number(op.nameAt.y) }
+              : null;
+            const sh = {
+              id: mkId('sh'),
+              kind: 'plane',
+              pts: pList.map((x) => x.id),
+              ...(op.dashed ? { dashed: true } : {}),
+              ...(rawName ? { name: rawName } : {}),
+              ...(validNameAt ? { nameAt: validNameAt } : {}),
+              ...(op.aux ? { aux: true } : {})
+            };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }
@@ -3610,12 +3790,22 @@
       const convertedShapes = data.geometry.shapes.map((rs) => {
         const sid = mkId();
         if (rs.id) shapeSymToBoard.set(String(rs.id), sid);
+        const kind = rs.kind || 'segment';
+        const isNameable = kind === 'line' || kind === 'ray' || kind === 'segment' || kind === 'plane';
+        const rawName = isNameable
+          ? (rs.name != null ? String(rs.name).trim() : (rs.label != null ? String(rs.label).trim() : ''))
+          : '';
+        const validNameAt = isNameable && rs.nameAt && Number.isFinite(Number(rs.nameAt.x)) && Number.isFinite(Number(rs.nameAt.y))
+          ? { x: Number(rs.nameAt.x), y: Number(rs.nameAt.y) }
+          : null;
         return {
           id: sid,
-          kind: rs.kind || 'segment',
+          kind,
           pts: (rs.pts || []).map(mapPid),
           color: rs.explicitColor && rs.color ? rs.color : appStyle.color,
           width: rs.width === 0 ? 0 : appStyle.width,
+          ...(rawName ? { name: rawName } : {}),
+          ...(validNameAt ? { nameAt: validNameAt } : {}),
           ...(rs.dashed ? { dashed: true } : {}),
           ...(rs.aux ? { aux: true } : {}),
           ...(rs.fill ? { fill: rs.fill } : {}),

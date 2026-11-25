@@ -348,6 +348,51 @@
     return { tid, texLabel: cleanRaw || '', simpleForEach: false };
   }
 
+  function formatShapeLabelTex(raw) {
+    let s = String(raw == null ? '' : raw).trim().replace(/^\$+|\$+$/g, '').trim();
+    if (!s) return '';
+    const greekMap = {
+      'α': '\\alpha',
+      'β': '\\beta',
+      'γ': '\\gamma',
+      'δ': '\\delta',
+      'ε': '\\varepsilon',
+      'ζ': '\\zeta',
+      'η': '\\eta',
+      'θ': '\\theta',
+      'λ': '\\lambda',
+      'μ': '\\mu',
+      'π': '\\pi',
+      'ρ': '\\rho',
+      'σ': '\\sigma',
+      'τ': '\\tau',
+      'φ': '\\varphi',
+      'ψ': '\\psi',
+      'ω': '\\omega',
+      'Δ': '\\Delta',
+      'Γ': '\\Gamma',
+      'Λ': '\\Lambda',
+      'Σ': '\\Sigma',
+      'Φ': '\\Phi',
+      'Ψ': '\\Psi',
+      'Ω': '\\Omega'
+    };
+    s = s.replace(/[αβγδεζηθλμπρστφψωΔΓΛΣΦΨΩ]/g, (ch, offset, full) => {
+      const cmd = greekMap[ch] || ch;
+      const next = full[offset + 1] || '';
+      return /[A-Za-z]/.test(next) ? cmd + ' ' : cmd;
+    });
+    const subMatch = s.match(/^(\\[A-Za-z]+|[A-Za-z])('*)_?\{?(\d+)\}?$/);
+    if (subMatch) {
+      const base = subMatch[1];
+      const primes = subMatch[2] || '';
+      const digits = subMatch[3];
+      return digits.length === 1 ? `${base}${primes}_${digits}` : `${base}${primes}_{${digits}}`;
+    }
+    s = s.replace(/_([A-Za-z0-9]{2,})(?!\})/g, '_{$1}');
+    return s;
+  }
+
   // ============================================================================
   // 3. OPTIMAL INTEGER GRID NORMALIZATION ENGINE
   // ============================================================================
@@ -1451,17 +1496,46 @@
       incidentAngles.get(id2).push(a21);
     };
 
-    // Edge deduplication for clean output (solid cleanly supersedes any duplicate dashed edge)
-    const drawnDashedEdges = new Map(); // ek -> index in layer2Dashed
+    // Edge deduplication & grouping for clean output (solid cleanly supersedes any duplicate dashed edge)
+    const dashedPlainPaths = []; // plain dashed paths (`dashed, line width=0.4pt`)
+    const solidPlainPaths = [];  // plain solid paths (`line width=0.6pt`)
+    const drawnDashedEdges = new Map(); // ek -> index in dashedPlainPaths (-1 for polygon cycle)
     const drawnSolidEdges = new Set();
     const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
     const removeSupersededDashed = (ek) => {
       if (drawnDashedEdges.has(ek)) {
         const idx = drawnDashedEdges.get(ek);
-        if (idx >= 0 && idx < layer2Dashed.length) layer2Dashed[idx] = '';
+        if (idx >= 0 && idx < dashedPlainPaths.length) dashedPlainPaths[idx] = '';
         drawnDashedEdges.delete(ek);
       }
     };
+
+    function computeShapeLabelAngleDeg(pa, pb, nameAt) {
+      let deg;
+      if (nameAt && Number.isFinite(Number(nameAt.x)) && Number.isFinite(Number(nameAt.y)) && Math.hypot(Number(nameAt.x), Number(nameAt.y)) > 1e-3) {
+        // Canvas Y is down while TikZ Y is up -> negate Y
+        deg = Math.atan2(-Number(nameAt.y), Number(nameAt.x)) * 180 / Math.PI;
+      } else if (pa && pb) {
+        const dx = pb.x - pa.x;
+        const dy = pb.y - pa.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 1e-6) {
+          deg = 90;
+        } else {
+          let nx = -dy / len;
+          let ny = dx / len;
+          if (!(ny > 0.15 || (Math.abs(ny) <= 0.15 && nx > 0))) {
+            nx = -nx;
+            ny = -ny;
+          }
+          deg = Math.atan2(ny, nx) * 180 / Math.PI;
+        }
+      } else {
+        deg = 90;
+      }
+      deg = ((deg % 360) + 360) % 360;
+      return (Math.round(deg / 15) * 15) % 360;
+    }
 
     const layer1Fills = [];
     const layer2Dashed = [];
@@ -1501,15 +1575,21 @@
             (sh.dashed ? layer2Dashed : layer3Solid).push(`\\draw[${style}] (${T(a)}) -- (${T(b)});`);
           } else if (sh.dashed) {
             if (!drawnDashedEdges.has(ek) && !drawnSolidEdges.has(ek)) {
-              drawnDashedEdges.set(ek, layer2Dashed.length);
-              layer2Dashed.push(`\\draw[dashed, line width=0.4pt] (${T(a)}) -- (${T(b)});`);
+              drawnDashedEdges.set(ek, dashedPlainPaths.length);
+              dashedPlainPaths.push(`(${T(a)})--(${T(b)})`);
             }
           } else {
             if (!drawnSolidEdges.has(ek)) {
               removeSupersededDashed(ek);
               drawnSolidEdges.add(ek);
-              layer3Solid.push(`\\draw[line width=0.6pt] (${T(a)}) -- (${T(b)});`);
+              solidPlainPaths.push(`(${T(a)})--(${T(b)})`);
             }
+          }
+          const segLbl = sh.name ? formatShapeLabelTex(sh.name) : '';
+          if (segLbl) {
+            const pa = tikzCoords.get(a), pb = tikzCoords.get(b);
+            const deg = computeShapeLabelAngleDeg(pa, pb, sh.nameAt);
+            layer4Marks.push(`\\path ($(${T(a)})!0.5!(${T(b)})$) node[shift={(${deg}:9pt)}]{$${segLbl}$};`);
           }
           break;
         }
@@ -1522,9 +1602,18 @@
           const startExpr = sh.kind === 'line' ? `($(${T(a)})!-0.25!(${T(b)})$)` : `(${T(a)})`;
           const endExpr = `($(${T(a)})!1.25!(${T(b)})$)`;
           if (sh.dashed) {
-            layer2Dashed.push(`\\draw[dashed, line width=0.4pt] ${startExpr} -- ${endExpr};`);
+            dashedPlainPaths.push(`${startExpr}--${endExpr}`);
           } else {
-            layer3Solid.push(`\\draw[line width=0.6pt] ${startExpr} -- ${endExpr};`);
+            solidPlainPaths.push(`${startExpr}--${endExpr}`);
+          }
+          const lineLbl = sh.name ? formatShapeLabelTex(sh.name) : '';
+          if (lineLbl) {
+            const pa = tikzCoords.get(a), pb = tikzCoords.get(b);
+            const deg = computeShapeLabelAngleDeg(pa, pb, sh.nameAt);
+            const anchorExpr = sh.kind === 'line'
+              ? ((pa && pb && (pa.x > pb.x + 1e-4 || (Math.abs(pa.x - pb.x) <= 1e-4 && pa.y > pb.y))) ? startExpr : endExpr)
+              : endExpr;
+            layer4Marks.push(`\\path ${anchorExpr} node[shift={(${deg}:8pt)}]{$${lineLbl}$};`);
           }
           break;
         }
@@ -1537,18 +1626,28 @@
           const t = d2 ? ((pe.x - p1.x) * dx + (pe.y - p1.y) * dy) / d2 : 0;
           const anchor = t < 0 ? c1 : c2;
           addIncidentEdge(anchor, extPt);
-          const lineCmd = sh.dashed
-            ? `\\draw[dashed, line width=0.4pt] (${T(anchor)}) -- (${T(extPt)});`
-            : `\\draw[line width=0.6pt] (${T(anchor)}) -- (${T(extPt)});`;
-          (sh.dashed ? layer2Dashed : layer3Solid).push(lineCmd);
+          const ek = edgeKey(anchor, extPt);
+          if (sh.dashed) {
+            if (!drawnDashedEdges.has(ek) && !drawnSolidEdges.has(ek)) {
+              drawnDashedEdges.set(ek, dashedPlainPaths.length);
+              dashedPlainPaths.push(`(${T(anchor)})--(${T(extPt)})`);
+            }
+          } else {
+            if (!drawnSolidEdges.has(ek)) {
+              removeSupersededDashed(ek);
+              drawnSolidEdges.add(ek);
+              solidPlainPaths.push(`(${T(anchor)})--(${T(extPt)})`);
+            }
+          }
           break;
         }
 
         case 'polygon': {
           if (pIds.length < 3) break;
-          const polyPath = pIds.map((id) => `(${T(id)})`).join(' -- ') + ' -- cycle';
+          const polyFillPath = pIds.map((id) => `(${T(id)})`).join(' -- ') + ' -- cycle';
+          const polyCompactPath = pIds.map((id) => `(${T(id)})`).join('--') + '--cycle';
           if (sh.fill) {
-            layer1Fills.push(`\\fill[${fillStyleStr()}] ${polyPath};`);
+            layer1Fills.push(`\\fill[${fillStyleStr()}] ${polyFillPath};`);
           }
           const hiddenSet = new Set([...(sh.gaps || []), ...(sh.hiddenSides || [])]);
           for (let i = 0; i < pIds.length; i++) {
@@ -1558,8 +1657,7 @@
           if (sh.width === 0) break;
           if (hiddenSet.size === 0) {
             if (sh.dashed) {
-              const startIdx = layer2Dashed.length;
-              layer2Dashed.push(`\\draw[dashed, line width=0.4pt] ${polyPath};`);
+              dashedPlainPaths.push(polyCompactPath);
               for (let i = 0; i < pIds.length; i++) {
                 const ek = edgeKey(pIds[i], pIds[(i + 1) % pIds.length]);
                 if (!drawnDashedEdges.has(ek)) drawnDashedEdges.set(ek, -1);
@@ -1570,7 +1668,7 @@
                 removeSupersededDashed(ek);
                 drawnSolidEdges.add(ek);
               }
-              layer3Solid.push(`\\draw[line width=0.6pt] ${polyPath};`);
+              solidPlainPaths.push(polyCompactPath);
             }
           } else {
             for (let i = 0; i < pIds.length; i++) {
@@ -1580,13 +1678,13 @@
               const isHid = sh.dashed || (sh.hiddenSides || []).includes(i);
               if (isHid) {
                 if (!drawnDashedEdges.has(ek) && !drawnSolidEdges.has(ek)) {
-                  drawnDashedEdges.set(ek, layer2Dashed.length);
-                  layer2Dashed.push(`\\draw[dashed, line width=0.4pt] (${T(u)}) -- (${T(v)});`);
+                  drawnDashedEdges.set(ek, dashedPlainPaths.length);
+                  dashedPlainPaths.push(`(${T(u)})--(${T(v)})`);
                 }
               } else if (!drawnSolidEdges.has(ek)) {
                 removeSupersededDashed(ek);
                 drawnSolidEdges.add(ek);
-                layer3Solid.push(`\\draw[line width=0.6pt] (${T(u)}) -- (${T(v)});`);
+                solidPlainPaths.push(`(${T(u)})--(${T(v)})`);
               }
             }
           }
@@ -1602,7 +1700,7 @@
           } else {
             layer3Solid.push(`\\draw[line width=0.5pt] ${polyPath};`);
           }
-          const pname = sh.name || 'P';
+          const pname = formatShapeLabelTex(sh.name || 'P') || 'P';
           const anchor = pIds[0];
           layer4Marks.push(`\\path (${T(anchor)}) node[shift={(45:14pt)}]{$(${pname})$};`);
           break;
@@ -1861,9 +1959,35 @@
       }
     }
 
+    const validDashed = dashedPlainPaths.filter(Boolean);
+    const validSolid = solidPlainPaths.filter(Boolean);
+    const emittedLayer2 = [];
+    if (validDashed.length) {
+      if (o.useForeach) {
+        emittedLayer2.push(`\\draw[dashed, line width=0.4pt] ${validDashed.join(' ')};`);
+      } else {
+        for (const p of validDashed) {
+          emittedLayer2.push(`\\draw[dashed, line width=0.4pt] ${p};`);
+        }
+      }
+    }
+    emittedLayer2.push(...layer2Dashed.filter(Boolean));
+
+    const emittedLayer3 = [];
+    if (validSolid.length) {
+      if (o.useForeach) {
+        emittedLayer3.push(`\\draw[line width=0.6pt] ${validSolid.join(' ')};`);
+      } else {
+        for (const p of validSolid) {
+          emittedLayer3.push(`\\draw[line width=0.6pt] ${p};`);
+        }
+      }
+    }
+    emittedLayer3.push(...layer3Solid.filter(Boolean));
+
     lines.push(...layer1Fills);
-    lines.push(...layer2Dashed.filter(Boolean));
-    lines.push(...layer3Solid);
+    lines.push(...emittedLayer2);
+    lines.push(...emittedLayer3);
     lines.push(...layer4Marks);
 
     // Layer 5 — Points & Smart Non-Overlapping Labels (Rule 4.6)
@@ -2085,7 +2209,8 @@
     'Bạn là chuyên gia TikZ Toán học phong cách Thầy Đỗ Minh (MatrixExamAI Pro v5). ' +
     'Hãy tối ưu mã TikZ sau sao cho tọa độ gọn đẹp (số nguyên hoặc .5 sạch), dùng declare function={...}, ' +
     'every node/.style={font=\\normalsize}, không dùng line cap=round, không dòng trống, không preamble, ' +
-    'cạnh khuất dashed line width=0.4pt, cạnh thấy line width=0.6pt, điểm circle (0.4pt) và nhãn \\foreach \\p/\\g dùng shift={(\\g:9pt)}. ' +
+    'gộp các đoạn nét đứt vào 1 lệnh \\draw[dashed, line width=0.4pt] ...; và nét liền vào 1 lệnh \\draw[line width=0.6pt] ...;, ' +
+    'điểm circle (0.4pt) và nhãn \\foreach \\p/\\g dùng shift={(\\g:9pt)}. ' +
     'CHỈ trả về đúng một khối \\begin{tikzpicture}...\\end{tikzpicture}, không giải thích thêm.';
 
   const ANIM_FX_CLASSES = new Set([
@@ -2173,7 +2298,7 @@
               </label>
               <label class="mn-v80-toggle">
                 <input type="checkbox" id="mn-tikz-opt-foreach" checked />
-                <span>Gộp \\foreach</span>
+                <span>Gộp nét &amp; \\foreach</span>
               </label>
               <label class="mn-v80-toggle">
                 <input type="checkbox" id="mn-tikz-opt-dots" checked />
@@ -2764,7 +2889,8 @@
     isOpen,
     generateTikz,
     validateTikz,
-    evalGeo
+    evalGeo,
+    formatShapeLabelTex
   };
 
   if (typeof window !== 'undefined') {

@@ -541,7 +541,7 @@ html[data-ui="v2"] .lib-actions button:hover,
 html[data-ui="v2"] .lib-menu button:hover { background: var(--v2-accent-soft) !important; }
 html[data-ui="v2"] .lib-start input { accent-color: var(--v2-accent); }
 
-/* ---------- 9b. Màn hình vừa (< 1600px): nhóm Word/Drive/Ảnh chỉ còn icon ---------- */
+/* ---------- 9b. Màn hình vừa (< 1600px): nhóm Ảnh/Video/TikZ chỉ còn icon ---------- */
 @media (max-width: 1600px) {
   html[data-ui="v2"] .nb-tools-dock > .tb-sep ~ .tb span { display: none !important; }
   html[data-ui="v2"] .nb-tools-dock > .tb-sep ~ .tb { padding: 0 10px !important; }

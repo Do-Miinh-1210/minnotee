@@ -2781,7 +2781,7 @@ ${prob}`;
             delete op.c;
           }
         }
-      } else if (op.op === 'connect_polygon' || op.op === 'section' || op.op === 'polygon_fill') {
+      } else if (op.op === 'connect_polygon' || op.op === 'section' || op.op === 'polygon_fill' || op.op === 'plane') {
         if (typeof op.pts === 'string') {
           op.pts = parseVertexList(op.pts);
         }
@@ -2965,6 +2965,7 @@ ${prob}`;
       case 'connect_polygon':
       case 'section':
       case 'polygon_fill':
+      case 'plane':
         if (Array.isArray(op.pts)) op.pts.forEach(push);
         break;
       case 'right_angle':
@@ -3411,10 +3412,18 @@ ${prob}`;
     for (const sh of (Array.isArray(geoBlock.shapes) ? geoBlock.shapes : [])) {
       if (!sh || sh.hidden || !Array.isArray(sh.pts)) continue;
       const sPts = sh.pts.map(symOf);
+      const shName = (sh.kind === 'segment' || sh.kind === 'line' || sh.kind === 'ray' || sh.kind === 'plane') && sh.name != null
+        ? String(sh.name).trim()
+        : '';
+      const shNameAt = shName && sh.nameAt && Number.isFinite(Number(sh.nameAt.x)) && Number.isFinite(Number(sh.nameAt.y))
+        ? { x: Number(sh.nameAt.x), y: Number(sh.nameAt.y) }
+        : null;
       if (sh.kind === 'segment' && sPts.length >= 2) {
-        out.push({ op: 'segment', a: sPts[0], b: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux });
+        out.push({ op: 'segment', a: sPts[0], b: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux, ...(shName ? { name: shName } : {}), ...(shNameAt ? { nameAt: shNameAt } : {}) });
       } else if ((sh.kind === 'line' || sh.kind === 'ray') && sPts.length >= 2) {
-        out.push({ op: sh.kind, a: sPts[0], b: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux });
+        out.push({ op: sh.kind, a: sPts[0], b: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux, ...(shName ? { name: shName } : {}), ...(shNameAt ? { nameAt: shNameAt } : {}) });
+      } else if (sh.kind === 'plane' && sPts.length >= 3) {
+        out.push({ op: 'plane', pts: sPts, ...(sh.dashed ? { dashed: true } : {}), ...(shName ? { name: shName } : {}), ...(shNameAt ? { nameAt: shNameAt } : {}), ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'circle' && sPts.length >= 2) {
         out.push({ op: 'circle', center: sPts[0], rim: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux });
       } else if ((sh.kind === 'arc' || sh.kind === 'arc3' || sh.kind === 'sector') && sPts.length >= 3) {
@@ -5009,6 +5018,10 @@ ${prob}`;
       const useCustomCol = !!(opts.explicitColor && opts.color);
       const useCustomW = !!(opts.explicitWidth && Number.isFinite(opts.width));
       const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle' || kind === 'arc' || kind === 'arc3' || kind === 'sector';
+      const cleanName = opts.name != null ? String(opts.name).trim() : '';
+      const validNameAt = opts.nameAt && Number.isFinite(Number(opts.nameAt.x)) && Number.isFinite(Number(opts.nameAt.y))
+        ? { x: Number(opts.nameAt.x), y: Number(opts.nameAt.y) }
+        : null;
       const sh = {
         id: genId(),
         kind,
@@ -5016,6 +5029,8 @@ ${prob}`;
         color: useCustomCol ? opts.color : appStyle.color,
         width: opts.width === 0 ? 0 : (useCustomW ? opts.width : appStyle.width),
         ...(hasStrokeDash ? { dashed: !!opts.dashed } : (opts.dashed ? { dashed: true } : {})),
+        ...(cleanName ? { name: cleanName } : {}),
+        ...(validNameAt ? { nameAt: validNameAt } : {}),
         ...(opts.aux ? { aux: true } : {}),
         ...(opts.fill ? { fill: opts.fill } : {}),
         ...(opts.arrow ? { arrow: true } : {}),
@@ -5646,13 +5661,17 @@ ${prob}`;
             }
             if (op.drawSegment !== false) {
               const explicitD = op.dashed !== undefined ? !!op.dashed : (isLineStyle ? undefined : false);
+              const extraNameOpts = {
+                ...(op.name != null && String(op.name).trim() ? { name: String(op.name).trim() } : {}),
+                ...(op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y)) ? { nameAt: { x: Number(op.nameAt.x), y: Number(op.nameAt.y) } } : {})
+              };
               if (op.kind === 'line' || op.kind === 'ray') {
-                const sh = addShapeRec(op.kind, [through.id, pt.id], { ...lineStyleOpts, dashed: !!explicitD });
+                const sh = addShapeRec(op.kind, [through.id, pt.id], { ...lineStyleOpts, ...extraNameOpts, dashed: !!explicitD });
                 const stS = makeStepForShape(sh.id, stepLabel || (isPerp ? `Kẻ đường vuông góc từ ${through.label}` : `Kẻ ${through.label}${lblStr} // ${a.label}${b.label}`), !!op.tempHide, mMeta);
                 rawSteps.push(stS);
                 recordSymStep(cleanRef(op.id || op.label), stS);
               } else {
-                emitSilhouetteSegment(through, pt, lineStyleOpts, stepLabel || (isPerp ? `Kẻ đường vuông góc từ ${through.label}` : `Kẻ ${through.label}${lblStr} // ${a.label}${b.label}`), explicitD, mMeta);
+                emitSilhouetteSegment(through, pt, { ...lineStyleOpts, ...extraNameOpts }, stepLabel || (isPerp ? `Kẻ đường vuông góc từ ${through.label}` : `Kẻ ${through.label}${lblStr} // ${a.label}${b.label}`), explicitD, mMeta);
               }
             }
             if (op.show !== false) {
@@ -5834,15 +5853,36 @@ ${prob}`;
         case 'ray': {
           const a = resolvePt(op.a), b = resolvePt(op.b);
           if (a && b) {
+            const shapeName = op.name != null ? String(op.name).trim() : (op.label != null ? String(op.label).trim() : '');
+            const shapeNameAt = op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y))
+              ? { x: Number(op.nameAt.x), y: Number(op.nameAt.y) }
+              : undefined;
             const existing = op.op === 'segment' ? findEdge(a.id, b.id) : null;
-            if (existing) break;
+            if (existing) {
+              if (shapeName && !existing.name) {
+                existing.name = shapeName;
+                if (shapeNameAt) existing.nameAt = shapeNameAt;
+              }
+              break;
+            }
             const hasExpDash = op.dashed !== undefined;
             const segDash = hasExpDash
               ? !!op.dashed
               : (op.op === 'segment' && planIs3D ? classify3DSegmentDashed(a.id, b.id, evalCurrentCoords()) : false);
-            const sh = addShapeRec(op.op, [a.id, b.id], { dashed: segDash, explicitDashed: hasExpDash ? segDash : undefined, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux, arrow: !!op.arrow });
+            const sh = addShapeRec(op.op, [a.id, b.id], {
+              dashed: segDash,
+              explicitDashed: hasExpDash ? segDash : undefined,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux,
+              arrow: !!op.arrow,
+              name: shapeName || undefined,
+              nameAt: shapeNameAt
+            });
             const kindTxt = op.op === 'line' ? 'Đường thẳng' : (op.op === 'ray' ? 'Tia' : (segDash ? 'Nét đứt' : 'Đoạn'));
-            const st = makeStepForShape(sh.id, stepLabel || `${kindTxt} ${a.label}${b.label}`, !!op.tempHide, mMeta);
+            const st = makeStepForShape(sh.id, stepLabel || `${kindTxt} ${shapeName || (a.label + b.label)}`, !!op.tempHide, mMeta);
             rawSteps.push(st);
             recordSymStep(cleanRef(op.id || `${cleanRef(op.a)}-${cleanRef(op.b)}`), st);
           }
@@ -5894,6 +5934,30 @@ ${prob}`;
             const st = makeStepForShape(sh.id, stepLabel || `Tô mặt (${ids.map(x => x.label).join('')})`, !!op.tempHide, fillMeta);
             rawSteps.push(st);
             recordSymStep(cleanRef(op.id || ids.map(x => x.label).join('')), st);
+          }
+          break;
+        }
+        case 'plane': {
+          const ids = (Array.isArray(op.pts) ? op.pts : []).map(sym => resolvePt(sym)).filter(Boolean);
+          if (ids.length >= 3) {
+            const shapeName = op.name != null ? String(op.name).trim() : (op.label != null ? String(op.label).trim() : '');
+            const shapeNameAt = op.nameAt && Number.isFinite(Number(op.nameAt.x)) && Number.isFinite(Number(op.nameAt.y))
+              ? { x: Number(op.nameAt.x), y: Number(op.nameAt.y) }
+              : undefined;
+            const sh = addShapeRec('plane', ids.map(x => x.id), {
+              dashed: !!op.dashed,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux,
+              name: shapeName || undefined,
+              nameAt: shapeNameAt
+            });
+            const pMeta = { ...mMeta, effect: op.effect || 'fade' };
+            const st = makeStepForShape(sh.id, stepLabel || `Mặt phẳng (${shapeName || 'P'})`, !!op.tempHide, pMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || `plane_${shapeName || ids.map(x => x.label).join('')}`), st);
           }
           break;
         }

@@ -98,19 +98,16 @@ public static class LicenseGate
                 or "CAPTURE_MINDMAP"
                 or "DOWNLOAD_MINDMAP_SVG" => Mindmap,
 
-            // Các lệnh chức năng bảng viết / xuất tệp / Word / Media
+            // Các lệnh chức năng bảng viết / xuất tệp / Media
             "SAVE_MEDIA_FILE"
                 or "PICK_VIDEO"
                 or "COPY_EMF_SELECTION"
                 or "SAVE_EMF_FILE"
-                or "PICK_WORD"
-                or "CONVERT_WORD"
                 or "INSERT_TO_MEA" => Whiteboard,
 
             _ when msgType.StartsWith("MEA_", StringComparison.Ordinal)
                 || msgType.StartsWith("REC_", StringComparison.Ordinal)
-                || msgType.StartsWith("PERSIST_", StringComparison.Ordinal)
-                || msgType.StartsWith("DRIVE_", StringComparison.Ordinal) => Whiteboard,
+                || msgType.StartsWith("PERSIST_", StringComparison.Ordinal) => Whiteboard,
 
             // Fail-closed: mọi lệnh IPC không xác định khác đều phải qua kiểm tra bản quyền Whiteboard
             _ => Whiteboard

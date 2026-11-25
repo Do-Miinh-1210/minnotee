@@ -344,7 +344,7 @@
       '<rect x="9.5" y="2.8" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.14"/><rect x="9.5" y="7.4" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.14"/><rect x="9.5" y="12" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.14"/><rect x="9.5" y="16.6" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.14"/><rect x="4.5" y="7.4" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.08"/><rect x="14.5" y="7.4" width="5" height="4.6" rx="1" fill="currentColor" fill-opacity="0.08"/>'
   };
 
-  /* ===== TOP RIGHT #nb-tools-dock BUTTONS (ALL 12) ===== */
+  /* ===== TOP RIGHT #nb-tools-dock BUTTONS ===== */
   var DOCK = {
     'tb-btn-questionbank':
       '<path d="M4.5 18.8A2.2 2.2 0 0 1 6.7 16.6H19.5V4H6.7A2.2 2.2 0 0 0 4.5 6.2v12.6z" fill="currentColor" fill-opacity="0.14"/><path d="M4.5 18.8A2.2 2.2 0 0 0 6.7 21H19.5v-4.4M9 8.5h6.5M9 12h4.5"/>',
@@ -354,12 +354,6 @@
       '<path d="M12 3.2l7.6 4.3v9L12 20.8l-7.6-4.3v-9L12 3.2z" fill="currentColor" fill-opacity="0.10"/><path d="M12 3.2l7.6 4.3L12 11.8 4.4 7.5 12 3.2z" fill="currentColor" fill-opacity="0.18"/><path d="M12 11.8v9"/>',
     'tb-btn-chem':
       '<path d="M9.5 3.5v5.6L4.6 18.2A1.6 1.6 0 0 0 6 20.5h12a1.6 1.6 0 0 0 1.4-2.3l-4.9-9.1V3.5" fill="currentColor" fill-opacity="0.12"/><path d="M8.2 3.5h7.6M6.8 14.8h10.4"/><path d="M6.8 14.8l-2.2 3.4A1.6 1.6 0 0 0 6 20.5h12a1.6 1.6 0 0 0 1.4-2.3l-2.2-3.4H6.8z" fill="currentColor" fill-opacity="0.16" stroke="none"/>',
-    'tb-btn-word':
-      '<rect x="5" y="5" width="14" height="16" rx="2" fill="currentColor" fill-opacity="0.12"/><rect x="8.5" y="2.8" width="7" height="3.8" rx="1.2" fill="currentColor" fill-opacity="0.18"/><path d="M8.5 11.2l1.2 4.8 1.8-3.4 1.8 3.4 1.2-4.8"/>',
-    'tb-btn-import-word':
-      '<path d="M6 3.5h8l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5z" fill="currentColor" fill-opacity="0.12"/><path d="M14 3.5V8h4.5M11.5 11.5v5.8M9 14.8l2.5 2.5 2.5-2.5"/>',
-    'tb-btn-google-drive':
-      '<path d="M17.8 10.2h-1A6.2 6.2 0 1 0 8.2 19h9.6a4.4 4.4 0 0 0 0-8.8z" fill="currentColor" fill-opacity="0.14"/><path d="M12 15.8v-4.5M9.8 13.4L12 11.2l2.2 2.2"/>',
     'tb-btn-insert-image':
       '<rect x="3.5" y="4.5" width="17" height="15" rx="2.4" fill="currentColor" fill-opacity="0.10"/><circle cx="8.8" cy="9.2" r="1.4" fill="currentColor" stroke="none"/><path d="M4.2 18l4.8-5 3.6 3.6 2.4-2.4 4.8 3.8" fill="currentColor" fill-opacity="0.16"/>',
     'tb-btn-insert-video':

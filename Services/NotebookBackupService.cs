@@ -113,7 +113,7 @@ namespace MinNote.Services
     /// <summary>
     /// Quản lý lưu trữ an toàn ra ổ cứng NTFS (%LocalAppData%\MinNote\Notebooks),
     /// khôi phục phiên &amp; sheet sau tắt máy đột ngột / cập nhật,
-    /// và đồng bộ 2 chiều ra thư mục Google Drive / OneDrive trên máy.
+    /// và đồng bộ 2 chiều ra thư mục sao lưu ngoài (OneDrive / ổ đĩa cục bộ) trên máy.
     /// </summary>
     public sealed class NotebookBackupService
     {
@@ -706,14 +706,6 @@ namespace MinNote.Services
             }
 
             string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            TryAdd("Google Drive (My Drive)", @"G:\My Drive");
-            TryAdd("Google Drive (Drive của tôi)", @"G:\Drive của tôi");
-            if (!string.IsNullOrEmpty(userProfile))
-            {
-                TryAdd("Google Drive", Path.Combine(userProfile, "Google Drive"));
-                TryAdd("Google Drive (My Drive)", Path.Combine(userProfile, "Google Drive", "My Drive"));
-            }
-
             TryAdd("OneDrive", Environment.GetEnvironmentVariable("OneDrive"));
             TryAdd("OneDrive Cá nhân", Environment.GetEnvironmentVariable("OneDriveConsumer"));
             TryAdd("OneDrive Cơ quan", Environment.GetEnvironmentVariable("OneDriveCommercial"));

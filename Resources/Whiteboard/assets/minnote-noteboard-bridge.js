@@ -2,9 +2,9 @@
 
  * MinNote - NoteBoard 2.5.21 Math, 3D Spatial & Science Integration Bridge
 
- * Connects NoteBoard symbolic math, orthographic 3D geometry, chemical balancer,
+ * Connects NoteBoard symbolic math, orthographic 3D geometry, and chemical balancer
 
- * and Word/MathType import directly into MinNote Whiteboard engine.
+ * directly into MinNote Whiteboard engine.
 
  */
 
@@ -708,28 +708,6 @@
 
 
 
-  /* ==========================================================================
-
-   * 5. QUICK WORD TERMINAL BRIDGE & SMART QUESTION PARSER
-
-   * ========================================================================== */
-
-  window.openNBWordTerminalModal = function() {
-
-    if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.open === 'function') {
-
-      window.NBQuickWordTerminal.open();
-
-    } else {
-
-      if (window.MinNoteDialog) window.MinNoteDialog.alert('Đang nạp Quick Word Terminal...', 'Thông báo');
-
-    }
-
-  };
-
-
-
   window.addWritingPage = function() {
 
     const board = getBoard();
@@ -739,218 +717,6 @@
       board.addPage();
 
     }
-
-  };
-
-
-
-  // Hàm xử lý chung khi biên dịch nội dung Word vào MinNote
-
-  function handleWordBlocksImport(blocks, isNewPage = false) {
-
-    if (!blocks || !blocks.length) return;
-
-    const board = getBoard();
-
-    if (!board) {
-
-      if (window.MinNoteDialog) window.MinNoteDialog.alert('Bảng viết MinNote chưa sẵn sàng!', 'Lưu ý');
-
-      return;
-
-    }
-
-
-
-    let targetPage = (board.sel && board.sel.page >= 0) ? board.sel.page : 
-
-                     (typeof board.currentPage === 'function' ? board.currentPage() : 0);
-
-
-
-    if (isNewPage && typeof board.addPage === 'function') {
-
-      board.addPage();
-
-      targetPage = board.doc ? (board.doc.pages.length - 1) : (targetPage + 1);
-
-    }
-
-
-
-    // Ghép toàn bộ nội dung text thuần và HTML của các khối
-
-    let rawText = '';
-
-    blocks.forEach(b => {
-
-      const temp = document.createElement('div');
-
-      temp.innerHTML = b.html || '';
-
-      rawText += (temp.innerText || temp.textContent || '') + '\n';
-
-    });
-
-    rawText = rawText.trim();
-
-
-
-    // 1. Phân tích xem có phương án trắc nghiệm A, B, C, D không
-
-    const optMatches = Array.from(rawText.matchAll(/(?:^|\s)([A-D])\.\s*([\s\S]*?)(?=(?:\s+[A-D]\.\s*|Lời giải|Hướng dẫn giải|Giải|$))/g));
-
-    const opts = {};
-
-    optMatches.forEach(m => {
-
-      opts[m[1].toUpperCase()] = m[2].trim();
-
-    });
-
-
-
-    const hasOptions = Object.keys(opts).length >= 2;
-
-
-
-    // 2. Tìm lời giải / hướng dẫn
-
-    let solution = '';
-
-    const solMatch = rawText.match(/(?:Lời giải|Hướng dẫn giải|Giải):?([\s\S]*)/i);
-
-    if (solMatch) {
-
-      solution = solMatch[1].trim();
-
-    }
-
-
-
-    // 3. Tìm đáp án đúng (ví dụ: Chọn A, Đáp án A)
-
-    let correct = '';
-
-    const corMatch = rawText.match(/(?:Chọn|Đáp án|Phương án đúng:?)\s*([A-D])\b/i);
-
-    if (corMatch) {
-
-      correct = corMatch[1].toUpperCase();
-
-    }
-
-
-
-    // 4. Trích xuất nội dung câu hỏi
-
-    let content = rawText;
-
-    const firstOptIdx = rawText.search(/(?:^|\s)[A-D]\.\s*/);
-
-    if (firstOptIdx >= 0) {
-
-      content = rawText.substring(0, firstOptIdx).trim();
-
-    } else if (solMatch) {
-
-      content = rawText.substring(0, solMatch.index).trim();
-
-    }
-
-
-
-    if (!content && hasOptions) {
-
-      content = 'Chọn một phương án đúng trong các phương án sau:';
-
-    }
-
-
-
-    // Nếu là câu hỏi trắc nghiệm hoặc có phương án: Đưa vào Thẻ Câu Hỏi MinNote
-
-    if (hasOptions && typeof window.insertQuestionToPage === 'function') {
-
-      const q = {
-
-        code: 'Câu hỏi Word',
-
-        level: 'Thông hiểu',
-
-        topic: 'Bài tập',
-
-        content: content,
-
-        options: opts,
-
-        solution: solution,
-
-        correctAnswer: correct
-
-      };
-
-      window.insertQuestionToPage(q, targetPage, false);
-
-      notify('✨ Đã biên dịch câu hỏi trắc nghiệm Word vào thẻ câu hỏi MinNote!');
-
-    } else {
-
-      // Nếu là văn bản lý thuyết / bài tập tự luận thông thường: Tạo thẻ ghi chú hoặc câu hỏi tự luận
-
-      if (typeof window.insertQuestionToPage === 'function') {
-
-        const q = {
-
-          code: 'Bài tập Word',
-
-          level: 'Văn bản Word',
-
-          topic: 'Tài liệu',
-
-          content: content || rawText,
-
-          options: null,
-
-          solution: solution
-
-        };
-
-        window.insertQuestionToPage(q, targetPage, false);
-
-        notify('✨ Đã đưa nội dung Word vào thẻ bài giảng MinNote!');
-
-      }
-
-    }
-
-
-
-    // Đóng Quick Word Terminal sau khi chèn xong
-
-    if (window.NBQuickWordTerminal && typeof window.NBQuickWordTerminal.close === 'function') {
-
-      window.NBQuickWordTerminal.close();
-
-    }
-
-  }
-
-
-
-  // Hook các API để Quick Word Terminal gọi trực tiếp
-
-  window.appendDocBlocks = function(blocks) {
-
-    handleWordBlocksImport(blocks, false);
-
-  };
-
-
-
-  window.start = function(blocks) {
-
-    handleWordBlocksImport(blocks, true);
 
   };
 
@@ -1073,11 +839,3 @@
   console.log('[MinNote] NoteBoard 2.5.21 Math, 3D Spatial & Science Bridge initialized.');
 
 })();
-
-
-
-  // Ẩn tab Word Terminal nổi
-  setInterval(() => {
-    const qwt = document.getElementById('qwtTab');
-    if (qwt) qwt.style.display = 'none';
-  }, 800);
