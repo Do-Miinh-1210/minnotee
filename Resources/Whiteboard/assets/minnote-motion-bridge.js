@@ -200,12 +200,124 @@
     return pos === len && Number.isFinite(out) ? out : NaN;
   }
 
-  function stripJsonCommentsAndTrailingCommas(raw) {
-    let text = String(raw || '').replace(/^\uFEFF/, '').trim();
-    text = text
-      .replace(/^```(?:json|jsonc|javascript|js)?\s*/i, '')
-      .replace(/\s*```$/i, '')
+  function normalizeMarkdownEscapedJsonText(raw) {
+    let text = String(raw || '')
+      .replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, '')
+      .replace(/[\u00A0\u2007\u202F]/g, ' ')
       .trim();
+    if (!text) return '';
+
+    // Unwrap outer matching quotes (either JSON-stringified JSON or plain quoted multiline block)
+    if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+      try {
+        const unwrapped = JSON.parse(text);
+        if (typeof unwrapped === 'string' && (unwrapped.includes('{') || unwrapped.includes('['))) {
+          text = unwrapped.trim();
+        }
+      } catch (_) {
+        if (/^"\s*(?:```(?:json|jsonc|javascript|js)?\s*)?[\{\[]/i.test(text) && /[\}\]]\s*(?:```)?\s*"$/i.test(text)) {
+          text = text.slice(1, -1).trim();
+        }
+      }
+    }
+
+    // Decode HTML entities copied from Markdown / rich-text UIs (&#x20;, &nbsp;, &apos;, structural &quot;, etc.)
+    if (/&(?:#x?[0-9a-f]+|nbsp|quot|apos|lt|gt|amp);/i.test(text)) {
+      const decodeStructuralQuotes = /(?:^|[\{\[,:\s])(?:&quot;|&#34;|&#x22;)\s*[^&"<>]{1,64}\s*(?:&quot;|&#34;|&#x22;)\s*:/i.test(text);
+      text = text.replace(/&(?:#x([0-9a-f]+)|#(\d+)|(nbsp|quot|apos|lt|gt|amp));/gi, (m, hex, dec, named) => {
+        if (named) {
+          const k = named.toLowerCase();
+          if (k === 'nbsp') return ' ';
+          if (k === 'apos') return "'";
+          if (k === 'lt') return '<';
+          if (k === 'gt') return '>';
+          if (k === 'amp') return '&';
+          if (k === 'quot') return decodeStructuralQuotes ? '"' : m;
+          return m;
+        }
+        const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+        if (code === 32 || code === 160) return ' ';
+        if (code === 9) return '\t';
+        if (code === 10) return '\n';
+        if (code === 13) return '';
+        if (code === 39) return "'";
+        if (code === 60) return '<';
+        if (code === 62) return '>';
+        if (code === 38) return '&';
+        if (code === 34) return decodeStructuralQuotes ? '"' : m;
+        return m;
+      });
+    }
+
+    // Strip markdown code fences
+    const fenceMatch = /```(?:json|jsonc|javascript|js)?\s*([\s\S]*?)```/i.exec(text);
+    if (fenceMatch && fenceMatch[1] && (fenceMatch[1].includes('{') || fenceMatch[1].includes('['))) {
+      text = fenceMatch[1].trim();
+    } else {
+      text = text
+        .replace(/^```(?:json|jsonc|javascript|js)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+    }
+
+    // Recover globally backslash-escaped quotes ({\"schema\": ...})
+    if (!/(?:^|[^\\])"\s*:/.test(text) && /\\"\s*:/.test(text)) {
+      text = text.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    }
+
+    // Strip Markdown hard line breaks (`\` before newline) & invalid Markdown punctuation escapes
+    if (/\\[ \t]*(?:\r?\n|$)|\\[_'*[\]{}()\-+#!~|:]/.test(text)) {
+      let unesc = '';
+      let inS = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (!inS) {
+          if (ch === '"') { inS = true; unesc += ch; continue; }
+          if (ch === '\\') {
+            let j = i + 1;
+            while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++;
+            if (j >= text.length || text[j] === '\n' || text[j] === '\r') {
+              i = j - 1;
+              continue;
+            }
+            const nx = text[i + 1];
+            if (nx && /[{}\[\],:_*+\-.()#!~|'`"]/.test(nx)) continue;
+          }
+          unesc += ch;
+        } else {
+          if (ch === '"') { inS = false; unesc += ch; continue; }
+          if (ch === '\\') {
+            const nx = text[i + 1];
+            if (nx && (nx === '"' || nx === '\\' || nx === '/' || nx === 'b' || nx === 'f' || nx === 'n' || nx === 'r' || nx === 't')) {
+              unesc += ch + nx; i++; continue;
+            }
+            if (nx === 'u' && /^[0-9a-fA-F]{4}/.test(text.slice(i + 2, i + 6))) {
+              unesc += text.slice(i, i + 6); i += 5; continue;
+            }
+            let j = i + 1;
+            while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++;
+            if (text[j] === '\r' || text[j] === '\n') {
+              if (text[j] === '\r' && text[j + 1] === '\n') j += 2;
+              else j += 1;
+              while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++;
+              unesc += ' ';
+              i = j - 1;
+              continue;
+            }
+            if (nx && /[_'*[\]{}()\-+.!#~|:,><=`]/.test(nx)) {
+              unesc += nx; i++; continue;
+            }
+          }
+          unesc += ch;
+        }
+      }
+      text = unesc.trim();
+    }
+    return text;
+  }
+
+  function stripJsonCommentsAndTrailingCommas(raw) {
+    let text = normalizeMarkdownEscapedJsonText(raw);
 
     let out = '';
     let inStr = false;
@@ -3426,7 +3538,8 @@
 
       persistToStorage(finalSteps, scopeKey);
 
-      if (w && w.MinNoteGeoReplay && typeof w.MinNoteGeoReplay.launchConstructedFigure === 'function') {
+      const shouldLaunchReplay = opts.launchReplay != null ? !!opts.launchReplay : true;
+      if (shouldLaunchReplay && w && w.MinNoteGeoReplay && typeof w.MinNoteGeoReplay.launchConstructedFigure === 'function') {
         session = w.MinNoteGeoReplay.launchConstructedFigure({
           pageIdx,
           pointIds: ptIds,
@@ -3446,6 +3559,11 @@
           if (replayStylePreset) session.stylePreset = replayStylePreset;
           persistToStorage(session.steps || finalSteps, session.scriptKey || scopeKey);
         }
+      } else {
+        if (typeof b.setTool === 'function') b.setTool({ k: 'select' });
+        b.sel = { page: pageIdx, strokes: new Set(), items: new Set(), points: new Set(ptIds), shapes: new Set(shIds) };
+        if (typeof b.redraw === 'function') b.redraw();
+        if (typeof b.emit === 'function') b.emit();
       }
     }
 

@@ -309,9 +309,9 @@ PHẦN 3 — QUY TRÌNH DỰNG CỤ THỂ CHO 5 NHÓM HÌNH HỌC PHỔ BIẾN N
   - Nếu chóp đều S.ABCD: Lấy tâm O = intersection_ll(["A","C"], ["B","D"]), đặt S(-0.5, 3.1) thẳng đứng trên O (x_S = x_O, y_S = y_O + 4.0), nối SO khuất + right_angle(S, O, D).
 
 • Mẫu 3 — Lăng trụ đứng / Lăng trụ xiên / Hình hộp ABC.A'B'C' (hoặc ABCD.A'B'C'D'):
-  - Dựng đáy dưới A(-2.6, 0), B(-0.6, -1.6), C(2.4, 0) (cạnh sau AC khuất "dashed":true; AB, BC liền).
-  - Đặt đỉnh A'(-2.6, 3.4) (thẳng đứng trên A nếu lăng trụ đứng, hoặc lệch xiên A'(-1.9, 3.4) nếu lăng trụ xiên).
-  - BẮT BUỘC khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA': B' = point_sum(B, A', A), C' = point_sum(C, A', A) để các cạnh bên song song và bằng nhau tuyệt đối; đáy trên A'B'C' vẽ nét liền hoàn toàn.
+  - Lăng trụ tam giác ABC.A'B'C': Đáy dưới A(-2.6, -1.2), B(-0.6, -2.6), C(2.4, -1.2) (cạnh sau AC khuất "dashed":true; AB, BC liền), A'(-2.6, 2.2) (lăng trụ đứng) hoặc A'(-1.9, 2.2) (lăng trụ xiên).
+  - Hình hộp ABCD.A'B'C'D': Đáy dưới A(-2.2, -1.0), B(-3.6, -2.5), D(2.4, -1.0), C = point_sum(B, D, A), đỉnh trên A'(-2.2, 2.3) (hộp đứng) hoặc A'(-1.5, 2.3) (hộp xiên); cạnh khuất: AB, AD, AA' ("dashed":true), các cạnh còn lại liền.
+  - BẮT BUỘC khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA': B' = point_sum(B, A', A), C' = point_sum(C, A', A), D' = point_sum(D, A', A) để các cạnh bên song song và bằng nhau tuyệt đối; đáy trên vẽ nét liền hoàn toàn.
 
 • Mẫu 4 — Đường tròn (O; R), Tiếp tuyến, Cát tuyến & Đa giác nội tiếp 2D ("is3D": false):
   - Đặt tâm O(0, 0) và điểm mốc ẩn R(2.2, 0) ("show":false, "noDot":true, "label":""), vẽ circle(O, R).
@@ -337,7 +337,7 @@ PHẦN 4 — HIỆU ỨNG DIỄN HOẠT TỪNG NÉT TRONG MINNOTE
 ================================================================================
 PHẦN 5 — KHUNG JSON MẪU CHUẨN DUY NHẤT CẦN XUẤT
 ================================================================================
-CHỈ TRẢ VỀ ĐÚNG 1 KHỐI JSON HỢP LỆ THEO CẤU TRÚC MẪU DƯỚI ĐÂY (không giải thích dài dòng bên ngoài khối JSON, không dùng dấu phẩy thừa cuối mảng, không để bình luận // bên trong JSON):
+CHỈ TRẢ VỀ ĐÚNG 1 KHỐI JSON HỢP LỆ ĐẶT TRONG CODE BLOCK \`\`\`json ... \`\`\` THEO CẤU TRÚC MẪU DƯỚI ĐÂY (không giải thích dài dòng bên ngoài khối mã, không xuất văn bản thô bị chèn ký tự escape Markdown như \\ cuối dòng hay &#x20;, không dùng dấu phẩy thừa cuối mảng, không để bình luận // bên trong JSON):
 
 \`\`\`json
 {
@@ -569,8 +569,67 @@ ${prob}`;
 
   function sanitizeLlmJsonText(rawText) {
     const fixes = [];
-    let src = String(rawText || '').trim();
-    if (!src) return { cleaned: '', fixes };
+    let src = String(rawText || '');
+    if (!src.trim()) return { cleaned: '', fixes };
+
+    // 0A. Strip BOM & invisible zero-width characters; normalize NBSP to regular ASCII space
+    const beforeZeroWidth = src;
+    src = src
+      .replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, '')
+      .replace(/[\u00A0\u2007\u202F]/g, ' ')
+      .trim();
+    if (src !== beforeZeroWidth.trim()) {
+      fixes.push('Đã loại bỏ ký tự trắng ẩn (BOM / NBSP / zero-width).');
+    }
+
+    // 0B. Unwrap JSON-stringified or outer-quoted JSON blocks (e.g. "{\\n...\\n}" or "\"{\\\"schema\\\":...}\"")
+    if (src.length >= 2 && src.startsWith('"') && src.endsWith('"')) {
+      try {
+        const unwrapped = JSON.parse(src);
+        if (typeof unwrapped === 'string' && (unwrapped.includes('{') || unwrapped.includes('['))) {
+          src = unwrapped.trim();
+          fixes.push('Đã giải mã chuỗi JSON bị bọc 2 lớp dấu ngoặc kép.');
+        }
+      } catch {
+        if (/^"\s*(?:```(?:json|jsonc|javascript|js)?\s*)?[\{\[]/i.test(src) && /[\}\]]\s*(?:```)?\s*"$/i.test(src)) {
+          src = src.slice(1, -1).trim();
+          fixes.push('Đã gỡ cặp dấu ngoặc kép thừa bọc ngoài khối JSON.');
+        }
+      }
+    }
+
+    // 0C. Decode HTML entities produced when copying from Markdown/rich-text AI chat UIs (&#x20;, &nbsp;, &apos;, &amp;, structural &quot;, etc.)
+    const hasHtmlEntities = /&(?:#x?[0-9a-f]+|nbsp|quot|apos|lt|gt|amp);/i.test(src);
+    if (hasHtmlEntities) {
+      const decodeStructuralQuotes = /(?:^|[\{\[,:\s])(?:&quot;|&#34;|&#x22;)\s*[^&"<>]{1,64}\s*(?:&quot;|&#34;|&#x22;)\s*:/i.test(src);
+      const beforeEntities = src;
+      src = src.replace(/&(?:#x([0-9a-f]+)|#(\d+)|(nbsp|quot|apos|lt|gt|amp));/gi, (m, hex, dec, named) => {
+        if (named) {
+          const k = named.toLowerCase();
+          if (k === 'nbsp') return ' ';
+          if (k === 'apos') return "'";
+          if (k === 'lt') return '<';
+          if (k === 'gt') return '>';
+          if (k === 'amp') return '&';
+          if (k === 'quot') return decodeStructuralQuotes ? '"' : m;
+          return m;
+        }
+        const code = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+        if (code === 32 || code === 160) return ' ';
+        if (code === 9) return '\t';
+        if (code === 10) return '\n';
+        if (code === 13) return '';
+        if (code === 39) return "'";
+        if (code === 60) return '<';
+        if (code === 62) return '>';
+        if (code === 38) return '&';
+        if (code === 34) return decodeStructuralQuotes ? '"' : m;
+        return m;
+      });
+      if (src !== beforeEntities) {
+        fixes.push('Đã giải mã ký tự HTML bị dính khi sao chép (&#x20;, &nbsp;, ...).');
+      }
+    }
 
     // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
     const fenceMatch = /```(?:json|javascript|js|jsonc)?\s*([\s\S]*?)```/i.exec(src);
@@ -580,6 +639,91 @@ ${prob}`;
     } else if (/^```/i.test(src) || /```$/.test(src)) {
       src = src.replace(/^```(?:json|javascript|js|jsonc)?\s*/i, '').replace(/```\s*$/i, '').trim();
       fixes.push('Đã xóa dấu rào Markdown ``` thừa.');
+    }
+
+    // 1B. Recover globally backslash-escaped JSON quotes (e.g. {\"schema\": \"mn-geo-motion/2.0\"})
+    if (!/(?:^|[^\\])"\s*:/.test(src) && /\\"\s*:/.test(src)) {
+      src = src.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      fixes.push('Đã gỡ ký tự thoát \\" thừa quanh khóa JSON.');
+    }
+
+    // 1C. Strip Markdown hard line breaks (`\` before newline) & invalid Markdown punctuation escapes (`\_`, `\'`, `\[`, `\{`, etc.)
+    const hasMdLineBreakOrEsc = /\\[ \t]*(?:\r?\n|$)|\\[_'*[\]{}()\-+#!~|:]/.test(src);
+    if (hasMdLineBreakOrEsc) {
+      let unescaped = '';
+      let inStrMd = false;
+      let changedMd = false;
+      for (let i = 0; i < src.length; i++) {
+        const ch = src[i];
+        if (!inStrMd) {
+          if (ch === '"') {
+            inStrMd = true;
+            unescaped += ch;
+            continue;
+          }
+          if (ch === '\\') {
+            // Markdown hard line break outside strings: `\` + optional spaces + newline (or EOF)
+            let j = i + 1;
+            while (j < src.length && (src[j] === ' ' || src[j] === '\t')) j++;
+            if (j >= src.length || src[j] === '\n' || src[j] === '\r') {
+              changedMd = true;
+              i = j - 1; // let loop consume the newline cleanly
+              continue;
+            }
+            // Markdown-escaped structural punctuation outside strings (e.g. `\{`, `\[`, `\]`, `\}`, `\,`, `\_`)
+            const nx = src[i + 1];
+            if (nx && /[{}\[\],:_*+\-.()#!~|'`"]/.test(nx)) {
+              changedMd = true;
+              continue; // drop stray backslash
+            }
+          }
+          unescaped += ch;
+        } else {
+          if (ch === '"') {
+            inStrMd = false;
+            unescaped += ch;
+            continue;
+          }
+          if (ch === '\\') {
+            const nx = src[i + 1];
+            // Valid JSON escape sequence -> preserve intact
+            if (nx && (nx === '"' || nx === '\\' || nx === '/' || nx === 'b' || nx === 'f' || nx === 'n' || nx === 'r' || nx === 't')) {
+              unescaped += ch + nx;
+              i++;
+              continue;
+            }
+            if (nx === 'u' && /^[0-9a-fA-F]{4}/.test(src.slice(i + 2, i + 6))) {
+              unescaped += src.slice(i, i + 6);
+              i += 5;
+              continue;
+            }
+            // Markdown hard-wrapped line break inside a string literal -> collapse to single space
+            let j = i + 1;
+            while (j < src.length && (src[j] === ' ' || src[j] === '\t')) j++;
+            if (src[j] === '\r' || src[j] === '\n') {
+              changedMd = true;
+              if (src[j] === '\r' && src[j + 1] === '\n') j += 2;
+              else j += 1;
+              while (j < src.length && (src[j] === ' ' || src[j] === '\t')) j++;
+              unescaped += ' ';
+              i = j - 1;
+              continue;
+            }
+            // Invalid JSON escape caused by Markdown escaping (`\_`, `\'`, `\*`, `\[`, `\]`, `\{`, `\}`, etc.)
+            if (nx && /[_'*[\]{}()\-+.!#~|:,><=`]/.test(nx)) {
+              changedMd = true;
+              unescaped += nx;
+              i++;
+              continue;
+            }
+          }
+          unescaped += ch;
+        }
+      }
+      if (changedMd) {
+        src = unescaped.trim();
+        fixes.push('Đã gỡ dấu \\ ngắt dòng / ký tự thoát Markdown thừa trong JSON.');
+      }
     }
 
     // 2. Replace smart quotes used outside standard ASCII double-quoted strings
@@ -5237,6 +5381,7 @@ ${prob}`;
           orbit3d: mCtrl.orbit3d,
           loop: mCtrl.loop,
           autoPlay: !!animate,
+          launchReplay: !!animate,
           anchorBox: modalState.anchorBox || undefined
         });
         if (bridgeRes) {
