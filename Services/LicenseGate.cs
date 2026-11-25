@@ -68,11 +68,52 @@ public static class LicenseGate
                && pkg.IncludedFeatureIds.Contains(featureId, StringComparer.OrdinalIgnoreCase);
     }
 
-    public static string? RequiredFeatureForMessage(string msgType) => msgType switch
+    public static string? RequiredFeatureForMessage(string msgType)
     {
-        "GET_QUESTION_BANK_DATA" or "MEA_QB_LIST" or "MEA_QB_SAVE_QUESTION" => Bank,
-        "MEA_FIG_LIST" or "MEA_FIG_LOAD" or "MEA_FIG_PUSH" or "MEA_FIG_DELETE" => Tikz,
-        _ when msgType.StartsWith("MEA_", StringComparison.Ordinal) => Whiteboard,
-        _ => null
-    };
+        if (string.IsNullOrWhiteSpace(msgType)) return null;
+
+        return msgType switch
+        {
+            // Cho phép các thông điệp cửa sổ / vòng đời / trạng thái thụ động không mang đặc quyền
+            "WINDOW_MINIMIZE"
+                or "WINDOW_MAXIMIZE"
+                or "WINDOW_CLOSE"
+                or "TOGGLE_FULLSCREEN"
+                or "PERSIST_HOST_REPLY"
+                or "PERSIST_DIRTY_STATE" => null,
+
+            // Ngân hàng câu hỏi
+            "GET_QUESTION_BANK_DATA"
+                or "MEA_QB_LIST"
+                or "MEA_QB_SAVE_QUESTION" => Bank,
+
+            // Hình vẽ TikZ / Hình học
+            "RENDER_TIKZ"
+                or "TRACE_TIKZ" => Tikz,
+            _ when msgType.StartsWith("MEA_FIG_", StringComparison.Ordinal) => Tikz,
+
+            // Sơ đồ tư duy
+            "NAVIGATE_TO_MINDMAP"
+                or "GENERATE_AI_MINDMAP"
+                or "CAPTURE_MINDMAP"
+                or "DOWNLOAD_MINDMAP_SVG" => Mindmap,
+
+            // Các lệnh chức năng bảng viết / xuất tệp / Word / Media
+            "SAVE_MEDIA_FILE"
+                or "PICK_VIDEO"
+                or "COPY_EMF_SELECTION"
+                or "SAVE_EMF_FILE"
+                or "PICK_WORD"
+                or "CONVERT_WORD"
+                or "INSERT_TO_MEA" => Whiteboard,
+
+            _ when msgType.StartsWith("MEA_", StringComparison.Ordinal)
+                || msgType.StartsWith("REC_", StringComparison.Ordinal)
+                || msgType.StartsWith("PERSIST_", StringComparison.Ordinal)
+                || msgType.StartsWith("DRIVE_", StringComparison.Ordinal) => Whiteboard,
+
+            // Fail-closed: mọi lệnh IPC không xác định khác đều phải qua kiểm tra bản quyền Whiteboard
+            _ => Whiteboard
+        };
+    }
 }

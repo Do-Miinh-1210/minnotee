@@ -146,17 +146,127 @@ namespace MinNote.Services
                 _captureThread.SetApartmentState(ApartmentState.MTA);
                 _captureThread.Start();
 
-                initDone.Wait(TimeSpan.FromSeconds(10));
+                bool initialized = initDone.Wait(TimeSpan.FromSeconds(10));
+                if (!initialized && initError == null)
+                {
+                    _cts.Cancel();
+                    _cts.Dispose();
+                    _cts = null;
+                    _captureThread = null;
+                    DeleteTempFile(_tempPath);
+                    throw new InvalidOperationException(
+                        "Khởi tạo bộ mã hóa video Windows quá thời gian chờ. Vui lòng thử lại hoặc chuyển sang chế độ quay WebM dự phòng.");
+                }
                 if (initError != null)
                 {
                     _cts.Cancel();
-                    throw new InvalidOperationException("Không thể khởi tạo bộ mã hóa video Windows: " + initError.Message, initError);
+                    _cts.Dispose();
+                    _cts = null;
+                    _captureThread = null;
+                    DeleteTempFile(_tempPath);
+                    throw new InvalidOperationException(FormatUserFriendlyError(initError), initError);
                 }
 
                 _isRecording = true;
             }
 
             StateChanged?.Invoke(true, false);
+        }
+
+        private const int HR_MF_E_INVALIDMEDIATYPE = unchecked((int)0xC00D36B4);
+        private const int HR_MF_E_TOPO_CODEC_NOT_FOUND = unchecked((int)0xC00D5212);
+        private const int HR_MF_E_TRANSFORM_TYPE_NOT_SET = unchecked((int)0xC00D6D60);
+        private const int HR_WIN32_MOD_NOT_FOUND = unchecked((int)0x8007007E);
+        private const int HR_REGDB_E_CLASSNOTREG = unchecked((int)0x80040154);
+
+        public static bool IsMissingMediaFoundationOrCodecError(Exception? ex)
+        {
+            if (ex == null) return false;
+
+            var pending = new System.Collections.Generic.Stack<Exception>();
+            pending.Push(ex);
+
+            while (pending.Count > 0)
+            {
+                Exception cur = pending.Pop();
+                if (cur is DllNotFoundException or BadImageFormatException)
+                {
+                    return true;
+                }
+
+                int hr = cur is COMException comEx ? comEx.HResult : cur.HResult;
+                if (hr == HR_MF_E_INVALIDMEDIATYPE ||
+                    hr == HR_MF_E_TOPO_CODEC_NOT_FOUND ||
+                    hr == HR_MF_E_TRANSFORM_TYPE_NOT_SET ||
+                    hr == HR_WIN32_MOD_NOT_FOUND ||
+                    hr == HR_REGDB_E_CLASSNOTREG)
+                {
+                    return true;
+                }
+
+                string msg = cur.Message ?? string.Empty;
+                if (msg.Contains("mfplat", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("mfreadwrite", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("h.264", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("h264", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("codec", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("media foundation", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("0xc00d36b4", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("0xc00d5212", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("0xc00d6d60", StringComparison.OrdinalIgnoreCase) ||
+                    msg.Contains("0x8007007e", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (cur is AggregateException agg)
+                {
+                    foreach (Exception inner in agg.InnerExceptions)
+                    {
+                        if (inner != null) pending.Push(inner);
+                    }
+                }
+                else if (cur.InnerException != null)
+                {
+                    pending.Push(cur.InnerException);
+                }
+            }
+
+            return false;
+        }
+
+        public static string FormatUserFriendlyError(Exception? ex)
+        {
+            if (IsMissingMediaFoundationOrCodecError(ex))
+            {
+                return "Máy tính hiện thiếu Windows Media Foundation hoặc bộ mã hóa H.264 (thường gặp trên Windows 10/11 bản N/KN). " +
+                       "Vui lòng cài đặt Windows Media Feature Pack (Settings > System > Optional features > Media Feature Pack) rồi khởi động lại máy, " +
+                       "hoặc chuyển sang chế độ quay WebM dự phòng.";
+            }
+
+            string raw = ex?.Message ?? string.Empty;
+            string firstLine = string.Empty;
+            foreach (string line in raw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string trimmed = line.Trim();
+                if (trimmed.Length == 0) continue;
+                if (trimmed.StartsWith("at ", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith("--- End of stack trace", StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                firstLine = trimmed;
+                break;
+            }
+
+            if (firstLine.Length > 220)
+            {
+                firstLine = firstLine[..220] + "...";
+            }
+
+            return string.IsNullOrWhiteSpace(firstLine)
+                ? "Không thể khởi tạo bộ mã hóa video Windows. Vui lòng thử lại hoặc chuyển sang chế độ quay WebM dự phòng."
+                : "Không thể khởi tạo bộ mã hóa video Windows: " + firstLine;
         }
 
         public bool TogglePause()
@@ -216,9 +326,14 @@ namespace MinNote.Services
             if (string.IsNullOrWhiteSpace(tempPath)) return;
             try
             {
-                string full = Path.GetFullPath(tempPath);
-                string tempDir = Path.GetFullPath(GetTempDir());
-                if (full.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase) && File.Exists(full))
+                string full = Path.GetFullPath(tempPath.Trim());
+                string tempDir = Path.GetFullPath(GetTempDir())
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                string ext = Path.GetExtension(full);
+                bool allowedExt = string.Equals(ext, ".mp4", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(ext, ".webm", StringComparison.OrdinalIgnoreCase);
+                if (allowedExt && full.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase) && File.Exists(full))
                 {
                     File.Delete(full);
                 }
@@ -442,7 +557,8 @@ namespace MinNote.Services
             }
             catch (Exception ex)
             {
-                if (!initDone.IsSet)
+                bool failedDuringInit = !initDone.IsSet;
+                if (failedDuringInit)
                 {
                     onInitError(ex);
                     initDone.Set();
@@ -456,7 +572,14 @@ namespace MinNote.Services
                         _sinkWriter = null;
                     }
                 }
-                _stopTcs?.TrySetException(ex);
+                if (failedDuringInit)
+                {
+                    _stopTcs?.TrySetCanceled();
+                }
+                else
+                {
+                    _stopTcs?.TrySetException(new InvalidOperationException(FormatUserFriendlyError(ex), ex));
+                }
             }
             finally
             {
@@ -473,7 +596,15 @@ namespace MinNote.Services
 
         private bool TryConfigureAudioStream()
         {
-            if (_sinkWriter == null || waveInGetNumDevs() == 0) return false;
+            if (_sinkWriter == null) return false;
+            try
+            {
+                if (waveInGetNumDevs() == 0) return false;
+            }
+            catch
+            {
+                return false;
+            }
             foreach (int ch in new[] { 2, 1 })
             {
                 try

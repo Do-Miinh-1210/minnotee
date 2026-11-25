@@ -4,6 +4,7 @@ obj/
 publish/
 publish_selfcontained/
 dist/
+redist/
 *.exe
 *.dll
 !mea_stroke_core.dll

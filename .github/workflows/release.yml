@@ -100,14 +100,97 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Cài đặt Node.js
+        if: steps.check.outputs.should_release == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Tạo manifest toàn vẹn tài nguyên Whiteboard
+        if: steps.check.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --version
+          node scripts/generate_asset_manifest.js
+          if ($LASTEXITCODE -ne 0) { throw "generate_asset_manifest.js lỗi $LASTEXITCODE" }
+          if (-not (Test-Path 'Services/AssetManifest.Generated.cs')) {
+            throw "Thiếu Services/AssetManifest.Generated.cs sau khi tạo manifest."
+          }
+
       - name: Build app (self-contained)
         if: steps.check.outputs.should_release == 'true'
         run: dotnet publish MinNote.csproj -c Release -r win-x64 --self-contained true -o publish_selfcontained
 
-      - name: Đóng bộ cài (Inno Setup)
+      - name: Làm sạch PDB & nhúng Visual C++ CRT (app-local)
         if: steps.check.outputs.should_release == 'true'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem -Path 'publish_selfcontained' -Filter '*.pdb' -Recurse -File | Remove-Item -Force
+          $remainingPdbs = @(Get-ChildItem -Path 'publish_selfcontained' -Filter '*.pdb' -Recurse -File)
+          if ($remainingPdbs.Count -gt 0) {
+            throw "Vẫn còn $($remainingPdbs.Count) tệp .pdb trong publish_selfcontained: $($remainingPdbs.FullName -join ', ')"
+          }
+          Write-Host "Đã xóa sạch mọi tệp .pdb trong publish_selfcontained (0 tệp còn lại)."
+
+          $crtCandidates = @()
+          foreach ($pattern in @(
+            "${env:ProgramFiles}\Microsoft Visual Studio\*\*\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT",
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\*\*\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT"
+          )) {
+            $dirs = Get-ChildItem -Path $pattern -Directory -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -ExpandProperty FullName
+            if ($dirs) { $crtCandidates += $dirs }
+          }
+          $crtCandidates += (Join-Path $env:SystemRoot 'System32')
+
+          foreach ($dllName in @('vcruntime140.dll', 'vcruntime140_1.dll')) {
+            $copiedFrom = $null
+            foreach ($dir in $crtCandidates) {
+              $src = Join-Path $dir $dllName
+              if (Test-Path $src) {
+                Copy-Item -Path $src -Destination (Join-Path 'publish_selfcontained' $dllName) -Force
+                $copiedFrom = $src
+                break
+              }
+            }
+            if ($copiedFrom) {
+              Write-Host "Đã nhúng app-local CRT $dllName từ $copiedFrom"
+            } else {
+              Write-Host "Không tìm thấy $dllName (bỏ qua nếu không bắt buộc)."
+            }
+          }
+
+          if (-not (Test-Path 'publish_selfcontained\vcruntime140.dll')) {
+            throw "Thiếu publish_selfcontained\vcruntime140.dll sau khi đóng gói Visual C++ CRT!"
+          }
+
+      - name: Tải & xác thực chữ ký WebView2 Evergreen Bootstrapper
+        if: steps.check.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path 'redist' -Force | Out-Null
+          $bootstrapper = 'redist\MicrosoftEdgeWebView2Setup.exe'
+          $url = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703'
+          Invoke-WebRequest -Uri $url -OutFile $bootstrapper -MaximumRedirection 10
+          if (-not (Test-Path $bootstrapper) -or (Get-Item $bootstrapper).Length -lt 100000) {
+            throw "Tải WebView2 Bootstrapper thất bại hoặc kích thước tệp bất thường."
+          }
+          $sig = Get-AuthenticodeSignature -FilePath $bootstrapper
+          Write-Host "WebView2 Bootstrapper Authenticode: Status=$($sig.Status), Subject=$($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid' -or -not ($sig.SignerCertificate.Subject -match 'Microsoft Corporation')) {
+            Remove-Item -Path $bootstrapper -Force -ErrorAction SilentlyContinue
+            throw "Xác thực chữ ký Microsoft cho WebView2 Bootstrapper thất bại: Status=$($sig.Status), Subject=$($sig.SignerCertificate.Subject)"
+          }
+
+      - name: Đóng bộ cài (Inno Setup) & tạo tệp SHA-256
+        if: steps.check.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
             choco install innosetup -y --no-progress
@@ -115,15 +198,24 @@ jobs:
           }
           & $iscc installer.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC lỗi $LASTEXITCODE" }
-          if (-not (Test-Path dist/installer/MinNote_Setup.exe)) { throw "Không thấy dist/installer/MinNote_Setup.exe" }
-          Get-Item dist/installer/MinNote_Setup.exe | Format-List Name, Length
+          $setupPath = 'dist\installer\MinNote_Setup.exe'
+          if (-not (Test-Path $setupPath)) { throw "Không thấy $setupPath" }
+          Get-Item $setupPath | Format-List Name, Length
+
+          $sha256 = (Get-FileHash -Path $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $shaFile = Join-Path (Resolve-Path 'dist\installer').Path 'MinNote_Setup.exe.sha256'
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllText($shaFile, "$sha256  MinNote_Setup.exe`n", $utf8NoBom)
+          Write-Host "SHA-256 ($shaFile): $sha256  MinNote_Setup.exe"
 
       - name: Lưu bộ cài làm artifact
         if: steps.check.outputs.should_release == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: MinNote_Setup_${{ steps.check.outputs.tag }}
-          path: dist/installer/MinNote_Setup.exe
+          path: |
+            dist/installer/MinNote_Setup.exe
+            dist/installer/MinNote_Setup.exe.sha256
 
       - name: Cài thử và chạy thử
         if: steps.check.outputs.should_release == 'true'
@@ -179,12 +271,12 @@ jobs:
           $ErrorActionPreference = $prevPref
 
           if ($releaseExists) {
-            gh release upload $tag dist/installer/MinNote_Setup.exe --clobber
+            gh release upload $tag dist/installer/MinNote_Setup.exe dist/installer/MinNote_Setup.exe.sha256 --clobber
             if ($LASTEXITCODE -ne 0) { throw "gh release upload lỗi $LASTEXITCODE" }
             gh release edit $tag --title "$title" --notes-file body.md --latest
             if ($LASTEXITCODE -ne 0) { throw "gh release edit lỗi $LASTEXITCODE" }
           } else {
-            # Tự động tạo tag $tag gắn với $env:GITHUB_SHA và phát hành Release --latest cùng MinNote_Setup.exe
-            gh release create $tag dist/installer/MinNote_Setup.exe --title "$title" --notes-file body.md --target $env:GITHUB_SHA --latest
+            # Tự động tạo tag $tag gắn với $env:GITHUB_SHA và phát hành Release --latest cùng MinNote_Setup.exe & .sha256
+            gh release create $tag dist/installer/MinNote_Setup.exe dist/installer/MinNote_Setup.exe.sha256 --title "$title" --notes-file body.md --target $env:GITHUB_SHA --latest
             if ($LASTEXITCODE -ne 0) { throw "gh release create lỗi $LASTEXITCODE" }
           }

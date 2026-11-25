@@ -113,6 +113,7 @@ namespace MinNote.Services
         private static extern IntPtr LocalFree(IntPtr hMem);
 
         private const uint CRYPTPROTECT_UI_FORBIDDEN = 0x1;
+        private const string DpapiSecretPrefix = "dpapi:";
 
         private static byte[] ProtectDpapi(byte[] plainBytes)
         {
@@ -180,7 +181,25 @@ namespace MinNote.Services
                     if (cfg != null && !string.IsNullOrWhiteSpace(cfg.ClientId))
                     {
                         cfg.ClientId = cfg.ClientId.Trim();
-                        cfg.ClientSecret = (cfg.ClientSecret ?? "").Trim();
+                        string rawSecret = (cfg.ClientSecret ?? "").Trim();
+                        if (rawSecret.StartsWith(DpapiSecretPrefix, StringComparison.Ordinal))
+                        {
+                            string b64 = rawSecret.Substring(DpapiSecretPrefix.Length).Trim();
+                            if (string.IsNullOrEmpty(b64))
+                            {
+                                cfg.ClientSecret = "";
+                            }
+                            else
+                            {
+                                byte[] enc = Convert.FromBase64String(b64);
+                                byte[] plain = UnprotectDpapi(enc);
+                                cfg.ClientSecret = Encoding.UTF8.GetString(plain).Trim();
+                            }
+                        }
+                        else
+                        {
+                            cfg.ClientSecret = rawSecret;
+                        }
                         return cfg;
                     }
                 }
@@ -199,8 +218,15 @@ namespace MinNote.Services
                 throw new ArgumentException("Client ID phải có dạng xxxx.apps.googleusercontent.com (OAuth Desktop App từ Google Cloud Console).");
             }
 
+            string storedSecret = csec;
+            if (!string.IsNullOrEmpty(csec) && !csec.StartsWith(DpapiSecretPrefix, StringComparison.Ordinal))
+            {
+                byte[] enc = ProtectDpapi(Encoding.UTF8.GetBytes(csec));
+                storedSecret = DpapiSecretPrefix + Convert.ToBase64String(enc);
+            }
+
             NotebookBackupService.Instance.EnsureDirectoriesExist();
-            var cfg = new GoogleOAuthConfig { ClientId = cid, ClientSecret = csec };
+            var cfg = new GoogleOAuthConfig { ClientId = cid, ClientSecret = storedSecret };
             NotebookBackupService.WriteAllTextAtomic(UserOAuthConfigPath, JsonSerializer.Serialize(cfg, JsonOpts));
             return GetStateSnapshot();
         }
@@ -604,17 +630,91 @@ namespace MinNote.Services
             };
         }
 
+        private static readonly HashSet<string> AllowedProxyMethods = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"
+        };
+
+        public static bool IsAllowedGoogleApiProxyUri(string? url, out Uri? validatedUri)
+        {
+            validatedUri = null;
+            if (string.IsNullOrWhiteSpace(url)) return false;
+            string trimmed = url.Trim();
+
+            // Check raw path portion before Uri.TryCreate normalizes backslashes ('\') or dot-segments ("..")
+            int queryOrFragIdx = trimmed.IndexOfAny(['?', '#']);
+            string rawBeforeQuery = queryOrFragIdx >= 0 ? trimmed[..queryOrFragIdx] : trimmed;
+            if (rawBeforeQuery.Contains('\\') || rawBeforeQuery.Contains("..", StringComparison.Ordinal))
+            {
+                return false;
+            }
+            try
+            {
+                string rawUnescaped = Uri.UnescapeDataString(rawBeforeQuery);
+                if (rawUnescaped.Contains('\\') || rawUnescaped.Contains("..", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)) return false;
+            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!string.Equals(uri.Host, "www.googleapis.com", StringComparison.OrdinalIgnoreCase)) return false;
+            if (!uri.IsDefaultPort) return false;
+            if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
+
+            string absPath = uri.AbsolutePath;
+            string unescapedPath;
+            try
+            {
+                unescapedPath = Uri.UnescapeDataString(absPath);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (absPath.Contains("..", StringComparison.Ordinal)
+                || unescapedPath.Contains("..", StringComparison.Ordinal)
+                || absPath.Contains('\\')
+                || unescapedPath.Contains('\\'))
+            {
+                return false;
+            }
+
+            bool allowedPath =
+                absPath.StartsWith("/drive/v3/", StringComparison.OrdinalIgnoreCase) ||
+                absPath.StartsWith("/upload/drive/v3/", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(absPath, "/oauth2/v2/userinfo", StringComparison.OrdinalIgnoreCase) ||
+                absPath.StartsWith("/oauth2/v2/userinfo/", StringComparison.OrdinalIgnoreCase);
+
+            if (!allowedPath) return false;
+
+            validatedUri = uri;
+            return true;
+        }
+
         public async Task<object> ProxyRequestAsync(string method, string url, string? contentType, string? body, bool binary, CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("https://www.googleapis.com/", StringComparison.OrdinalIgnoreCase))
+            if (!IsAllowedGoogleApiProxyUri(url, out var targetUri) || targetUri == null)
             {
-                throw new ArgumentException("URL không thuộc Google API.");
+                throw new ArgumentException("URL không thuộc phạm vi Google Drive API được phép.");
+            }
+
+            string httpMethodName = string.IsNullOrWhiteSpace(method) ? "GET" : method.Trim().ToUpperInvariant();
+            if (!AllowedProxyMethods.Contains(httpMethodName))
+            {
+                throw new ArgumentException($"Phương thức HTTP không được phép: {httpMethodName}");
             }
 
             for (int attempt = 0; attempt < 2; attempt++)
             {
                 string token = await GetAccessTokenAsync(attempt > 0, ct).ConfigureAwait(false);
-                using var req = new HttpRequestMessage(new HttpMethod(method.ToUpperInvariant()), url);
+                using var req = new HttpRequestMessage(new HttpMethod(httpMethodName), targetUri);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 if (body != null)
                 {

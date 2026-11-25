@@ -1,13 +1,16 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -20,12 +23,13 @@ public record UpdateInfo(
     string ReleaseNotes,
     string DownloadUrl,
     long FileSize,
-    string AssetName
+    string AssetName,
+    string ExpectedSha256 = ""
 );
 
 public class GitHubUpdateService
 {
-    private const string FallbackVersion = "0.0.9.14";
+    private const string FallbackVersion = "0.0.9.15";
     private const string DefaultSetupAssetName = "MinNote_Setup.exe";
 
     public static GitHubUpdateService Instance { get; } = new();
@@ -87,6 +91,120 @@ public class GitHubUpdateService
         return req;
     }
 
+    private static readonly string[] TrustedGitHubDownloadHosts =
+    [
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+        "github-releases.githubusercontent.com"
+    ];
+
+    private static readonly Regex Sha256HexRegex = new(@"(?<![0-9a-fA-F])([0-9a-fA-F]{64})(?![0-9a-fA-F])", RegexOptions.Compiled);
+
+    public static bool IsTrustedGitHubDownloadUri(Uri? uri)
+    {
+        if (uri == null || !uri.IsAbsoluteUri) return false;
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!uri.IsDefaultPort) return false;
+        if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
+
+        string host = uri.Host;
+        foreach (string allowed in TrustedGitHubDownloadHosts)
+        {
+            if (string.Equals(host, allowed, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string NormalizeSha256Hex(string? raw, string? preferredAssetName = null)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+
+        string trimmed = raw.Trim();
+        if (trimmed.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed.Substring("sha256:".Length).Trim();
+            if (trimmed.Length == 64 && Sha256HexRegex.IsMatch(trimmed))
+            {
+                return trimmed.ToLowerInvariant();
+            }
+        }
+
+        string[] lines = trimmed.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (!string.IsNullOrWhiteSpace(preferredAssetName) && lines.Length > 1)
+        {
+            foreach (string line in lines)
+            {
+                if (line.IndexOf(preferredAssetName, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    var mPref = Sha256HexRegex.Match(line);
+                    if (mPref.Success) return mPref.Groups[1].Value.ToLowerInvariant();
+                }
+            }
+        }
+
+        foreach (string line in lines)
+        {
+            var m = Sha256HexRegex.Match(line);
+            if (m.Success) return m.Groups[1].Value.ToLowerInvariant();
+        }
+
+        return string.Empty;
+    }
+
+    private async Task<string> TryFetchSiblingSha256Async(string tagName, string assetName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(tagName) || string.IsNullOrWhiteSpace(assetName))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            string shaUrl = $"https://github.com/{GitHubRepo}/releases/download/{Uri.EscapeDataString(tagName)}/{Uri.EscapeDataString(assetName)}.sha256";
+            if (!Uri.TryCreate(shaUrl, UriKind.Absolute, out var shaUri) || !IsTrustedGitHubDownloadUri(shaUri))
+            {
+                return string.Empty;
+            }
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            using var req = CreateNoCacheRequest(HttpMethod.Get, WithCacheBuster(shaUrl));
+            using var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+            if (!resp.IsSuccessStatusCode) return string.Empty;
+            if (!IsTrustedGitHubDownloadUri(resp.RequestMessage?.RequestUri)) return string.Empty;
+
+            if (resp.Content.Headers.ContentLength is long len && len > 65536)
+            {
+                return string.Empty;
+            }
+
+            string content = await resp.Content.ReadAsStringAsync(timeoutCts.Token);
+            return NormalizeSha256Hex(content, assetName);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Sha256Check] Sibling .sha256 fetch skipped: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch { }
+    }
+
     public async Task<UpdateInfo?> CheckForUpdatesAsync(CancellationToken ct = default)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -99,7 +217,12 @@ public class GitHubUpdateService
             string webUrl = WithCacheBuster($"https://github.com/{GitHubRepo}/releases/latest");
             using var webReq = CreateNoCacheRequest(HttpMethod.Get, webUrl);
             using var webResp = await _httpClient.SendAsync(webReq, HttpCompletionOption.ResponseHeadersRead, token);
-            string finalUrl = webResp.RequestMessage?.RequestUri?.ToString() ?? "";
+            Uri? finalWebUri = webResp.RequestMessage?.RequestUri;
+            if (!IsTrustedGitHubDownloadUri(finalWebUri))
+            {
+                throw new InvalidOperationException("URL chuyển hướng GitHub Releases không hợp lệ.");
+            }
+            string finalUrl = finalWebUri?.ToString() ?? "";
             int tagIdx = finalUrl.IndexOf("/releases/tag/", StringComparison.OrdinalIgnoreCase);
             if (tagIdx >= 0)
             {
@@ -131,13 +254,15 @@ public class GitHubUpdateService
                     return null;
                 }
 
+                string siblingSha = await TryFetchSiblingSha256Async(tagName, DefaultSetupAssetName, token);
                 return new UpdateInfo(
                     cleanVersion,
                     tagName,
                     "Bản cập nhật MinNote chính thức từ GitHub Releases.",
                     downloadUrl,
                     assetSize,
-                    DefaultSetupAssetName);
+                    DefaultSetupAssetName,
+                    siblingSha);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
@@ -221,6 +346,7 @@ public class GitHubUpdateService
 
         string downloadUrl = "";
         string assetName = "";
+        string expectedSha256 = "";
         long size = 0;
 
         if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
@@ -231,12 +357,19 @@ public class GitHubUpdateService
                 long assetSize = asset.TryGetProperty("size", out var s) && s.TryGetInt64(out var parsedSize) ? parsedSize : 0;
                 string url = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
                 if (string.IsNullOrWhiteSpace(url) || assetSize <= 0) continue;
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri) || !IsTrustedGitHubDownloadUri(parsedUri)) continue;
+
+                string digestRaw = asset.TryGetProperty("digest", out var d) && d.ValueKind == JsonValueKind.String
+                    ? d.GetString() ?? ""
+                    : "";
+                string parsedSha = NormalizeSha256Hex(digestRaw, name);
 
                 if (string.Equals(name, DefaultSetupAssetName, StringComparison.OrdinalIgnoreCase))
                 {
                     assetName = name;
                     downloadUrl = url;
                     size = assetSize;
+                    expectedSha256 = parsedSha;
                     break;
                 }
 
@@ -245,6 +378,7 @@ public class GitHubUpdateService
                     assetName = name;
                     downloadUrl = url;
                     size = assetSize;
+                    expectedSha256 = parsedSha;
                 }
             }
         }
@@ -254,16 +388,21 @@ public class GitHubUpdateService
             return null;
         }
 
-        return new UpdateInfo(cleanVersion, tagName, body, downloadUrl, size, assetName);
+        return new UpdateInfo(cleanVersion, tagName, body, downloadUrl, size, assetName, expectedSha256);
     }
 
     private async Task<(bool Exists, long Size)> VerifyAssetExistsAsync(string downloadUrl, CancellationToken ct)
     {
         try
         {
+            if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var initUri) || !IsTrustedGitHubDownloadUri(initUri))
+            {
+                return (false, 0);
+            }
+
             using var headReq = CreateNoCacheRequest(HttpMethod.Head, WithCacheBuster(downloadUrl));
             using var headResp = await _httpClient.SendAsync(headReq, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (headResp.IsSuccessStatusCode)
+            if (headResp.IsSuccessStatusCode && IsTrustedGitHubDownloadUri(headResp.RequestMessage?.RequestUri))
             {
                 long len = headResp.Content.Headers.ContentLength ?? 0;
                 return (true, len);
@@ -274,7 +413,7 @@ public class GitHubUpdateService
                 using var rangeReq = CreateNoCacheRequest(HttpMethod.Get, WithCacheBuster(downloadUrl));
                 rangeReq.Headers.Range = new RangeHeaderValue(0, 0);
                 using var rangeResp = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (rangeResp.IsSuccessStatusCode)
+                if (rangeResp.IsSuccessStatusCode && IsTrustedGitHubDownloadUri(rangeResp.RequestMessage?.RequestUri))
                 {
                     long len = rangeResp.Content.Headers.ContentRange?.Length
                         ?? rangeResp.Content.Headers.ContentLength
@@ -314,13 +453,64 @@ public class GitHubUpdateService
         }
     }
 
+    internal static void ValidateDownloadedInstaller(
+        string setupPath,
+        long totalRead,
+        byte peSig0,
+        byte peSig1,
+        byte[] actualHash,
+        long expectedFileSize,
+        string expectedSha256)
+    {
+        if (totalRead < 1024)
+        {
+            TryDeleteFile(setupPath);
+            throw new IOException("Tệp cài đặt tải về bị rỗng hoặc không đầy đủ.");
+        }
+
+        if (peSig0 != 0x4D || peSig1 != 0x5A)
+        {
+            TryDeleteFile(setupPath);
+            throw new InvalidOperationException("Cảnh báo bảo mật: Tệp cập nhật tải về không phải tệp cài đặt Windows (PE) hợp lệ.");
+        }
+
+        if (expectedFileSize > 0 && totalRead != expectedFileSize)
+        {
+            TryDeleteFile(setupPath);
+            throw new IOException($"Kích thước tệp cập nhật không khớp với bản phát hành ({totalRead} / {expectedFileSize} bytes).");
+        }
+
+        if (!string.IsNullOrWhiteSpace(expectedSha256))
+        {
+            string normalized = NormalizeSha256Hex(expectedSha256);
+            if (normalized.Length != 64)
+            {
+                TryDeleteFile(setupPath);
+                throw new InvalidOperationException("Cảnh báo bảo mật: Định dạng mã kiểm tra SHA-256 của bản phát hành không hợp lệ.");
+            }
+            byte[] expectedHash = Convert.FromHexString(normalized);
+            if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
+            {
+                TryDeleteFile(setupPath);
+                throw new InvalidOperationException("Cảnh báo bảo mật: Mã kiểm tra SHA-256 của tệp cập nhật không khớp với bản phát hành chính thức. Đã hủy cài đặt để bảo vệ máy tính.");
+            }
+        }
+    }
+
     public async Task<bool> DownloadAndInstallUpdateAsync(
         UpdateInfo info,
         Action<double>? onProgress = null,
         Func<Task>? beforeInstallLaunch = null)
     {
+        string? setupPath = null;
+        bool launched = false;
         try
         {
+            if (!Uri.TryCreate(info.DownloadUrl, UriKind.Absolute, out var initialUri) || !IsTrustedGitHubDownloadUri(initialUri))
+            {
+                throw new InvalidOperationException("Cảnh báo bảo mật: Đường dẫn tải bản cập nhật không thuộc máy chủ GitHub chính thức.");
+            }
+
             string tempDir = Path.Combine(Path.GetTempPath(), "MinNote_Update");
             Directory.CreateDirectory(tempDir);
 
@@ -329,35 +519,68 @@ public class GitHubUpdateService
             string setupFileName = !string.IsNullOrWhiteSpace(safeTag)
                 ? $"{Path.GetFileNameWithoutExtension(baseAsset)}_{safeTag}{Path.GetExtension(baseAsset)}"
                 : baseAsset;
-            string setupPath = Path.Combine(tempDir, setupFileName);
+            setupPath = Path.Combine(tempDir, setupFileName);
+
+            string expectedSha256 = NormalizeSha256Hex(info.ExpectedSha256, baseAsset);
+            if (!string.IsNullOrWhiteSpace(info.ExpectedSha256) && expectedSha256.Length != 64)
+            {
+                throw new InvalidOperationException("Cảnh báo bảo mật: Định dạng mã kiểm tra SHA-256 của bản phát hành không hợp lệ.");
+            }
+            if (string.IsNullOrEmpty(expectedSha256) && !string.IsNullOrWhiteSpace(info.TagName))
+            {
+                expectedSha256 = await TryFetchSiblingSha256Async(info.TagName, baseAsset, CancellationToken.None);
+            }
+
+            byte[] actualHash;
+            long totalRead = 0;
+            byte peSig0 = 0;
+            byte peSig1 = 0;
 
             using (var dlReq = CreateNoCacheRequest(HttpMethod.Get, WithCacheBuster(info.DownloadUrl)))
             using (var resp = await _httpClient.SendAsync(dlReq, HttpCompletionOption.ResponseHeadersRead))
             {
                 resp.EnsureSuccessStatusCode();
+
+                Uri? finalUri = resp.RequestMessage?.RequestUri;
+                if (!IsTrustedGitHubDownloadUri(finalUri))
+                {
+                    throw new InvalidOperationException("Cảnh báo bảo mật: Địa chỉ chuyển hướng tải bản cập nhật không thuộc máy chủ GitHub chính thức.");
+                }
+
                 long totalBytes = resp.Content.Headers.ContentLength ?? info.FileSize;
 
                 using var stream = await resp.Content.ReadAsStreamAsync();
-                using var fs = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-                byte[] buffer = new byte[81920];
-                long totalRead = 0;
-                int read;
-                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using (var fs = new FileStream(setupPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    await fs.WriteAsync(buffer, 0, read);
-                    totalRead += read;
-                    if (totalBytes > 0 && onProgress != null)
+                    byte[] buffer = new byte[81920];
+                    int read;
+                    while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        onProgress((double)totalRead / totalBytes * 100);
+                        if (totalRead == 0)
+                        {
+                            peSig0 = buffer[0];
+                            if (read > 1) peSig1 = buffer[1];
+                        }
+                        else if (totalRead == 1)
+                        {
+                            peSig1 = buffer[0];
+                        }
+
+                        await fs.WriteAsync(buffer, 0, read);
+                        hasher.AppendData(buffer, 0, read);
+                        totalRead += read;
+                        if (totalBytes > 0 && onProgress != null)
+                        {
+                            onProgress((double)totalRead / totalBytes * 100);
+                        }
                     }
                 }
 
-                if (totalRead <= 0)
-                {
-                    throw new IOException("Tệp cài đặt tải về bị rỗng.");
-                }
+                actualHash = hasher.GetHashAndReset();
             }
+
+            ValidateDownloadedInstaller(setupPath, totalRead, peSig0, peSig1, actualHash, info.FileSize, expectedSha256);
 
             if (beforeInstallLaunch != null)
             {
@@ -385,6 +608,7 @@ public class GitHubUpdateService
                     Arguments = "/SILENT /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /NORESTART /SUPPRESSMSGBOXES /AUTORELAUNCH",
                     UseShellExecute = true
                 });
+                launched = setupProc != null;
             }
             catch (Win32Exception w32) when (w32.NativeErrorCode == 1223)
             {
@@ -394,22 +618,31 @@ public class GitHubUpdateService
 
             if (setupProc != null)
             {
-                string escapedInstalled = installedExe.Replace("'", "''");
-                string escapedFallback = fallbackExe.Replace("'", "''");
-                string watcherCmd =
-                    $"Wait-Process -Id {setupProc.Id} -ErrorAction SilentlyContinue; " +
+                const string watcherScript =
+                    "Wait-Process -Id ([int]$env:MINNOTE_SETUP_PID) -ErrorAction SilentlyContinue; " +
                     "Start-Sleep -Seconds 3; " +
                     "if (-not (Get-Process -Name 'MinNote' -ErrorAction SilentlyContinue)) { " +
-                    $"if (Test-Path '{escapedInstalled}') {{ Start-Process -FilePath '{escapedInstalled}' }} " +
-                    $"elseif (Test-Path '{escapedFallback}') {{ Start-Process -FilePath '{escapedFallback}' }} " +
+                    "if ($env:MINNOTE_EXE_1 -and (Test-Path -LiteralPath $env:MINNOTE_EXE_1)) { Start-Process -FilePath $env:MINNOTE_EXE_1 } " +
+                    "elseif ($env:MINNOTE_EXE_2 -and (Test-Path -LiteralPath $env:MINNOTE_EXE_2)) { Start-Process -FilePath $env:MINNOTE_EXE_2 } " +
                     "}";
-                Process.Start(new ProcessStartInfo
+
+                var watcherPsi = new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -WindowStyle Hidden -Command \"{watcherCmd}\"",
                     CreateNoWindow = true,
                     UseShellExecute = false
-                });
+                };
+                watcherPsi.ArgumentList.Add("-NoProfile");
+                watcherPsi.ArgumentList.Add("-NonInteractive");
+                watcherPsi.ArgumentList.Add("-WindowStyle");
+                watcherPsi.ArgumentList.Add("Hidden");
+                watcherPsi.ArgumentList.Add("-Command");
+                watcherPsi.ArgumentList.Add(watcherScript);
+                watcherPsi.Environment["MINNOTE_SETUP_PID"] = setupProc.Id.ToString(CultureInfo.InvariantCulture);
+                watcherPsi.Environment["MINNOTE_EXE_1"] = installedExe;
+                watcherPsi.Environment["MINNOTE_EXE_2"] = fallbackExe;
+
+                Process.Start(watcherPsi);
             }
 
             Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
@@ -417,6 +650,11 @@ public class GitHubUpdateService
         }
         catch (Exception ex)
         {
+            if (!launched && !string.IsNullOrEmpty(setupPath))
+            {
+                TryDeleteFile(setupPath);
+            }
+
             MinNote.Views.MinNoteDialog.ShowAlert(
                 null,
                 $"Lỗi khi tải bản cập nhật: {ex.Message}",

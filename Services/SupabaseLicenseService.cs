@@ -1,7 +1,9 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -138,6 +140,7 @@ public class SupabaseLicenseService
     private readonly HttpClient _httpClient;
     private readonly string _cacheFilePath;
     private readonly string _pyCacheFilePath;
+    private readonly string _hwmFilePath;
     private string _machineId;
     private LicenseInfo? _currentLicense;
     private readonly bool _isCustomCache;
@@ -158,6 +161,10 @@ public class SupabaseLicenseService
 
         string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _pyCacheFilePath = Path.Combine(userHome, ".exam_generator", "license_cache.json");
+        _hwmFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MinNote",
+            ".hwm.dat");
 
         if (!string.IsNullOrEmpty(customCachePath))
         {
@@ -249,6 +256,7 @@ public class SupabaseLicenseService
         var rpc = await _licenseRpc.GetLicenseAsync(mid, ct);
         if (rpc.Reachable)
         {
+            UpdateHighWaterMarkUtc(DateTime.UtcNow, forceOverwriteIfCorrupt: true);
             if (!rpc.Found) return Commit(CreateUnregistered(mid));
             using var rowDoc = JsonDocument.Parse(rpc.RowJson);
             string adminApiKey = Prop(rowDoc.RootElement, "admin_api_key");
@@ -542,6 +550,214 @@ public class SupabaseLicenseService
         return CryptographicOperations.FixedTimeEquals(expectedLegacyBytes, actualBytes);
     }
 
+    #region Win32 DPAPI & Monotonic Clock Anchor
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct DATA_BLOB
+    {
+        public int cbData;
+        public IntPtr pbData;
+    }
+
+    [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CryptProtectData(
+        ref DATA_BLOB pDataIn,
+        string? szDataDescr,
+        ref DATA_BLOB pOptionalEntropy,
+        IntPtr pvReserved,
+        IntPtr pPromptStruct,
+        uint dwFlags,
+        out DATA_BLOB pDataOut);
+
+    [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CryptUnprotectData(
+        ref DATA_BLOB pDataIn,
+        IntPtr ppszDataDescr,
+        ref DATA_BLOB pOptionalEntropy,
+        IntPtr pvReserved,
+        IntPtr pPromptStruct,
+        uint dwFlags,
+        out DATA_BLOB pDataOut);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr hMem);
+
+    private const uint CRYPTPROTECT_UI_FORBIDDEN = 0x1;
+    private static readonly byte[] DpapiMagic = [0x4D, 0x4E, 0x44, 0x50, 0x31, 0x00]; // "MNDP1\0"
+
+    private static byte[] ComputeDpapiEntropy(string machineId) =>
+        SHA256.HashData(Encoding.UTF8.GetBytes("MinNote_LicCache_v2|" + machineId));
+
+    private static bool HasDpapiMagic(byte[] data) =>
+        data.Length > DpapiMagic.Length && data.AsSpan(0, DpapiMagic.Length).SequenceEqual(DpapiMagic);
+
+    private static byte[]? TryProtectDpapi(byte[] plainBytes, string machineId, string dataDescr)
+    {
+        if (!OperatingSystem.IsWindows() || plainBytes.Length == 0) return null;
+
+        byte[] entropy = ComputeDpapiEntropy(machineId);
+        var inBlob = new DATA_BLOB();
+        var entropyBlob = new DATA_BLOB();
+        var outBlob = new DATA_BLOB();
+        try
+        {
+            inBlob.cbData = plainBytes.Length;
+            inBlob.pbData = Marshal.AllocHGlobal(plainBytes.Length);
+            Marshal.Copy(plainBytes, 0, inBlob.pbData, plainBytes.Length);
+
+            entropyBlob.cbData = entropy.Length;
+            entropyBlob.pbData = Marshal.AllocHGlobal(entropy.Length);
+            Marshal.Copy(entropy, 0, entropyBlob.pbData, entropy.Length);
+
+            if (!CryptProtectData(ref inBlob, dataDescr, ref entropyBlob, IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_UI_FORBIDDEN, out outBlob))
+            {
+                return null;
+            }
+
+            byte[] protectedBytes = new byte[outBlob.cbData];
+            Marshal.Copy(outBlob.pbData, protectedBytes, 0, outBlob.cbData);
+            return protectedBytes;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (inBlob.pbData != IntPtr.Zero) Marshal.FreeHGlobal(inBlob.pbData);
+            if (entropyBlob.pbData != IntPtr.Zero) Marshal.FreeHGlobal(entropyBlob.pbData);
+            if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+        }
+    }
+
+    private static byte[]? TryUnprotectDpapi(byte[] protectedBytes, string machineId)
+    {
+        if (!OperatingSystem.IsWindows() || protectedBytes.Length == 0) return null;
+
+        byte[] entropy = ComputeDpapiEntropy(machineId);
+        var inBlob = new DATA_BLOB();
+        var entropyBlob = new DATA_BLOB();
+        var outBlob = new DATA_BLOB();
+        try
+        {
+            inBlob.cbData = protectedBytes.Length;
+            inBlob.pbData = Marshal.AllocHGlobal(protectedBytes.Length);
+            Marshal.Copy(protectedBytes, 0, inBlob.pbData, protectedBytes.Length);
+
+            entropyBlob.cbData = entropy.Length;
+            entropyBlob.pbData = Marshal.AllocHGlobal(entropy.Length);
+            Marshal.Copy(entropy, 0, entropyBlob.pbData, entropy.Length);
+
+            if (!CryptUnprotectData(ref inBlob, IntPtr.Zero, ref entropyBlob, IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_UI_FORBIDDEN, out outBlob))
+            {
+                return null;
+            }
+
+            byte[] plainBytes = new byte[outBlob.cbData];
+            Marshal.Copy(outBlob.pbData, plainBytes, 0, outBlob.cbData);
+            return plainBytes;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (inBlob.pbData != IntPtr.Zero) Marshal.FreeHGlobal(inBlob.pbData);
+            if (entropyBlob.pbData != IntPtr.Zero) Marshal.FreeHGlobal(entropyBlob.pbData);
+            if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+        }
+    }
+
+    private static void WriteBytesAtomic(string targetPath, byte[] bytes)
+    {
+        string? dir = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        string tmpPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllBytes(tmpPath, bytes);
+            File.Move(tmpPath, targetPath, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+            throw;
+        }
+    }
+
+    private static bool TryParseUtcTimestamp(string? raw, out DateTime utc)
+    {
+        utc = default;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        return DateTime.TryParse(
+            raw.Trim(),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out utc);
+    }
+
+    private (DateTime? Value, bool Corrupted) ReadHighWaterMarkUtc()
+    {
+        if (_isCustomCache) return (null, false);
+        try
+        {
+            if (!File.Exists(_hwmFilePath)) return (null, false);
+            byte[] fileBytes = File.ReadAllBytes(_hwmFilePath);
+            if (fileBytes.Length == 0) return (null, true);
+
+            byte[] dpapiPayload = HasDpapiMagic(fileBytes)
+                ? fileBytes[DpapiMagic.Length..]
+                : fileBytes;
+            byte[]? plain = TryUnprotectDpapi(dpapiPayload, _machineId);
+            if (plain == null || plain.Length != sizeof(long)) return (null, true);
+
+            long ticks = BitConverter.ToInt64(plain, 0);
+            if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
+            {
+                return (null, true);
+            }
+
+            return (new DateTime(ticks, DateTimeKind.Utc), false);
+        }
+        catch (IOException)
+        {
+            return (null, false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return (null, false);
+        }
+        catch
+        {
+            return (null, true);
+        }
+    }
+
+    private void UpdateHighWaterMarkUtc(DateTime observedUtc, bool forceOverwriteIfCorrupt = false)
+    {
+        if (_isCustomCache) return;
+        try
+        {
+            DateTime utc = observedUtc.Kind == DateTimeKind.Utc ? observedUtc : observedUtc.ToUniversalTime();
+            var (existing, corrupted) = ReadHighWaterMarkUtc();
+            if (corrupted && !forceOverwriteIfCorrupt) return;
+            if (!corrupted && existing.HasValue && utc <= existing.Value) return;
+
+            byte[] tickBytes = BitConverter.GetBytes(utc.Ticks);
+            byte[]? encrypted = TryProtectDpapi(tickBytes, _machineId, "MinNote_ClockHwm");
+            if (encrypted == null) return;
+
+            byte[] wrapped = new byte[DpapiMagic.Length + encrypted.Length];
+            Buffer.BlockCopy(DpapiMagic, 0, wrapped, 0, DpapiMagic.Length);
+            Buffer.BlockCopy(encrypted, 0, wrapped, DpapiMagic.Length, encrypted.Length);
+            WriteBytesAtomic(_hwmFilePath, wrapped);
+        }
+        catch { }
+    }
+
+    #endregion
+
     private static byte[] EncryptCache(byte[] plain, string machineId)
     {
         using var aes = Aes.Create();
@@ -580,6 +796,14 @@ public class SupabaseLicenseService
     public LicenseInfo? LoadCache()
     {
         string mid = _machineId;
+        DateTime nowUtc = DateTime.UtcNow;
+
+        var (storedHwm, hwmCorrupted) = ReadHighWaterMarkUtc();
+        bool clockRolledBack = hwmCorrupted || (storedHwm.HasValue && nowUtc < storedHwm.Value.AddHours(-2));
+        if (!clockRolledBack && (!storedHwm.HasValue || nowUtc > storedHwm.Value))
+        {
+            UpdateHighWaterMarkUtc(nowUtc);
+        }
 
         // 1. Thử file cache C#
         if (File.Exists(_cacheFilePath))
@@ -590,7 +814,9 @@ public class SupabaseLicenseService
                 // SEC-19: không nhận cache văn bản rõ nữa; máy có cache cũ sẽ được đồng bộ lại từ cloud
                 if (fileBytes.Length == 0 || fileBytes[0] == '{') return null;
 
-                byte[]? decrypted = DecryptCache(fileBytes, mid);
+                byte[]? decrypted = HasDpapiMagic(fileBytes)
+                    ? TryUnprotectDpapi(fileBytes[DpapiMagic.Length..], mid)
+                    : DecryptCache(fileBytes, mid);
                 if (decrypted == null) return null;
                 string json = Encoding.UTF8.GetString(decrypted);
 
@@ -609,8 +835,10 @@ public class SupabaseLicenseService
                         return null;
                     }
 
-                    // 1.3 Chống lùi giờ hệ thống (Clock-rollback tampering)
-                    if (DateTime.TryParse(info.LastCheck, out var dtLast) && dtLast > DateTime.UtcNow.AddDays(2))
+                    bool hasLastCheck = TryParseUtcTimestamp(info.LastCheck, out var dtLastUtc);
+
+                    // 1.3 Chống lùi giờ hệ thống (Clock-rollback tampering — neo đơn điệu + độ lệch tối đa 2 giờ)
+                    if (clockRolledBack || (hasLastCheck && dtLastUtc > nowUtc.AddHours(2)))
                     {
                         return null;
                     }
@@ -621,6 +849,14 @@ public class SupabaseLicenseService
                     {
                         var trusted = BuildFromSigned(info.ServerPayload, info.ServerSignature, info.AdminApiKey, mid);
                         if (trusted == null) return null;
+
+                        // 1.5 Giới hạn offline tối đa 14 ngày cho bản quyền có thời hạn (không áp dụng cho Vĩnh viễn)
+                        if (LicenseInfo.ParseExpiryUtc(trusted.Expiry) != null
+                            && (!hasLastCheck || (nowUtc - dtLastUtc).TotalDays > 14))
+                        {
+                            return null;
+                        }
+
                         trusted.LastCheck = info.LastCheck;
                         trusted.FromCache = true;
                         return trusted;
@@ -667,8 +903,22 @@ public class SupabaseLicenseService
             info.Signature = ComputeSignature(info, mid);
 
             string json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = false });
-            byte[] encrypted = EncryptCache(Encoding.UTF8.GetBytes(json), mid);
-            File.WriteAllBytes(_cacheFilePath, encrypted);
+            byte[] plainBytes = Encoding.UTF8.GetBytes(json);
+
+            byte[] outputBytes;
+            byte[]? dpapiProtected = TryProtectDpapi(plainBytes, mid, "MinNote_LicenseCache");
+            if (dpapiProtected != null)
+            {
+                outputBytes = new byte[DpapiMagic.Length + dpapiProtected.Length];
+                Buffer.BlockCopy(DpapiMagic, 0, outputBytes, 0, DpapiMagic.Length);
+                Buffer.BlockCopy(dpapiProtected, 0, outputBytes, DpapiMagic.Length, dpapiProtected.Length);
+            }
+            else
+            {
+                outputBytes = EncryptCache(plainBytes, mid);
+            }
+
+            WriteBytesAtomic(_cacheFilePath, outputBytes);
 
             // Ghi dự phòng vào .exam_generator để đồng bộ chéo
             if (!_isCustomCache)

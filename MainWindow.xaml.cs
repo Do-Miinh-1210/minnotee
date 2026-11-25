@@ -18,11 +18,47 @@ namespace MinNote
 {
     public partial class MainWindow : FluentWindow
     {
-        private static readonly string LogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "minnote_debug.log");
-        private static readonly Regex SensitiveJsonRegex = new("\"(rawKeys|apiKey|apiKeys|key|keys|token|password|secret)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly string LogFile = App.LogFile;
+        private static readonly object LogLock = new();
+        private const long MaxLogBytes = 2L * 1024 * 1024;
+        private const string WebView2EvergreenDownloadUrl = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
+        private static readonly Regex SensitiveJsonRegex = new(
+            "\"(rawKeys|apiKey|apiKeys|key|keys|token|refreshToken|accessToken|password|secret|clientSecret|adminApiKey|authorization|bearer|serverSignature|signed_payload)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\"",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex SensitiveBearerRegex = new(
+            @"\b(Bearer)\s+[A-Za-z0-9\-._~+/]+=*",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly HashSet<string> AllowedSaveExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "gif", "webm", "mp4", "tex", "json", "svg", "png", "pdf", "txt", "nrn"
+        };
+        private static readonly HashSet<string> BlockedExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".bat", ".cmd", ".ps1", ".psm1", ".psd1", ".vbs", ".vbe", ".js", ".jse",
+            ".wsf", ".wsh", ".msi", ".msp", ".dll", ".scr", ".com", ".pif", ".hta", ".cpl",
+            ".msc", ".jar", ".lnk", ".reg", ".inf", ".scf", ".sh"
+        };
         private static bool IsTrustedAppUri(string? uri) =>
             Uri.TryCreate(uri, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps &&
             string.Equals(u.Host, "minnote.app", StringComparison.OrdinalIgnoreCase);
+        private static bool IsAllowedAppOrigin(string? uri)
+        {
+            if (string.IsNullOrEmpty(uri)) return false;
+            if (uri.StartsWith("https://minnote.app/", StringComparison.OrdinalIgnoreCase)) return true;
+#if DEBUG
+            if (uri.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
+                uri.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase))
+                return true;
+#endif
+            return false;
+        }
+        private static string RedactSensitive(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return string.Empty;
+            string masked = SensitiveJsonRegex.Replace(text, "\"$1\":\"***\"");
+            masked = SensitiveBearerRegex.Replace(masked, "$1 ***");
+            return masked;
+        }
         private readonly SemaphoreSlim _initLock = new(1, 1);
         private bool _isInitialized = false;
         private bool _eventsAttached = false;
@@ -53,9 +89,46 @@ namespace MinNote
         {
             try
             {
-                File.AppendAllText(LogFile, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
+                string safeMsg = RedactSensitive(msg ?? string.Empty);
+                lock (LogLock)
+                {
+                    string? dir = Path.GetDirectoryName(LogFile);
+                    if (!string.IsNullOrEmpty(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+                    try
+                    {
+                        if (File.Exists(LogFile))
+                        {
+                            var fi = new FileInfo(LogFile);
+                            if (fi.Length > MaxLogBytes)
+                            {
+                                File.Move(LogFile, LogFile + ".old", overwrite: true);
+                            }
+                        }
+                    }
+                    catch { }
+                    File.AppendAllText(LogFile, $"[{DateTime.Now:HH:mm:ss.fff}] {safeMsg}\n");
+                }
             }
             catch { }
+        }
+
+        private async Task ShowWebToastAsync(string message, string tone = "info")
+        {
+            try
+            {
+                string mLit = JsonSerializer.Serialize(message ?? string.Empty);
+                string tLit = JsonSerializer.Serialize(tone ?? "info");
+                await Dispatcher.InvokeAsync(() =>
+                    (Task?)WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast({mLit}, {tLit});") ?? Task.CompletedTask
+                ).Task.Unwrap();
+            }
+            catch (Exception ex)
+            {
+                Log($"ShowWebToastAsync notice: {ex.Message}");
+            }
         }
 
         public MainWindow()
@@ -146,6 +219,7 @@ namespace MinNote
         private static string? FindWhiteboardDirectory()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+#if DEBUG
             string[] candidates = new[]
             {
                 Path.Combine(baseDir, "Resources", "Whiteboard"),
@@ -156,6 +230,12 @@ namespace MinNote
                 @"M:\IT\Minnote\Resources\Whiteboard",
                 @"X:\desktop_csharp\src\MatrixExamAI.Desktop\Resources\Whiteboard"
             };
+#else
+            string[] candidates = new[]
+            {
+                Path.Combine(baseDir, "Resources", "Whiteboard")
+            };
+#endif
 
             foreach (var dir in candidates)
             {
@@ -181,6 +261,32 @@ namespace MinNote
             TxtLoadingSubtitle.Text = message;
             BtnRetryInit.Visibility = Visibility.Visible;
             PanelLoading.Visibility = Visibility.Visible;
+        }
+
+        private void HandleMissingWebView2Runtime()
+        {
+            ShowErrorState("Máy tính chưa cài đặt Microsoft Edge WebView2 Runtime. Vui lòng cài đặt WebView2 Runtime từ Microsoft rồi bấm \"Tải lại Bảng viết\".");
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+            {
+                try
+                {
+                    bool openDownload = MinNoteDialog.ShowConfirm(
+                        this,
+                        "MinNote cần thành phần Microsoft Edge WebView2 Runtime (miễn phí từ Microsoft) để hiển thị không gian bảng viết.\n\nBạn có muốn mở trang tải bộ cài chính thức từ Microsoft ngay bây giờ không? Sau khi cài xong, bấm \"Tải lại Bảng viết\" để tiếp tục.",
+                        "Thiếu Microsoft Edge WebView2 Runtime",
+                        MinNoteDialogTone.Warning,
+                        "Tải WebView2 Runtime",
+                        "Để sau");
+                    if (openDownload)
+                    {
+                        Process.Start(new ProcessStartInfo(WebView2EvergreenDownloadUrl) { UseShellExecute = true });
+                    }
+                }
+                catch (Exception exOpen)
+                {
+                    Log($"[WebView2] Không mở được liên kết tải WebView2 Runtime: {exOpen.Message}");
+                }
+            });
         }
 
         private void BtnRetryInit_Click(object sender, RoutedEventArgs e) => RecreateWhiteboard();
@@ -242,6 +348,10 @@ namespace MinNote
                 return await CoreWebView2Environment.CreateAsync(null, primaryDir,
                     new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = BrowserArgs });
             }
+            catch (WebView2RuntimeNotFoundException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 Log($"Primary UserDataDir notice ({ex.Message}, HResult=0x{ex.HResult:X8}).");
@@ -265,8 +375,20 @@ namespace MinNote
                     return;
                 }
 
-                CoreWebView2Environment env = App.PrewarmedEnvTask != null 
-                    ? await App.PrewarmedEnvTask 
+                var (integrityOk, tamperedFiles) = AssetIntegrityService.VerifyWhiteboardAssets(whiteboardDir, Log);
+                if (!integrityOk)
+                {
+                    string detail = tamperedFiles != null && tamperedFiles.Count > 0
+                        ? string.Join("; ", tamperedFiles)
+                        : "unknown";
+                    Log($"[Integrity] Whiteboard asset verification FAILED: {detail}");
+                    ShowErrorState("Phát hiện tệp tài nguyên ứng dụng bị thay đổi hoặc thiếu tính toàn vẹn. Vui lòng cài đặt lại MinNote bản chính thức từ trang phát hành.");
+                    return;
+                }
+
+                var prewarmed = App.TakePrewarmedEnvTask();
+                CoreWebView2Environment env = prewarmed != null
+                    ? await prewarmed
                     : await CreateEnvironmentWithFallbackAsync();
                 Log("CoreWebView2Environment acquired successfully");
 
@@ -277,6 +399,10 @@ namespace MinNote
                     await WvWhiteboard.EnsureCoreWebView2Async(env);
                     attachedPrimary = true;
                     Log("EnsureCoreWebView2Async succeeded");
+                }
+                catch (WebView2RuntimeNotFoundException)
+                {
+                    throw;
                 }
                 catch (Exception exEnv)
                 {
@@ -294,6 +420,10 @@ namespace MinNote
                             await WvWhiteboard.EnsureCoreWebView2Async(primaryEnv);
                             attachedPrimary = true;
                             Log($"EnsureCoreWebView2Async primary profile succeeded on retry {attempt}");
+                        }
+                        catch (WebView2RuntimeNotFoundException)
+                        {
+                            throw;
                         }
                         catch (Exception exRetry)
                         {
@@ -340,20 +470,53 @@ namespace MinNote
                     };
                     try
                     {
+                        var settings = WvWhiteboard.CoreWebView2.Settings;
 #if DEBUG
-                        WvWhiteboard.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                        settings.AreDevToolsEnabled = true;
+                        settings.AreBrowserAcceleratorKeysEnabled = true;
 #else
-                        WvWhiteboard.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                        settings.AreDevToolsEnabled = false;
+                        settings.AreBrowserAcceleratorKeysEnabled = false;
 #endif
-                        WvWhiteboard.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-                        WvWhiteboard.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                        WvWhiteboard.CoreWebView2.Settings.IsZoomControlEnabled = false;
-                        WvWhiteboard.CoreWebView2.Settings.IsPinchZoomEnabled = true;
-                        WvWhiteboard.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
-                        WvWhiteboard.CoreWebView2.Settings.IsSwipeNavigationEnabled = false;
-                        WvWhiteboard.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
+                        settings.AreDefaultContextMenusEnabled = false;
+                        settings.IsStatusBarEnabled = false;
+                        settings.IsZoomControlEnabled = false;
+                        settings.IsPinchZoomEnabled = true;
+                        settings.IsSwipeNavigationEnabled = false;
+                        settings.AreDefaultScriptDialogsEnabled = false;
+                        settings.IsGeneralAutofillEnabled = false;
+                        settings.IsPasswordAutosaveEnabled = false;
+                        settings.IsBuiltInErrorPageEnabled = false;
                     }
-                    catch { }
+                    catch (Exception exSettings)
+                    {
+                        Log($"WebView2 settings notice: {exSettings.Message}");
+                    }
+#if !DEBUG
+                    WvWhiteboard.PreviewKeyDown += (s, e) =>
+                    {
+                        if (IsBlockedDevToolsShortcut(e))
+                        {
+                            e.Handled = true;
+                        }
+                    };
+#endif
+
+                    WvWhiteboard.CoreWebView2.NewWindowRequested += (s, e) =>
+                    {
+                        e.Handled = true;
+                        string targetUri = e.Uri ?? string.Empty;
+                        if (Uri.TryCreate(targetUri, UriKind.Absolute, out var nu) && nu.Scheme == Uri.UriSchemeHttps)
+                        {
+                            Log($"[NewWindowRequested] Mở liên kết HTTPS bằng trình duyệt mặc định: {nu.AbsoluteUri}");
+                            try { Process.Start(new ProcessStartInfo(nu.AbsoluteUri) { UseShellExecute = true }); }
+                            catch (Exception ex) { Log($"[NewWindowRequested] Không mở được trình duyệt: {ex.Message}"); }
+                        }
+                        else
+                        {
+                            Log($"[NewWindowRequested] Chặn cửa sổ mới không phải HTTPS: {targetUri}");
+                        }
+                    };
 
                     // Hộp thoại chuẩn MinNote trong app (phi đồng bộ, chặn hoàn toàn popup "minnote.app cho biết")
                     WvWhiteboard.CoreWebView2.ScriptDialogOpening += (s, e) =>
@@ -429,10 +592,7 @@ namespace MinNote
 
                     WvWhiteboard.CoreWebView2.PermissionRequested += (s, e) =>
                     {
-                        bool isLocalApp = !string.IsNullOrEmpty(e.Uri) &&
-                            (e.Uri.StartsWith("https://minnote.app/", StringComparison.OrdinalIgnoreCase) ||
-                             e.Uri.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
-                             e.Uri.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase));
+                        bool isLocalApp = IsAllowedAppOrigin(e.Uri);
                         if (isLocalApp && (
                             e.PermissionKind == CoreWebView2PermissionKind.ClipboardRead ||
                             e.PermissionKind == CoreWebView2PermissionKind.Microphone ||
@@ -441,17 +601,18 @@ namespace MinNote
                         {
                             e.State = CoreWebView2PermissionState.Allow;
                         }
+                        else if (!isLocalApp)
+                        {
+                            e.State = CoreWebView2PermissionState.Deny;
+                        }
                     };
 
                     WvWhiteboard.CoreWebView2.ScreenCaptureStarting += (s, e) =>
                     {
                         string src = e.OriginalSourceFrameInfo?.Source ?? "";
-                        Log($"[ScreenCaptureStarting] source={src}");
-                        bool isLocalApp = string.IsNullOrEmpty(src) ||
-                            src.StartsWith("https://minnote.app/", StringComparison.OrdinalIgnoreCase) ||
-                            src.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase) ||
-                            src.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase);
-                        if (!isLocalApp)
+                        string effectiveSrc = string.IsNullOrEmpty(src) ? (WvWhiteboard?.CoreWebView2?.Source ?? "") : src;
+                        Log($"[ScreenCaptureStarting] source={effectiveSrc}");
+                        if (!IsAllowedAppOrigin(effectiveSrc))
                         {
                             e.Cancel = true;
                         }
@@ -477,11 +638,7 @@ namespace MinNote
                             {
                                 if (op.State == CoreWebView2DownloadState.Completed)
                                 {
-                                    Dispatcher.InvokeAsync(() =>
-                                    {
-                                        string esc = Path.GetFileName(dest).Replace("\\", "\\\\").Replace("'", "\\'");
-                                        WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Đã lưu video: {esc}', 'success');");
-                                    });
+                                    _ = ShowWebToastAsync($"Đã lưu video: {Path.GetFileName(dest)}", "success");
                                 }
                             };
                             return;
@@ -532,20 +689,25 @@ namespace MinNote
 
                                 if (!e.Cancel && !string.IsNullOrEmpty(targetPath))
                                 {
-                                    e.ResultFilePath = targetPath;
-                                    string savedName = Path.GetFileName(targetPath);
-                                    var op = e.DownloadOperation;
-                                    op.StateChanged += (_, __) =>
+                                    string targetExt = Path.GetExtension(targetPath);
+                                    if (!string.IsNullOrEmpty(targetExt) && BlockedExecutableExtensions.Contains(targetExt))
                                     {
-                                        if (op.State == CoreWebView2DownloadState.Completed)
+                                        Log($"[DownloadStarting] Blocked executable download extension: '{targetExt}'");
+                                        e.Cancel = true;
+                                    }
+                                    else
+                                    {
+                                        e.ResultFilePath = targetPath;
+                                        string savedName = Path.GetFileName(targetPath);
+                                        var op = e.DownloadOperation;
+                                        op.StateChanged += (_, __) =>
                                         {
-                                            Dispatcher.InvokeAsync(() =>
+                                            if (op.State == CoreWebView2DownloadState.Completed)
                                             {
-                                                string esc = savedName.Replace("\\", "\\\\").Replace("'", "\\'");
-                                                WvWhiteboard?.CoreWebView2?.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Đã lưu tệp: {esc}', 'success');");
-                                            });
-                                        }
-                                    };
+                                                _ = ShowWebToastAsync($"Đã lưu tệp: {savedName}", "success");
+                                            }
+                                        };
+                                    }
                                 }
                             }
                             catch (Exception exDl)
@@ -603,6 +765,11 @@ namespace MinNote
                 WvWhiteboard.CoreWebView2.Navigate("https://minnote.app/index.html");
                 _isInitialized = true;
             }
+            catch (WebView2RuntimeNotFoundException ex)
+            {
+                Log($"[WebView2] Microsoft Edge WebView2 Runtime not found: {ex.Message}");
+                HandleMissingWebView2Runtime();
+            }
             catch (Exception ex)
             {
                 Log($"InitializeWhiteboardAsync exception: {ex}");
@@ -616,23 +783,34 @@ namespace MinNote
 
         private string ConvertWordToPdf(string inputPath)
         {
+            string ext = Path.GetExtension(inputPath).ToLowerInvariant();
+            if (ext != ".doc" && ext != ".docx")
+            {
+                throw new InvalidOperationException("Chỉ hỗ trợ chuyển đổi tệp Word (.doc, .docx).");
+            }
+
             string tmpDir = Path.Combine(Path.GetTempPath(), "minnote_word_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tmpDir);
             string outPdf = Path.Combine(tmpDir, "document.pdf");
             string absIn = Path.GetFullPath(inputPath);
 
-            // Method 1: Microsoft Word COM via PowerShell
-            string psScript = $"$w = New-Object -ComObject Word.Application; try {{ $w.Visible = $false; $d = $w.Documents.Open('{absIn.Replace("'", "''")}', $false, $true, $false); $d.ExportAsFixedFormat('{outPdf.Replace("'", "''")}', 17); $d.Close(0) }} finally {{ $w.Quit() }}";
+            // Method 1: Microsoft Word COM via PowerShell (paths passed via environment variables to prevent command injection)
+            const string psScript = "$w = New-Object -ComObject Word.Application; try { $w.Visible = $false; $d = $w.Documents.Open($env:MINNOTE_WORD_IN, $false, $true, $false); $d.ExportAsFixedFormat($env:MINNOTE_WORD_OUT, 17); $d.Close(0) } finally { $w.Quit() }";
             try
             {
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -NonInteractive -Command \"{psScript}\"",
                     CreateNoWindow = true,
                     UseShellExecute = false,
                     WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
                 };
+                psi.ArgumentList.Add("-NoProfile");
+                psi.ArgumentList.Add("-NonInteractive");
+                psi.ArgumentList.Add("-Command");
+                psi.ArgumentList.Add(psScript);
+                psi.Environment["MINNOTE_WORD_IN"] = absIn;
+                psi.Environment["MINNOTE_WORD_OUT"] = outPdf;
                 using var proc = System.Diagnostics.Process.Start(psi);
                 proc?.WaitForExit(35000);
             }
@@ -661,11 +839,16 @@ namespace MinNote
                         var lpsi = new System.Diagnostics.ProcessStartInfo
                         {
                             FileName = soffice,
-                            Arguments = $"--headless --convert-to pdf \"{absIn}\" --outdir \"{tmpDir}\"",
                             CreateNoWindow = true,
                             UseShellExecute = false,
                             WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
                         };
+                        lpsi.ArgumentList.Add("--headless");
+                        lpsi.ArgumentList.Add("--convert-to");
+                        lpsi.ArgumentList.Add("pdf");
+                        lpsi.ArgumentList.Add(absIn);
+                        lpsi.ArgumentList.Add("--outdir");
+                        lpsi.ArgumentList.Add(tmpDir);
                         using var lproc = System.Diagnostics.Process.Start(lpsi);
                         lproc?.WaitForExit(35000);
 
@@ -680,6 +863,7 @@ namespace MinNote
                 }
             }
 
+            try { Directory.Delete(tmpDir, recursive: true); } catch { }
             throw new InvalidOperationException("Không thể chuyển đổi Word sang PDF. Vui lòng cài đặt Microsoft Word hoặc LibreOffice.");
         }
 
@@ -690,12 +874,13 @@ namespace MinNote
                 uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) || uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
                 return;
             if (Uri.TryCreate(uri, UriKind.Absolute, out var u) &&
+                u.Scheme == Uri.UriSchemeHttps &&
                 (string.Equals(u.Host, "minnote-rec.local", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(u.Host, "minnote-media.local", StringComparison.OrdinalIgnoreCase)))
                 return;
             e.Cancel = true;
             Log($"[Navigation] Chặn điều hướng ra ngoài app: {uri}");
-            if (u != null && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp))
+            if (u != null && u.Scheme == Uri.UriSchemeHttps)
             {
                 try { Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true }); }
                 catch (Exception ex) { Log($"[Navigation] Không mở được trình duyệt: {ex.Message}"); }
@@ -712,7 +897,7 @@ namespace MinNote
                     return;
                 }
                 string json = e.WebMessageAsJson;
-                string safeLog = SensitiveJsonRegex.Replace(json, "\"$1\":\"***\"");
+                string safeLog = RedactSensitive(json);
                 Log($"[WebMessage] {(safeLog.Length > 300 ? safeLog.Substring(0, 300) + "...(truncated)" : safeLog)}");
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
@@ -866,12 +1051,12 @@ namespace MinNote
                                             await Task.Delay(100);
                                         }
                                     }
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if (typeof window.showToast === 'function') window.showToast('Đã sao chép sơ đồ tư duy trong suốt vào Clipboard! Có thể dán (Ctrl+V) vào Word.', 'success');");
+                                    await ShowWebToastAsync("Đã sao chép sơ đồ tư duy trong suốt vào Clipboard! Có thể dán (Ctrl+V) vào Word.", "success");
                                 }
                                 catch (Exception exClip)
                                 {
                                     Log($"Clipboard error: {exClip.Message}");
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Lỗi sao chép Clipboard: {exClip.Message}', 'error');");
+                                    await ShowWebToastAsync($"Lỗi sao chép Clipboard: {exClip.Message}", "error");
                                 }
                             }
                             else if (action == "save_png")
@@ -887,20 +1072,20 @@ namespace MinNote
                                     {
                                         byte[] bytes = Convert.FromBase64String(base64Png);
                                         File.WriteAllBytes(sfd.FileName, bytes);
-                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if (typeof window.showToast === 'function') window.showToast('Đã lưu ảnh sơ đồ tư duy thành công!', 'success');");
+                                        await ShowWebToastAsync("Đã lưu ảnh sơ đồ tư duy thành công!", "success");
                                     }
                                 }
                                 catch (Exception exSave)
                                 {
                                     Log($"Save PNG error: {exSave.Message}");
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Lỗi lưu ảnh: {exSave.Message}', 'error');");
+                                    await ShowWebToastAsync($"Lỗi lưu ảnh: {exSave.Message}", "error");
                                 }
                             }
                         }
                         catch (Exception ex)
                         {
                             Log($"CAPTURE_MINDMAP error: {ex.Message}");
-                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"if (typeof window.showToast === 'function') window.showToast('Lỗi chụp sơ đồ tư duy: {ex.Message.Replace("'", "\\'")}', 'error');");
+                            await ShowWebToastAsync($"Lỗi chụp sơ đồ tư duy: {ex.Message}", "error");
                         }
                     }
                     else if (msgType == "PICK_WORD")
@@ -924,18 +1109,18 @@ namespace MinNote
                     }
                     else if (msgType == "CONVERT_WORD")
                     {
+                        // Chỉ chấp nhận tệp người dùng tự chọn qua OpenFileDialog (PICK_WORD); không nhận đường dẫn tùy ý từ JS.
+                        string? target = _pendingWordPath;
                         _ = Task.Run(async () =>
                         {
-                            string? target = _pendingWordPath;
-                            if (root.TryGetProperty("path", out var pElem) && !string.IsNullOrEmpty(pElem.GetString()))
+                            string ext = string.IsNullOrEmpty(target) ? string.Empty : Path.GetExtension(target).ToLowerInvariant();
+                            if (string.IsNullOrEmpty(target) || !File.Exists(target) || (ext != ".doc" && ext != ".docx"))
                             {
-                                target = pElem.GetString();
-                            }
-                            if (string.IsNullOrEmpty(target) || !File.Exists(target))
-                            {
+                                Log($"CONVERT_WORD rejected invalid or missing pending Word path (ext='{ext}')");
                                 await Dispatcher.InvokeAsync(async () =>
                                 {
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'not_found'});");
+                                    if (WvWhiteboard?.CoreWebView2 != null)
+                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'not_found'});");
                                 });
                                 return;
                             }
@@ -945,10 +1130,18 @@ namespace MinNote
                                 string outPdf = ConvertWordToPdf(target);
                                 byte[] bytes = File.ReadAllBytes(outPdf);
                                 string base64 = Convert.ToBase64String(bytes);
-                                try { File.Delete(outPdf); } catch { }
+                                try
+                                {
+                                    File.Delete(outPdf);
+                                    string? tmpParent = Path.GetDirectoryName(outPdf);
+                                    if (!string.IsNullOrEmpty(tmpParent) && Directory.Exists(tmpParent))
+                                        Directory.Delete(tmpParent, recursive: true);
+                                }
+                                catch { }
 
                                 await Dispatcher.InvokeAsync(async () =>
                                 {
+                                    if (WvWhiteboard?.CoreWebView2 == null) return;
                                     string s = $"if(window.__wordConvertCallback) window.__wordConvertCallback({{pdf: Uint8Array.from(atob('{base64}'), c => c.charCodeAt(0))}});";
                                     await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(s);
                                 });
@@ -956,10 +1149,11 @@ namespace MinNote
                             catch (Exception ex)
                             {
                                 Log($"CONVERT_WORD error: {ex.Message}");
+                                await ShowWebToastAsync($"Lỗi chuyển đổi Word: {ex.Message}", "error");
                                 await Dispatcher.InvokeAsync(async () =>
                                 {
-                                    string errEsc = ex.Message.Replace("'", "\\'").Replace("\n", " ");
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync($"alert('Lỗi chuyển đổi Word: {errEsc}'); if(window.__wordConvertCallback) window.__wordConvertCallback({{error:'failed'}});");
+                                    if (WvWhiteboard?.CoreWebView2 != null)
+                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if(window.__wordConvertCallback) window.__wordConvertCallback({error:'failed'});");
                                 });
                             }
                         });
@@ -995,11 +1189,7 @@ namespace MinNote
                                     Log($"[EMF] Copied to clipboard: EMF={emfBytes.Length}B, PNG={(pngBytes?.Length ?? 0)}B, emfOnly={emfOnly}");
                                     if (emfOnly)
                                     {
-                                        await Dispatcher.InvokeAsync(async () =>
-                                        {
-                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                                "if (typeof window.showToast === 'function') window.showToast('Đã sao chép vector EMF không nền! Dán (Ctrl+V) vào Word/PowerPoint không vỡ nét.', 'success');");
-                                        });
+                                        await ShowWebToastAsync("Đã sao chép vector EMF không nền! Dán (Ctrl+V) vào Word/PowerPoint không vỡ nét.", "success");
                                     }
                                 }
                                 else if (ok && pngBytes != null)
@@ -1010,11 +1200,7 @@ namespace MinNote
                                         string msg = MininkEmfService.Instance.IsDownloading
                                             ? "Đang tự động tải công cụ xuất EMF (MinInk) ở nền... Đã tạm chép ảnh PNG tách nền."
                                             : "Chưa tìm thấy Inkscape/MinInk. Đã chép ảnh PNG tách nền thay thế.";
-                                        await Dispatcher.InvokeAsync(async () =>
-                                        {
-                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                                $"if (typeof window.showToast === 'function') window.showToast('{msg}', 'info');");
-                                        });
+                                        await ShowWebToastAsync(msg, "info");
                                     }
                                 }
                             }
@@ -1035,8 +1221,7 @@ namespace MinNote
 
                         if (string.IsNullOrWhiteSpace(svgContent))
                         {
-                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                "if (typeof window.showToast === 'function') window.showToast('Trang hoặc vùng chọn đang trống, không có hình để xuất EMF.', 'warning');");
+                            await ShowWebToastAsync("Trang hoặc vùng chọn đang trống, không có hình để xuất EMF.", "warning");
                             return;
                         }
 
@@ -1056,11 +1241,7 @@ namespace MinNote
                                 {
                                     if (!MininkEmfService.Instance.IsAvailable)
                                     {
-                                        await Dispatcher.InvokeAsync(async () =>
-                                        {
-                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                                "if (typeof window.showToast === 'function') window.showToast('Đang tự động tải MinInk (Inkscape thu gọn) để xuất EMF...', 'info');");
-                                        });
+                                        await ShowWebToastAsync("Đang tự động tải MinInk (Inkscape thu gọn) để xuất EMF...", "info");
                                         await MininkEmfService.Instance.DownloadMininkAsync(Log).ConfigureAwait(false);
                                     }
 
@@ -1069,30 +1250,17 @@ namespace MinNote
                                     {
                                         await File.WriteAllBytesAsync(outPath, emfBytes).ConfigureAwait(false);
                                         Log($"[EMF] Saved {emfBytes.Length}B to {outPath}");
-                                        await Dispatcher.InvokeAsync(async () =>
-                                        {
-                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                                "if (typeof window.showToast === 'function') window.showToast('Đã xuất file vector EMF không nền thành công!', 'success');");
-                                        });
+                                        await ShowWebToastAsync("Đã xuất file vector EMF không nền thành công!", "success");
                                     }
                                     else
                                     {
-                                        await Dispatcher.InvokeAsync(async () =>
-                                        {
-                                            await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                                "if (typeof window.showToast === 'function') window.showToast('Không thể chuyển sang EMF (chưa có Inkscape/MinInk).', 'error');");
-                                        });
+                                        await ShowWebToastAsync("Không thể chuyển sang EMF (chưa có Inkscape/MinInk).", "error");
                                     }
                                 }
                                 catch (Exception exSaveEmf)
                                 {
                                     Log($"[EMF] SAVE_EMF_FILE error: {exSaveEmf.Message}");
-                                    string esc = exSaveEmf.Message.Replace("\\", "\\\\").Replace("'", "\\'");
-                                    await Dispatcher.InvokeAsync(async () =>
-                                    {
-                                        await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                                            $"if (typeof window.showToast === 'function') window.showToast('Lỗi xuất EMF: {esc}', 'error');");
-                                    });
+                                    await ShowWebToastAsync($"Lỗi xuất EMF: {exSaveEmf.Message}", "error");
                                 }
                             });
                         }
@@ -1192,7 +1360,7 @@ namespace MinNote
                                 if (sfd.ShowDialog() == true)
                                 {
                                     File.WriteAllText(sfd.FileName, svg, System.Text.Encoding.UTF8);
-                                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync("if (typeof window.showToast === 'function') window.showToast('Đã xuất file vector SVG thành công!', 'success');");
+                                    await ShowWebToastAsync("Đã xuất file vector SVG thành công!", "success");
                                 }
                             }
                             catch (Exception ex)
@@ -1367,6 +1535,7 @@ namespace MinNote
                             };
                             if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
                             {
+                                VideoRecorderService.Instance.AuthorizeSavePath(sfd.FileName);
                                 await PostRecResultAsync(reqId, true, new { path = sfd.FileName });
                             }
                             else
@@ -2538,6 +2707,14 @@ namespace MinNote
                         {
                             rawExt = !string.IsNullOrEmpty(base64Data) ? "gif" : "tex";
                         }
+                        if (!AllowedSaveExtensions.Contains(rawExt))
+                        {
+                            Log($"[SAVE_MEDIA_FILE] Blocked unsupported extension: '{rawExt}'");
+                            await PostMeaSyncResultAsync(reqId, false, null, "Định dạng tệp không được hỗ trợ lưu.");
+                            return;
+                        }
+
+                        suggestedName = Path.GetFileName(suggestedName ?? string.Empty).Trim();
                         if (string.IsNullOrWhiteSpace(suggestedName))
                         {
                             suggestedName = $"MinNote_Export_{DateTime.Now:yyyyMMdd_HHmmss}.{rawExt}";
@@ -2553,6 +2730,12 @@ namespace MinNote
                             "webm" => "Video WebM (*.webm)|*.webm|Video MP4 (*.mp4)|*.mp4|Tất cả tệp (*.*)|*.*",
                             "mp4" => "Video MP4 (*.mp4)|*.mp4|Video WebM (*.webm)|*.webm|Tất cả tệp (*.*)|*.*",
                             "tex" => "Mã LaTeX / TikZ (*.tex)|*.tex|Tệp văn bản (*.txt)|*.txt|Tất cả tệp (*.*)|*.*",
+                            "json" => "Tệp JSON hình học (*.json)|*.json|Tất cả tệp (*.*)|*.*",
+                            "svg" => "Ảnh Vector SVG (*.svg)|*.svg|Tất cả tệp (*.*)|*.*",
+                            "png" => "Ảnh PNG (*.png)|*.png|Tất cả tệp (*.*)|*.*",
+                            "pdf" => "Tài liệu PDF (*.pdf)|*.pdf|Tất cả tệp (*.*)|*.*",
+                            "txt" => "Tệp văn bản (*.txt)|*.txt|Tất cả tệp (*.*)|*.*",
+                            "nrn" => "Sổ ghi chú MinNote (*.nrn)|*.nrn|Tất cả tệp (*.*)|*.*",
                             _ => "Tất cả tệp (*.*)|*.*"
                         };
 
@@ -2569,6 +2752,13 @@ namespace MinNote
                             if (sfd.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(sfd.FileName))
                             {
                                 string outPath = sfd.FileName;
+                                string finalExt = Path.GetExtension(outPath);
+                                if (!string.IsNullOrEmpty(finalExt) && BlockedExecutableExtensions.Contains(finalExt))
+                                {
+                                    Log($"[SAVE_MEDIA_FILE] Blocked executable output extension: '{finalExt}'");
+                                    await PostMeaSyncResultAsync(reqId, false, null, "Định dạng tệp không được hỗ trợ lưu.");
+                                    return;
+                                }
                                 _ = Task.Run(async () =>
                                 {
                                     try
@@ -3113,8 +3303,7 @@ namespace MinNote
                 bool ok = await FlushAndSaveWhiteboardAsync("manual_top", 6000);
                 if (ok && WvWhiteboard?.CoreWebView2 != null)
                 {
-                    await WvWhiteboard.CoreWebView2.ExecuteScriptAsync(
-                        "if (typeof window.showToast === 'function') window.showToast('Đã lưu tất cả sổ và các sheet an toàn ra ổ đĩa!', 'success');");
+                    await ShowWebToastAsync("Đã lưu tất cả sổ và các sheet an toàn ra ổ đĩa!", "success");
                 }
             }
             catch (Exception ex)
@@ -3843,8 +4032,29 @@ namespace MinNote
             ExecuteScriptSafe("if (typeof toggleMindMapStudio === 'function') toggleMindMapStudio();");
         }
 
+#if !DEBUG
+        private static bool IsBlockedDevToolsShortcut(KeyEventArgs e)
+        {
+            Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            ModifierKeys mods = Keyboard.Modifiers;
+            if (key == Key.F12) return true;
+            if (mods == (ModifierKeys.Control | ModifierKeys.Shift) && (key == Key.I || key == Key.J || key == Key.C))
+                return true;
+            if (mods == ModifierKeys.Control && key == Key.U)
+                return true;
+            return false;
+        }
+#endif
+
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+#if !DEBUG
+            if (IsBlockedDevToolsShortcut(e))
+            {
+                e.Handled = true;
+                return;
+            }
+#endif
             if (e.Key == Key.V && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift))
             {
                 e.Handled = true;

@@ -84,6 +84,8 @@ namespace MinNote.Services
 
         private readonly object _settingsLock = new();
         private readonly ConcurrentDictionary<string, WriteSession> _sessions = new();
+        private readonly ConcurrentDictionary<string, DateTime> _authorizedSavePaths = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan AuthorizedSavePathTtl = TimeSpan.FromMinutes(60);
         private VideoRecorderSettings? _cachedSettings;
 
         private static readonly string SettingsPath = Path.Combine(
@@ -263,12 +265,99 @@ namespace MinNote.Services
             return Path.Combine(folder, $"{cleanBase}_{DateTime.Now:HHmmssfff}.{cleanExt}");
         }
 
+        private static bool HasAllowedVideoExtension(string path)
+        {
+            string ext = Path.GetExtension(path);
+            return string.Equals(ext, ".mp4", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(ext, ".webm", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsWithinDirectory(string canonicalFilePath, string? dirPath)
+        {
+            if (string.IsNullOrWhiteSpace(dirPath)) return false;
+            try
+            {
+                string root = Path.GetFullPath(dirPath.Trim());
+                if (!root.EndsWith(Path.DirectorySeparatorChar) && !root.EndsWith(Path.AltDirectorySeparatorChar))
+                {
+                    root += Path.DirectorySeparatorChar;
+                }
+                return canonicalFilePath.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void AuthorizeSavePath(string fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath)) return;
+            try
+            {
+                string canonical = Path.GetFullPath(fullPath.Trim());
+                if (!HasAllowedVideoExtension(canonical)) return;
+
+                DateTime nowUtc = DateTime.UtcNow;
+                foreach (var kv in _authorizedSavePaths)
+                {
+                    if (kv.Value <= nowUtc)
+                    {
+                        _authorizedSavePaths.TryRemove(kv.Key, out _);
+                    }
+                }
+
+                _authorizedSavePaths[canonical] = nowUtc.Add(AuthorizedSavePathTtl);
+            }
+            catch { }
+        }
+
+        private bool IsPathWithinAllowedVideoScope(string fullPath, bool requireVideoExt = true)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath)) return false;
+            try
+            {
+                string canonical = Path.GetFullPath(fullPath.Trim());
+                if (canonical.IndexOf('"') >= 0) return false;
+                if (requireVideoExt && !HasAllowedVideoExtension(canonical)) return false;
+
+                if (IsWithinDirectory(canonical, EnsureFolderExists()))
+                {
+                    return true;
+                }
+
+                if (_authorizedSavePaths.TryGetValue(canonical, out DateTime expiresUtc))
+                {
+                    if (expiresUtc > DateTime.UtcNow)
+                    {
+                        return true;
+                    }
+                    _authorizedSavePaths.TryRemove(canonical, out _);
+                }
+
+                if (IsWithinDirectory(canonical, NativeScreenRecorder.GetTempDir()))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public (string SessionId, string FinalPath) BeginWrite(string? explicitFullPath, string? folder, string? fileName, string? ext)
         {
             string finalPath;
             if (!string.IsNullOrWhiteSpace(explicitFullPath))
             {
                 finalPath = Path.GetFullPath(explicitFullPath.Trim());
+                if (!IsPathWithinAllowedVideoScope(finalPath, requireVideoExt: true))
+                {
+                    throw new UnauthorizedAccessException("Đường dẫn lưu video chưa được xác nhận qua hộp thoại lưu.");
+                }
                 string? parent = Path.GetDirectoryName(finalPath);
                 if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
             }
@@ -357,9 +446,8 @@ namespace MinNote.Services
             {
                 throw new FileNotFoundException("Không tìm thấy tệp video tạm để lưu.");
             }
-            string fullTemp = Path.GetFullPath(tempPath);
-            string allowedTempDir = Path.GetFullPath(NativeScreenRecorder.GetTempDir());
-            if (!fullTemp.StartsWith(allowedTempDir, StringComparison.OrdinalIgnoreCase))
+            string fullTemp = Path.GetFullPath(tempPath.Trim());
+            if (!IsWithinDirectory(fullTemp, NativeScreenRecorder.GetTempDir()) || !HasAllowedVideoExtension(fullTemp))
             {
                 throw new UnauthorizedAccessException("Đường dẫn tệp video tạm không hợp lệ.");
             }
@@ -368,6 +456,10 @@ namespace MinNote.Services
             if (!string.IsNullOrWhiteSpace(explicitFullPath))
             {
                 finalPath = Path.GetFullPath(explicitFullPath.Trim());
+                if (!IsPathWithinAllowedVideoScope(finalPath, requireVideoExt: true))
+                {
+                    throw new UnauthorizedAccessException("Đường dẫn lưu video chưa được xác nhận qua hộp thoại lưu.");
+                }
                 string? parent = Path.GetDirectoryName(finalPath);
                 if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
             }
@@ -437,9 +529,11 @@ namespace MinNote.Services
         public bool DeleteVideo(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath)) return false;
-            string full = Path.GetFullPath(filePath);
-            string ext = Path.GetExtension(full).ToLowerInvariant();
-            if (ext != ".mp4" && ext != ".webm") return false;
+            string full = Path.GetFullPath(filePath.Trim());
+            if (!IsPathWithinAllowedVideoScope(full, requireVideoExt: true))
+            {
+                throw new UnauthorizedAccessException("Chỉ được phép xóa tệp video (.mp4, .webm) trong phạm vi hợp lệ của MinNote.");
+            }
             if (!File.Exists(full)) return false;
             File.Delete(full);
             return true;
@@ -447,7 +541,7 @@ namespace MinNote.Services
 
         public void OpenFolder(string? folder = null)
         {
-            string target = EnsureFolderExists(folder);
+            string target = EnsureFolderExists(folder).Replace("\"", "");
             Process.Start(new ProcessStartInfo
             {
                 FileName = "explorer.exe",
@@ -459,28 +553,39 @@ namespace MinNote.Services
         public void RevealFile(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath)) return;
-            string full = Path.GetFullPath(filePath);
-            if (File.Exists(full))
+            string full = Path.GetFullPath(filePath.Trim());
+            if (!IsPathWithinAllowedVideoScope(full, requireVideoExt: true))
+            {
+                throw new UnauthorizedAccessException("Chỉ được phép hiển thị tệp video (.mp4, .webm) trong phạm vi hợp lệ của MinNote.");
+            }
+            string safeFull = full.Replace("\"", "");
+            if (File.Exists(safeFull))
             {
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "explorer.exe",
-                    Arguments = $"/select,\"{full}\"",
+                    Arguments = $"/select,\"{safeFull}\"",
                     UseShellExecute = true
                 });
             }
             else
             {
-                OpenFolder(Path.GetDirectoryName(full));
+                OpenFolder(Path.GetDirectoryName(safeFull));
             }
         }
 
         public void OpenFile(string filePath)
         {
-            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+            string full = Path.GetFullPath(filePath.Trim());
+            if (!IsPathWithinAllowedVideoScope(full, requireVideoExt: true))
+            {
+                throw new UnauthorizedAccessException("Chỉ được phép mở tệp video (.mp4, .webm) trong phạm vi hợp lệ của MinNote.");
+            }
+            if (!File.Exists(full)) return;
             Process.Start(new ProcessStartInfo
             {
-                FileName = Path.GetFullPath(filePath),
+                FileName = full,
                 UseShellExecute = true
             });
         }

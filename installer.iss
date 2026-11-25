@@ -1,6 +1,6 @@
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.9.14"
+#define MyAppVersion "0.0.9.15"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
@@ -26,6 +26,7 @@ WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no
 ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
 PrivilegesRequired=admin
 SetupLogging=yes
 AlwaysShowDirOnReadyPage=yes
@@ -50,6 +51,9 @@ Name: "desktopicon"; Description: "Tạo biểu tượng MinNote trên Màn hìn
 
 [Files]
 Source: "publish_selfcontained\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace
+#if FileExists("redist\MicrosoftEdgeWebView2Setup.exe")
+Source: "redist\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression; Check: NeedWebView2
+#endif
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"
@@ -57,10 +61,44 @@ Name: "{group}\Gỡ cài đặt {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: desktopicon
 
 [Run]
+#if FileExists("redist\MicrosoftEdgeWebView2Setup.exe")
+Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Đang cài đặt Microsoft Edge WebView2 Runtime..."; Flags: runhidden waituntilterminated; Check: NeedWebView2
+#endif
 Filename: "{app}\{#MyAppExeName}"; Description: "Khởi chạy MinNote"; Flags: nowait postinstall skipifsilent runasoriginaluser
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent runasoriginaluser; Check: ShouldAutoLaunchSilent
 
 [Code]
+function HasValidWebView2Version(const RootKey: Integer; const SubKey: String): Boolean;
+var
+  Pv: String;
+begin
+  Result := False;
+  Pv := '';
+  if RegQueryStringValue(RootKey, SubKey, 'pv', Pv) then begin
+    Pv := Trim(Pv);
+    if (Pv <> '') and (Pv <> '0.0.0.0') then
+      Result := True;
+  end;
+end;
+
+function NeedWebView2(): Boolean;
+var
+  WebView2ClientGuid: String;
+begin
+  WebView2ClientGuid := '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+  if (IsWin64 and HasValidWebView2Version(HKLM64, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\' + WebView2ClientGuid)) or
+     HasValidWebView2Version(HKLM32, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2ClientGuid) or
+     (IsWin64 and HasValidWebView2Version(HKLM64, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2ClientGuid)) or
+     HasValidWebView2Version(HKCU, 'Software\Microsoft\EdgeUpdate\Clients\' + WebView2ClientGuid) then
+  begin
+    Result := False;
+  end
+  else
+  begin
+    Result := True;
+  end;
+end;
+
 function HasSwitch(const SwitchName: String): Boolean;
 var
   I: Integer;

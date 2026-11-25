@@ -26,15 +26,18 @@ namespace MinNote
 
         public static Task<CoreWebView2Environment>? PrewarmedEnvTask { get; private set; }
 
-        private static void AppLog(string msg)
+        internal static readonly string LogFile = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MinNote", "logs", "minnote.log");
+
+        internal static Task<CoreWebView2Environment>? TakePrewarmedEnvTask()
         {
-            try
-            {
-                File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "minnote_debug.log"),
-                    $"[{DateTime.Now:HH:mm:ss.fff}] [App] {msg}\n");
-            }
-            catch { }
+            var task = PrewarmedEnvTask;
+            PrewarmedEnvTask = null;
+            return task;
         }
+
+        private static void AppLog(string msg) => MinNote.MainWindow.Log($"[App] {msg}");
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -114,10 +117,30 @@ namespace MinNote
             try
             {
                 PrewarmedEnvTask = MinNote.MainWindow.CreateEnvironmentWithFallbackAsync();
+                _ = PrewarmedEnvTask.ContinueWith(
+                    t =>
+                    {
+                        var baseEx = t.Exception?.GetBaseException();
+                        if (baseEx is WebView2RuntimeNotFoundException)
+                        {
+                            AppLog($"WebView2 Runtime not found during prewarm: {baseEx.Message}");
+                        }
+                        else if (baseEx != null)
+                        {
+                            AppLog($"PrewarmedEnvTask faulted: {baseEx.GetType().Name}: {baseEx.Message}");
+                        }
+                    },
+                    TaskContinuationOptions.OnlyOnFaulted);
+            }
+            catch (WebView2RuntimeNotFoundException ex)
+            {
+                AppLog($"WebView2 Runtime not found on startup: {ex.Message}");
+                PrewarmedEnvTask = null;
             }
             catch (Exception ex)
             {
                 AppLog($"PrewarmedEnvTask error: {ex.Message}");
+                PrewarmedEnvTask = null;
             }
 
             AppLog("Calling base.OnStartup");
