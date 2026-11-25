@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://minnote.app/schemas/mn-geo-motion-v2.schema.json",
-  "title": "MinNote Parametric Geometry & Continuous Motion Schema (mn-geo-motion/2.0)",
-  "description": "Chuẩn JSON hai chiều kết nối các mô hình AI (ChatGPT, Claude, Gemini, DeepSeek, Grok, Local LLM), bảng dựng hình ràng buộc MinNote và trình xuất video chuyển động liên tục BetaTikz (tikzvid-project/1).",
+  "title": "MinNote Parametric Geometry & Continuous Motion Schema (mn-geo-motion/2.0 — v0.0.9.12)",
+  "description": "Chuẩn JSON hai chiều kết nối các mô hình AI (ChatGPT, Claude, Gemini, DeepSeek, Grok, Local LLM), hệ thống Macro & Tuple DSL rút gọn 70%–85% code, bảng dựng hình ràng buộc MinNote và trình xuất video chuyển động liên tục BetaTikz (tikzvid-project/1).",
   "type": "object",
   "required": ["schema"],
   "anyOf": [
@@ -18,7 +18,11 @@
     },
     "title": {
       "type": "string",
-      "description": "Tiêu đề ngắn gọn của hình vẽ (tương thích ngược với trình biên dịch ops v1)."
+      "description": "Tiêu đề ngắn gọn của hình vẽ."
+    },
+    "t": {
+      "type": "string",
+      "description": "Bí danh rút gọn của trường title trong chế độ siêu gọn."
     },
     "is3D": {
       "type": "boolean",
@@ -33,9 +37,16 @@
     "ops": {
       "type": "array",
       "minItems": 1,
-      "description": "Danh sách thao tác dựng hình tham số theo thứ tự tô-pô (DAG) từ đỉnh gốc đến kết luận.",
+      "description": "Danh sách thao tác dựng hình tham số theo thứ tự tô-pô (DAG): chấp nhận đối tượng chuẩn/Macro GeoOp hoặc mảng Tuple DSL siêu gọn.",
       "items": {
-        "$ref": "#/$defs/GeoOp"
+        "oneOf": [
+          { "$ref": "#/$defs/GeoOp" },
+          {
+            "type": "array",
+            "minItems": 2,
+            "description": "Cú pháp Tuple mảng siêu gọn v0.0.9.12 (ví dụ: [\"pyramid\",\"S.ABCD\",\"quad\",\"free\"], [\"mid\",\"M\",\"S-C\"], [\"segs\",[\"B-M\"],[\"A-C\"]])."
+          }
+        ]
       }
     },
     "geometry": {
@@ -43,6 +54,10 @@
     },
     "motion": {
       "$ref": "#/$defs/MotionTimeline"
+    },
+    "m": {
+      "$ref": "#/$defs/MotionTimeline",
+      "description": "Bí danh rút gọn của trường motion trong chế độ siêu gọn."
     },
     "exports": {
       "$ref": "#/$defs/ExportPayloads"
@@ -98,7 +113,7 @@
         "gate2_dag_anchors": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Danh sách duy nhất các đỉnh gốc tự do được phép dùng point_free."
+          "description": "Danh sách duy nhất các đỉnh gốc tự do."
         },
         "gate3_coplanar_intersections": {
           "type": "array",
@@ -189,6 +204,27 @@
       },
       "description": "Khoảng thời gian chuẩn hóa [tStart, tEnd] thuộc [0, 1] cho engine BetaTikz."
     },
+    "PointPair": {
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        {
+          "type": "string",
+          "pattern": "^[^\\s-]+-[^\\s-]+$",
+          "description": "Cặp điểm viết gọn dạng chuỗi \"A-C\", \"S-O\", \"A'-C'\"."
+        }
+      ]
+    },
+    "NumericOrRef": {
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
     "GeoOp": {
       "type": "object",
       "required": ["op"],
@@ -209,46 +245,181 @@
             "intersection_cc",
             "tangent_point",
             "tangents_from_point",
+            "common_tangent",
             "circle",
             "point_on_circle",
             "line_parallel",
             "point_parallel",
             "line_perp",
             "point_perp",
+            "rotate",
+            "angle_bisector",
             "segment",
+            "segments",
+            "points",
             "line",
             "ray",
+            "arc",
+            "arc3",
+            "sector",
+            "cone",
+            "cylinder",
+            "sphere",
+            "frustumCone",
+            "pyramid",
+            "prism",
+            "equilateral_triangle",
+            "square_2d",
+            "circumcircle",
+            "incircle",
+            "orthocenter",
+            "centroid",
             "polygon_base",
             "connect_polygon",
             "section",
             "polygon_fill",
             "right_angle",
             "angle_mark",
-            "tick_mark"
+            "tick_mark",
+            "free",
+            "pts",
+            "sum",
+            "mid",
+            "on",
+            "on_line",
+            "on_circle",
+            "foot",
+            "par",
+            "perp",
+            "inter",
+            "inter_lc",
+            "inter_cc",
+            "tan",
+            "ctan",
+            "rot",
+            "point_rot",
+            "rotation",
+            "bis",
+            "bisector",
+            "seg",
+            "segs",
+            "poly",
+            "sec",
+            "fill",
+            "right",
+            "ang",
+            "tick"
           ]
         },
         "id": { "type": "string" },
         "label": { "type": "string" },
+        "name": { "type": "string", "description": "Tên khối đa diện trong Macro pyramid/prism (ví dụ: \"S.ABCD\", \"ABC.A'B'C'\")." },
         "x": { "type": "number", "description": "Hoành độ toán học (+x sang phải)." },
         "y": { "type": "number", "description": "Tung độ toán học (+y hướng lên trên)." },
         "a": { "type": "string" },
         "b": { "type": "string" },
         "c": { "type": "string" },
+        "d": { "type": "string" },
         "p": { "type": "string" },
+        "point": { "type": "string", "description": "Điểm gốc đem quay trong lệnh rotate." },
         "v": { "type": "string" },
         "vertex": { "type": "string" },
         "through": { "type": "string" },
         "o": { "type": "string" },
         "center": { "type": "string" },
+        "apex": { "type": "string" },
+        "topCenter": { "type": "string" },
+        "bottomCenter": { "type": "string" },
+        "start": { "type": "string" },
+        "end": { "type": "string" },
+        "foot": { "type": "string" },
+        "footId": { "type": "string" },
+        "centerId": { "type": "string" },
         "rim": { "type": "string" },
-        "r": { "type": "string" },
+        "r": { "$ref": "#/$defs/NumericOrRef" },
+        "r1": { "$ref": "#/$defs/NumericOrRef" },
+        "r2": { "$ref": "#/$defs/NumericOrRef" },
+        "radius": { "$ref": "#/$defs/NumericOrRef" },
+        "h": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "baseType": {
+          "type": "string",
+          "enum": [
+            "quad",
+            "convex_quad",
+            "parallelogram",
+            "rect",
+            "rectangle",
+            "square",
+            "rhombus",
+            "trapezoid",
+            "triangle",
+            "equilateral",
+            "right_triangle"
+          ]
+        },
+        "altitude": {
+          "type": "string",
+          "enum": [
+            "free",
+            "SA",
+            "SB",
+            "SC",
+            "SD",
+            "face_SAB",
+            "face_SAD",
+            "center",
+            "upright",
+            "oblique"
+          ]
+        },
+        "base": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "type": "string" }
+        },
+        "top": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "type": "string" }
+        },
+        "upright": { "type": "boolean" },
+        "oblique": { "type": "boolean" },
+        "parallel": { "type": "string" },
         "from": { "type": "string" },
-        "side": { "type": "string", "enum": ["upper", "lower", "top", "bottom", "left", "right"] },
+        "side": {
+          "oneOf": [
+            { "type": "string", "enum": ["upper", "lower", "top", "bottom", "left", "right"] },
+            { "type": "number", "exclusiveMinimum": 0 }
+          ]
+        },
         "exclude": { "type": "string" },
         "otherThan": { "type": "string" },
         "ids": { "type": "array", "items": { "type": "string" } },
         "id1": { "type": "string" },
         "id2": { "type": "string" },
+        "onOpposite": { "type": "boolean" },
+        "intersectOpposite": { "type": "boolean" },
+        "inner": { "type": "boolean" },
+        "on": { "type": "integer", "enum": [1, 2] },
+        "ccw": { "type": "boolean" },
+        "startDeg": { "type": "number" },
+        "endDeg": { "type": "number" },
+        "showFoot": { "type": "boolean" },
+        "drawCircle": { "type": "boolean" },
+        "drawCenter": { "type": "boolean" },
+        "drawAltitudes": { "type": "boolean" },
+        "drawMedians": { "type": "boolean" },
+        "drawBisectors": { "type": "boolean" },
+        "drawRadii": { "type": "boolean" },
+        "drawChord": { "type": "boolean" },
+        "drawThales": { "type": "boolean" },
+        "drawDiagonals": { "type": "boolean" },
+        "drawAltitude": { "type": "boolean" },
+        "drawAxis": { "type": "boolean" },
+        "drawGeneratrices": { "type": "boolean" },
+        "drawRay": { "type": "boolean" },
+        "asRay": { "type": "boolean" },
         "drawSegments": { "type": "boolean" },
         "drawTangents": { "type": "boolean" },
         "markRightAngles": { "type": "boolean" },
@@ -256,72 +427,88 @@
         "k": { "type": "number" },
         "angleDeg": { "type": "number" },
         "angle": { "type": "number" },
-        "l1": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
+        "ang": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" }
+          ]
         },
-        "l2": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
+        "s": { "$ref": "#/$defs/PointPair" },
+        "l1": { "$ref": "#/$defs/PointPair" },
+        "l2": { "$ref": "#/$defs/PointPair" },
         "a1": { "type": "string" },
         "b1": { "type": "string" },
         "a2": { "type": "string" },
         "b2": { "type": "string" },
-        "line": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
-        "circle": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
-        "c1": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
-        "c2": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
-        "circle1": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
-        "circle2": {
-          "type": "array",
-          "minItems": 2,
-          "maxItems": 2,
-          "items": { "type": "string" }
-        },
+        "line": { "$ref": "#/$defs/PointPair" },
+        "circle": { "$ref": "#/$defs/PointPair" },
+        "c1": { "$ref": "#/$defs/PointPair" },
+        "c2": { "$ref": "#/$defs/PointPair" },
+        "circle1": { "$ref": "#/$defs/PointPair" },
+        "circle2": { "$ref": "#/$defs/PointPair" },
         "which": {
           "type": "integer",
           "enum": [0, 1]
         },
         "pts": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 2,
+              "items": { "type": "string" }
+            },
+            {
+              "type": "string",
+              "pattern": "^[^\\s-]+-[^\\s-]+(-[^\\s-]+)*$"
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 3,
+                    "items": { "type": "number" }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["x", "y"],
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" },
+                      "show": { "type": "boolean" },
+                      "label": { "type": "string" },
+                      "noDot": { "type": "boolean" }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "solid": {
           "type": "array",
-          "minItems": 2,
-          "items": { "type": "string" }
+          "items": { "$ref": "#/$defs/PointPair" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PointPair" }
         },
         "dashedEdges": {
           "type": "array",
           "items": { "type": "string" }
         },
-        "dashed": { "type": "boolean" },
+        "dashed": {
+          "oneOf": [
+            { "type": "boolean" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/PointPair" }
+            }
+          ]
+        },
         "extDashed": { "type": "boolean" },
         "dashedExtensions": { "type": "boolean" },
         "drawExtensions": { "type": "boolean" },
@@ -357,6 +544,7 @@
         },
         "note": { "type": "string" },
         "effect": { "$ref": "#/$defs/EffectId" },
+        "fx": { "$ref": "#/$defs/EffectId" },
         "easing": { "$ref": "#/$defs/EasingId" },
         "durationMul": {
           "type": "number",
@@ -386,7 +574,7 @@
       "properties": {
         "t": {
           "type": "string",
-          "enum": ["free", "mid", "on", "foot", "sum", "inter", "vec", "path", "rot", "len", "polar", "bis", "ctan"]
+          "enum": ["free", "mid", "on", "foot", "sum", "inter", "vec", "path", "rot", "len", "polar", "bis", "ctan", "p3d"]
         },
         "x": { "type": "number" },
         "y": { "type": "number" },
@@ -396,6 +584,7 @@
         "p": { "type": "string" },
         "o": { "type": "string" },
         "k": { "type": "number" },
+        "ang": { "type": "number" },
         "seg": { "type": "boolean" },
         "perp": { "type": "boolean" },
         "l1": {
@@ -410,11 +599,32 @@
           "maxItems": 2,
           "items": { "type": "string" }
         },
-        "c1": { "type": "boolean" },
-        "c2": { "type": "boolean" },
-        "which": { "type": "integer", "enum": [0, 1] },
+        "c1": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string" } }
+          ]
+        },
+        "c2": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string" } }
+          ]
+        },
+        "inner": { "type": "boolean" },
+        "which": {
+          "oneOf": [
+            { "type": "integer", "enum": [0, 1] },
+            { "type": "boolean" }
+          ]
+        },
         "kind": { "type": "string" },
-        "on": { "type": "string" },
+        "on": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "integer", "enum": [1, 2] }
+          ]
+        },
         "pts": {
           "type": "array",
           "items": { "type": "string" }
@@ -453,6 +663,8 @@
             "extend",
             "circle",
             "arc",
+            "arc3",
+            "sector",
             "polygon",
             "right",
             "angle",
@@ -461,6 +673,7 @@
             "cone",
             "cylinder",
             "sphere",
+            "frustumCone",
             "ellipse",
             "parabola",
             "hyperbola",

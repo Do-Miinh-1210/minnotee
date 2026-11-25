@@ -269,7 +269,7 @@
   function fmtNum(v, decimals) {
     if (!Number.isFinite(v)) return '0';
     const d = decimals != null ? decimals : 2;
-    const rounded = Math.abs(v) < 1e-6 ? 0 : Number(v.toFixed(d));
+    const rounded = Math.abs(v) < 1e-9 ? 0 : Number(v.toFixed(d));
     if (Object.is(rounded, -0)) return '0';
     return String(rounded).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
   }
@@ -303,9 +303,9 @@
     if (d <= -180) d += 360;
     const specials = [-150, -135, -120, -90, -60, -45, -30, 0, 30, 45, 60, 90, 120, 135, 150, 180];
     for (const sp of specials) {
-      if (Math.abs(d - sp) <= 1e-3) return sp;
+      if (Math.abs(d - sp) <= 1e-4) return sp;
     }
-    return Math.abs(d - Math.round(d)) <= 1e-3 ? Math.round(d) : Number(fmtNum(d, 4));
+    return Math.abs(d - Math.round(d)) <= 1e-4 ? Math.round(d) : Number(fmtNum(d, 6));
   }
 
   function sanitizeTikzPointIdentity(rawLabel, usedIds, fallbackCounter) {
@@ -402,10 +402,10 @@
 
     const spanX = Math.max(maxX - minX, 1e-6);
     const spanY = Math.max(maxY - minY, 1e-6);
-    const span = Math.max(spanX, spanY, 1);
+    const span = Math.max(spanX, spanY, 1e-4);
 
-    // Pre-snap horizontal and vertical alignments within 3% tolerance
-    const alignTol = 0.03 * span;
+    // Pre-snap truly intended horizontal/vertical alignments within tight 0.6% tolerance
+    const alignTol = 0.006 * span;
     const aligned = new Map();
     for (const [id, p] of shifted.entries()) {
       aligned.set(id, { x: p.x, y: p.y });
@@ -457,12 +457,13 @@
       }
     };
 
-    // 1) Uniform sweep over [3.5..9.0] cm dominant span
-    for (let target = minWidthCm; target <= maxWidthCm; target += 0.1) {
+    // 1) Uniform sweep over [minWidthCm..maxWidthCm] cm dominant span
+    for (let target = minWidthCm; target <= maxWidthCm + 1e-9; target += 0.05) {
       addScale(target / span);
       if (spanX > 0.2 * span) addScale(target / spanX);
+      if (spanY > 0.2 * span) addScale(target / spanY);
     }
-    // 2) Exact pairwise edge-length integer ratios k / dist(Pi, Pj)
+    // 2) Exact pairwise edge-length integer & half-integer ratios k / dist(Pi, Pj)
     const idList = [...aligned.keys()];
     for (let i = 0; i < idList.length; i++) {
       const pi = aligned.get(idList[i]);
@@ -484,7 +485,7 @@
     const candidates = [...candSet];
     const rawAspect = spanY > 1e-4 ? spanX / spanY : 1;
 
-    function evaluateStep(step) {
+    function evaluateStep(step, strictGeo) {
       let best = null;
       for (const s of candidates) {
         const qMap = new Map();
@@ -499,7 +500,7 @@
           const sy = p.y * s;
           const qx = id === originId ? 0 : Math.round(sx / step) * step;
           const qy = id === originId ? 0 : Math.round(sy / step) * step;
-          const key = `${qx.toFixed(2)},${qy.toFixed(2)}`;
+          const key = `${qx.toFixed(4)},${qy.toFixed(4)}`;
           if (seen.has(key)) { degenerate = true; break; }
           seen.add(key);
           qMap.set(id, { x: qx, y: qy });
@@ -511,7 +512,7 @@
           if (qy > qMaxY) qMaxY = qy;
         }
         if (degenerate) continue;
-        if (typeof opts.isValidSnap === 'function' && !opts.isValidSnap(qMap, s)) continue;
+        if (typeof opts.isValidSnap === 'function' && !opts.isValidSnap(qMap, s, strictGeo)) continue;
 
         const qW = qMaxX - qMinX;
         const qH = qMaxY - qMinY;
@@ -528,10 +529,11 @@
 
         const normScale = Math.max(1e-4, s * span);
         const rmsErr = Math.sqrt(sqErrSum / idList.length) / normScale;
+        const angleErr = typeof opts.edgeAnglePenalty === 'function' ? opts.edgeAnglePenalty(qMap) : 0;
 
         // Mild preference for compact textbook width ~4..7 cm (or ~2.5..4cm radius for revolution solids)
         const idealPenalty = Math.abs(qDom - idealSpan) * 0.0025;
-        const score = rmsErr + aspectErr * 0.45 + idealPenalty;
+        const score = rmsErr + aspectErr * 0.45 + angleErr * 0.18 + idealPenalty;
 
         if (!best || score < best.score) {
           best = { coords: qMap, scale: s, gridStep: step, error: rmsErr, aspectErr, score };
@@ -540,39 +542,64 @@
       return best;
     }
 
-    const bestInt = evaluateStep(1);
-    if (bestInt && (!allowHalf || (bestInt.aspectErr <= 0.06 && bestInt.error <= 0.048))) {
+    // Pass 1: Strict geometric invariants (anti-false-parallelism, convexity, right-angle guards)
+    const bestInt = evaluateStep(1, true);
+    if (bestInt && (!allowHalf || (bestInt.error <= 0.024 && bestInt.aspectErr <= 0.045))) {
       return bestInt;
     }
     if (allowHalf) {
-      const bestHalf = evaluateStep(0.5);
-      if (bestHalf && (!bestInt || bestHalf.score + 0.012 < bestInt.score || bestInt.aspectErr > 0.06)) {
+      const bestHalf = evaluateStep(0.5, true);
+      if (bestHalf && (!bestInt || bestHalf.score + 0.012 < bestInt.score || bestInt.error > 0.024 || bestInt.aspectErr > 0.045)) {
         return bestHalf;
       }
     }
     if (bestInt) return bestInt;
 
-    // Ultimate safe fallback (rounded to 0.5 at 5cm width)
-    const s = 5.0 / span;
+    // Quarter-grid (0.25) fallback ONLY if both step = 1 and step = 0.5 failed strict isValidSnap
+    if (allowHalf) {
+      const bestQuarter = evaluateStep(0.25, true);
+      if (bestQuarter) return bestQuarter;
+    }
+
+    // Pass 2: Two-tier fallback when strictInteger=true has zero non-parallel Z^2 candidates (or tight multi-circle config)
+    if (strictInteger) {
+      const relaxedInt = evaluateStep(1, false);
+      if (relaxedInt) return relaxedInt;
+    } else {
+      const fineStrict = evaluateStep(0.125, true) || evaluateStep(0.25, false) || evaluateStep(0.5, false);
+      if (fineStrict) return fineStrict;
+    }
+
+    // Ultimate distortion-free fallback: exact scaled coordinates at idealSpan
+    const s = idealSpan / span;
     const out = new Map();
     for (const id of idList) {
       const p = aligned.get(id);
       out.set(id, {
-        x: id === originId ? 0 : Math.round(p.x * s * 2) / 2,
-        y: id === originId ? 0 : Math.round(p.y * s * 2) / 2
+        x: id === originId ? 0 : Number((p.x * s).toFixed(4)),
+        y: id === originId ? 0 : Number((p.y * s).toFixed(4))
       });
     }
-    return { coords: out, scale: s, gridStep: 0.5, error: 0.05, aspectErr: 0.05 };
+    return { coords: out, scale: s, gridStep: 0.25, error: 0, aspectErr: 0 };
   }
 
   // ============================================================================
   // 4. TARGET GEOMETRY EXTRACTION & TOPOLOGICAL ORDERING
   // ============================================================================
   function extractTargetGeo(geoArg) {
-    if (geoArg && geoArg.points && Array.isArray(geoArg.shapes)) {
+    const unwrapped = (geoArg && geoArg.geometry && geoArg.geometry.points && Array.isArray(geoArg.geometry.shapes))
+      ? geoArg.geometry
+      : geoArg;
+    if (unwrapped && unwrapped.points && Array.isArray(unwrapped.shapes)) {
+      const ptsObj = Array.isArray(unwrapped.points)
+        ? Object.fromEntries(unwrapped.points.filter(Boolean).map((p) => [p.id, p]))
+        : unwrapped.points;
+      const defSpace = unwrapped.defCoordSpace || unwrapped._coordSpace || (geoArg && geoArg.meta && geoArg.meta.defCoordSpace) || '';
       return {
-        points: geoArg.points,
-        shapes: geoArg.shapes.filter((s) => s && !s.hidden && s.kind !== 'flatLink')
+        points: ptsObj,
+        shapes: unwrapped.shapes.filter((s) => s && !s.hidden && s.kind !== 'flatLink'),
+        ...(unwrapped.cmPx || unwrapped.pxPerCm ? { cmPx: unwrapped.cmPx || unwrapped.pxPerCm } : {}),
+        ...(defSpace ? { _coordSpace: defSpace } : {})
       };
     }
     const b = getBoard();
@@ -705,11 +732,12 @@
       };
     }
 
-    // Flip Y axis: mathY = -canvasY
+    // Flip Y axis unless input def is already in math_y_up
+    const isInputMathYUp = target._coordSpace === 'math_y_up' || target._coordSpace === 'math-y-up';
     const rawMathMap = new Map();
     for (const id of activeIds) {
       const c = liveCoords.get(id);
-      rawMathMap.set(id, { x: c.x, y: -c.y });
+      rawMathMap.set(id, { x: c.x, y: isInputMathYUp ? c.y : -c.y });
     }
 
     // Separate true free degrees of freedom (`primaryIds`) from constrained/derived points (`derivedSet`)
@@ -794,7 +822,8 @@
         case 'rot': {
           const c = g(d.c), p = g(d.p);
           if (!c || !p) return null;
-          const deg = snapCleanDeg(-(d.ang || 0));
+          const rawDeg = isInputMathYUp ? (d.ang || 0) : -(d.ang || 0);
+          const deg = snapCleanDeg(rawDeg);
           const rad = deg * Math.PI / 180;
           const k = d.k != null ? d.k : 1;
           const dx = p.x - c.x, dy = p.y - c.y;
@@ -963,9 +992,123 @@
       originId = bottomBand[0] || primaryIds[0];
     }
 
-    // Validate candidate primary grid snap so circle intersections / tangents never vanish!
-    const isValidSnap = (qMap, sFactor) => {
-      if (!derivedSet.size) return true;
+    // Precompute geometric invariants on rawMathMap so candidate grid snaps NEVER distort convexity, parallelism, or right angles!
+    let pMinX = Infinity, pMaxX = -Infinity, pMinY = Infinity, pMaxY = -Infinity;
+    for (const id of primaryIds) {
+      const p = rawMathMap.get(id);
+      if (!p) continue;
+      if (p.x < pMinX) pMinX = p.x;
+      if (p.x > pMaxX) pMaxX = p.x;
+      if (p.y < pMinY) pMinY = p.y;
+      if (p.y > pMaxY) pMaxY = p.y;
+    }
+    const rawPrimarySpan = Math.max(pMaxX - pMinX, pMaxY - pMinY, 1e-4);
+    const rawCrossThresh = 0.035 * rawPrimarySpan * rawPrimarySpan;
+    const primaryTriples = [];
+    for (let i = 0; i < primaryIds.length; i++) {
+      const idA = primaryIds[i], pA = rawMathMap.get(idA);
+      for (let j = i + 1; j < primaryIds.length; j++) {
+        const idB = primaryIds[j], pB = rawMathMap.get(idB);
+        for (let k = j + 1; k < primaryIds.length; k++) {
+          const idC = primaryIds[k], pC = rawMathMap.get(idC);
+          const cr = (pB.x - pA.x) * (pC.y - pA.y) - (pB.y - pA.y) * (pC.x - pA.x);
+          if (Math.abs(cr) > rawCrossThresh) {
+            primaryTriples.push({ idA, idB, idC, sign: Math.sign(cr) });
+          }
+        }
+      }
+    }
+
+    // Extract all undirected drawn edges from renderShapes (segments, lines/rays, and polygon edges)
+    const drawnEdgeMap = new Map();
+    const registerDrawnEdge = (u, v) => {
+      if (!u || !v || u === v || !rawMathMap.has(u) || !rawMathMap.has(v)) return;
+      const key = u < v ? `${u}|${v}` : `${v}|${u}`;
+      if (drawnEdgeMap.has(key)) return;
+      const pu = rawMathMap.get(u), pv = rawMathMap.get(v);
+      const dx = pv.x - pu.x, dy = pv.y - pu.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-5) return;
+      drawnEdgeMap.set(key, { u, v, ux: dx / len, uy: dy / len, rawLen: len });
+    };
+    for (const sh of renderShapes) {
+      const pts = sh.pts || [];
+      if ((sh.kind === 'segment' || sh.kind === 'line' || sh.kind === 'ray') && pts.length >= 2) {
+        registerDrawnEdge(pts[0], pts[1]);
+      } else if (sh.kind === 'polygon' && pts.length >= 3 && sh.width !== 0) {
+        const gapSet = new Set(sh.gaps || []);
+        for (let i = 0; i < pts.length; i++) {
+          if (!gapSet.has(i)) registerDrawnEdge(pts[i], pts[(i + 1) % pts.length]);
+        }
+      }
+    }
+    const drawnEdges = [...drawnEdgeMap.values()];
+    const primaryDrawnEdges = drawnEdges.filter((e) => !derivedSet.has(e.u) && !derivedSet.has(e.v));
+    const hasDashed = renderShapes.some((s) => !!s.dashed || (Array.isArray(s.hiddenSides) && s.hiddenSides.length > 0))
+      || shapes.some((s) => s.kind === 'solid' || isRevolutionKind(s.kind));
+
+    const edgePairs = [];
+    for (let i = 0; i < drawnEdges.length; i++) {
+      const e1 = drawnEdges[i];
+      for (let j = i + 1; j < drawnEdges.length; j++) {
+        const e2 = drawnEdges[j];
+        const sinRaw = Math.abs(e1.ux * e2.uy - e1.uy * e2.ux);
+        const absCosRaw = Math.abs(e1.ux * e2.ux + e1.uy * e2.uy);
+        const sharesVertex = (e1.u === e2.u || e1.u === e2.v || e1.v === e2.u || e1.v === e2.v);
+        edgePairs.push({ i, j, sinRaw, absCosRaw, sharesVertex });
+      }
+    }
+
+    const euclidRightShapes = [];
+    for (const sh of renderShapes) {
+      if (sh.kind === 'right' && Array.isArray(sh.pts) && sh.pts.length >= 3) {
+        const [a, v, b] = sh.pts;
+        const pa = rawMathMap.get(a), pv = rawMathMap.get(v), pb = rawMathMap.get(b);
+        if (pa && pv && pb) {
+          const dx1 = pa.x - pv.x, dy1 = pa.y - pv.y, l1 = Math.hypot(dx1, dy1);
+          const dx2 = pb.x - pv.x, dy2 = pb.y - pv.y, l2 = Math.hypot(dx2, dy2);
+          if (l1 > 1e-5 && l2 > 1e-5) {
+            const cosRaw = (dx1 * dx2 + dy1 * dy2) / (l1 * l2);
+            if (Math.abs(cosRaw) < 0.015) euclidRightShapes.push({ a, v, b });
+          }
+        }
+      }
+    }
+
+    const edgeAnglePenalty = (qMap) => {
+      if (!primaryDrawnEdges.length) return 0;
+      let sqSum = 0;
+      let cnt = 0;
+      for (const e of primaryDrawnEdges) {
+        const qu = qMap.get(e.u), qv = qMap.get(e.v);
+        if (!qu || !qv) continue;
+        const dx = qv.x - qu.x, dy = qv.y - qu.y, len = Math.hypot(dx, dy);
+        if (len < 1e-5) continue;
+        const sinDiff = (dx / len) * e.uy - (dy / len) * e.ux;
+        sqSum += sinDiff * sinDiff;
+        cnt++;
+      }
+      return cnt ? Math.sqrt(sqSum / cnt) : 0;
+    };
+
+    const visIds = sortedIds.filter((id) => target.points[id] && target.points[id].show);
+    const snapUx = new Float64Array(drawnEdges.length);
+    const snapUy = new Float64Array(drawnEdges.length);
+
+    // Validate candidate primary grid snap against orientation, parallelism, orthogonality & circle/tangent existence!
+    const isValidSnap = (qMap, sFactor, strictGeo) => {
+      const enforceStrictAngles = strictGeo !== false;
+
+      // (a) Orientation / Convexity Preservation on primary triples
+      const minSnapCross = 0.012 * (rawPrimarySpan * sFactor) * (rawPrimarySpan * sFactor);
+      for (let t = 0; t < primaryTriples.length; t++) {
+        const tr = primaryTriples[t];
+        const qA = qMap.get(tr.idA), qB = qMap.get(tr.idB), qC = qMap.get(tr.idC);
+        const crSnap = (qB.x - qA.x) * (qC.y - qA.y) - (qB.y - qA.y) * (qC.x - qA.x);
+        if (Math.sign(crSnap) !== tr.sign || Math.abs(crSnap) <= minSnapCross) return false;
+      }
+
+      // Evaluate full simulated coordinate map (primary qMap + re-evaluated derivedSet)
       const simMap = new Map(qMap);
       for (const id of sortedIds) {
         if (!derivedSet.has(id)) continue;
@@ -973,8 +1116,8 @@
         if (!ev || !Number.isFinite(ev.x) || !Number.isFinite(ev.y)) return false;
         simMap.set(id, ev);
       }
-      // Ensure distinct derived intersections (e.g. two tangent points B, C) do not collapse into one point
-      const visIds = sortedIds.filter((id) => target.points[id] && target.points[id].show);
+
+      // Ensure distinct visible points (e.g. two tangent points B, C or close vertices) do not collapse
       for (let i = 0; i < visIds.length; i++) {
         for (let j = i + 1; j < visIds.length; j++) {
           const rA = rawMathMap.get(visIds[i]), rB = rawMathMap.get(visIds[j]);
@@ -984,13 +1127,53 @@
           }
         }
       }
+
+      // Unit direction vectors of all drawn edges in simMap
+      for (let k = 0; k < drawnEdges.length; k++) {
+        const e = drawnEdges[k];
+        const su = simMap.get(e.u), sv = simMap.get(e.v);
+        if (!su || !sv) return false;
+        const dx = sv.x - su.x, dy = sv.y - su.y;
+        const len = Math.hypot(dx, dy);
+        if (e.rawLen * sFactor > 0.15 && len < 0.06) return false;
+        if (len < 1e-6) return false;
+        snapUx[k] = dx / len;
+        snapUy[k] = dy / len;
+      }
+
+      // (b) Anti-False-Parallelism & True-Parallelism Preservation + (c2) 2D False-Orthogonality Guard
+      for (let pIdx = 0; pIdx < edgePairs.length; pIdx++) {
+        const ep = edgePairs[pIdx];
+        const u1x = snapUx[ep.i], u1y = snapUy[ep.i];
+        const u2x = snapUx[ep.j], u2y = snapUy[ep.j];
+        const sinSnap = Math.abs(u1x * u2y - u1y * u2x);
+        if (ep.sinRaw < 0.008 && sinSnap >= 0.01) return false;
+        if (enforceStrictAngles && ep.sinRaw > 0.06 && sinSnap < 0.045) return false;
+        if (enforceStrictAngles && !hasDashed && ep.sharesVertex && ep.absCosRaw > 0.10) {
+          const absCosSnap = Math.abs(u1x * u2x + u1y * u2y);
+          if (absCosSnap < 0.015) return false;
+        }
+      }
+
+      // (c1) 2D Euclidean Right-Angle Preservation
+      for (let rIdx = 0; rIdx < euclidRightShapes.length; rIdx++) {
+        const rt = euclidRightShapes[rIdx];
+        const sa = simMap.get(rt.a), sv = simMap.get(rt.v), sb = simMap.get(rt.b);
+        if (!sa || !sv || !sb) return false;
+        const dx1 = sa.x - sv.x, dy1 = sa.y - sv.y, l1 = Math.hypot(dx1, dy1);
+        const dx2 = sb.x - sv.x, dy2 = sb.y - sv.y, l2 = Math.hypot(dx2, dy2);
+        if (l1 < 1e-4 || l2 < 1e-4) return false;
+        const absCosSnap = Math.abs((dx1 * dx2 + dy1 * dy2) / (l1 * l2));
+        if (absCosSnap >= 0.02) return false;
+      }
+
       return true;
     };
 
     // Run Optimal Integer Grid Normalization on FREE primary points only
     const gridOpts = revShape
-      ? Object.assign({}, o, { targetWidthRange: [2.2, 4.5], idealSpan: 3.0, isValidSnap })
-      : Object.assign({}, o, { isValidSnap });
+      ? Object.assign({}, o, { targetWidthRange: [2.2, 4.5], idealSpan: 3.0, isValidSnap, edgeAnglePenalty })
+      : Object.assign({}, o, { isValidSnap, edgeAnglePenalty });
     const grid = optimizePrimaryGrid(primaryIds, rawMathMap, originId, gridOpts);
 
     // Evaluate final TikZ coordinates for ALL points (snapped primary + exact re-evaluated derived!)
@@ -1090,8 +1273,8 @@
     for (const id of primaryOrder) {
       const p = tikzCoords.get(id);
       if (!p) continue;
-      const x = Number(fmtNum(p.x, 2));
-      const y = Number(fmtNum(p.y, 2));
+      const x = Number(fmtNum(p.x, 6));
+      const y = Number(fmtNum(p.y, 6));
 
       if (x === 0 && y === 0) {
         primaryExpr.set(id, '(0,0)');
@@ -1100,7 +1283,7 @@
 
       // Check if matches an existing declared variable on an axis
       const findVarWithVal = (val, preferredList) => {
-        const s = fmtNum(val, 2);
+        const s = fmtNum(val, 5);
         for (const pref of preferredList) {
           if (declMap.get(pref) === s) return pref;
         }
@@ -1117,11 +1300,11 @@
             if (!declMap.has(cand)) { vName = addDecl(cand, x); break; }
           }
         }
-        primaryExpr.set(id, vName ? `(0:${vName})` : `(0:${fmtNum(x, 2)})`);
+        primaryExpr.set(id, vName ? `(0:${vName})` : `(0:${fmtNum(x, 6)})`);
       } else if (y === 0 && x < 0) {
         const ax = Math.abs(x);
         const vName = findVarWithVal(ax, ['r', 'R', 'a', 'b']);
-        primaryExpr.set(id, vName ? `(180:${vName})` : `(180:${fmtNum(ax, 2)})`);
+        primaryExpr.set(id, vName ? `(180:${vName})` : `(180:${fmtNum(ax, 6)})`);
       } else if (x === 0 && y > 0) {
         let vName = findVarWithVal(y, ['h', 'c', 'b']);
         if (!vName) {
@@ -1129,11 +1312,11 @@
             if (!declMap.has(cand)) { vName = addDecl(cand, y); break; }
           }
         }
-        primaryExpr.set(id, vName ? `(90:${vName})` : `(90:${fmtNum(y, 2)})`);
+        primaryExpr.set(id, vName ? `(90:${vName})` : `(90:${fmtNum(y, 6)})`);
       } else if (x === 0 && y < 0) {
         const ay = Math.abs(y);
         const vName = findVarWithVal(ay, ['h', 'R', 'r']);
-        primaryExpr.set(id, vName ? `(-90:${vName})` : `(0,${fmtNum(y, 2)})`);
+        primaryExpr.set(id, vName ? `(-90:${vName})` : `(0,${fmtNum(y, 6)})`);
       } else if (!skewAssigned && shapes.some((s) => s.kind === 'solid') && x !== 0 && y !== 0) {
         // First off-axis 3D base vertex -> dx, dy (matches Sample 2 of tikz-domiinhmath.md!)
         const dxVar = addDecl('dx', x);
@@ -1142,16 +1325,16 @@
           skewAssigned = true;
           primaryExpr.set(id, `({${dxVar}},{${dyVar}})`);
         } else {
-          primaryExpr.set(id, `(${fmtNum(x, 2)},${fmtNum(y, 2)})`);
+          primaryExpr.set(id, `(${fmtNum(x, 6)},${fmtNum(y, 6)})`);
         }
       } else {
-        primaryExpr.set(id, `(${fmtNum(x, 5)},${fmtNum(y, 5)})`);
+        primaryExpr.set(id, `(${fmtNum(x, 6)},${fmtNum(y, 6)})`);
       }
     }
     for (const id of nonSymbolicDerivedOrder) {
       const p = tikzCoords.get(id);
       if (!p) continue;
-      primaryExpr.set(id, `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`);
+      primaryExpr.set(id, `(${fmtNum(p.x, 8)},${fmtNum(p.y, 8)})`);
     }
 
     // Build symbolic TikZ expression for each derived point
@@ -1180,12 +1363,25 @@
           return `($(${T(d.a)})+(${T(d.b)})-(${T(d.c)})$)`;
         }
         case 'rot': {
-          const deg = snapCleanDeg(-(d.ang || 0));
+          const rawDeg = isInputMathYUp ? (d.ang || 0) : -(d.ang || 0);
+          const deg = snapCleanDeg(rawDeg);
           const k = d.k != null ? d.k : 1;
-          if (Math.abs(k - 1) < 1e-4 && (deg === 180 || deg === -180)) {
+          const cCoord = tikzCoords.get(d.c);
+          const pCoord = tikzCoords.get(d.p);
+          const targetCoord = tikzCoords.get(id);
+          if (cCoord && pCoord && targetCoord) {
+            const rad = deg * Math.PI / 180;
+            const dx = pCoord.x - cCoord.x, dy = pCoord.y - cCoord.y;
+            const calcX = cCoord.x + (dx * Math.cos(rad) - dy * Math.sin(rad)) * k;
+            const calcY = cCoord.y + (dx * Math.sin(rad) + dy * Math.cos(rad)) * k;
+            if (Math.hypot(calcX - targetCoord.x, calcY - targetCoord.y) >= 1e-4) {
+              return `(${fmtNum(targetCoord.x, 6)},${fmtNum(targetCoord.y, 6)})`;
+            }
+          }
+          if (Math.abs(k - 1) < 1e-5 && (deg === 180 || deg === -180)) {
             return `($(${T(d.c)})!-1!(${T(d.p)})$)`;
           }
-          return `($(${T(d.c)})!${fmtNum(k, 5)}!${deg}:(${T(d.p)})$)`;
+          return `($(${T(d.c)})!${fmtNum(k, 6)}!${deg}:(${T(d.p)})$)`;
         }
         case 'vec': {
           const k = d.k != null ? d.k : 1;

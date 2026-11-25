@@ -99,7 +99,7 @@
   function fmtNum(v, decimals) {
     if (!Number.isFinite(v)) return '0';
     const d = decimals != null ? decimals : 2;
-    const rounded = Math.abs(v) < 1e-6 ? 0 : Number(v.toFixed(d));
+    const rounded = Math.abs(v) < 1e-9 ? 0 : Number(v.toFixed(d));
     if (Object.is(rounded, -0)) return '0';
     return String(rounded).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
   }
@@ -1018,7 +1018,11 @@
     if (!src) return null;
 
     const { geo, replay } = src;
-    const liveCoords = evalGeoMap(geo);
+    const rawCoordTag = opts.coordSpace || geo._coordSpace || 'board_y_down';
+    const isInputMathYUp = rawCoordTag === 'math-y-up' || rawCoordTag === 'math_y_up';
+    const STD_CM_PX = 37.79527559;
+    const inputCm = (geo && (geo.cmPx || geo.pxPerCm)) || (isInputMathYUp ? 1 : STD_CM_PX);
+    const liveCoords = evalGeoMap(inputCm === STD_CM_PX ? geo : Object.assign({}, geo, { cmPx: inputCm }));
     const allShapes = (geo.shapes || []).filter((s) => s && !s.hidden && s.kind !== 'flatLink');
     const renderShapes = allShapes.filter((s) => s.kind !== 'solid');
 
@@ -1040,9 +1044,7 @@
     };
     validPtIds.forEach(visitPt);
 
-    // Check coordinate system: canvas Y-down vs already math Y-up
-    const rawCoordTag = opts.coordSpace || geo._coordSpace || 'board_y_down';
-    const isInputMathYUp = rawCoordTag === 'math-y-up' || rawCoordTag === 'math_y_up';
+    // Convert live coordinates to math Y-up
     const rawMath = new Map();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const id of topoPtIds) {
@@ -1079,10 +1081,12 @@
 
     // Choose scale: if already in small math coords (~[1.5..11.5]), keep 1.0; else normalize to ~5.4 cm
     const scale = (spanRaw >= 1.5 && spanRaw <= 11.5) ? 1.0 : (5.4 / spanRaw);
-    const cmPx = (geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559;
+    const cmPx = inputCm;
+    const toStdCm = inputCm / STD_CM_PX;
+    const toBoardPx = STD_CM_PX / inputCm;
     const round6 = (v) => {
       const n = Number(v);
-      return Number.isFinite(n) ? (Math.abs(n) < 1e-9 ? 0 : Number(n.toFixed(6))) : 0;
+      return Number.isFinite(n) ? (Math.abs(n) < 1e-11 ? 0 : Number(n.toFixed(8))) : 0;
     };
 
     const mathCoords = new Map();
@@ -1119,16 +1123,30 @@
       if (sy > bMaxY) bMaxY = sy;
     }
 
-    // Expand bbox for circles & solids
+    // Expand bbox for circles & 3D revolution solids
     for (const sh of renderShapes) {
       const pIds = (sh.pts || []).filter((id) => mathCoords.has(id));
-      if ((sh.kind === 'circle' || sh.kind === 'sphere' || sh.kind === 'cone' || sh.kind === 'cylinder') && pIds.length >= 2) {
+      if ((sh.kind === 'circle' || sh.kind === 'sphere' || sh.kind === 'cone' || sh.kind === 'cylinder' || sh.kind === 'frustumCone') && pIds.length >= 2) {
         const o = mathCoords.get(pIds[0]), rPt = mathCoords.get(pIds[1]);
         const r = dist2(o, rPt);
         bMinX = Math.min(bMinX, o.x - r);
         bMaxX = Math.max(bMaxX, o.x + r);
         bMinY = Math.min(bMinY, o.y - r);
         bMaxY = Math.max(bMaxY, o.y + r);
+        if (sh.kind === 'cylinder' && pIds[2]) {
+          const top = mathCoords.get(pIds[2]);
+          bMinX = Math.min(bMinX, top.x - r);
+          bMaxX = Math.max(bMaxX, top.x + r);
+          bMinY = Math.min(bMinY, top.y - r * 0.35);
+          bMaxY = Math.max(bMaxY, top.y + r * 0.35);
+        } else if (sh.kind === 'frustumCone' && pIds[2] && pIds[3]) {
+          const o2 = mathCoords.get(pIds[2]), r2Pt = mathCoords.get(pIds[3]);
+          const r2 = dist2(o2, r2Pt);
+          bMinX = Math.min(bMinX, o2.x - r2);
+          bMaxX = Math.max(bMaxX, o2.x + r2);
+          bMinY = Math.min(bMinY, o2.y - r2 * 0.35);
+          bMaxY = Math.max(bMaxY, o2.y + r2 * 0.35);
+        }
       }
     }
     if (!Number.isFinite(bMinX)) { bMinX = -2; bMaxX = 4; bMinY = -2; bMaxY = 4; }
@@ -1182,8 +1200,8 @@
       const mc = mathCoords.get(id);
       const ic = intCoords.get(id);
       const lc = liveCoords.get(id);
-      const boardX = lc ? round6(isInputMathYUp ? lc.x : lc.x) : round6(mc.x * 56 + 400);
-      const boardY = lc ? round6(isInputMathYUp ? -lc.y : lc.y) : round6(-mc.y * 56 + 360);
+      const boardX = lc ? round6(lc.x * toBoardPx + (isInputMathYUp ? 440 : 0)) : round6(mc.x * 56 + 400);
+      const boardY = lc ? round6((isInputMathYUp ? -lc.y : lc.y) * toBoardPx + (isInputMathYUp ? 350 : 0)) : round6(-mc.y * 56 + 360);
       const rawLabelStr = pt && pt.label ? String(pt.label).trim() : '';
       const hasVisibleLabel = pt.show !== false && !pt.hidden && !pt.noName && !!rawLabelStr;
       const cleanLabel = hasVisibleLabel ? (info.texLabel || rawLabelStr) : '';
@@ -1245,6 +1263,12 @@
           break;
         case 'vec': {
           const kVal = round6(d.k != null ? safeEvalMathNumber(d.k) : 1);
+          const hasDist = d.distVal != null && Number.isFinite(safeEvalMathNumber(d.distVal));
+          const distBoardCm = hasDist ? round6(safeEvalMathNumber(d.distVal) * toStdCm) : undefined;
+          const distMath = hasDist ? round6(safeEvalMathNumber(d.distVal) * cmPx * scale) : undefined;
+          const ma = mathCoords.get(d.a), mb = mathCoords.get(d.b);
+          const abLenMath = ma && mb ? dist2(ma, mb) : 0;
+          const kOp = hasDist && abLenMath > 1e-9 ? round6(distMath / abLenMath) : kVal;
           symDef = {
             t: 'vec',
             o: S(d.o),
@@ -1252,7 +1276,7 @@
             b: S(d.b),
             k: kVal,
             perp: !!d.perp,
-            ...(d.distVal != null ? { distVal: round6(safeEvalMathNumber(d.distVal)) } : {})
+            ...(hasDist ? { distVal: distBoardCm } : {})
           };
           ops.push({
             op: d.perp ? 'line_perp' : 'line_parallel',
@@ -1261,7 +1285,8 @@
             through: S(d.o),
             a: S(d.a),
             b: S(d.b),
-            k: kVal,
+            k: kOp,
+            ...(hasDist ? { distVal: distMath } : {}),
             drawSegment: false,
             ...(pt.noDot ? { noDot: true } : {}),
             ...(pt.show === false ? { show: false } : {})
@@ -1272,7 +1297,17 @@
           const angBoard = isInputMathYUp ? -(safeEvalMathNumber(d.ang) || 0) : (safeEvalMathNumber(d.ang) || 0);
           const kVal = round6(d.k != null ? safeEvalMathNumber(d.k) : 1);
           symDef = { t: 'rot', c: S(d.c), p: S(d.p), ang: round6(angBoard), k: kVal };
-          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          ops.push({
+            op: 'rotate',
+            id: info.sym,
+            label: cleanLabel,
+            center: S(d.c),
+            point: S(d.p),
+            angleDeg: round6(-angBoard),
+            k: kVal,
+            ...(pt.noDot ? { noDot: true } : {}),
+            ...(pt.show === false ? { show: false } : {})
+          });
           break;
         }
         case 'polar': {
@@ -1284,8 +1319,8 @@
             ...(d.angVal != null ? { angVal: round6(safeEvalMathNumber(d.angVal)) } : {}),
             ...(d.curAngDeg != null ? { curAngDeg: round6(safeEvalMathNumber(d.curAngDeg)) } : {}),
             ...(d.fixedDist != null ? { fixedDist: !!d.fixedDist } : {}),
-            ...(d.distVal != null ? { distVal: round6(safeEvalMathNumber(d.distVal)) } : {}),
-            ...(d.curDistPx != null ? { curDistPx: round6(safeEvalMathNumber(d.curDistPx)) } : {})
+            ...(d.distVal != null ? { distVal: round6(safeEvalMathNumber(d.distVal) * toStdCm) } : {}),
+            ...(d.curDistPx != null ? { curDistPx: round6(safeEvalMathNumber(d.curDistPx) * toBoardPx) } : {})
           };
           ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
           break;
@@ -1295,7 +1330,7 @@
           symDef = {
             t: 'len',
             a: S(d.a),
-            val: round6(d.val != null ? safeEvalMathNumber(d.val) : 2),
+            val: round6((d.val != null ? safeEvalMathNumber(d.val) : 2) * toStdCm),
             ang: round6(angBoard),
             ...(d.lockedAng ? { lockedAng: true } : {})
           };
@@ -1304,7 +1339,17 @@
         }
         case 'bis':
           symDef = { t: 'bis', a: S(d.a), o: S(d.o), b: S(d.b) };
-          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          ops.push({
+            op: 'angle_bisector',
+            id: info.sym,
+            label: cleanLabel,
+            a: S(d.a),
+            o: S(d.o),
+            b: S(d.b),
+            drawSegment: false,
+            ...(pt.noDot ? { noDot: true } : {}),
+            ...(pt.show === false ? { show: false } : {})
+          });
           break;
         case 'path':
           if (Array.isArray(d.pts) && d.pts.length >= 2) {
@@ -1335,26 +1380,39 @@
           break;
         case 'ctan':
           if (Array.isArray(d.c1) && Array.isArray(d.c2)) {
+            const whichBoard = isInputMathYUp ? !d.which : !!d.which;
             symDef = {
               t: 'ctan',
               c1: d.c1.map(S),
               c2: d.c2.map(S),
               inner: !!d.inner,
-              which: isInputMathYUp ? !d.which : !!d.which,
+              which: whichBoard,
               on: d.on || 1
             };
+            ops.push({
+              op: 'common_tangent',
+              id: info.sym,
+              label: cleanLabel,
+              c1: d.c1.map(S),
+              c2: d.c2.map(S),
+              inner: !!d.inner,
+              which: whichBoard ? 0 : 1,
+              on: d.on || 1,
+              ...(pt.noDot ? { noDot: true } : {}),
+              ...(pt.show === false ? { show: false } : {})
+            });
           } else {
             symDef = { t: 'free', x: boardX, y: boardY };
+            ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
           }
-          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
           break;
         case 'p3d':
           symDef = {
             t: 'p3d',
             o: S(d.o),
-            vx: round6(d.vx ?? 0),
-            vy: round6(d.vy ?? 0),
-            vz: round6(d.vz ?? 0),
+            vx: round6((safeEvalMathNumber(d.vx) || 0) * toStdCm),
+            vy: round6((safeEvalMathNumber(d.vy) || 0) * toStdCm),
+            vz: round6((safeEvalMathNumber(d.vz) || 0) * toStdCm),
             ...(Array.isArray(d.view) ? { view: d.view.slice() } : {})
           };
           ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
@@ -1411,8 +1469,14 @@
         ops.push({ op: sh.kind, id: shSym, a: pSyms[0], b: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'circle' && pSyms.length >= 2) {
         ops.push({ op: 'circle', id: shSym, center: pSyms[0], rim: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
-      } else if ((sh.kind === 'arc' || sh.kind === 'sector') && pSyms.length >= 3) {
+      } else if ((sh.kind === 'arc' || sh.kind === 'sector' || sh.kind === 'arc3') && pSyms.length >= 3) {
         ops.push({ op: sh.kind, id: shSym, pts: pSyms, dashed: !!sh.dashed, ...(sh.fill ? { fill: sh.fill } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if ((sh.kind === 'cone' || sh.kind === 'cylinder') && pSyms.length >= 3) {
+        ops.push({ op: sh.kind, id: shSym, pts: pSyms.slice(0, 3), ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if (sh.kind === 'sphere' && pSyms.length >= 2) {
+        ops.push({ op: 'sphere', id: shSym, pts: pSyms.slice(0, 2), ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if (sh.kind === 'frustumCone' && pSyms.length >= 4) {
+        ops.push({ op: 'frustumCone', id: shSym, pts: pSyms.slice(0, 4), ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'polygon' && pSyms.length >= 3) {
         if (sh.width === 0 && sh.fill) {
           ops.push({ op: 'polygon_fill', id: shSym, pts: pSyms, fill: sh.fill, ...(sh.aux ? { aux: true } : {}) });
@@ -1730,16 +1794,16 @@
       lines.push('  \\begin{scope}[layer=camera, transform shape]');
     }
 
-    // Topological coordinates (symbolic calc/intersection where exact, else 5-decimal normalized math coords)
+    // Topological coordinates (symbolic calc/intersection where exact, else 8-decimal normalized math coords)
     for (const p of points) {
       const tid = p.tikzId;
       const d = p.def;
-      let expr = `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`;
+      let expr = `(${fmtNum(p.x, 8)},${fmtNum(p.y, 8)})`;
       if (d.t === 'mid' && ptById.has(d.a) && ptById.has(d.b)) {
         expr = `($(${tidOf(d.a)})!0.5!(${tidOf(d.b)})$)`;
       } else if (d.t === 'on' && ptById.has(d.a) && ptById.has(d.b)) {
         const kEff = d.seg ? clamp(d.k != null ? d.k : 0.5, 0, 1) : (d.k != null ? d.k : 0.5);
-        expr = `($(${tidOf(d.a)})!${fmtNum(kEff, 5)}!(${tidOf(d.b)})$)`;
+        expr = `($(${tidOf(d.a)})!${fmtNum(kEff, 6)}!(${tidOf(d.b)})$)`;
       } else if (d.t === 'sum' && ptById.has(d.a) && ptById.has(d.b) && ptById.has(d.c)) {
         expr = `($(${tidOf(d.a)})+(${tidOf(d.b)})-(${tidOf(d.c)})$)`;
       } else if (d.t === 'foot' && ptById.has(d.p) && ptById.has(d.a) && ptById.has(d.b)) {
@@ -1748,18 +1812,18 @@
       } else if (d.t === 'rot' && ptById.has(d.c) && ptById.has(d.p)) {
         const deg = -(d.ang || 0);
         const kVal = d.k != null ? d.k : 1;
-        expr = `($(${tidOf(d.c)})!${fmtNum(kVal, 5)}!${fmtNum(deg, 4)}:(${tidOf(d.p)})$)`;
+        expr = `($(${tidOf(d.c)})!${fmtNum(kVal, 6)}!${fmtNum(deg, 6)}:(${tidOf(d.p)})$)`;
       } else if (d.t === 'vec' && d.distVal == null && ptById.has(d.o) && ptById.has(d.a) && ptById.has(d.b)) {
         const kVal = d.k != null ? d.k : 1;
         if (!d.perp) {
           if (Math.abs(kVal - 1) < 1e-5) {
             expr = `($(${tidOf(d.o)})+(${tidOf(d.b)})-(${tidOf(d.a)})$)`;
           } else {
-            const ks = fmtNum(kVal, 5);
+            const ks = fmtNum(kVal, 6);
             expr = `($(${tidOf(d.o)})+${ks}*(${tidOf(d.b)})-${ks}*(${tidOf(d.a)})$)`;
           }
         } else if (d.o === d.a) {
-          expr = `($(${tidOf(d.a)})!${fmtNum(kVal, 5)}!90:(${tidOf(d.b)})$)`;
+          expr = `($(${tidOf(d.a)})!${fmtNum(kVal, 6)}!90:(${tidOf(d.b)})$)`;
         }
       } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2)) {
         const p1 = ptById.get(d.l1[0]), p2 = ptById.get(d.l1[1]), p3 = ptById.get(d.l2[0]), p4 = ptById.get(d.l2[1]);
@@ -1977,6 +2041,80 @@
             if (sh.pts.length < 2) break;
             const u = tidOf(sh.pts[0]), v = tidOf(sh.pts[1]);
             markCmds.push(`      \\draw[line width=0.55pt, opacity={${pVar}}] ($(${u})!0.5!(${v})!3pt!90:(${v})$) -- ($(${u})!0.5!(${v})!3pt!-90:(${v})$);`);
+            break;
+          }
+          case 'cone': {
+            if (sh.pts.length < 3) break;
+            const oP = ptById.get(sh.pts[0]), rP = ptById.get(sh.pts[1]), sP = ptById.get(sh.pts[2]);
+            if (!oP || !rP || !sP) break;
+            const rNum = Math.max(0.05, dist2(oP, rP));
+            const R = fmtNum(rNum, 5);
+            const B = fmtNum(Math.max(0.02, rNum * 0.32), 5);
+            const oTid = tidOf(sh.pts[0]);
+            const sTid = tidOf(sh.pts[2]);
+            geomCmds.push(`      \\coordinate (cL_${curTag}) at ($(${oTid})+(180:${R})$);`);
+            geomCmds.push(`      \\coordinate (cR_${curTag}) at ($(${oTid})+(0:${R})$);`);
+            geomCmds.push(`      \\draw[dashed, ${strokeCol}, line width=0.5pt, opacity={${opVar}}] (cL_${curTag}) arc (180:{180-180*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (cL_${curTag}) arc (180:{180+180*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${sTid}) -- ($(${sTid})!${pVar}!(cL_${curTag})$);`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${sTid}) -- ($(${sTid})!${pVar}!(cR_${curTag})$);`);
+            break;
+          }
+          case 'cylinder': {
+            if (sh.pts.length < 3) break;
+            const oP = ptById.get(sh.pts[0]), rP = ptById.get(sh.pts[1]), tP = ptById.get(sh.pts[2]);
+            if (!oP || !rP || !tP) break;
+            const rNum = Math.max(0.05, dist2(oP, rP));
+            const R = fmtNum(rNum, 5);
+            const B = fmtNum(Math.max(0.02, rNum * 0.32), 5);
+            const oTid = tidOf(sh.pts[0]);
+            const tTid = tidOf(sh.pts[2]);
+            geomCmds.push(`      \\coordinate (bL_${curTag}) at ($(${oTid})+(180:${R})$);`);
+            geomCmds.push(`      \\coordinate (bR_${curTag}) at ($(${oTid})+(0:${R})$);`);
+            geomCmds.push(`      \\coordinate (tL_${curTag}) at ($(${tTid})+(180:${R})$);`);
+            geomCmds.push(`      \\coordinate (tR_${curTag}) at ($(${tTid})+(0:${R})$);`);
+            geomCmds.push(`      \\draw[dashed, ${strokeCol}, line width=0.5pt, opacity={${opVar}}] (bL_${curTag}) arc (180:{180-180*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (bL_${curTag}) arc (180:{180+180*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (tR_${curTag}) arc (0:{360*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (bL_${curTag}) -- ($(bL_${curTag})!${pVar}!(tL_${curTag})$);`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (bR_${curTag}) -- ($(bR_${curTag})!${pVar}!(tR_${curTag})$);`);
+            break;
+          }
+          case 'sphere': {
+            if (sh.pts.length < 2) break;
+            const oP = ptById.get(sh.pts[0]), rP = ptById.get(sh.pts[1]);
+            if (!oP || !rP) break;
+            const rNum = Math.max(0.05, dist2(oP, rP));
+            const R = fmtNum(rNum, 5);
+            const B = fmtNum(Math.max(0.02, rNum * 0.32), 5);
+            const oTid = tidOf(sh.pts[0]);
+            fillCmds.push(`      \\shade[ball color=cyan!15, opacity={0.28*${pVar}}] (${oTid}) circle[radius=${R}];`);
+            geomCmds.push(`      \\coordinate (spL_${curTag}) at ($(${oTid})+(180:${R})$);`);
+            geomCmds.push(`      \\coordinate (spR_${curTag}) at ($(${oTid})+(0:${R})$);`);
+            geomCmds.push(`      \\draw[dashed, ${strokeCol}, line width=0.5pt, opacity={${opVar}}] (spL_${curTag}) arc (180:{180-180*${pVar}}:${R} and ${B});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=0.7pt, opacity={${opVar}}] (spR_${curTag}) arc (0:{360*${pVar}}:${R});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (spL_${curTag}) arc (180:{180+180*${pVar}}:${R} and ${B});`);
+            break;
+          }
+          case 'frustumCone': {
+            if (sh.pts.length < 4) break;
+            const o1P = ptById.get(sh.pts[0]), r1P = ptById.get(sh.pts[1]);
+            const o2P = ptById.get(sh.pts[2]), r2P = ptById.get(sh.pts[3]);
+            if (!o1P || !r1P || !o2P || !r2P) break;
+            const r1Num = Math.max(0.05, dist2(o1P, r1P));
+            const r2Num = Math.max(0.04, dist2(o2P, r2P));
+            const R1 = fmtNum(r1Num, 5), B1 = fmtNum(Math.max(0.02, r1Num * 0.32), 5);
+            const R2 = fmtNum(r2Num, 5), B2 = fmtNum(Math.max(0.015, r2Num * 0.32), 5);
+            const o1Tid = tidOf(sh.pts[0]), o2Tid = tidOf(sh.pts[2]);
+            geomCmds.push(`      \\coordinate (fbL_${curTag}) at ($(${o1Tid})+(180:${R1})$);`);
+            geomCmds.push(`      \\coordinate (fbR_${curTag}) at ($(${o1Tid})+(0:${R1})$);`);
+            geomCmds.push(`      \\coordinate (ftL_${curTag}) at ($(${o2Tid})+(180:${R2})$);`);
+            geomCmds.push(`      \\coordinate (ftR_${curTag}) at ($(${o2Tid})+(0:${R2})$);`);
+            geomCmds.push(`      \\draw[dashed, ${strokeCol}, line width=0.5pt, opacity={${opVar}}] (fbL_${curTag}) arc (180:{180-180*${pVar}}:${R1} and ${B1});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (fbL_${curTag}) arc (180:{180+180*${pVar}}:${R1} and ${B1});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (ftR_${curTag}) arc (0:{360*${pVar}}:${R2} and ${B2});`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (fbL_${curTag}) -- ($(fbL_${curTag})!${pVar}!(ftL_${curTag})$);`);
+            geomCmds.push(`      \\draw[${strokeCol}, line width=${baseW}, opacity={${opVar}}] (fbR_${curTag}) -- ($(fbR_${curTag})!${pVar}!(ftR_${curTag})$);`);
             break;
           }
           default:
@@ -2719,7 +2857,22 @@
         case 'line_perp': {
           const o = getP(op.through || op.o), a = getP(op.a), b = getP(op.b);
           if (o && a && b) {
-            const pt = regPt(op.id || op.label, { t: 'vec', o: o.id, a: a.id, b: b.id, k: safeEvalMathNumber(op.k ?? 1) || 1, perp: op.op === 'line_perp' }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const distRaw = op.distVal != null ? safeEvalMathNumber(op.distVal) : NaN;
+            const pt = regPt(
+              op.id || op.label,
+              {
+                t: 'vec',
+                o: o.id,
+                a: a.id,
+                b: b.id,
+                k: safeEvalMathNumber(op.k ?? 1) || 1,
+                perp: op.op === 'line_perp',
+                ...(Number.isFinite(distRaw) ? { distVal: distRaw } : {})
+              },
+              op.label ?? op.id,
+              op.show !== false,
+              { noDot: op.noDot }
+            );
             if (op.drawSegment !== false) {
               const sh = { id: mkId('sh'), kind: op.asLine ? 'line' : 'segment', pts: [o.id, pt.id], dashed: !!op.dashed, aux: true };
               shapes.push(sh);
@@ -2727,6 +2880,67 @@
             } else if (op.id) {
               opIdMap.set(op.id, { kind: 'point', id: pt.id });
             }
+          }
+          break;
+        }
+        case 'rotate':
+        case 'point_rot':
+        case 'rotation':
+        case 'rot': {
+          const c = getP(op.center || op.c || op.o), p = getP(op.point || op.p || op.from);
+          if (c && p) {
+            const deg = safeEvalMathNumber(op.angleDeg ?? op.ang ?? 60);
+            const kVal = op.k != null ? safeEvalMathNumber(op.k) : 1;
+            const pt = regPt(
+              op.id || op.label,
+              { t: 'rot', c: c.id, p: p.id, ang: -(Number.isFinite(deg) ? deg : 60), k: Number.isFinite(kVal) ? kVal : 1 },
+              op.label ?? op.id,
+              op.show !== false,
+              { noDot: op.noDot }
+            );
+            if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
+          }
+          break;
+        }
+        case 'angle_bisector':
+        case 'bisector':
+        case 'bis': {
+          const trip = typeof op.pts === 'string' ? op.pts.split('-').map((s) => s.trim()) : (Array.isArray(op.pts) ? op.pts : null);
+          const a = getP(op.a ?? (trip && trip[0]));
+          const o = getP(op.o ?? op.v ?? op.vertex ?? (trip && trip[1]));
+          const b = getP(op.b ?? (trip && trip[2]));
+          if (a && o && b) {
+            const onOpp = !!(op.onOpposite || op.intersectOpposite);
+            let pt;
+            if (onOpp) {
+              const helper = regPt(`__bis_${o.id}_${seq}`, { t: 'bis', a: a.id, o: o.id, b: b.id }, '', false, { noDot: true });
+              pt = regPt(op.id || op.label, { t: 'inter', l1: [o.id, helper.id], c1: false, l2: [a.id, b.id], c2: false, which: 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            } else {
+              pt = regPt(op.id || op.label, { t: 'bis', a: a.id, o: o.id, b: b.id }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            }
+            if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
+            if (op.drawRay || op.asRay) {
+              shapes.push({ id: mkId('sh'), kind: 'ray', pts: [o.id, pt.id], dashed: !!op.dashed, aux: op.aux !== false });
+            } else if (op.drawSegment || (onOpp && op.drawSegment !== false)) {
+              shapes.push({ id: mkId('sh'), kind: 'segment', pts: [o.id, pt.id], dashed: !!op.dashed, aux: op.aux !== false });
+            }
+          }
+          break;
+        }
+        case 'common_tangent':
+        case 'ctan': {
+          const c1 = typeof op.c1 === 'string' ? op.c1.split('-').map((s) => s.trim()) : (op.c1 || []);
+          const c2 = typeof op.c2 === 'string' ? op.c2.split('-').map((s) => s.trim()) : (op.c2 || []);
+          const o1 = getP(c1[0]), r1 = getP(c1[1]), o2 = getP(c2[0]), r2 = getP(c2[1]);
+          if (o1 && r1 && o2 && r2) {
+            const pt = regPt(
+              op.id || op.label,
+              { t: 'ctan', c1: [o1.id, r1.id], c2: [o2.id, r2.id], inner: !!op.inner, which: !(Number(op.which) || 0), on: op.on === 2 ? 2 : 1 },
+              op.label ?? op.id,
+              op.show !== false,
+              { noDot: op.noDot }
+            );
+            if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
         }
@@ -2751,10 +2965,39 @@
           break;
         }
         case 'arc':
-        case 'sector': {
-          const pList = (op.pts || [op.center || op.o, op.a, op.b]).map(getP).filter(Boolean);
+        case 'sector':
+        case 'arc3': {
+          const pList = (op.pts || [op.center || op.o || op.a, op.a || op.b, op.b || op.c]).map(getP).filter(Boolean);
           if (pList.length >= 3) {
-            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.fill ? { fill: op.fill } : {}) };
+            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.fill ? { fill: op.fill } : {}), ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'cone':
+        case 'cylinder': {
+          const pList = (op.pts || [op.center || op.o, op.rim || op.r, op.apex || op.top || op.s]).map(getP).filter(Boolean);
+          if (pList.length >= 3) {
+            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'sphere': {
+          const pList = (op.pts || [op.center || op.o, op.rim || op.r]).map(getP).filter(Boolean);
+          if (pList.length >= 2) {
+            const sh = { id: mkId('sh'), kind: 'sphere', pts: pList.slice(0, 2).map((x) => x.id), dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'frustumCone': {
+          const pList = (op.pts || [op.o1, op.r1, op.o2, op.r2]).map(getP).filter(Boolean);
+          if (pList.length >= 4) {
+            const sh = { id: mkId('sh'), kind: 'frustumCone', pts: pList.slice(0, 4).map((x) => x.id), dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}) };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }
@@ -3031,7 +3274,10 @@
     return outSteps;
   }
 
-  function placePointsOnBoard(pointsList, shapesList, board, isInputMathYUp) {
+  function placePointsOnBoard(pointsList, shapesList, board, isInputMathYUp, placeOpts) {
+    const metricsInMathUnits = !!(isInputMathYUp || (placeOpts && placeOpts.metricsInMathUnits));
+    const cmPx = 37.79527559;
+
     // Step 1: Convert `math_y_up` defs cleanly to `board_y_down` (preserving orientation of rot, len, inter_cc, ctan, path)
     const normalized = pointsList.map((p) => {
       if (!p.def || !p.def.t) return p;
@@ -3066,7 +3312,8 @@
       }
     });
 
-    const coords = evalGeoMap({ points: normalized, shapes: shapesList });
+    const evalCmPx = metricsInMathUnits ? 1 : cmPx;
+    const coords = evalGeoMap({ points: normalized, shapes: shapesList, cmPx: evalCmPx });
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of normalized) {
       const c = coords.get(p.id);
@@ -3077,7 +3324,7 @@
       if (c.y > y1) y1 = c.y;
     }
     for (const sh of (shapesList || [])) {
-      if (sh && sh.kind === 'circle' && Array.isArray(sh.pts) && sh.pts.length >= 2) {
+      if (sh && (sh.kind === 'circle' || sh.kind === 'sphere' || sh.kind === 'cone' || sh.kind === 'cylinder') && Array.isArray(sh.pts) && sh.pts.length >= 2) {
         const o = coords.get(sh.pts[0]), rPt = coords.get(sh.pts[1]);
         if (o && rPt) {
           const r = dist2(o, rPt);
@@ -3098,7 +3345,9 @@
     if (Number.isFinite(vc.index)) pageIdx = vc.index;
     const center = { x: vc.x || 440, y: vc.y || 350 };
 
-    const cmPx = 37.79527559;
+    // unitScale is `scale / cmPx` ONLY when metric parameters were in math units (`1 unit = 1`),
+    // and `scale` when metric parameters (`val`, `distVal`, `vx/vy/vz`) are already in `cm`!
+    const unitScale = metricsInMathUnits ? (scale / cmPx) : scale;
     const placedPts = normalized.map((p) => {
       if (!p.def || !p.def.t) return p;
       const d = p.def;
@@ -3112,9 +3361,7 @@
           }
         };
       }
-      if (Math.abs(scale - 1) > 1e-6) {
-        // Scale metric length parameters proportionally when converting math units -> canvas pixels
-        const unitScale = isInputMathYUp ? (scale / cmPx) : scale;
+      if (Math.abs(unitScale - 1) > 1e-9 || Math.abs(scale - 1) > 1e-6) {
         if (d.t === 'len' && d.val != null) {
           return { ...p, def: { ...d, val: Number(d.val) * unitScale } };
         }
@@ -3245,7 +3492,7 @@
         pointsList = scaled.points;
         shapesList = scaled.shapes;
       } else {
-        const placed = placePointsOnBoard(fig.points, fig.shapes, b, false);
+        const placed = placePointsOnBoard(fig.points, fig.shapes, b, false, { metricsInMathUnits: true });
         pointsList = placed.points;
         shapesList = fig.shapes;
         pageIdx = placed.pageIdx;
@@ -3431,7 +3678,7 @@
         compiled = w.MinNoteAiGeo.compileAiGeoPlan(data, b, opts.anchorBox || null);
       } else {
         const fb = compileOpsStandaloneFallback(data);
-        const placed = placePointsOnBoard(fb.points, fb.shapes, b, false);
+        const placed = placePointsOnBoard(fb.points, fb.shapes, b, false, { metricsInMathUnits: true });
         compiled = {
           points: placed.points,
           shapes: fb.shapes.map((s) => ({ ...s, color: appStyle.color, width: s.width === 0 ? 0 : appStyle.width })),

@@ -99,6 +99,45 @@
               }
             }
           }
+        } else if (d.t === 'rot') {
+          const c = evalPt(d.c), p = evalPt(d.p);
+          if (c && p) {
+            const rad = ((Number(d.ang) || 0) * Math.PI) / 180;
+            const k = Number.isFinite(Number(d.k)) ? Number(d.k) : 1;
+            const dx = p.x - c.x, dy = p.y - c.y;
+            const cs = Math.cos(rad), sn = Math.sin(rad);
+            res = { x: c.x + (dx * cs - dy * sn) * k, y: c.y + (dx * sn + dy * cs) * k };
+          }
+        } else if (d.t === 'bis') {
+          const a = evalPt(d.a), o = evalPt(d.o), b = evalPt(d.b);
+          if (a && o && b) {
+            const d1 = Math.hypot(a.x - o.x, a.y - o.y), d2 = Math.hypot(b.x - o.x, b.y - o.y);
+            if (d1 > 1e-9 && d2 > 1e-9) {
+              let lx = (a.x - o.x) / d1 + (b.x - o.x) / d2;
+              let ly = (a.y - o.y) / d1 + (b.y - o.y) / d2;
+              const m = Math.hypot(lx, ly);
+              if (m < 1e-9) { lx = (a.y - o.y) / d1; ly = -(a.x - o.x) / d1; }
+              else { lx /= m; ly /= m; }
+              res = { x: o.x + lx * d1, y: o.y + ly * d1 };
+            }
+          }
+        } else if (d.t === 'ctan' && Array.isArray(d.c1) && Array.isArray(d.c2)) {
+          const p1 = evalPt(d.c1[0]), p2 = evalPt(d.c1[1]), p3 = evalPt(d.c2[0]), p4 = evalPt(d.c2[1]);
+          if (p1 && p2 && p3 && p4) {
+            const r1 = Math.hypot(p2.x - p1.x, p2.y - p1.y), r2 = Math.hypot(p4.x - p3.x, p4.y - p3.y);
+            const dx = p3.x - p1.x, dy = p3.y - p1.y, dist = Math.hypot(dx, dy);
+            if (dist > 1e-9) {
+              const l = (d.inner ? -(r1 + r2) : (r2 - r1)) / dist;
+              if (Math.abs(l) <= 1) {
+                const ux = dx / dist, uy = dy / dist;
+                const h = Math.sqrt(Math.max(0, 1 - l * l)) * (d.which ? -1 : 1);
+                const nx = ux * l + uy * h, ny = uy * l - ux * h;
+                const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
+                const t2 = d.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
+                res = d.on === 2 ? t2 : t1;
+              }
+            }
+          }
         }
         visiting.delete(id);
         if (res && Number.isFinite(res.x) && Number.isFinite(res.y)) map.set(id, res);
@@ -135,56 +174,72 @@
   ];
 
   const AI_GEO_SYSTEM_PROMPT = `Bạn là chuyên gia Toán Hình học & Kỹ sư Dựng hình Tham số của MinNote.
-Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/trắc nghiệm, bảng Đúng-Sai 4 ý, hoặc ảnh hình vẽ SGK/vẽ tay) -> tự kiểm chứng hình học ngầm theo 5 cổng -> xuất DUY NHẤT 1 đối tượng JSON dựng hình TỪNG NÉT chuẩn xác.
+Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/trắc nghiệm, bảng Đúng-Sai 4 ý, hoặc ảnh hình vẽ SGK/vẽ tay) -> tự kiểm chứng hình học ngầm theo 5 cổng -> xuất DUY NHẤT 1 đối tượng JSON dựng hình TỪNG NÉT SIÊU GỌN chuẩn xác.
+
+ƯU TIÊN SỐ 1 — DÙNG BỘ LỆNH GỘP MACRO & CÚ PHÁP RÚT GỌN (TIẾT KIỆM 70% CODE, PHẢN HỒI NHANH GẤP 3 LẦN):
+- BỎ QUA "label" khi trùng với "id" (MinNote tự động gán label = id cho mọi điểm không bắt đầu bằng "__"). Bỏ qua "dashed": false (mặc định là nét liền).
+- VIẾT GỌN CẶP & BỘ BA ĐIỂM BẰNG CHUỖI: dùng "A-C" thay cho ["A","C"] (vd l1:"A-C", l2:"B-D"), "S-A-B" cho right_angle/angle_mark/angle_bisector, và bán kính số trực tiếp "r": 2.2 cho circle.
+- DÙNG 1 LỆNH MACRO CHO KHỐI 3D & ĐƯỜNG TRÒN / TAM GIÁC ĐẶC BIỆT (thay vì viết rời 12–15 lệnh):
+  + Chóp 3D: {"op":"pyramid","name":"S.ABCD","baseType":"quad"|"parallelogram"|"rect"|"square"|"rhombus"|"trapezoid"|"triangle","altitude":"free"|"SA"|"SB"|"face_SAB"|"center","height":3.8,"diagonals":true} (tự dựng chuẩn đỉnh, tự khóa hình bình hành/hình thang, tự phân loại nét liền/khuất và tự gắn góc vuông đường cao!).
+  + Lăng trụ / Hình hộp: {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5} (hoặc "ABCD.A'B'C'D'").
+  + Gộp nhiều điểm tự do: {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2]}}
+  + Nối gộp hàng loạt đoạn thẳng: {"op":"segments","solid":["B-M","M-N","M-I"],"dashed":["A-C","B-D","S-O"],"aux":true}
+  + Macro hình phẳng 2D khóa động 100%:
+    • Hai tiếp tuyến từ điểm ngoài: {"op":"tangents_from_point","p":"A","center":"O","rim":"R","pts":["B","C"],"drawRadii":true}
+    • Đường tròn ngoại tiếp / nội tiếp: {"op":"circumcircle","center":"O","pts":["A","B","C"]} | {"op":"incircle","center":"I","foot":"D","pts":["A","B","C"]}
+    • Trực tâm / Trọng tâm: {"op":"orthocenter","id":"H","pts":["A","B","C"],"drawAltitudes":true} | {"op":"centroid","id":"G","pts":["A","B","C"],"drawMedians":true}
+    • Tam giác đều / Hình vuông động: {"op":"equilateral_triangle","pts":["A","B","C"]} | {"op":"square_2d","pts":["A","B","C","D"]}
 
 5 CỔNG TỰ KIỂM CHỨNG HÌNH HỌC BẮT BUỘC TRƯỚC KHI XUẤT JSON:
 1. ĐỒ THỊ PHỤ THUỘC ĐIỂM (DAG - cấm điểm rời rạc & cấm bẫy giả trung điểm):
-   - Chỉ ĐỈNH GỐC tự do dùng "point_free" (A, B, C, D, S hoặc tâm O, điểm R đường tròn). Mọi số x, y, ratio, k, angleDeg phải ghi số thập phân tường minh (vd 0.866 thay vì biểu thức chữ).
-   - Trung điểm thật dùng "midpoint" (a, b).
+   - Chỉ ĐỈNH GỐC tự do mới dùng "point_free" / "points". Mọi điểm sinh ra từ tính chất hình học BẮT BUỘC khóa bằng công cụ động ("midpoint", "point_on_segment", "foot_perp", "rotate", "angle_bisector", "intersection_ll", "intersection_lc", "intersection_cc", "tangent_point", "line_parallel", "line_perp", "point_sum").
    - Điểm thuộc đoạn tổng quát (KHÔNG phải trung điểm): dùng "point_on_segment" với ratio thuộc [0.08..0.92] và BẮT BUỘC ratio != 0.5 (chọn 0.36 hoặc 0.64 để tránh sinh đường song song giả do định lý Thales!).
-   - Điểm trên phần kéo dài: "point_on_line" (ratio < 0 hoặc > 1).
-   - Hình chiếu vuông góc từ P lên AB: "foot_perp" (p, a, b).
    - Điểm được định nghĩa TRƯỚC khi bất kỳ lệnh nào khác tham chiếu tới id của nó.
-2. CHỐNG TỨ GIÁC ĐÁY TỰ CẮT (ANTI-BOWTIE ABCD) & HỆ TRỤC (+x phải, +y HƯỚNG LÊN):
-   - Đáy tứ giác ABCD BẮT BUỘC đi đúng vòng lồi khép kín A -> B -> C -> D -> A (CẤM chéo hình nơ AB cắt CD hoặc BC cắt DA).
-   - Chóp đáy HÌNH BÌNH HÀNH / CHỮ NHẬT / VUÔNG / THOI ABCD: đặt A(-2.2, 0.0), B(-3.6, -1.8), D(2.6, 0.0), và BẮT BUỘC C dùng "point_sum" (a:"B", b:"D", c:"A" => C = B + D - A); chỉ AB, AD "dashed": true. Nếu SA ⊥ (ABCD): S(-2.2, 4.0).
-   - Chóp TỨ GIÁC LỒI THƯỜNG S.ABCD (hai cặp cạnh đối KHÔNG song song, tránh ảo giác BM-MN thẳng hàng): A(-2.8, 0.2), B(-1.7, -1.8), C(1.7, -2.2), D(3.2, 0.5), S(0.8, 3.8); chỉ AD "dashed": true.
-   - Chóp tam giác S.ABC: A(-2.5, 0.0), B(-0.6, -1.8), C(2.8, 0.0), S(-0.2, 3.6); chỉ AC "dashed": true.
-   - Đỉnh chóp S BẮT BUỘC nằm phía trên đáy (y > 0, thường y từ 3.4 đến 4.2), lệch khỏi các cạnh đáy và tránh để 2 đoạn không thẳng hàng trong 3D (như BM và MN) chiếu suýt thẳng hàng 180°.
-   - Lăng trụ / Hình hộp: dựng đáy dưới trước, đặt A' bằng "point_free" ở phía trên, các đỉnh B', C', D' dùng "point_sum" theo véc-tơ AA'.
+2. HỆ TRỤC (+x sang phải, +y HƯỚNG LÊN) & CHỐNG TỨ GIÁC ĐÁY TỰ CẮT:
+   - Ưu tiên dùng {"op":"pyramid",...} hoặc {"op":"prism",...} để tự động đảm bảo đáy lồi chuẩn, đúng nét khuất và không có ảo giác thẳng hàng 3D.
+   - Nếu tự đặt tọa độ lẻ: đáy ABCD đi đúng vòng lồi A -> B -> C -> D; đỉnh S nằm phía trên đáy (y ≈ 3.4..4.0).
 3. CHỐNG GIAO ĐIỂM GIẢ 2 ĐƯỜNG CHÉO NHAU TRONG 3D (ANTI-SKEW) & CHỐNG SUY BIẾN SONG SONG:
-   - Lệnh "intersection_ll" (l1, l2) CHỈ ĐƯỢC DÙNG khi l1 và l2 cùng thuộc một mặt phẳng (đồng phẳng) VÀ không song song!
-   - CẤM lấy "intersection_ll" của 2 đường chéo nhau trong không gian (vd SA với BC, SB với CD, AM với BD). Muốn tìm giao điểm đường thẳng d với mặt phẳng (P), phải tìm đường phụ Δ nằm trong (P) đồng phẳng với d rồi mới lấy d ∩ Δ.
-   - Nếu 2 đường song song (vd MN // CD khi M, N là trung điểm SC, SD), TUYỆT ĐỐI CẤM dùng "intersection_ll" -> phải dùng "line_parallel" (through:"A", a:"C", b:"D", asLine:true, noDot:true, aux:true, label:"x").
-4. TIẾP TUYẾN ĐƯỜNG TRÒN TỪ ĐIỂM NGOÀI (ĐƯỜNG TRÒN ĐƯỜNG KÍNH THALES):
-   - Khi kẻ tiếp tuyến AB, AC từ điểm A nằm ngoài đường tròn (O; R): CẤM ước lượng góc thủ công! BẮT BUỘC lấy trung điểm M = midpoint(O, A), sau đó tìm tiếp điểm B, C chính xác bằng "intersection_cc" giữa đường tròn Thales ["M","O"] và đường tròn ["O","R"] (which: 0 và which: 1), rồi gắn "right_angle" tại đỉnh v:"B" (a:"O", v:"B", b:"A") và v:"C".
+   - "intersection_ll" (l1, l2) CHỈ DÙNG khi l1 và l2 ĐỒNG PHẲNG và không song song! CẤM lấy giao 2 đường chéo nhau (như SA với BC, AM với BD).
+   - Nếu 2 đường song song (vd MN // CD), CẤM dùng "intersection_ll" -> phải dùng "line_parallel" (id:"x", through:"A", line:"C-D", asLine:true, noDot:true, aux:true, effect:"glow").
+4. PHÉP QUAY, PHÂN GIÁC, TIẾP TUYẾN & KHỐI TRÒN XOAY CHUẨN ĐỘNG:
+   - Tam giác đều / góc quay cố định: dùng "rotate" (center, point, angleDeg ngược chiều kim đồng hồ trong hệ +y hướng lên, k) hoặc "equilateral_triangle" / "square_2d".
+   - Phân giác trong góc AOB cắt cạnh AB tại D: dùng {"op":"angle_bisector","id":"D","pts":"A-O-B","onOpposite":true}.
+   - Tiếp tuyến từ A ngoài (O): dùng "tangents_from_point" hoặc "tangent_point" (tuyệt đối cấm ước lượng góc thủ công!).
+   - Khối tròn xoay 3D: dùng "cone" (apex, center, rim, r, h), "cylinder" (center, rim, topCenter, r, h), "sphere" (center, r), "frustumCone".
 5. QUY TẮC NÉT KHUẤT 3D & HIỆU ỨNG CHUYỂN ĐỘNG SƯ PHẠM:
-   - Mọi điểm sinh ra (M, N, O, K, I, H...) PHẢI được nối đầy đủ bằng "segment" hoặc "connect_polygon", không để điểm trơ trọi.
-   - Cạnh khuất đáy, đường chéo đáy, đường cao trong khối, nét xuyên lòng khối / mặt sau -> "dashed": true; cạnh bao ngoài & mặt trước -> "dashed": false.
-   - Trong hình phẳng 2D ("is3D": false): "right_angle" đặt đúng đỉnh góc vuông ở tham số giữa "v".
-   - Có thể gắn thêm "motion": {"preset":"domiinh"|"manim"|"3d_standard","loop":true,"handPen":true,"followCamera":true} và trên từng op có thể gắn "effect" ("chalk"|"draw"|"glow"|"pop"|"pulse"|"fade"), "easing" ("easeInOut"|"easeOut"|"spring"|"linear"), "durationMul".
+   - Mọi điểm sinh ra (M, N, O, K, I, H...) PHẢI được nối đầy đủ bằng "segments", "segment" hoặc "connect_polygon".
+   - Cạnh khuất đáy, đường chéo đáy, đường cao trong khối, nét xuyên lòng khối / mặt sau -> "dashed": true; cạnh bao ngoài & mặt trước -> nét liền.
    - KHÔNG tự ý thêm "color" hay "width" (trừ khi đề bài yêu cầu màu riêng -> kèm "explicitColor": true). Trả về DUY NHẤT 1 JSON hợp lệ, không bọc giải thích ngoài JSON.
 
-SCHEMA "ops" (Và cấu trúc JSON tổng thể {"schema":"mn-geo-motion/2.0","title":"...","is3D":true,"ops":[...],"motion":{...}}):
-- {"op":"point_free","id":"A","label":"A","x":-2.8,"y":0,"step":"Chấm đỉnh A"}
-- {"op":"point_sum","id":"C","label":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C = B + D - A"}
-- {"op":"midpoint","id":"M","label":"M","a":"S","b":"C","effect":"pop","step":"Trung điểm M của SC"}
-- {"op":"point_on_segment","id":"N","label":"N","a":"S","b":"D","ratio":0.38,"step":"Điểm N trên đoạn SD"}
-- {"op":"point_on_line","id":"E","label":"E","a":"C","b":"D","ratio":1.4,"step":"Điểm E trên CD kéo dài"}
-- {"op":"intersection_ll","id":"O","label":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true,"effect":"pop","step":"Giao điểm O = AC ∩ BD"}
-- {"op":"intersection_lc","id":"K","label":"K","line":["A","O"],"circle":["O","R"],"which":0,"step":"Giao điểm đường và đường tròn"}
-- {"op":"intersection_cc","id":"B","label":"B","c1":["M","O"],"c2":["O","R"],"which":0,"effect":"pop","step":"Tiếp điểm B qua đường tròn Thales đường kính OA"}
-- {"op":"foot_perp","id":"H","label":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB"}
-- {"op":"circle","center":"O","rim":"R","dashed":false,"step":"Đường tròn (O)"}
-- {"op":"point_on_circle","id":"D","label":"D","center":"O","rim":"R","angleDeg":125,"step":"Điểm D trên (O)"}
-- {"op":"line_parallel","id":"x","label":"x","through":"A","a":"C","b":"D","k":1.2,"asLine":true,"bothSides":false,"noDot":true,"aux":true,"effect":"glow","step":"Giao tuyến Ax // CD"}
-- {"op":"line_perp","id":"q","label":"q","through":"A","a":"O","b":"A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Đường thẳng vuông góc"}
-- {"op":"segment","a":"A","b":"D","dashed":true,"effect":"chalk","step":"Cạnh khuất AD"}
-- {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(15, 23, 42, 0.06)","effect":"fade","step":"Thiết diện ABMI"}
-- {"op":"line"|"ray","a":"S","b":"O","dashed":true,"aux":true,"step":"Đường phụ SO"}
-- {"op":"right_angle","a":"O","v":"B","b":"A","aux":true,"step":"Góc vuông tại B"}
-- {"op":"angle_mark","a":"B","v":"A","b":"C","n":1,"aux":true,"step":"Kí hiệu góc"}
-- {"op":"polygon_fill","pts":["A","M","N"],"fill":"rgba(15, 23, 42, 0.06)","effect":"fade","step":"Tô mặt (AMN)"}`;
+TÓM TẮT SCHEMA "ops" (trong {"schema":"mn-geo-motion/2.0","title":"...","is3D":true,"ops":[...],"motion":{"preset":"domiinh","loop":true,"handPen":true}}):
+- Macro gộp:
+  • {"op":"pyramid","name":"S.ABCD","baseType":"quad"|"parallelogram"|"rect"|"square"|"rhombus"|"trapezoid"|"triangle","altitude":"free"|"SA"|"face_SAB"|"center","height":3.8,"step":"Dựng hình chóp S.ABCD"}
+  • {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5,"step":"Dựng lăng trụ"}
+  • {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2]}}
+  • {"op":"segments","solid":["B-M","M-N"],"dashed":["A-C","B-D","S-O"],"aux":true,"step":"Nối các đoạn phụ"}
+  • {"op":"tangents_from_point","p":"A","center":"O","r":2.2,"pts":["B","C"],"drawRadii":true,"step":"Kẻ hai tiếp tuyến AB, AC"}
+  • {"op":"circumcircle","center":"O","pts":["A","B","C"]} | {"op":"incircle","center":"I","foot":"D","pts":["A","B","C"]}
+  • {"op":"orthocenter","id":"H","pts":["A","B","C"],"drawAltitudes":true} | {"op":"centroid","id":"G","pts":["A","B","C"]}
+  • {"op":"equilateral_triangle","pts":["A","B","C"]} | {"op":"square_2d","pts":["A","B","C","D"]}
+- Lệnh đơn chuẩn:
+  • {"op":"point_free","id":"A","x":-2.8,"y":0.2} | {"op":"point_sum","id":"C","a":"B","b":"D","c":"A"}
+  • {"op":"midpoint","id":"M","s":"S-C","effect":"pop","step":"Trung điểm M của SC"}
+  • {"op":"point_on_segment","id":"N","s":"S-D","ratio":0.38,"step":"Điểm N thuộc đoạn SD"} | {"op":"point_on_line","id":"E","s":"C-D","ratio":1.4}
+  • {"op":"rotate","id":"C","center":"A","point":"B","angleDeg":60,"k":1,"step":"Quay B quanh A góc 60°"}
+  • {"op":"angle_bisector","id":"D","pts":"B-A-C","onOpposite":true,"step":"Phân giác trong AD"}
+  • {"op":"foot_perp","id":"H","p":"A","line":"S-B","dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB"}
+  • {"op":"line_parallel","id":"x","through":"A","line":"C-D","k":1.2,"asLine":true,"noDot":true,"aux":true,"effect":"glow","step":"Giao tuyến Ax // CD"}
+  • {"op":"line_perp","id":"d","through":"A","line":"O-A","k":1.2,"asLine":true,"noDot":true,"aux":true}
+  • {"op":"intersection_ll","id":"O","l1":"A-C","l2":"B-D","drawExtensions":true,"effect":"pop","step":"O = AC ∩ BD"}
+  • {"op":"intersection_lc","id":"K","line":"A-O","circle":"O-R","which":0} | {"op":"intersection_cc","id":"B","c1":"M-O","c2":"O-R","which":0}
+  • {"op":"tangent_point","id":"B","p":"A","center":"O","rim":"R","which":0} | {"op":"common_tangent","id":"T1","c1":"O1-R1","c2":"O2-R2","inner":false,"which":0,"on":1}
+  • {"op":"circle","center":"O","r":2.2} | {"op":"point_on_circle","id":"D","center":"O","rim":"R","angleDeg":125}
+  • {"op":"arc","pts":["O","A","B"]} | {"op":"arc3","pts":["A","B","C"]} | {"op":"sector","pts":["O","A","B"],"fill":"rgba(15,23,42,0.06)"}
+  • {"op":"cone","apex":"S","center":"O","rim":"A","r":2.2,"h":3.8} | {"op":"cylinder","center":"O","rim":"A","topCenter":"O'","r":2.0,"h":3.4} | {"op":"sphere","center":"O","r":2.4} | {"op":"frustumCone","pts":["O","A","O'","A'"]}
+  • {"op":"segment"|"line"|"ray","s":"S-O","dashed":true,"aux":true}
+  • {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(15,23,42,0.06)","effect":"fade","step":"Thiết diện ABMI"}
+  • {"op":"polygon_fill","pts":["A","M","N"],"fill":"rgba(15,23,42,0.06)"}
+  • {"op":"right_angle","pts":"O-B-A"} | {"op":"angle_mark","pts":"B-A-C","n":1} | {"op":"tick_mark","s":"A-B","n":1}`;
 
   function presetDefaultEffect(preset) {
     if (preset === 'manim') return 'glow';
@@ -204,7 +259,7 @@ SCHEMA "ops" (Và cấu trúc JSON tổng thể {"schema":"mn-geo-motion/2.0","t
     const prob = String(problemText || '').trim() || '[DÁN ĐỀ BÀI TOÁN HÌNH HỌC 2D/3D HOẶC ĐÍNH KÈM ẢNH ĐỀ BÀI VÀO ĐÂY]';
 
     return `Bạn là Kỹ sư Dựng hình Tham số Động chuẩn MinNote (schema "mn-geo-motion/2.0").
-Nhiệm vụ của bạn: Đọc kỹ đề bài Toán Hình học (2D hoặc 3D, văn bản hoặc ảnh đề bài) ở cuối tài liệu này và xuất DUY NHẤT 1 khối mã JSON hợp lệ để nạp trực tiếp vào bảng vẽ tương tác MinNote.
+Nhiệm vụ của bạn: Đọc kỹ đề bài Toán Hình học (2D hoặc 3D, văn bản hoặc ảnh đề bài) ở cuối tài liệu này và xuất DUY NHẤT 1 khối mã JSON hợp lệ, gọn sạch để nạp trực tiếp vào bảng vẽ tương tác MinNote.
 
 ================================================================================
 PHẦN 1 — NGUYÊN LÝ HẠT NHÂN HÌNH HỌC THAM SỐ ĐỘNG MINNOTE ("mn-geo-motion/2.0")
@@ -212,115 +267,131 @@ PHẦN 1 — NGUYÊN LÝ HẠT NHÂN HÌNH HỌC THAM SỐ ĐỘNG MINNOTE ("mn-
 1. Hệ trục tọa độ Đề-các chuẩn Toán học:
    - Trục +x hướng sang PHẢI, trục +y HƯỚNG LÊN TRÊN (tuyệt đối không dùng hệ tọa độ màn hình +y hướng xuống).
    - Vùng tọa độ chuẩn đẹp trên bảng: x, y ∈ [-4.5, 4.5].
-   - Mọi tham số tọa độ/tỉ lệ (x, y, ratio, k, angleDeg) phải ghi bằng số thập phân tường minh (ví dụ: -2.8, 0.38, 1.732) hoặc biểu thức số học sạch trong chuỗi (ví dụ: "sqrt(3)/2").
+   - Mọi tham số tọa độ/tỉ lệ (x, y, ratio, k, angleDeg, r, h) ghi bằng số thập phân tường minh (ví dụ: -2.8, 0.38, 2.2) hoặc biểu thức số học sạch trong chuỗi (ví dụ: "sqrt(3)/2").
 2. Nguyên tắc Khóa Ràng Buộc Động (DAG như Geometer's Sketchpad / GeoGebra):
-   - CHỈ các đỉnh tự do ban đầu (như đỉnh đáy A, B, D, đỉnh chóp S, tâm O, điểm mốc bán kính R) mới được dùng "point_free".
-   - MỌI điểm sinh ra từ giả thiết hình học (đỉnh thứ 4 hình bình hành, trung điểm, điểm chia tỉ lệ, chân đường cao, giao điểm, tiếp điểm, điểm thuộc đường tròn) BẮT BUỘC phải dùng đúng công cụ ràng buộc tương ứng bên dưới để khi giáo viên/học sinh nắm kéo đỉnh tự do trên bảng MinNote, toàn bộ hình biến đổi động mà KHÔNG BAO GIỜ vỡ tính chất vuông góc, song song, tiếp xúc hay đồng quy!
-   - Thứ tự khai báo (DAG): Điểm gốc phải được khai báo TRƯỚC khi bất kỳ lệnh dựng điểm hoặc nối cạnh nào tham chiếu tới "id" của điểm đó. Không để điểm sinh ra bị trơ trọi (phải nối các đoạn thẳng liên quan).
+   - CHỈ các đỉnh tự do ban đầu mới dùng "point_free" / "points" (hoặc sinh tự động qua macro "pyramid", "prism").
+   - MỌI điểm sinh ra từ giả thiết hình học (đỉnh thứ 4 hình bình hành, trung điểm, điểm chia tỉ lệ, chân đường cao, điểm quay, chân phân giác, giao điểm, tiếp điểm, tâm ngoại/nội tiếp) BẮT BUỘC dùng đúng công cụ ràng buộc động để khi kéo thả đỉnh tự do trên bảng MinNote, hình biến đổi mượt mà KHÔNG BAO GIỜ vỡ tính chất vuông góc, song song, phân giác hay tiếp xúc!
+   - Thứ tự khai báo (DAG): Điểm gốc phải được khai báo TRƯỚC khi lệnh khác tham chiếu tới "id" của điểm đó. Không để điểm sinh ra bị trơ trọi.
 
 ================================================================================
-PHẦN 2 — TỪ ĐIỂN ĐẦY ĐỦ 20 CÔNG CỤ DỰNG HÌNH TRONG APP MINNOTE ("ops")
+PHẦN 2 — TỪ ĐIỂN ĐẦY ĐỦ CÔNG CỤ DỰNG HÌNH ĐỘNG TRONG APP MINNOTE ("ops")
 ================================================================================
-Mỗi phần tử trong mảng "ops" là 1 lệnh dựng hình theo đúng cú pháp JSON sau:
+Mỗi phần tử trong mảng "ops" là 1 lệnh dựng hình chuẩn:
 
-1. point_free — Điểm gốc tự do ban đầu:
-   {"op":"point_free","id":"A","label":"A","x":-2.8,"y":0.2,"step":"Đặt đỉnh A"}
-   (Nếu là điểm mốc phụ ẩn như điểm bán kính R của đường tròn thì thêm: "show":false,"noDot":true,"label":"").
+1. point_free — Điểm gốc tự do ban đầu (tự gán label = id nếu lược bỏ "label"):
+   {"op":"point_free","id":"A","x":-2.8,"y":0.2,"step":"Đặt đỉnh A"}
 
 2. point_sum — Quy tắc véc-tơ hình bình hành (C = B + D - A, tức véc-tơ AC = AB + AD):
-   {"op":"point_sum","id":"C","label":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C = B + D - A"}
-   (BẮT BUỘC dùng cho đỉnh thứ 4 của hình bình hành, chữ nhật, hình vuông, hình thoi và các đỉnh đáy trên của lăng trụ / hình hộp).
+   {"op":"point_sum","id":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C = B + D - A"}
 
 3. midpoint — Trung điểm chính xác của đoạn thẳng AB:
-   {"op":"midpoint","id":"M","label":"M","a":"S","b":"C","effect":"pop","step":"Lấy M là trung điểm SC"}
+   {"op":"midpoint","id":"M","s":"S-C","effect":"pop","step":"Lấy M là trung điểm SC"}
 
-4. point_on_segment — Điểm chia tỉ lệ khóa chặt trong đoạn thẳng AB (ratio ∈ [0, 1], P = A + ratio*(B - A)):
-   {"op":"point_on_segment","id":"N","label":"N","a":"S","b":"D","ratio":0.38,"effect":"pop","step":"Lấy điểm N thuộc đoạn SD"}
-   (LƯU Ý SỐNG CÒN: Nếu đề chỉ nói "lấy điểm M thuộc đoạn..." mà KHÔNG nói trung điểm, BẮT BUỘC chọn ratio lệch như 0.35, 0.38 hoặc 0.65; TUYỆT ĐỐI CẤM lấy ratio = 0.5 để tránh bẫy sinh đường song song giả do định lý Thales!).
+4. point_on_segment — Điểm chia tỉ lệ khóa chặt trong đoạn thẳng AB (ratio ∈ [0.08, 0.92]):
+   {"op":"point_on_segment","id":"N","s":"S-D","ratio":0.38,"effect":"pop","step":"Lấy điểm N thuộc đoạn SD"}
+   (LƯU Ý SỐNG CÒN: Nếu đề chỉ nói "lấy điểm M thuộc đoạn..." mà KHÔNG nói trung điểm, BẮT BUỘC chọn ratio lệch như 0.36, 0.38 hoặc 0.64; CẤM lấy ratio = 0.5 để tránh bẫy sinh đường song song giả!).
 
 5. point_on_line — Điểm nằm trên đường thẳng kéo dài ngoài đoạn AB (ratio < 0 hoặc ratio > 1):
-   {"op":"point_on_line","id":"E","label":"E","a":"A","b":"B","ratio":1.45,"step":"Lấy điểm E trên tia kéo dài AB"}
+   {"op":"point_on_line","id":"E","s":"A-B","ratio":1.45,"step":"Lấy điểm E trên tia kéo dài AB"}
 
-6. point_on_circle — Điểm khóa trên đường tròn tâm center đi qua điểm mốc rim:
-   {"op":"point_on_circle","id":"D","label":"D","center":"O","rim":"R","angleDeg":125,"step":"Lấy điểm D trên (O)"}
-   (angleDeg tính ngược chiều kim đồng hồ từ tia +Ox; angleDeg = 90 là điểm chính Bắc cao nhất).
+6. point_on_circle — Điểm khóa trên đường tròn (tâm center, mốc rim hoặc bán kính số r):
+   {"op":"point_on_circle","id":"D","center":"O","rim":"R","angleDeg":125,"step":"Lấy điểm D trên (O)"}
 
-7. foot_perp — Hạ đường cao / hình chiếu vuông góc chuẩn 90° từ điểm p xuống đường thẳng ab:
-   {"op":"foot_perp","id":"H","label":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB tại H"}
-   (Đặt "dashed":true nếu đoạn hạ vuông góc nằm khuất bên trong khối 3D hoặc trên mặt đáy).
+7. rotate — Phép quay / vị tự quay động quanh tâm center góc angleDeg (ngược chiều kim đồng hồ trong hệ +y hướng lên, tỉ số k mặc định 1):
+   {"op":"rotate","id":"C","center":"A","point":"B","angleDeg":60,"k":1,"step":"Quay B quanh A góc 60° được C"}
 
-8. line_parallel — Dựng đường thẳng qua điểm through song song với đường thẳng ab:
-   {"op":"line_parallel","id":"x","label":"x","through":"S","a":"A","b":"B","k":1.2,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"glow","step":"Dựng giao tuyến Sx // AB"}
+8. angle_bisector — Tia phân giác hoặc chân đường phân giác trong của góc AOB (đỉnh góc tại o):
+   {"op":"angle_bisector","id":"D","pts":"B-A-C","onOpposite":true,"step":"Dựng đường phân giác trong AD của tam giác ABC"}
+   (Khi "onOpposite":true, D được khóa chính xác là giao điểm tia phân giác góc BAC với cạnh đối diện BC, bảo toàn DB/DC = AB/AC!).
 
-9. line_perp — Dựng đường thẳng qua điểm through vuông góc với đường thẳng ab (trong mặt phẳng 2D):
-   {"op":"line_perp","id":"d","label":"d","through":"A","a":"O","b":"A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Kẻ đường thẳng d vuông góc với OA tại A"}
+9. foot_perp — Hạ đường cao / hình chiếu vuông góc chuẩn 90° từ điểm p xuống đường thẳng ab:
+   {"op":"foot_perp","id":"H","p":"A","line":"S-B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB tại H"}
 
-10. intersection_ll — Giao điểm của 2 đường thẳng ĐỒNG PHẲNG và không song song:
-    {"op":"intersection_ll","id":"O","label":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true,"dashedExtensions":true,"effect":"pop","step":"Gọi O = AC ∩ BD"}
-    (TUYỆT ĐỐI CẤM lấy giao của 2 đường chéo nhau trong 3D như SA và BC, hay AM và BD! Bật "drawExtensions":true nếu 2 đoạn cắt nhau ở phần kéo dài ngoài đoạn để MinNote tự vẽ nét nối kéo dài).
+10. line_parallel & line_perp — Dựng đường thẳng qua điểm through song song hoặc vuông góc với đường thẳng ab:
+    {"op":"line_parallel","id":"x","through":"S","line":"A-B","k":1.2,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"glow","step":"Giao tuyến Sx // AB"}
+    {"op":"line_perp","id":"d","through":"A","line":"O-A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Đường thẳng d ⊥ OA tại A"}
 
-11. intersection_lc — Giao điểm của đường thẳng và đường tròn (which: 0 hoặc 1):
-    {"op":"intersection_lc","id":"K","label":"K","line":["A","D"],"circle":["O","R"],"which":0,"effect":"pop","step":"Giao điểm K của AD và (O)"}
+11. intersection_ll — Giao điểm của 2 đường thẳng ĐỒNG PHẲNG và không song song:
+    {"op":"intersection_ll","id":"O","l1":"A-C","l2":"B-D","drawExtensions":true,"effect":"pop","step":"Gọi O = AC ∩ BD"}
+    (TUYỆT ĐỐI CẤM lấy giao 2 đường chéo nhau trong 3D như SA và BC, hay AM và BD!).
 
-12. intersection_cc — Giao điểm của 2 đường tròn c1=[tâm1, mốc1] và c2=[tâm2, mốc2] (which: 0 hoặc 1):
-    {"op":"intersection_cc","id":"B","label":"B","c1":["M","O"],"c2":["O","R"],"which":0,"effect":"pop","step":"Giao điểm B của hai đường tròn"}
+12. intersection_lc & intersection_cc — Giao điểm đường thẳng - đường tròn & giao 2 đường tròn (which: 0 hoặc 1):
+    {"op":"intersection_lc","id":"K","line":"A-D","circle":"O-R","which":0,"effect":"pop","step":"Giao điểm K của AD và (O)"}
+    {"op":"intersection_cc","id":"B","c1":"M-O","c2":"O-R","which":0,"effect":"pop","step":"Giao điểm B của hai đường tròn"}
 
-13. tangent_point — Tiếp điểm của tiếp tuyến kẻ từ điểm ngoài p tới đường tròn (center; rim):
-    {"op":"tangent_point","id":"B","label":"B","p":"A","center":"O","rim":"R","which":0,"effect":"pop","step":"Tiếp điểm B từ A tới (O)"}
-    (Tự động dựng đường tròn Thales đường kính p-center cắt (center; rim): dùng "which":0 cho tiếp điểm thứ nhất và "which":1 cho tiếp điểm thứ hai, bảo toàn góc ∠pB(center) = 90° chính xác tuyệt đối khi kéo thả!).
+13. tangent_point & common_tangent — Tiếp điểm từ điểm ngoài p tới (O) & tiếp điểm chung của 2 đường tròn:
+    {"op":"tangent_point","id":"B","p":"A","center":"O","rim":"R","which":0,"effect":"pop","step":"Tiếp điểm B từ A tới (O)"}
+    {"op":"common_tangent","id":"T1","c1":"O1-R1","c2":"O2-R2","inner":false,"which":0,"on":1,"step":"Tiếp điểm chung ngoài T1"}
 
-14. segment — Nối đoạn thẳng giữa hai điểm a và b:
-    {"op":"segment","a":"A","b":"D","dashed":true,"aux":false,"effect":"chalk","step":"Nối cạnh khuất AD"}
-    ("dashed":true cho nét đứt khuất trong không gian 3D; "dashed":false cho nét liền nhìn thấy; thêm "rev":true nếu muốn bút vẽ theo chiều từ b về a).
+14. segment, line, ray — Nối đoạn thẳng, đường thẳng hoặc tia:
+    {"op":"segment","s":"A-D","dashed":true,"effect":"chalk","step":"Nối cạnh khuất AD"}
+    {"op":"ray","s":"S-x","aux":true,"effect":"glow","step":"Tia giao tuyến Sx"}
 
-15. line & ray — Vẽ đường thẳng dài vô tận 2 đầu hoặc tia kéo dài 1 đầu:
-    {"op":"line","a":"S","b":"O","dashed":true,"aux":true,"step":"Đường trục SO"}
-    {"op":"ray","a":"S","b":"x","dashed":false,"aux":true,"effect":"glow","step":"Tia giao tuyến Sx"}
+15. circle, arc, arc3, sector — Đường tròn (hỗ trợ bán kính số "r"), cung tròn & hình quạt:
+    {"op":"circle","center":"O","r":2.2,"step":"Vẽ đường tròn (O; 2.2)"}
+    {"op":"arc","pts":["O","A","B"],"step":"Cung tròn AB tâm O"}
+    {"op":"sector","pts":["O","A","B"],"fill":"rgba(37, 99, 235, 0.08)","step":"Hình quạt OAB"}
 
-16. circle — Vẽ đường tròn tâm center đi qua điểm mốc rim:
-    {"op":"circle","center":"O","rim":"R","dashed":false,"effect":"chalk","step":"Vẽ đường tròn tâm O bán kính OR"}
+16. cone, cylinder, sphere, frustumCone — Khối tròn xoay 3D chuẩn SGK:
+    {"op":"cone","apex":"S","center":"O","rim":"A","r":2.2,"h":3.8,"step":"Dựng hình nón đỉnh S tâm đáy O"}
+    {"op":"cylinder","center":"O","rim":"A","topCenter":"O'","r":2.0,"h":3.4,"step":"Dựng hình trụ OO'"}
+    {"op":"sphere","center":"O","r":2.4,"step":"Dựng mặt cầu tâm O"}
+    {"op":"frustumCone","pts":["O","A","O'","A'"],"step":"Dựng hình nón cụt"}
 
-17. connect_polygon — Nối khép kín đa giác đáy hoặc thiết diện (kèm danh sách cạnh khuất & màu tô tùy chọn):
-    {"op":"connect_polygon","pts":["A","B","C","D"],"dashedEdges":["A-D"],"step":"Dựng đáy tứ giác ABCD"}
-    (Hoặc dựng thiết diện kèm tô miền: {"op":"connect_polygon","pts":["A","B","M","N"],"dashedEdges":["A-N"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Thiết diện ABMN"}).
+17. connect_polygon & polygon_fill — Nối đa giác / thiết diện (kèm cạnh khuất & tô miền) hoặc chỉ tô miền:
+    {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Thiết diện ABMI"}
+    {"op":"polygon_fill","pts":["A","B","M","N"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Tô miền (ABMN)"}
 
-18. polygon_fill — Tô màu nhạt làm nổi bật miền phẳng / thiết diện (không vẽ đè viền):
-    {"op":"polygon_fill","pts":["A","B","M","N"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Tô miền thiết diện (ABMN)"}
-
-19. right_angle — Kí hiệu góc vuông chuẩn (CHÚ Ý: đỉnh góc vuông BẮT BUỘC đặt ở tham số giữa "v"):
-    {"op":"right_angle","a":"S","v":"A","b":"B","aux":true,"effect":"fade","step":"Kí hiệu góc vuông SAB tại A"}
-
-20. angle_mark & tick_mark — Kí hiệu góc bằng nhau (n cung) & đoạn thẳng bằng nhau (n vạch, n ∈ {1,2,3}):
-    {"op":"angle_mark","a":"S","v":"B","b":"A","n":1,"aux":true,"step":"Đánh dấu góc SBA"}
-    {"op":"tick_mark","a":"S","b":"M","n":1,"aux":true,"step":"Đánh dấu đoạn bằng nhau SM"}
+18. right_angle, angle_mark, tick_mark — Kí hiệu góc vuông (đỉnh vuông ở giữa!), góc bằng nhau & đoạn bằng nhau:
+    {"op":"right_angle","pts":"S-A-B","step":"Kí hiệu góc vuông SAB tại A"}
+    {"op":"angle_mark","pts":"S-C-A","n":1,"step":"Đánh dấu góc SCA"}
+    {"op":"tick_mark","s":"S-M","n":1,"step":"Đánh dấu đoạn SM"}
 
 ================================================================================
-PHẦN 3 — QUY TRÌNH DỰNG CỤ THỂ CHO 5 NHÓM HÌNH HỌC PHỔ BIẾN NHẤT
+PHẦN 2B — BỘ LỆNH GỘP SIÊU GỌN TIẾT KIỆM 70% CODE CHO AI (KHUYÊN DÙNG!)
 ================================================================================
-• Mẫu 1 — Chóp tứ giác lồi thường S.ABCD (giao tuyến, giao điểm đường-mặt, thiết diện):
-  - Tọa độ chuẩn chống suy biến: A(-2.8, 0.2), B(-1.7, -1.8), C(1.7, -2.2), D(3.2, 0.5), S(0.8, 3.8) (đi đúng vòng lồi A -> B -> C -> D, cấm nối chéo hình nơ).
-  - Nét liền / đứt chuẩn SGK: Cạnh đáy sau AD khuất ("dashed":true); các cạnh AB, BC, CD, SA, SB, SC, SD nhìn thấy ("dashed":false). Đoạn phụ nằm trên các mặt trước (SAB), (SBC), (SCD) vẽ nét LIỀN; đoạn nằm trên mặt sau (SAD), mặt đáy (ABCD) hoặc xuyên trong lòng khối (như AC, BD, SO, AM) vẽ nét ĐỨT ("dashed":true).
-  - Kiểm tra góc chiếu: Không để 3 điểm không thẳng hàng trong 3D (như B-M-N) có góc chiếu phẳng gần 180° (luôn giữ góc < 165°). Muốn tìm giao điểm của đường d với mặt (P), phải chọn mặt phụ chứa d cắt (P) theo giao tuyến Δ rồi lấy intersection_ll(d, Δ).
+Hãy ưu tiên dùng các lệnh Macro gộp và quy ước rút gọn sau để JSON ngắn gọn chỉ còn 6–14 dòng, không bao giờ nhầm nét đứt/liền hay vỡ đáy 3D:
 
-• Mẫu 2 — Chóp đáy Hình bình hành / Chữ nhật / Vuông / Thoi (ABCD) & Đường cao đặc biệt:
-  - Khóa đáy chuẩn: Đặt A(-2.2, 0), B(-3.6, -1.8), D(2.6, 0) và BẮT BUỘC dựng C = point_sum(B, D, A). Khi đó AB, AD khuất ("dashed":true); BC, CD liền ("dashed":false).
-  - Nếu SA ⊥ (ABCD): Đặt S(-2.2, 3.8) thẳng đứng trên A ("SA" khuất "dashed":true), gắn right_angle(S, A, B) và right_angle(S, A, D).
-  - Nếu mặt bên (SAB) cân tại S và (SAB) ⊥ (ABCD): Lấy H = midpoint(A, B), đặt S(-2.9, 2.9) thẳng đứng trên H (x_S = x_H, y_S = y_H + 3.8), nối SH khuất + right_angle(S, H, A).
-  - Nếu chóp đều S.ABCD: Lấy tâm O = intersection_ll(["A","C"], ["B","D"]), đặt S(-0.5, 3.1) thẳng đứng trên O (x_S = x_O, y_S = y_O + 4.0), nối SO khuất + right_angle(S, O, D).
+• Quy ước rút gọn tự động trên MỌI lệnh:
+  - Không cần viết "label" khi trùng với "id" (ví dụ viết {"op":"midpoint","id":"M","s":"S-C"} tự có nhãn "M").
+  - Viết chuỗi "A-C" thay cho ["A","C"], "S-A-B" thay cho "a":"S","v":"A","b":"B", và bán kính số "r": 2.2 trên circle / tangents_from_point.
+  - Không cần viết "dashed": false cho nét liền (chỉ ghi "dashed": true cho nét đứt).
 
-• Mẫu 3 — Lăng trụ đứng / Lăng trụ xiên / Hình hộp ABC.A'B'C' (hoặc ABCD.A'B'C'D'):
-  - Lăng trụ tam giác ABC.A'B'C': Đáy dưới A(-2.6, -1.2), B(-0.6, -2.6), C(2.4, -1.2) (cạnh sau AC khuất "dashed":true; AB, BC liền), A'(-2.6, 2.2) (lăng trụ đứng) hoặc A'(-1.9, 2.2) (lăng trụ xiên).
-  - Hình hộp ABCD.A'B'C'D': Đáy dưới A(-2.2, -1.0), B(-3.6, -2.5), D(2.4, -1.0), C = point_sum(B, D, A), đỉnh trên A'(-2.2, 2.3) (hộp đứng) hoặc A'(-1.5, 2.3) (hộp xiên); cạnh khuất: AB, AD, AA' ("dashed":true), các cạnh còn lại liền.
-  - BẮT BUỘC khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA': B' = point_sum(B, A', A), C' = point_sum(C, A', A), D' = point_sum(D, A', A) để các cạnh bên song song và bằng nhau tuyệt đối; đáy trên vẽ nét liền hoàn toàn.
+• 1. pyramid — Dựng trọn gói Hình chóp 3D chuẩn SGK trong 1 dòng duy nhất:
+  {"op":"pyramid","name":"S.ABCD","baseType":"quad"|"parallelogram"|"rect"|"square"|"rhombus"|"trapezoid"|"triangle","altitude":"free"|"SA"|"SB"|"face_SAB"|"center","height":3.8,"diagonals":false,"step":"Dựng hình chóp S.ABCD"}
+  (Tự động đặt tọa độ chống suy biến, khóa hình bình hành/hình thang, nối toàn bộ cạnh đáy + cạnh bên đúng nét liền/đứt chuẩn SGK và gắn sẵn kí hiệu góc vuông cho đường cao SA, SH hoặc SO!).
 
-• Mẫu 4 — Đường tròn (O; R), Tiếp tuyến, Cát tuyến & Đa giác nội tiếp 2D ("is3D": false):
-  - Đặt tâm O(0, 0) và điểm mốc ẩn R(2.2, 0) ("show":false, "noDot":true, "label":""), vẽ circle(O, R).
-  - Hai tiếp tuyến AB, AC từ điểm ngoài A(-4.4, 0): Dùng 2 lệnh tangent_point (p:"A", center:"O", rim:"R", which:0 cho B và which:1 cho C), nối AB, AC, OB, OC, OA, BC, lấy H = intersection_ll(["O","A"], ["B","C"]) và gắn right_angle tại B, C, H.
-  - Tam giác nhọn ABC nội tiếp (O): Dùng 3 lệnh point_on_circle với các góc không đối xứng (ví dụ angleDeg: 112, 210, 330) để tránh tam giác cân/vuông giả tạo.
+• 2. prism — Dựng trọn gói Lăng trụ đứng / Lăng trụ xiên / Hình hộp trong 1 dòng:
+  {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5,"step":"Dựng lăng trụ đứng ABC.A'B'C'"}
+  (Hỗ trợ cả "ABC.A'B'C'" và "ABCD.A'B'C'D'"; tự khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA' và phân loại nét khuất tự động).
 
-• Mẫu 5 — Góc & Khoảng cách trong không gian 3D:
-  - Góc giữa cạnh bên SC và đáy (ABCD) (khi SA ⊥ đáy): Nối hình chiếu AC ("dashed":true) và gắn angle_mark(S, C, A).
-  - Khoảng cách từ chân đường cao A đến mặt bên (SBC): Hạ AE = foot_perp(A, B, C) trên mặt đáy ("dashed":true), nối SE, rồi hạ AH = foot_perp(A, S, E) ("dashed":true, "markRightAngle":true).
+• 3. points & segments — Khai báo gộp nhiều điểm gốc & nối gộp hàng loạt nét liền/nét đứt:
+  {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2]}}
+  {"op":"segments","solid":["B-M","M-N","M-I"],"dashed":["A-C","B-D","S-O"],"aux":true,"effect":"draw","step":"Nối các đường phụ"}
+
+• 4. Bộ Macro Hình phẳng 2D Khóa Động 100%:
+  - Hai tiếp tuyến từ điểm ngoài A tới (O):
+    {"op":"tangents_from_point","p":"A","center":"O","r":2.2,"pts":["B","C"],"drawRadii":true,"step":"Kẻ hai tiếp tuyến AB, AC tới (O)"}
+  - Đường tròn ngoại tiếp & nội tiếp tam giác ABC:
+    {"op":"circumcircle","center":"O","pts":["A","B","C"],"step":"Đường tròn ngoại tiếp (O) của tam giác ABC"}
+    {"op":"incircle","center":"I","foot":"D","pts":["A","B","C"],"step":"Đường tròn nội tiếp (I) của tam giác ABC"}
+  - Trực tâm H (kèm đường cao) & Trọng tâm G:
+    {"op":"orthocenter","id":"H","pts":["A","B","C"],"drawAltitudes":true,"step":"Trực tâm H của tam giác ABC"}
+    {"op":"centroid","id":"G","pts":["A","B","C"],"drawMedians":true,"step":"Trọng tâm G của tam giác ABC"}
+  - Tam giác đều & Hình vuông khóa phép quay động:
+    {"op":"equilateral_triangle","pts":["A","B","C"],"step":"Dựng tam giác đều ABC"}
+    {"op":"square_2d","pts":["A","B","C","D"],"step":"Dựng hình vuông ABCD"}
+
+================================================================================
+PHẦN 3 — QUY TẮC VÀNG CHO CÁC DẠNG HÌNH HỌC PHỔ BIẾN
+================================================================================
+• Hình chóp S.ABCD & Thiết diện (giao tuyến, giao điểm đường - mặt):
+  - Khởi tạo ngay bằng 1 lệnh {"op":"pyramid","name":"S.ABCD","baseType":"quad","altitude":"free"} (hoặc "baseType":"parallelogram","altitude":"SA" nếu đáy là hình bình hành/chữ nhật/vuông và SA ⊥ đáy; "altitude":"face_SAB" nếu mặt bên cân ⊥ đáy; "altitude":"center" nếu chóp đều).
+  - Đoạn phụ nằm trên các mặt trước nhìn thấy -> đưa vào "solid" của "segments"; đoạn nằm trên mặt đáy, mặt sau hoặc xuyên trong lòng khối (AC, BD, SO, AM, AI) -> đưa vào "dashed" của "segments".
+  - Muốn tìm giao điểm của đường d với mặt (P): chọn mặt phụ chứa d cắt (P) theo giao tuyến Δ đồng phẳng rồi mới gọi intersection_ll(d, Δ). Nếu 2 đường song song (như MN // CD), dùng line_parallel thay vì intersection_ll!
+
+• Đường tròn (O; R), Tiếp tuyến, Nội tiếp / Ngoại tiếp 2D ("is3D": false):
+  - Dùng {"op":"circle","center":"O","r":2.2} (tự đặt tâm O(0,0) nếu chưa khai báo) kết hợp "tangents_from_point", "point_on_circle" (chọn các góc lệch nhau như 112, 210, 330 để tam giác nhọn tổng quát), "circumcircle", "incircle", "orthocenter".
 
 ================================================================================
 PHẦN 4 — HIỆU ỨNG DIỄN HOẠT TỪNG NÉT TRONG MINNOTE
@@ -331,34 +402,27 @@ PHẦN 4 — HIỆU ỨNG DIỄN HOẠT TỪNG NÉT TRONG MINNOTE
   + "pop"   : Nảy điểm nổi bật (dùng cho trung điểm, giao điểm, tiếp điểm quan trọng).
   + "glow"  : Phát sáng nhấn mạnh (dùng cho giao tuyến, tia phụ kết luận).
   + "pulse" : Nhịp sáng nhấn kết quả cuối cùng.
-  + "fade"  : Hiện êm dịu (dùng cho miền tô thiết diện polygon_fill và kí hiệu góc vuông).
-- Luôn ghi mô tả ngắn gọn, sư phạm vào trường "step" của mỗi lệnh để thanh Diễn Hoạt của MinNote thuyết minh từng bước dựng hình.
+  + "fade"  : Hiện êm dịu (dùng cho miền tô thiết diện và kí hiệu góc vuông).
+- Luôn ghi mô tả ngắn gọn, sư phạm vào trường "step" để thanh Diễn Hoạt thuyết minh từng bước.
 
 ================================================================================
-PHẦN 5 — KHUNG JSON MẪU CHUẨN DUY NHẤT CẦN XUẤT
+PHẦN 5 — KHUNG JSON MẪU CHUẨN GỌN SẠCH DUY NHẤT CẦN XUẤT
 ================================================================================
-CHỈ TRẢ VỀ ĐÚNG 1 KHỐI JSON HỢP LỆ ĐẶT TRONG CODE BLOCK \`\`\`json ... \`\`\` THEO CẤU TRÚC MẪU DƯỚI ĐÂY (không giải thích dài dòng bên ngoài khối mã, không xuất văn bản thô bị chèn ký tự escape Markdown như \\ cuối dòng hay &#x20;, không dùng dấu phẩy thừa cuối mảng, không để bình luận // bên trong JSON):
+CHỈ TRẢ VỀ ĐÚNG 1 KHỐI JSON HỢP LỆ ĐẶT TRONG CODE BLOCK \`\`\`json ... \`\`\` THEO CẤU TRÚC MẪU GỌN SẠCH DƯỚI ĐÂY (không giải thích bên ngoài khối mã, không xuất văn bản thô bị chèn ký tự escape Markdown như \\ cuối dòng hay &#x20;, không dùng dấu phẩy thừa cuối mảng, không để bình luận // trong JSON):
 
 \`\`\`json
 {
   "schema": "mn-geo-motion/2.0",
-  "title": "Hình chóp S.ABCD và giao tuyến (SAC), (SBD)",
+  "title": "Hình chóp S.ABCD, giao tuyến SO và thiết diện (ABM)",
   "is3D": true,
   "ops": [
-    {"op": "point_free", "id": "A", "label": "A", "x": -2.8, "y": 0.2, "step": "Đặt đỉnh A"},
-    {"op": "point_free", "id": "B", "label": "B", "x": -1.7, "y": -1.8, "step": "Đặt đỉnh B"},
-    {"op": "point_free", "id": "C", "label": "C", "x": 1.7, "y": -2.2, "step": "Đặt đỉnh C"},
-    {"op": "point_free", "id": "D", "label": "D", "x": 3.2, "y": 0.5, "step": "Đặt đỉnh D"},
-    {"op": "point_free", "id": "S", "label": "S", "x": 0.8, "y": 3.8, "step": "Đặt đỉnh chóp S"},
-    {"op": "connect_polygon", "pts": ["A", "B", "C", "D"], "dashedEdges": ["A-D"], "effect": "${defFx}", "step": "Dựng đáy tứ giác lồi ABCD"},
-    {"op": "segment", "a": "S", "b": "A", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SA"},
-    {"op": "segment", "a": "S", "b": "B", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SB"},
-    {"op": "segment", "a": "S", "b": "C", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SC"},
-    {"op": "segment", "a": "S", "b": "D", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SD"},
-    {"op": "segment", "a": "A", "b": "C", "dashed": true, "aux": true, "effect": "draw", "step": "Nối đường chéo đáy AC"},
-    {"op": "segment", "a": "B", "b": "D", "dashed": true, "aux": true, "effect": "draw", "step": "Nối đường chéo đáy BD"},
-    {"op": "intersection_ll", "id": "O", "label": "O", "l1": ["A", "C"], "l2": ["B", "D"], "effect": "pop", "step": "Gọi O = AC ∩ BD"},
-    {"op": "segment", "a": "S", "b": "O", "dashed": true, "aux": true, "effect": "glow", "step": "Nối giao tuyến SO = (SAC) ∩ (SBD)"}
+    {"op": "pyramid", "name": "S.ABCD", "baseType": "quad", "altitude": "free", "diagonals": true, "effect": "${defFx}", "step": "Dựng hình chóp tứ giác lồi S.ABCD và tâm O = AC ∩ BD"},
+    {"op": "segment", "s": "S-O", "dashed": true, "aux": true, "effect": "glow", "step": "Nối giao tuyến SO = (SAC) ∩ (SBD)"},
+    {"op": "midpoint", "id": "M", "s": "S-C", "effect": "pop", "step": "Lấy M là trung điểm SC"},
+    {"op": "segment", "s": "A-M", "dashed": true, "aux": true, "effect": "draw", "step": "Nối AM trong mặt phẳng (SAC)"},
+    {"op": "intersection_ll", "id": "K", "l1": "A-M", "l2": "S-O", "effect": "pop", "step": "Gọi K = AM ∩ SO trong (SAC)"},
+    {"op": "intersection_ll", "id": "I", "l1": "B-K", "l2": "S-D", "drawExtensions": true, "effect": "pulse", "step": "Trong (SBD), kéo dài BK cắt SD tại I"},
+    {"op": "connect_polygon", "pts": ["A", "B", "M", "I"], "dashedEdges": ["A-I"], "fill": "rgba(15, 23, 42, 0.06)", "effect": "fade", "step": "Khép kín thiết diện ABMI"}
   ],
   "motion": {
     "preset": "${preset}",
@@ -1259,7 +1323,10 @@ ${prob}`;
     'intersection_ll',
     'intersection_lc',
     'intersection_cc',
-    'tangent_point'
+    'tangent_point',
+    'rotate',
+    'angle_bisector',
+    'common_tangent'
   ]);
 
   const VALID_STEP_EFFECTS = new Set([
@@ -1277,23 +1344,31 @@ ${prob}`;
   ]);
 
   const OP_NAME_ALIASES = {
+    free: 'point_free',
+    pt: 'point_free',
     free_point: 'point_free',
     point: 'point_free',
+    pts: 'points',
+    sum: 'point_sum',
     sum_point: 'point_sum',
     parallelogram_point: 'point_sum',
     vector_sum: 'point_sum',
     mid: 'midpoint',
     mid_point: 'midpoint',
+    on: 'point_on_segment',
     on_segment: 'point_on_segment',
     segment_point: 'point_on_segment',
     ratio_point: 'point_on_segment',
     on_line: 'point_on_line',
     line_point: 'point_on_line',
+    on_circle: 'point_on_circle',
     foot: 'foot_perp',
     perp_foot: 'foot_perp',
     projection: 'foot_perp',
+    par: 'line_parallel',
     parallel: 'line_parallel',
     parallel_line: 'line_parallel',
+    perp: 'line_perp',
     perpendicular: 'line_perp',
     perp_line: 'line_perp',
     inter_ll: 'intersection_ll',
@@ -1304,21 +1379,1321 @@ ${prob}`;
     inter_cc: 'intersection_cc',
     intersect_cc: 'intersection_cc',
     circle_intersection: 'intersection_cc',
+    tan: 'tangent_point',
     tangent: 'tangent_point',
     tangent_from_point: 'tangent_point',
     tangents: 'tangents_from_point',
     two_tangents: 'tangents_from_point',
     tangent_pair: 'tangents_from_point',
+    ctan: 'common_tangent',
+    common_tan: 'common_tangent',
+    rot: 'rotate',
+    point_rot: 'rotate',
+    rotation: 'rotate',
+    bis: 'angle_bisector',
+    bisector: 'angle_bisector',
+    seg: 'segment',
+    segs: 'segments',
+    poly: 'connect_polygon',
     polygon: 'connect_polygon',
+    sec: 'section',
+    fill: 'polygon_fill',
     fill_polygon: 'polygon_fill',
     right: 'right_angle',
     perp_mark: 'right_angle',
+    ang: 'angle_mark',
     angle: 'angle_mark',
-    tick: 'tick_mark'
+    tick: 'tick_mark',
+    equilateral: 'equilateral_triangle',
+    square: 'square_2d',
+    frustum_cone: 'frustumCone',
+    frustumcone: 'frustumCone'
   };
 
   function cleanRef(v) {
     return v == null ? '' : String(v).trim();
+  }
+
+  function isNumericRadiusVal(val) {
+    if (typeof val === 'number') return Number.isFinite(val) && val > 0;
+    if (typeof val !== 'string') return false;
+    const s = val.trim();
+    if (!s || /^[A-Za-z_][A-Za-z0-9_']*$/.test(s)) return false;
+    const parsed = parseMathNumber(s, NaN);
+    return Number.isFinite(parsed) && parsed > 0;
+  }
+
+  function parsePairRef(val) {
+    if (Array.isArray(val) && val.length >= 2) {
+      const a = cleanRef(val[0]), b = cleanRef(val[1]);
+      return (a && b) ? [a, b] : null;
+    }
+    if (typeof val !== 'string') return null;
+    const s = val.trim();
+    if (!s) return null;
+    if (s.includes('-')) {
+      const parts = s.split(/\s*-\s*/).map(cleanRef).filter(Boolean);
+      if (parts.length >= 2) return [parts[0], parts[1]];
+    }
+    const toks = s.match(/[A-Za-zΔδαβγ](?:'+|′+|_\{\d+\}|_\d+|\d+)?/g);
+    if (toks && toks.length === 2 && toks.join('') === s.replace(/\s+/g, '')) {
+      return [toks[0], toks[1]];
+    }
+    return null;
+  }
+
+  function parseTripleRef(val) {
+    if (Array.isArray(val) && val.length >= 3) {
+      const a = cleanRef(val[0]), b = cleanRef(val[1]), c = cleanRef(val[2]);
+      return (a && b && c) ? [a, b, c] : null;
+    }
+    if (typeof val !== 'string') return null;
+    const s = val.trim();
+    if (!s) return null;
+    if (s.includes('-')) {
+      const parts = s.split(/\s*-\s*/).map(cleanRef).filter(Boolean);
+      if (parts.length >= 3) return [parts[0], parts[1], parts[2]];
+    }
+    const toks = s.match(/[A-Za-zΔδαβγ](?:'+|′+|_\{\d+\}|_\d+|\d+)?/g);
+    if (toks && toks.length === 3 && toks.join('') === s.replace(/\s+/g, '')) {
+      return [toks[0], toks[1], toks[2]];
+    }
+    return null;
+  }
+
+  function parseVertexList(val) {
+    if (Array.isArray(val)) return val.map(cleanRef).filter(Boolean);
+    if (typeof val !== 'string') return [];
+    const s = val.trim();
+    if (!s) return [];
+    if (s.includes('-') || s.includes(',')) {
+      return s.split(/\s*[-,]\s*/).map(cleanRef).filter(Boolean);
+    }
+    const toks = s.match(/[A-Za-zΔδαβγ](?:'+|′+|_\{\d+\}|_\d+|\d+)?/g);
+    return toks && toks.length ? toks : [s];
+  }
+
+  function isPlainOptsObj(v) {
+    return !!(v && typeof v === 'object' && !Array.isArray(v));
+  }
+
+  function convertTupleToOpObject(arr) {
+    if (!Array.isArray(arr) || arr.length < 2) return null;
+    const headRaw = String(arr[0] || '').trim();
+    if (!headRaw) return null;
+    const head = headRaw.toLowerCase();
+
+    if (head === 'pyramid' || head === 'chop') {
+      if (isPlainOptsObj(arr[1])) return { op: 'pyramid', ...arr[1] };
+      const out = { op: 'pyramid', name: String(arr[1] || 'S.ABCD').trim() };
+      const altSet = new Set(['free', 'sa', 'sb', 'sc', 'sd', 'center', 'regular', 'o', 'g']);
+      for (let i = 2; i < arr.length; i++) {
+        const arg = arr[i];
+        if (isPlainOptsObj(arg)) Object.assign(out, arg);
+        else if (typeof arg === 'number') out.height = arg;
+        else if (typeof arg === 'string') {
+          const al = arg.trim().toLowerCase();
+          if (altSet.has(al) || /^face_/i.test(al)) out.altitude = arg.trim();
+          else if (!out.baseType) out.baseType = arg.trim();
+          else out.altitude = arg.trim();
+        }
+      }
+      return out;
+    }
+
+    if (head === 'prism' || head === 'lang_tru') {
+      if (isPlainOptsObj(arr[1])) return { op: 'prism', ...arr[1] };
+      const out = { op: 'prism', name: String(arr[1] || "ABC.A'B'C'").trim() };
+      for (let i = 2; i < arr.length; i++) {
+        const arg = arr[i];
+        if (isPlainOptsObj(arg)) Object.assign(out, arg);
+        else if (typeof arg === 'boolean') out.upright = arg;
+        else if (typeof arg === 'number') out.height = arg;
+        else if (typeof arg === 'string') {
+          const al = arg.trim().toLowerCase();
+          if (al === 'upright' || al === 'right' || al === 'standing') out.upright = true;
+          else if (al === 'oblique' || al === 'slanted' || al === 'skew') out.upright = false;
+          else out.baseType = arg.trim();
+        }
+      }
+      return out;
+    }
+
+    if (head === 'pts' || head === 'points') {
+      return { op: 'points', pts: arr[1] || {}, ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+    }
+
+    if (head === 'free' || head === 'point_free' || head === 'pt') {
+      if (Array.isArray(arr[2])) {
+        return { op: 'point_free', id: cleanRef(arr[1]), x: arr[2][0], y: arr[2][1], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+      }
+      return { op: 'point_free', id: cleanRef(arr[1]), x: arr[2], y: arr[3], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+    }
+
+    if (head === 'sum' || head === 'point_sum') {
+      if (typeof arr[3] === 'string' && typeof arr[4] === 'string') {
+        return { op: 'point_sum', id: cleanRef(arr[1]), a: cleanRef(arr[2]), b: cleanRef(arr[3]), c: cleanRef(arr[4]), ...(isPlainOptsObj(arr[5]) ? arr[5] : {}) };
+      }
+      const tr = parseTripleRef(arr[2]);
+      if (tr) {
+        return { op: 'point_sum', id: cleanRef(arr[1]), a: tr[0], b: tr[1], c: tr[2], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+      }
+      return null;
+    }
+
+    if (head === 'mid' || head === 'midpoint') {
+      if (typeof arr[3] === 'string' && !isPlainOptsObj(arr[3])) {
+        return { op: 'midpoint', id: cleanRef(arr[1]), a: cleanRef(arr[2]), b: cleanRef(arr[3]), ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+      }
+      const pr = parsePairRef(arr[2]);
+      return pr ? { op: 'midpoint', id: cleanRef(arr[1]), a: pr[0], b: pr[1], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) } : null;
+    }
+
+    if (head === 'on' || head === 'point_on_segment' || head === 'on_line' || head === 'point_on_line') {
+      const targetOp = (head === 'on_line' || head === 'point_on_line') ? 'point_on_line' : 'point_on_segment';
+      if (typeof arr[3] === 'string' && !Number.isFinite(parseMathNumber(arr[3], NaN))) {
+        const ratioVal = (arr[4] !== undefined && !isPlainOptsObj(arr[4])) ? arr[4] : undefined;
+        const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+        return { op: targetOp, id: cleanRef(arr[1]), a: cleanRef(arr[2]), b: cleanRef(arr[3]), ...(ratioVal !== undefined ? { ratio: ratioVal } : {}), ...extra };
+      }
+      const pr = parsePairRef(arr[2]);
+      if (!pr) return null;
+      const ratioVal = (arr[3] !== undefined && !isPlainOptsObj(arr[3])) ? arr[3] : undefined;
+      const extra = isPlainOptsObj(arr[3]) ? arr[3] : (isPlainOptsObj(arr[4]) ? arr[4] : {});
+      return { op: targetOp, id: cleanRef(arr[1]), a: pr[0], b: pr[1], ...(ratioVal !== undefined ? { ratio: ratioVal } : {}), ...extra };
+    }
+
+    if (head === 'rot' || head === 'rotate' || head === 'point_rot' || head === 'rotation') {
+      if (typeof arr[3] === 'number' || (typeof arr[3] === 'string' && isNumericRadiusVal(arr[3])) || arr[3] === undefined || isPlainOptsObj(arr[3])) {
+        const pr = parsePairRef(arr[2]);
+        if (pr) {
+          const ang = (arr[3] !== undefined && !isPlainOptsObj(arr[3])) ? arr[3] : 60;
+          const extra = isPlainOptsObj(arr[3]) ? arr[3] : (isPlainOptsObj(arr[4]) ? arr[4] : {});
+          return { op: 'rotate', id: cleanRef(arr[1]), center: pr[0], point: pr[1], angleDeg: ang, ...extra };
+        }
+      }
+      const ang = (arr[4] !== undefined && !isPlainOptsObj(arr[4])) ? arr[4] : 60;
+      const kVal = (typeof arr[5] === 'number') ? arr[5] : undefined;
+      const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : (isPlainOptsObj(arr[6]) ? arr[6] : {}));
+      return { op: 'rotate', id: cleanRef(arr[1]), center: cleanRef(arr[2]), point: cleanRef(arr[3]), angleDeg: ang, ...(kVal !== undefined ? { k: kVal } : {}), ...extra };
+    }
+
+    if (head === 'bis' || head === 'angle_bisector' || head === 'bisector') {
+      if (typeof arr[3] === 'string' && typeof arr[4] === 'string') {
+        const extra = typeof arr[5] === 'boolean' ? { onOpposite: arr[5], ...(isPlainOptsObj(arr[6]) ? arr[6] : {}) } : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+        return { op: 'angle_bisector', id: cleanRef(arr[1]), a: cleanRef(arr[2]), o: cleanRef(arr[3]), b: cleanRef(arr[4]), ...extra };
+      }
+      const tr = parseTripleRef(arr[2]);
+      if (!tr) return null;
+      const extra = typeof arr[3] === 'boolean' ? { onOpposite: arr[3], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) } : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+      return { op: 'angle_bisector', id: cleanRef(arr[1]), a: tr[0], o: tr[1], b: tr[2], ...extra };
+    }
+
+    if (head === 'foot' || head === 'foot_perp') {
+      if (typeof arr[4] === 'string' && !isPlainOptsObj(arr[4])) {
+        return { op: 'foot_perp', id: cleanRef(arr[1]), p: cleanRef(arr[2]), a: cleanRef(arr[3]), b: cleanRef(arr[4]), ...(isPlainOptsObj(arr[5]) ? arr[5] : {}) };
+      }
+      const pr = parsePairRef(arr[3]);
+      return pr ? { op: 'foot_perp', id: cleanRef(arr[1]), p: cleanRef(arr[2]), a: pr[0], b: pr[1], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) } : null;
+    }
+
+    if (head === 'par' || head === 'line_parallel' || head === 'perp' || head === 'line_perp') {
+      const targetOp = (head === 'perp' || head === 'line_perp') ? 'line_perp' : 'line_parallel';
+      const idStr = cleanRef(arr[1]);
+      const isLineLbl = /^[a-zΔδαβγ][0-9']*$/.test(idStr);
+      let aSym = '', bSym = '', extra = {};
+      if (typeof arr[4] === 'string' && !isPlainOptsObj(arr[4])) {
+        aSym = cleanRef(arr[3]); bSym = cleanRef(arr[4]);
+        extra = isPlainOptsObj(arr[5]) ? arr[5] : {};
+      } else {
+        const pr = parsePairRef(arr[3]);
+        if (!pr) return null;
+        aSym = pr[0]; bSym = pr[1];
+        extra = isPlainOptsObj(arr[4]) ? arr[4] : {};
+      }
+      return {
+        op: targetOp,
+        id: idStr,
+        through: cleanRef(arr[2]),
+        a: aSym,
+        b: bSym,
+        ...(isLineLbl && extra.asLine === undefined && extra.drawSegment !== false ? { asLine: true, noDot: true, aux: true } : {}),
+        ...extra
+      };
+    }
+
+    if (head === 'inter' || head === 'inter_ll' || head === 'intersection_ll') {
+      return { op: 'intersection_ll', id: cleanRef(arr[1]), l1: arr[2], l2: arr[3], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+    }
+
+    if (head === 'inter_lc' || head === 'intersection_lc') {
+      const whichVal = (typeof arr[4] === 'number') ? arr[4] : undefined;
+      const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+      return { op: 'intersection_lc', id: cleanRef(arr[1]), line: arr[2], circle: arr[3], ...(whichVal !== undefined ? { which: whichVal } : {}), ...extra };
+    }
+
+    if (head === 'inter_cc' || head === 'intersection_cc') {
+      const whichVal = (typeof arr[4] === 'number') ? arr[4] : undefined;
+      const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+      return { op: 'intersection_cc', id: cleanRef(arr[1]), c1: arr[2], c2: arr[3], ...(whichVal !== undefined ? { which: whichVal } : {}), ...extra };
+    }
+
+    if (head === 'tan' || head === 'tangent_point' || head === 'tangents_from_point') {
+      const isPair = Array.isArray(arr[1]) || (typeof arr[1] === 'string' && arr[1].includes('-'));
+      if (isPair || head === 'tangents_from_point') {
+        const pairPts = parseVertexList(arr[1]);
+        const extP = cleanRef(arr[2]);
+        if (typeof arr[4] === 'string' || typeof arr[4] === 'number') {
+          const extra = isPlainOptsObj(arr[5]) ? arr[5] : {};
+          if (isNumericRadiusVal(arr[4])) {
+            return { op: 'tangents_from_point', pts: pairPts, p: extP, center: cleanRef(arr[3]), r: arr[4], ...extra };
+          }
+          return { op: 'tangents_from_point', pts: pairPts, p: extP, center: cleanRef(arr[3]), rim: cleanRef(arr[4]), ...extra };
+        }
+        const extra = isPlainOptsObj(arr[4]) ? arr[4] : {};
+        const cPair = parsePairRef(arr[3]);
+        if (cPair) {
+          return { op: 'tangents_from_point', pts: pairPts, p: extP, center: cPair[0], rim: cPair[1], ...extra };
+        }
+        return { op: 'tangents_from_point', pts: pairPts, p: extP, circle: arr[3], ...extra };
+      }
+      // Single tangent_point
+      const idStr = cleanRef(arr[1]);
+      const extP = cleanRef(arr[2]);
+      const cPair = parsePairRef(arr[3]);
+      if (cPair) {
+        const whichVal = typeof arr[4] === 'number' ? arr[4] : undefined;
+        const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+        return { op: 'tangent_point', id: idStr, p: extP, center: cPair[0], rim: cPair[1], ...(whichVal !== undefined ? { which: whichVal } : {}), ...extra };
+      }
+      const whichVal = typeof arr[5] === 'number' ? arr[5] : undefined;
+      const extra = isPlainOptsObj(arr[5]) ? arr[5] : (isPlainOptsObj(arr[6]) ? arr[6] : {});
+      if (isNumericRadiusVal(arr[4])) {
+        return { op: 'tangent_point', id: idStr, p: extP, center: cleanRef(arr[3]), r: arr[4], ...(whichVal !== undefined ? { which: whichVal } : {}), ...extra };
+      }
+      return { op: 'tangent_point', id: idStr, p: extP, center: cleanRef(arr[3]), rim: cleanRef(arr[4]), ...(whichVal !== undefined ? { which: whichVal } : {}), ...extra };
+    }
+
+    if (head === 'ctan' || head === 'common_tangent') {
+      return { op: 'common_tangent', id: cleanRef(arr[1]), c1: arr[2], c2: arr[3], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+    }
+
+    if (head === 'segs' || head === 'segments') {
+      const solid = Array.isArray(arr[1]) ? arr[1] : [];
+      const dashed = Array.isArray(arr[2]) ? arr[2] : [];
+      const extra = isPlainOptsObj(arr[2]) ? arr[2] : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+      return { op: 'segments', solid, dashed, ...extra };
+    }
+
+    if (head === 'seg' || head === 'segment' || head === 'line' || head === 'ray') {
+      const targetOp = head === 'seg' ? 'segment' : head;
+      const pr = parsePairRef(arr[1]);
+      if (pr && (arr.length === 2 || typeof arr[2] === 'boolean' || isPlainOptsObj(arr[2]))) {
+        const dashFlag = typeof arr[2] === 'boolean' ? arr[2] : undefined;
+        const extra = isPlainOptsObj(arr[2]) ? arr[2] : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+        return { op: targetOp, a: pr[0], b: pr[1], ...(dashFlag !== undefined ? { dashed: dashFlag } : {}), ...extra };
+      }
+      const dashFlag = typeof arr[3] === 'boolean' ? arr[3] : undefined;
+      const extra = isPlainOptsObj(arr[3]) ? arr[3] : (isPlainOptsObj(arr[4]) ? arr[4] : {});
+      return { op: targetOp, a: cleanRef(arr[1]), b: cleanRef(arr[2]), ...(dashFlag !== undefined ? { dashed: dashFlag } : {}), ...extra };
+    }
+
+    if (head === 'sec' || head === 'section' || head === 'poly' || head === 'connect_polygon') {
+      const isSec = head === 'sec' || head === 'section';
+      const ptsList = parseVertexList(arr[1]);
+      const dashedList = Array.isArray(arr[2]) ? arr[2] : undefined;
+      const extra = isPlainOptsObj(arr[2]) ? arr[2] : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+      return {
+        op: 'connect_polygon',
+        pts: ptsList,
+        ...(dashedList ? { dashedEdges: dashedList } : {}),
+        ...(isSec && !extra.fill ? { fill: 'rgba(15, 23, 42, 0.06)', effect: extra.effect || 'fade' } : {}),
+        ...extra
+      };
+    }
+
+    if (head === 'fill' || head === 'polygon_fill') {
+      const ptsList = parseVertexList(arr[1]);
+      const extra = typeof arr[2] === 'string'
+        ? { fill: arr[2], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) }
+        : (isPlainOptsObj(arr[2]) ? arr[2] : {});
+      return { op: 'polygon_fill', pts: ptsList, fill: extra.fill || 'rgba(15, 23, 42, 0.06)', ...extra };
+    }
+
+    if (head === 'circle') {
+      if (arr[2] === undefined || isPlainOptsObj(arr[2])) {
+        const pr = parsePairRef(arr[1]);
+        if (pr) return { op: 'circle', center: pr[0], rim: pr[1], ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+      }
+      if (isNumericRadiusVal(arr[2])) {
+        return { op: 'circle', center: cleanRef(arr[1]), r: arr[2], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+      }
+      return { op: 'circle', center: cleanRef(arr[1]), rim: cleanRef(arr[2]), ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+    }
+
+    if (head === 'on_circle' || head === 'point_on_circle') {
+      const pr = parsePairRef(arr[2]);
+      if (pr) {
+        const ang = (arr[3] !== undefined && !isPlainOptsObj(arr[3])) ? arr[3] : 60;
+        const extra = isPlainOptsObj(arr[3]) ? arr[3] : (isPlainOptsObj(arr[4]) ? arr[4] : {});
+        return { op: 'point_on_circle', id: cleanRef(arr[1]), center: pr[0], rim: pr[1], angleDeg: ang, ...extra };
+      }
+      const ang = (arr[4] !== undefined && !isPlainOptsObj(arr[4])) ? arr[4] : 60;
+      const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+      if (isNumericRadiusVal(arr[3])) {
+        return { op: 'point_on_circle', id: cleanRef(arr[1]), center: cleanRef(arr[2]), r: arr[3], angleDeg: ang, ...extra };
+      }
+      return { op: 'point_on_circle', id: cleanRef(arr[1]), center: cleanRef(arr[2]), rim: cleanRef(arr[3]), angleDeg: ang, ...extra };
+    }
+
+    if (head === 'circumcircle' || head === 'incircle') {
+      return { op: head, center: cleanRef(arr[1]), pts: parseVertexList(arr[2]), ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+    }
+
+    if (head === 'orthocenter' || head === 'centroid') {
+      return { op: head, id: cleanRef(arr[1]), pts: parseVertexList(arr[2]), ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+    }
+
+    if (head === 'equilateral_triangle' || head === 'equilateral') {
+      return { op: 'equilateral_triangle', pts: parseVertexList(arr[1]), ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+    }
+
+    if (head === 'square_2d' || head === 'square') {
+      return { op: 'square_2d', pts: parseVertexList(arr[1]), ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+    }
+
+    if (head === 'right' || head === 'right_angle') {
+      if (typeof arr[2] === 'string' && typeof arr[3] === 'string') {
+        return { op: 'right_angle', a: cleanRef(arr[1]), v: cleanRef(arr[2]), b: cleanRef(arr[3]), aux: true, ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+      }
+      const tr = parseTripleRef(arr[1]);
+      return tr ? { op: 'right_angle', a: tr[0], v: tr[1], b: tr[2], aux: true, ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) } : null;
+    }
+
+    if (head === 'ang' || head === 'angle_mark') {
+      if (typeof arr[2] === 'string' && typeof arr[3] === 'string') {
+        const nVal = typeof arr[4] === 'number' ? arr[4] : 1;
+        const extra = isPlainOptsObj(arr[4]) ? arr[4] : (isPlainOptsObj(arr[5]) ? arr[5] : {});
+        return { op: 'angle_mark', a: cleanRef(arr[1]), v: cleanRef(arr[2]), b: cleanRef(arr[3]), n: nVal, aux: true, ...extra };
+      }
+      const tr = parseTripleRef(arr[1]);
+      if (!tr) return null;
+      const nVal = typeof arr[2] === 'number' ? arr[2] : 1;
+      const extra = isPlainOptsObj(arr[2]) ? arr[2] : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+      return { op: 'angle_mark', a: tr[0], v: tr[1], b: tr[2], n: nVal, aux: true, ...extra };
+    }
+
+    if (head === 'tick' || head === 'tick_mark') {
+      if (typeof arr[2] === 'string' && !isPlainOptsObj(arr[2])) {
+        const nVal = typeof arr[3] === 'number' ? arr[3] : 1;
+        const extra = isPlainOptsObj(arr[3]) ? arr[3] : (isPlainOptsObj(arr[4]) ? arr[4] : {});
+        return { op: 'tick_mark', a: cleanRef(arr[1]), b: cleanRef(arr[2]), n: nVal, aux: true, ...extra };
+      }
+      const pr = parsePairRef(arr[1]);
+      if (!pr) return null;
+      const nVal = typeof arr[2] === 'number' ? arr[2] : 1;
+      const extra = isPlainOptsObj(arr[2]) ? arr[2] : (isPlainOptsObj(arr[3]) ? arr[3] : {});
+      return { op: 'tick_mark', a: pr[0], b: pr[1], n: nVal, aux: true, ...extra };
+    }
+
+    if (head === 'arc' || head === 'arc3' || head === 'sector') {
+      if (isPlainOptsObj(arr[1])) return { op: head, ...arr[1] };
+      const tr = parseTripleRef(arr[1]);
+      if (tr) return { op: head, pts: tr, ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+      return { op: head, pts: [cleanRef(arr[1]), cleanRef(arr[2]), cleanRef(arr[3])], ...(isPlainOptsObj(arr[4]) ? arr[4] : {}) };
+    }
+
+    if (head === 'cone' || head === 'cylinder' || head === 'sphere' || head === 'frustumcone' || head === 'frustum_cone') {
+      const canonical = (head === 'frustumcone' || head === 'frustum_cone') ? 'frustumCone' : head;
+      if (isPlainOptsObj(arr[1])) return { op: canonical, ...arr[1] };
+      if (Array.isArray(arr[1])) return { op: canonical, pts: arr[1].map(cleanRef), ...(isPlainOptsObj(arr[2]) ? arr[2] : {}) };
+      if (canonical === 'sphere' && isNumericRadiusVal(arr[2])) {
+        return { op: 'sphere', center: cleanRef(arr[1]), r: arr[2], ...(isPlainOptsObj(arr[3]) ? arr[3] : {}) };
+      }
+      return { op: canonical, pts: arr.slice(1).filter(x => typeof x === 'string').map(cleanRef), ...(isPlainOptsObj(arr[arr.length - 1]) ? arr[arr.length - 1] : {}) };
+    }
+
+    return null;
+  }
+
+  // ==========================================================================
+  // PASS 0: COMPACT SHORTHAND, TUPLE DSL & HIGH-LEVEL MACRO EXPANDER
+  // ==========================================================================
+  function expandCompactAiGeoMacros(parsedPlan, outFixes) {
+    const fixes = Array.isArray(outFixes) ? outFixes : [];
+    let raw = parsedPlan;
+    if (typeof raw === 'string') {
+      raw = extractJsonObject(raw, fixes);
+    }
+    if (Array.isArray(raw)) {
+      raw = { ops: raw };
+    }
+    if (!raw || typeof raw !== 'object') return raw;
+
+    const plan = JSON.parse(JSON.stringify(raw));
+    if (plan.t !== undefined && plan.title === undefined) {
+      plan.title = String(plan.t);
+      delete plan.t;
+    }
+    if (plan.m !== undefined && plan.motion === undefined) {
+      plan.motion = typeof plan.m === 'string' ? { preset: plan.m } : plan.m;
+      delete plan.m;
+    }
+    if (plan.o !== undefined && plan.ops === undefined && Array.isArray(plan.o)) {
+      plan.ops = plan.o;
+      delete plan.o;
+    }
+
+    const srcOps = Array.isArray(plan.ops)
+      ? plan.ops
+      : (Array.isArray(plan.constructions)
+        ? plan.constructions
+        : (Array.isArray(plan.steps) && plan.steps.some(s => s && (s.op || Array.isArray(s))) ? plan.steps : null));
+
+    if (!srcOps || !srcOps.length) return plan;
+
+    const outOps = [];
+    const declaredPts = new Map(); // id -> op object in outOps
+    const rimCache = new Map(); // "O::2.2" -> hidden rim point id
+    let expandedMacroCount = 0;
+
+    const emitOp = (opObj) => {
+      if (!opObj || typeof opObj !== 'object') return;
+      if (opObj.fx !== undefined && opObj.effect === undefined) {
+        opObj.effect = opObj.fx;
+        delete opObj.fx;
+      }
+      if (POINT_PRODUCING_OPS.has(opObj.op)) {
+        const pid = cleanRef(opObj.id || opObj.label);
+        if (pid) {
+          opObj.id = pid;
+          if (pid.startsWith('__')) {
+            if (opObj.label === undefined) opObj.label = '';
+            if (opObj.show === undefined) opObj.show = false;
+            if (opObj.noDot === undefined) opObj.noDot = true;
+          } else if (opObj.label === undefined) {
+            opObj.label = pid;
+          }
+          declaredPts.set(pid, opObj);
+        }
+      }
+      outOps.push(opObj);
+    };
+
+    const emitSegmentsBatch = (solidList, dashedList, sharedProps = {}) => {
+      const pushSegItem = (item, defaultDashed) => {
+        if (isPlainOptsObj(item)) {
+          const pr = (item.a && item.b) ? [cleanRef(item.a), cleanRef(item.b)] : parsePairRef(item.s || item.seg || item.edge);
+          if (pr) emitOp({ op: 'segment', ...sharedProps, ...item, a: pr[0], b: pr[1], dashed: item.dashed !== undefined ? !!item.dashed : defaultDashed });
+          return;
+        }
+        const pr = parsePairRef(item);
+        if (pr) emitOp({ op: 'segment', a: pr[0], b: pr[1], dashed: defaultDashed, ...sharedProps });
+      };
+      if (Array.isArray(solidList)) solidList.forEach(s => pushSegItem(s, false));
+      if (Array.isArray(dashedList)) dashedList.forEach(s => pushSegItem(s, true));
+    };
+
+    const emitPointIfMissing = (id, x, y, extra = {}) => {
+      const sym = cleanRef(id);
+      if (!sym || declaredPts.has(sym)) return;
+      emitOp({
+        op: 'point_free',
+        id: sym,
+        label: sym.startsWith('__') ? '' : sym,
+        x: Number(Number(x).toFixed(4)),
+        y: Number(Number(y).toFixed(4)),
+        ...extra
+      });
+    };
+
+    const ensureRimForNumericRadius = (centerSym, rawR) => {
+      const cSym = cleanRef(centerSym || 'O');
+      const rVal = parseMathNumber(rawR, NaN);
+      if (!cSym || !Number.isFinite(rVal) || rVal <= 0) return '';
+      const rKey = `${cSym}::${rVal.toFixed(6)}`;
+      if (rimCache.has(rKey)) return rimCache.get(rKey);
+
+      const rSlug = String(Number(rVal.toFixed(4))).replace(/[^0-9a-zA-Z]/g, '_');
+      const rimId = `__rim_${cSym}_${rSlug}`;
+      if (!declaredPts.has(cSym)) {
+        emitPointIfMissing(cSym, 0, 0, { step: `Đặt tâm ${cSym}` });
+      }
+      const cOp = declaredPts.get(cSym);
+      if (cOp && cOp.op === 'point_free') {
+        const cx = parseMathNumber(cOp.x ?? 0, 0);
+        const cy = parseMathNumber(cOp.y ?? 0, 0);
+        emitOp({
+          op: 'point_free',
+          id: rimId,
+          label: '',
+          x: Number((cx + rVal).toFixed(6)),
+          y: Number(cy.toFixed(6)),
+          show: false,
+          noDot: true
+        });
+      } else {
+        const u0Id = '__unit_o';
+        const uxId = `__unit_x_${rSlug}`;
+        emitPointIfMissing(u0Id, 0, 0, { label: '', show: false, noDot: true });
+        emitPointIfMissing(uxId, rVal, 0, { label: '', show: false, noDot: true });
+        emitOp({
+          op: 'point_sum',
+          id: rimId,
+          label: '',
+          a: cSym,
+          b: uxId,
+          c: u0Id,
+          show: false,
+          noDot: true
+        });
+      }
+      rimCache.set(rKey, rimId);
+      return rimId;
+    };
+
+    const normalizeCirclePairSlot = (slotVal) => {
+      if (!slotVal) return slotVal;
+      if (Array.isArray(slotVal) && slotVal.length >= 2) {
+        if (isNumericRadiusVal(slotVal[1])) {
+          return [cleanRef(slotVal[0]), ensureRimForNumericRadius(slotVal[0], slotVal[1])];
+        }
+        return [cleanRef(slotVal[0]), cleanRef(slotVal[1])];
+      }
+      if (isPlainOptsObj(slotVal) && (slotVal.center || slotVal.o)) {
+        const cSym = cleanRef(slotVal.center || slotVal.o);
+        if (slotVal.rim === undefined && isNumericRadiusVal(slotVal.r ?? slotVal.radius)) {
+          return [cSym, ensureRimForNumericRadius(cSym, slotVal.r ?? slotVal.radius)];
+        }
+        return [cSym, cleanRef(slotVal.rim || slotVal.r)];
+      }
+      if (typeof slotVal === 'string') {
+        const s = slotVal.trim();
+        const dashIdx = s.indexOf('-');
+        if (dashIdx > 0) {
+          const left = cleanRef(s.slice(0, dashIdx));
+          const right = cleanRef(s.slice(dashIdx + 1));
+          if (left && isNumericRadiusVal(right)) {
+            return [left, ensureRimForNumericRadius(left, right)];
+          }
+        }
+        const pr = parsePairRef(s);
+        if (pr) return pr;
+      }
+      return slotVal;
+    };
+
+    for (const rawItem of srcOps) {
+      let op = null;
+      if (Array.isArray(rawItem)) {
+        op = convertTupleToOpObject(rawItem);
+        if (op) expandedMacroCount++;
+      } else if (rawItem && typeof rawItem === 'object') {
+        op = { ...rawItem };
+      }
+      if (!op) continue;
+
+      if (op.fx !== undefined && op.effect === undefined) {
+        op.effect = op.fx;
+        delete op.fx;
+      }
+
+      const rawOpName = String(op.op || op.type || '').trim();
+      if (!rawOpName) continue;
+      const low = rawOpName.toLowerCase();
+
+      if (low === 'tan' && (Array.isArray(op.pts) || Array.isArray(op.ids) || (typeof op.pts === 'string' && op.pts.length >= 2))) {
+        op.op = 'tangents_from_point';
+      } else if (low === 'inter' || low === 'intersection') {
+        op.op = ((op.c1 && op.c2) || (op.circle1 && op.circle2))
+          ? 'intersection_cc'
+          : ((op.circle || op.c2) ? 'intersection_lc' : 'intersection_ll');
+      } else if (OP_NAME_ALIASES[low]) {
+        if (low === 'point' && op.x === undefined && op.y === undefined) continue;
+        op.op = OP_NAME_ALIASES[low];
+      } else {
+        op.op = low;
+      }
+
+      // 1. Batch `points`
+      if (op.op === 'points') {
+        expandedMacroCount++;
+        const ptsSrc = op.pts || op.points || {};
+        if (Array.isArray(ptsSrc)) {
+          for (const entry of ptsSrc) {
+            if (Array.isArray(entry) && entry.length >= 3) {
+              emitOp({ op: 'point_free', id: cleanRef(entry[0]), x: entry[1], y: entry[2], ...(isPlainOptsObj(entry[3]) ? entry[3] : {}) });
+            } else if (isPlainOptsObj(entry) && (entry.id || entry.label)) {
+              emitOp({ op: 'point_free', ...entry });
+            }
+          }
+        } else if (isPlainOptsObj(ptsSrc)) {
+          for (const [k, v] of Object.entries(ptsSrc)) {
+            if (Array.isArray(v) && v.length >= 2) {
+              emitOp({ op: 'point_free', id: cleanRef(k), x: v[0], y: v[1], ...(isPlainOptsObj(v[2]) ? v[2] : {}) });
+            } else if (isPlainOptsObj(v)) {
+              emitOp({ op: 'point_free', id: cleanRef(k), ...v });
+            }
+          }
+        }
+        continue;
+      }
+
+      // 2. Batch `segments`
+      if (op.op === 'segments') {
+        expandedMacroCount++;
+        const shared = {};
+        for (const k of ['aux', 'effect', 'easing', 'durationMul', 'delayMs', 'pauseAfter', 'color', 'width', 'explicitColor', 'explicitWidth', 'arrow', 'rev', 'step']) {
+          if (op[k] !== undefined) shared[k] = op[k];
+        }
+        emitSegmentsBatch(op.solid, op.dashed, shared);
+        if (Array.isArray(op.edges)) {
+          const defDash = !!(op.dashedFlag || op.dashed === true);
+          emitSegmentsBatch(defDash ? [] : op.edges, defDash ? op.edges : [], shared);
+        }
+        continue;
+      }
+
+      // 3. High-Level 3D `pyramid` Macro
+      if (op.op === 'pyramid') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = true;
+        let apex = cleanRef(op.apex || 'S');
+        let base = Array.isArray(op.base) ? parseVertexList(op.base) : (typeof op.base === 'string' ? parseVertexList(op.base) : []);
+        if (op.name && typeof op.name === 'string') {
+          const dotIdx = op.name.indexOf('.');
+          if (dotIdx > 0) {
+            apex = cleanRef(op.name.slice(0, dotIdx)) || apex;
+            const parsedB = parseVertexList(op.name.slice(dotIdx + 1));
+            if (parsedB.length >= 3) base = parsedB;
+          } else {
+            const parsedAll = parseVertexList(op.name);
+            if (parsedAll.length >= 4) { apex = parsedAll[0]; base = parsedAll.slice(1); }
+          }
+        }
+        const bTypeRaw = String(op.baseType || op.base_type || '').trim().toLowerCase();
+        if (!base.length) {
+          base = (bTypeRaw === 'triangle' || bTypeRaw === 'tam_giac') ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+        }
+        const altRaw = String(op.altitude || op.alt || 'free').trim();
+        const altLow = altRaw.toLowerCase();
+        const hasExplicitH = op.height !== undefined || op.h !== undefined;
+        const h = hasExplicitH ? parseMathNumber(op.height ?? op.h, 3.8) : 3.8;
+        const mainFx = op.effect || undefined;
+        const fxProp = mainFx ? { effect: mainFx } : {};
+
+        if (base.length === 3) {
+          const [b0, b1, b2] = base;
+          emitPointIfMissing(b0, -2.6, 0.2);
+          emitPointIfMissing(b1, -0.5, -1.8);
+          emitPointIfMissing(b2, 2.8, 0.1);
+          emitOp({ op: 'connect_polygon', pts: [b0, b1, b2], dashedEdges: [`${b0}-${b2}`], ...fxProp, step: `Dựng đáy tam giác ${b0}${b1}${b2}` });
+
+          if (altLow === 'sa' || altLow === (`s${b0}`).toLowerCase() || altLow === b0.toLowerCase()) {
+            emitPointIfMissing(apex, -2.6, hasExplicitH ? Number((0.2 + h).toFixed(4)) : 3.8);
+            emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`], [], fxProp);
+            emitOp({ op: 'right_angle', a: apex, v: b0, b: b1, aux: true, step: `Góc vuông ${apex}${b0} ⊥ đáy` });
+            emitOp({ op: 'right_angle', a: apex, v: b0, b: b2, aux: true });
+          } else if (altLow === 'sb' || altLow === (`s${b1}`).toLowerCase() || altLow === b1.toLowerCase()) {
+            emitPointIfMissing(apex, -0.5, Number((-1.8 + h).toFixed(4)));
+            emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`], [], fxProp);
+            emitOp({ op: 'right_angle', a: apex, v: b1, b: b0, aux: true });
+            emitOp({ op: 'right_angle', a: apex, v: b1, b: b2, aux: true });
+          } else if (/^face_/i.test(altLow) || altLow === 'face') {
+            const footId = cleanRef(op.footId || op.foot || 'H');
+            emitOp({ op: 'midpoint', id: footId, a: b0, b: b1, step: `Trung điểm ${footId} của ${b0}${b1}` });
+            emitPointIfMissing(apex, -1.55, Number((-0.8 + h).toFixed(4)));
+            emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`], [], fxProp);
+            emitOp({ op: 'segment', a: apex, b: footId, dashed: false, aux: true, step: `Đường cao ${apex}${footId} ⊥ (${b0}${b1}${b2})` });
+            emitOp({ op: 'right_angle', a: apex, v: footId, b: b0, aux: true });
+          } else if (altLow === 'center' || altLow === 'regular' || altLow === 'o' || altLow === 'g') {
+            const gId = cleanRef(op.centerId || op.footId || 'O');
+            const mBc = `__mid_${b1}_${b2}_${gId}`;
+            const mAc = `__mid_${b0}_${b2}_${gId}`;
+            emitOp({ op: 'midpoint', id: mBc, label: '', a: b1, b: b2, show: false, noDot: true });
+            emitOp({ op: 'midpoint', id: mAc, label: '', a: b0, b: b2, show: false, noDot: true });
+            emitOp({ op: 'intersection_ll', id: gId, l1: [b0, mBc], l2: [b1, mAc], noAutoConnect: true, step: `Trọng tâm ${gId} của đáy ${b0}${b1}${b2}` });
+            emitPointIfMissing(apex, -0.1, Number((-0.5 + (hasExplicitH ? h : 3.9)).toFixed(4)));
+            emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`], [], fxProp);
+            emitOp({ op: 'segment', a: apex, b: gId, dashed: true, aux: true, step: `Đường cao ${apex}${gId}` });
+          } else {
+            emitPointIfMissing(apex, 0.2, h);
+            emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`], [], fxProp);
+          }
+        } else {
+          const [b0, b1, b2, b3] = base;
+          const isPara = ['parallelogram', 'rect', 'rectangle', 'square', 'rhombus', 'hbh'].includes(bTypeRaw);
+          const isTrap = bTypeRaw === 'trapezoid' || bTypeRaw === 'hinh_thang' || bTypeRaw === 'hinhthang';
+
+          if (isPara) {
+            emitPointIfMissing(b0, -2.2, 0);
+            emitPointIfMissing(b1, -3.6, -1.8);
+            emitPointIfMissing(b3, 2.6, 0);
+            if (!declaredPts.has(b2)) {
+              emitOp({ op: 'point_sum', id: b2, a: b1, b: b3, c: b0, step: `Dựng đỉnh ${b2} = ${b1} + ${b3} - ${b0}` });
+            }
+            emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b1}`, `${b0}-${b3}`], ...fxProp, step: `Dựng đáy ${b0}${b1}${b2}${b3}` });
+
+            if (altLow === 'sa' || altLow === (`s${b0}`).toLowerCase() || altLow === b0.toLowerCase()) {
+              emitPointIfMissing(apex, -2.2, h);
+              emitSegmentsBatch([`${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [`${apex}-${b0}`], fxProp);
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b1, aux: true, step: `Góc vuông ${apex}${b0} ⊥ đáy` });
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b3, aux: true });
+            } else if (altLow === 'sb' || altLow === (`s${b1}`).toLowerCase() || altLow === b1.toLowerCase()) {
+              emitPointIfMissing(apex, -3.6, Number((-1.8 + h).toFixed(4)));
+              emitSegmentsBatch([`${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [`${apex}-${b0}`], fxProp);
+              emitOp({ op: 'right_angle', a: apex, v: b1, b: b0, aux: true });
+              emitOp({ op: 'right_angle', a: apex, v: b1, b: b2, aux: true });
+            } else if (/^face_/i.test(altLow) || altLow === 'face') {
+              const footId = cleanRef(op.footId || op.foot || 'H');
+              emitOp({ op: 'midpoint', id: footId, a: b0, b: b1, step: `Trung điểm ${footId} của ${b0}${b1}` });
+              emitPointIfMissing(apex, -2.9, hasExplicitH ? Number((-0.9 + h).toFixed(4)) : 2.9);
+              emitSegmentsBatch([`${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [`${apex}-${b0}`], fxProp);
+              emitOp({ op: 'segment', a: apex, b: footId, dashed: true, aux: true, step: `Đường cao ${apex}${footId} ⊥ (${b0}${b1}${b2}${b3})` });
+              emitOp({ op: 'right_angle', a: apex, v: footId, b: b0, aux: true });
+            } else if (altLow === 'center' || altLow === 'regular' || altLow === 'o') {
+              const oId = cleanRef(op.centerId || op.footId || 'O');
+              emitSegmentsBatch([], [`${b0}-${b2}`, `${b1}-${b3}`], { aux: true });
+              emitOp({ op: 'intersection_ll', id: oId, l1: [b0, b2], l2: [b1, b3], step: `Tâm đáy ${oId} = ${b0}${b2} ∩ ${b1}${b3}` });
+              emitPointIfMissing(apex, -0.5, hasExplicitH ? Number((-0.9 + h).toFixed(4)) : 3.3);
+              emitSegmentsBatch([`${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [`${apex}-${b0}`], fxProp);
+              emitOp({ op: 'segment', a: apex, b: oId, dashed: true, aux: true, step: `Đường cao ${apex}${oId}` });
+              emitOp({ op: 'right_angle', a: apex, v: oId, b: b3, aux: true });
+            } else {
+              emitPointIfMissing(apex, -0.8, h);
+              emitSegmentsBatch([`${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [`${apex}-${b0}`], fxProp);
+            }
+          } else if (isTrap) {
+            const parSpec = String(op.parallel || '').replace(/\s+/g, '').toUpperCase();
+            const isABparCD = parSpec === `${b0}${b1}//${b2}${b3}` || parSpec === `${b0}${b1}//${b3}${b2}`;
+            if (isABparCD) {
+              emitPointIfMissing(b0, -3.0, 0.3);
+              emitPointIfMissing(b1, 3.0, 0.3);
+              emitPointIfMissing(b3, -1.5, -1.8);
+              if (!declaredPts.has(b2)) {
+                emitOp({ op: 'line_parallel', id: b2, through: b3, a: b0, b: b1, k: 0.52, drawSegment: false, step: `Đỉnh ${b2} sao cho ${b2}${b3} // ${b0}${b1}` });
+              }
+              emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b1}`], ...fxProp, step: `Dựng đáy hình thang ${b0}${b1}${b2}${b3}` });
+            } else {
+              emitPointIfMissing(b0, -3.0, 0.3);
+              emitPointIfMissing(b1, -1.6, -1.8);
+              emitPointIfMissing(b3, 3.0, 0.3);
+              if (!declaredPts.has(b2)) {
+                emitOp({ op: 'line_parallel', id: b2, through: b1, a: b0, b: b3, k: 0.52, drawSegment: false, step: `Đỉnh ${b2} sao cho ${b1}${b2} // ${b0}${b3}` });
+              }
+              emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b3}`], ...fxProp, step: `Dựng đáy hình thang ${b0}${b1}${b2}${b3}` });
+            }
+
+            if (altLow === 'sa' || altLow === (`s${b0}`).toLowerCase() || altLow === b0.toLowerCase()) {
+              emitPointIfMissing(apex, -3.0, h);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b1, aux: true, step: `Góc vuông ${apex}${b0} ⊥ đáy` });
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b3, aux: true });
+            } else if (/^face_/i.test(altLow) || altLow === 'face') {
+              const footId = cleanRef(op.footId || op.foot || 'H');
+              emitOp({ op: 'midpoint', id: footId, a: b0, b: b1 });
+              emitPointIfMissing(apex, -2.3, Number((-0.75 + h).toFixed(4)));
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'segment', a: apex, b: footId, dashed: isABparCD, aux: true });
+              emitOp({ op: 'right_angle', a: apex, v: footId, b: b0, aux: true });
+            } else if (altLow === 'center' || altLow === 'o') {
+              const oId = cleanRef(op.centerId || op.footId || 'O');
+              emitSegmentsBatch([], [`${b0}-${b2}`, `${b1}-${b3}`], { aux: true });
+              emitOp({ op: 'intersection_ll', id: oId, l1: [b0, b2], l2: [b1, b3] });
+              emitPointIfMissing(apex, -0.05, h);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'segment', a: apex, b: oId, dashed: true, aux: true });
+              emitOp({ op: 'right_angle', a: apex, v: oId, b: b3, aux: true });
+            } else {
+              emitPointIfMissing(apex, 0.3, h);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+            }
+          } else {
+            // General convex quad S.ABCD
+            emitPointIfMissing(b0, -2.8, 0.2);
+            emitPointIfMissing(b1, -1.7, -1.8);
+            emitPointIfMissing(b2, 1.7, -2.2);
+            emitPointIfMissing(b3, 3.2, 0.5);
+            emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b3}`], ...fxProp, step: `Dựng đáy tứ giác lồi ${b0}${b1}${b2}${b3}` });
+
+            if (altLow === 'sa' || altLow === (`s${b0}`).toLowerCase() || altLow === b0.toLowerCase()) {
+              emitPointIfMissing(apex, -2.8, h);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b1, aux: true, step: `Góc vuông ${apex}${b0} ⊥ đáy` });
+              emitOp({ op: 'right_angle', a: apex, v: b0, b: b3, aux: true });
+            } else if (/^face_/i.test(altLow) || altLow === 'face') {
+              const footId = cleanRef(op.footId || op.foot || 'H');
+              emitOp({ op: 'midpoint', id: footId, a: b0, b: b1 });
+              emitPointIfMissing(apex, -2.25, Number((-0.8 + h).toFixed(4)));
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'segment', a: apex, b: footId, dashed: false, aux: true });
+              emitOp({ op: 'right_angle', a: apex, v: footId, b: b0, aux: true });
+            } else if (altLow === 'center' || altLow === 'o') {
+              const oId = cleanRef(op.centerId || op.footId || 'O');
+              emitSegmentsBatch([], [`${b0}-${b2}`, `${b1}-${b3}`], { aux: true });
+              emitOp({ op: 'intersection_ll', id: oId, l1: [b0, b2], l2: [b1, b3] });
+              emitPointIfMissing(apex, -0.17, hasExplicitH ? Number((-0.77 + h).toFixed(4)) : 3.8);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+              emitOp({ op: 'segment', a: apex, b: oId, dashed: true, aux: true });
+              emitOp({ op: 'right_angle', a: apex, v: oId, b: b3, aux: true });
+            } else {
+              emitPointIfMissing(apex, 0.8, h);
+              emitSegmentsBatch([`${apex}-${b0}`, `${apex}-${b1}`, `${apex}-${b2}`, `${apex}-${b3}`], [], fxProp);
+            }
+          }
+
+          if (op.diagonals && altLow !== 'center' && altLow !== 'regular' && altLow !== 'o') {
+            const oId = cleanRef(op.centerId || 'O');
+            emitSegmentsBatch([], [`${b0}-${b2}`, `${b1}-${b3}`], { aux: true });
+            emitOp({ op: 'intersection_ll', id: oId, l1: [b0, b2], l2: [b1, b3], effect: 'pop', step: `Giao điểm ${oId} = ${b0}${b2} ∩ ${b1}${b3}` });
+          }
+        }
+        continue;
+      }
+
+      // 4. High-Level 3D `prism` Macro
+      if (op.op === 'prism') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = true;
+        let botPts = Array.isArray(op.base) ? parseVertexList(op.base) : (typeof op.base === 'string' ? parseVertexList(op.base) : []);
+        let topPts = Array.isArray(op.top) ? parseVertexList(op.top) : (typeof op.top === 'string' ? parseVertexList(op.top) : []);
+        if (op.name && typeof op.name === 'string') {
+          const dotIdx = op.name.indexOf('.');
+          if (dotIdx > 0) {
+            const bParsed = parseVertexList(op.name.slice(0, dotIdx));
+            const tParsed = parseVertexList(op.name.slice(dotIdx + 1));
+            if (bParsed.length >= 3 && tParsed.length === bParsed.length) {
+              botPts = bParsed;
+              topPts = tParsed;
+            }
+          }
+        }
+        const bTypeRaw = String(op.baseType || op.base_type || '').trim().toLowerCase();
+        const is4Gon = botPts.length === 4 || (!botPts.length && ['parallelogram', 'box', 'rect', 'rectangle', 'square', 'rhombus', 'quad'].includes(bTypeRaw));
+        if (!botPts.length) botPts = is4Gon ? ['A', 'B', 'C', 'D'] : ['A', 'B', 'C'];
+        if (topPts.length !== botPts.length) topPts = botPts.map(v => `${v}'`);
+
+        const upright = op.oblique === true ? false : (op.upright !== undefined ? !!op.upright : true);
+        const h = (op.height !== undefined || op.h !== undefined) ? parseMathNumber(op.height ?? op.h, 3.5) : 3.5;
+        const dx = upright ? 0 : (op.dx !== undefined ? parseMathNumber(op.dx, 0.75) : 0.75);
+        const mainFx = op.effect || undefined;
+        const fxProp = mainFx ? { effect: mainFx } : {};
+
+        if (botPts.length === 3) {
+          const [b0, b1, b2] = botPts;
+          const [t0, t1, t2] = topPts;
+          emitPointIfMissing(b0, -2.6, -1.2);
+          emitPointIfMissing(b1, -0.6, -2.6);
+          emitPointIfMissing(b2, 2.4, -1.2);
+          emitOp({ op: 'connect_polygon', pts: [b0, b1, b2], dashedEdges: [`${b0}-${b2}`], ...fxProp, step: `Dựng đáy dưới ${b0}${b1}${b2}` });
+          emitPointIfMissing(t0, Number((-2.6 + dx).toFixed(4)), Number((-1.2 + h).toFixed(4)));
+          if (!declaredPts.has(t1)) emitOp({ op: 'point_sum', id: t1, a: b1, b: t0, c: b0 });
+          if (!declaredPts.has(t2)) emitOp({ op: 'point_sum', id: t2, a: b2, b: t0, c: b0 });
+          emitOp({ op: 'connect_polygon', pts: [t0, t1, t2], dashedEdges: [], ...fxProp, step: `Dựng đáy trên ${t0}${t1}${t2}` });
+          emitSegmentsBatch([`${b0}-${t0}`, `${b1}-${t1}`, `${b2}-${t2}`], [], fxProp);
+          if (upright) {
+            emitOp({ op: 'right_angle', a: t0, v: b0, b: b1, aux: true });
+          }
+        } else {
+          const [b0, b1, b2, b3] = botPts;
+          const [t0, t1, t2, t3] = topPts;
+          emitPointIfMissing(b0, -2.2, -1.0);
+          emitPointIfMissing(b1, -3.6, -2.5);
+          emitPointIfMissing(b3, 2.4, -1.0);
+          if (!declaredPts.has(b2)) emitOp({ op: 'point_sum', id: b2, a: b1, b: b3, c: b0 });
+          emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b1}`, `${b0}-${b3}`], ...fxProp, step: `Dựng đáy dưới ${b0}${b1}${b2}${b3}` });
+          emitPointIfMissing(t0, Number((-2.2 + dx).toFixed(4)), Number((-1.0 + h).toFixed(4)));
+          if (!declaredPts.has(t1)) emitOp({ op: 'point_sum', id: t1, a: b1, b: t0, c: b0 });
+          if (!declaredPts.has(t2)) emitOp({ op: 'point_sum', id: t2, a: b2, b: t0, c: b0 });
+          if (!declaredPts.has(t3)) emitOp({ op: 'point_sum', id: t3, a: b3, b: t0, c: b0 });
+          emitOp({ op: 'connect_polygon', pts: [t0, t1, t2, t3], dashedEdges: [], ...fxProp, step: `Dựng đáy trên ${t0}${t1}${t2}${t3}` });
+          emitSegmentsBatch([`${b1}-${t1}`, `${b2}-${t2}`, `${b3}-${t3}`], [`${b0}-${t0}`], fxProp);
+          if (upright) {
+            emitOp({ op: 'right_angle', a: t0, v: b0, b: b1, aux: true });
+            emitOp({ op: 'right_angle', a: t0, v: b0, b: b3, aux: true });
+          }
+        }
+        continue;
+      }
+
+      // 5. 2D Dynamic Macros
+      if (op.op === 'equilateral_triangle') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = false;
+        const [pA, pB, pC] = parseVertexList(op.pts || ['A', 'B', 'C']);
+        if (pA && pB && pC) {
+          emitPointIfMissing(pA, -2.0, -1.2);
+          emitPointIfMissing(pB, 2.0, -1.2);
+          emitOp({ op: 'rotate', id: pC, center: pA, point: pB, angleDeg: op.clockwise ? -60 : 60, k: 1, step: op.step || `Đỉnh ${pC} của tam giác đều ${pA}${pB}${pC}` });
+          if (op.drawPolygon !== false) {
+            emitOp({ op: 'connect_polygon', pts: [pA, pB, pC], ...(op.fill ? { fill: op.fill } : {}), step: `Nối tam giác đều ${pA}${pB}${pC}` });
+          }
+        }
+        continue;
+      }
+
+      if (op.op === 'square_2d') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = false;
+        const [pA, pB, pC, pD] = parseVertexList(op.pts || ['A', 'B', 'C', 'D']);
+        if (pA && pB && pC && pD) {
+          emitPointIfMissing(pA, -1.8, -1.8);
+          emitPointIfMissing(pB, 1.8, -1.8);
+          emitOp({ op: 'rotate', id: pD, center: pA, point: pB, angleDeg: op.clockwise ? -90 : 90, k: 1, step: `Đỉnh ${pD} quay 90° từ ${pB} quanh ${pA}` });
+          emitOp({ op: 'point_sum', id: pC, a: pB, b: pD, c: pA, step: `Đỉnh ${pC} của hình vuông ${pA}${pB}${pC}${pD}` });
+          if (op.drawPolygon !== false) {
+            emitOp({ op: 'connect_polygon', pts: [pA, pB, pC, pD], ...(op.fill ? { fill: op.fill } : {}), step: op.step || `Nối hình vuông ${pA}${pB}${pC}${pD}` });
+          }
+          if (op.markRightAngle !== false) {
+            emitOp({ op: 'right_angle', a: pD, v: pA, b: pB, aux: true });
+          }
+        }
+        continue;
+      }
+
+      if (op.op === 'centroid') {
+        expandedMacroCount++;
+        const gId = cleanRef(op.id || op.center || op.label || 'G');
+        const [pA, pB, pC] = parseVertexList(op.pts || ['A', 'B', 'C']);
+        if (gId && pA && pB && pC) {
+          emitPointIfMissing(pA, -2.4, -1.4);
+          emitPointIfMissing(pB, 2.6, -1.4);
+          emitPointIfMissing(pC, -0.4, 2.4);
+          const mBC = cleanRef(op.midBC || `__mid_${pB}_${pC}_${gId}`);
+          const mAC = cleanRef(op.midAC || `__mid_${pA}_${pC}_${gId}`);
+          emitOp({ op: 'midpoint', id: mBC, label: op.midBC ? op.midBC : '', a: pB, b: pC, show: !!op.midBC, noDot: !op.midBC });
+          emitOp({ op: 'midpoint', id: mAC, label: op.midAC ? op.midAC : '', a: pA, b: pC, show: !!op.midAC, noDot: !op.midAC });
+          if (op.drawMedians) {
+            const mAB = cleanRef(op.midAB || `__mid_${pA}_${pB}_${gId}`);
+            emitOp({ op: 'midpoint', id: mAB, label: op.midAB ? op.midAB : '', a: pA, b: pB, show: !!op.midAB, noDot: !op.midAB });
+            emitSegmentsBatch(op.dashed ? [] : [`${pA}-${mBC}`, `${pB}-${mAC}`, `${pC}-${mAB}`], op.dashed ? [`${pA}-${mBC}`, `${pB}-${mAC}`, `${pC}-${mAB}`] : [], { aux: true });
+          }
+          emitOp({
+            op: 'intersection_ll',
+            id: gId,
+            label: op.label !== undefined ? op.label : gId,
+            l1: [pA, mBC],
+            l2: [pB, mAC],
+            noAutoConnect: !op.drawMedians,
+            effect: op.effect || 'pop',
+            step: op.step || `Trọng tâm ${gId} của tam giác ${pA}${pB}${pC}`
+          });
+        }
+        continue;
+      }
+
+      if (op.op === 'orthocenter') {
+        expandedMacroCount++;
+        const hId = cleanRef(op.id || op.center || op.label || 'H');
+        const [pA, pB, pC] = parseVertexList(op.pts || ['A', 'B', 'C']);
+        if (hId && pA && pB && pC) {
+          emitPointIfMissing(pA, -2.4, -1.5);
+          emitPointIfMissing(pB, 2.6, -1.5);
+          emitPointIfMissing(pC, -0.6, 2.5);
+          const drawAlt = op.drawAltitudes !== false;
+          const fA = cleanRef(op.footA || `__foot_${pA}_${hId}`);
+          const fB = cleanRef(op.footB || `__foot_${pB}_${hId}`);
+          emitOp({ op: 'foot_perp', id: fA, label: op.footA ? op.footA : '', p: pA, a: pB, b: pC, show: !!op.footA, noDot: !op.footA, drawDropSegment: drawAlt, markRightAngle: drawAlt, aux: true, ...(op.dashed !== undefined ? { dashed: !!op.dashed } : {}) });
+          emitOp({ op: 'foot_perp', id: fB, label: op.footB ? op.footB : '', p: pB, a: pA, b: pC, show: !!op.footB, noDot: !op.footB, drawDropSegment: drawAlt, markRightAngle: drawAlt, aux: true, ...(op.dashed !== undefined ? { dashed: !!op.dashed } : {}) });
+          emitOp({
+            op: 'intersection_ll',
+            id: hId,
+            label: op.label !== undefined ? op.label : hId,
+            l1: [pA, fA],
+            l2: [pB, fB],
+            drawExtensions: drawAlt,
+            noAutoConnect: !drawAlt,
+            effect: op.effect || 'pop',
+            step: op.step || `Trực tâm ${hId} của tam giác ${pA}${pB}${pC}`
+          });
+        }
+        continue;
+      }
+
+      if (op.op === 'circumcircle') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = false;
+        const oId = cleanRef(op.center || op.id || op.o || 'O');
+        const [pA, pB, pC] = parseVertexList(op.pts || ['A', 'B', 'C']);
+        if (oId && pA && pB && pC) {
+          emitPointIfMissing(pA, -2.3, -1.4);
+          emitPointIfMissing(pB, 2.5, -1.4);
+          emitPointIfMissing(pC, -0.5, 2.3);
+          const mAB = `__cmid_${pA}${pB}_${oId}`;
+          const mBC = `__cmid_${pB}${pC}_${oId}`;
+          const pAB = `__cperp_${pA}${pB}_${oId}`;
+          const pBC = `__cperp_${pB}${pC}_${oId}`;
+          emitOp({ op: 'midpoint', id: mAB, label: '', a: pA, b: pB, show: false, noDot: true });
+          emitOp({ op: 'midpoint', id: mBC, label: '', a: pB, b: pC, show: false, noDot: true });
+          emitOp({ op: 'line_perp', id: pAB, label: '', through: mAB, a: pA, b: pB, k: 1, drawSegment: false, show: false, noDot: true });
+          emitOp({ op: 'line_perp', id: pBC, label: '', through: mBC, a: pB, b: pC, k: 1, drawSegment: false, show: false, noDot: true });
+          const showCenter = op.drawCenter !== false && op.showCenter !== false && op.show !== false;
+          emitOp({
+            op: 'intersection_ll',
+            id: oId,
+            label: showCenter ? (op.label !== undefined ? op.label : oId) : '',
+            l1: [mAB, pAB],
+            l2: [mBC, pBC],
+            show: showCenter,
+            noDot: !showCenter,
+            noAutoConnect: true,
+            effect: op.effect || 'pop',
+            step: `Tâm đường tròn ngoại tiếp ${oId}`
+          });
+          if (op.drawCircle !== false) {
+            emitOp({ op: 'circle', center: oId, rim: pA, dashed: !!op.dashed, step: op.step || `Đường tròn ngoại tiếp (${oId}) qua ${pA}, ${pB}, ${pC}` });
+          }
+        }
+        continue;
+      }
+
+      if (op.op === 'incircle') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = false;
+        const iId = cleanRef(op.center || op.id || op.o || 'I');
+        const footId = cleanRef(op.foot || op.rim || `__ifoot_${iId}`);
+        const [pA, pB, pC] = parseVertexList(op.pts || ['A', 'B', 'C']);
+        if (iId && pA && pB && pC) {
+          emitPointIfMissing(pA, -2.4, -1.5);
+          emitPointIfMissing(pB, 2.6, -1.5);
+          emitPointIfMissing(pC, -0.4, 2.3);
+          const bA = `__ibis_${pA}_${iId}`;
+          const bB = `__ibis_${pB}_${iId}`;
+          emitOp({ op: 'angle_bisector', id: bA, label: '', a: pB, o: pA, b: pC, show: false, noDot: true });
+          emitOp({ op: 'angle_bisector', id: bB, label: '', a: pA, o: pB, b: pC, show: false, noDot: true });
+          const showCenter = op.drawCenter !== false && op.showCenter !== false && op.show !== false;
+          emitOp({
+            op: 'intersection_ll',
+            id: iId,
+            label: showCenter ? (op.label !== undefined ? op.label : iId) : '',
+            l1: [pA, bA],
+            l2: [pB, bB],
+            show: showCenter,
+            noDot: !showCenter,
+            noAutoConnect: true,
+            effect: op.effect || 'pop',
+            step: `Tâm đường tròn nội tiếp ${iId}`
+          });
+          emitOp({
+            op: 'foot_perp',
+            id: footId,
+            label: op.showFoot ? footId : '',
+            p: iId,
+            a: pB,
+            b: pC,
+            drawDropSegment: !!op.drawRadius,
+            markRightAngle: !!op.drawRadius,
+            show: !!op.showFoot,
+            noDot: !op.showFoot
+          });
+          if (op.drawCircle !== false) {
+            emitOp({ op: 'circle', center: iId, rim: footId, dashed: !!op.dashed, step: op.step || `Đường tròn nội tiếp (${iId})` });
+          }
+        }
+        continue;
+      }
+
+      if (op.op === 'tangents_from_point') {
+        expandedMacroCount++;
+        const extSym = cleanRef(op.p || op.from || op.a);
+        let oSym = cleanRef(op.center || op.o);
+        let rSym = '';
+        if (op.circle !== undefined) {
+          const cNorm = normalizeCirclePairSlot(op.circle);
+          if (Array.isArray(cNorm) && cNorm.length >= 2) {
+            oSym = cNorm[0]; rSym = cNorm[1];
+          }
+        } else if (op.rim === undefined && isNumericRadiusVal(op.r ?? op.radius)) {
+          rSym = ensureRimForNumericRadius(oSym, op.r ?? op.radius);
+        } else {
+          rSym = cleanRef(op.rim || op.r);
+        }
+        const pairIds = (op.pts ? parseVertexList(op.pts) : (op.ids ? parseVertexList(op.ids) : []));
+        const t1 = pairIds[0] || cleanRef(op.id1 || op.b || 'B');
+        const t2 = pairIds[1] || cleanRef(op.id2 || op.c || 'C');
+        if (extSym && oSym && rSym && t1 && t2) {
+          emitOp({ op: 'tangent_point', id: t1, p: extSym, center: oSym, rim: rSym, which: 0, effect: op.effect || 'pop', step: op.step || `Tiếp điểm ${t1} từ ${extSym} tới (${oSym})` });
+          emitOp({ op: 'tangent_point', id: t2, p: extSym, center: oSym, rim: rSym, which: 1, effect: op.effect || 'pop', step: `Tiếp điểm ${t2} từ ${extSym} tới (${oSym})` });
+          const legacyNoPts = !op.pts && Array.isArray(op.ids);
+          const drawTan = legacyNoPts ? !!(op.drawSegments || op.drawTangents) : (op.drawSegments !== false && op.drawTangents !== false && !op.pointsOnly);
+          const drawRad = legacyNoPts ? !!op.drawRadii : (op.drawRadii !== false && !op.pointsOnly);
+          const markRA = legacyNoPts ? !!(op.markRightAngles || op.drawRadii) : (op.markRightAngles !== false && drawRad);
+          if (drawTan) {
+            emitOp({ op: 'segment', a: extSym, b: t1, dashed: false, step: `Tiếp tuyến ${extSym}${t1}` });
+            emitOp({ op: 'segment', a: extSym, b: t2, dashed: false, step: `Tiếp tuyến ${extSym}${t2}` });
+          }
+          if (drawRad) {
+            emitOp({ op: 'segment', a: oSym, b: t1, dashed: false, aux: true, step: `Bán kính ${oSym}${t1}` });
+            emitOp({ op: 'segment', a: oSym, b: t2, dashed: false, aux: true, step: `Bán kính ${oSym}${t2}` });
+          }
+          if (markRA) {
+            emitOp({ op: 'right_angle', a: oSym, v: t1, b: extSym, aux: true });
+            emitOp({ op: 'right_angle', a: oSym, v: t2, b: extSym, aux: true });
+          }
+        }
+        continue;
+      }
+
+      // 6. 3D Revolution Solids Auto-Point Synthesis (`cone`, `cylinder`, `sphere`, `frustumCone`)
+      if (op.op === 'cone' || op.op === 'cylinder' || op.op === 'sphere' || op.op === 'frustumCone') {
+        if (plan.is3D === undefined) plan.is3D = true;
+        if (op.op === 'cone') {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 3 ? op.pts.map(cleanRef) : [cleanRef(op.center || op.o || 'O'), cleanRef(op.rim || op.a || 'A'), cleanRef(op.apex || op.s || op.top || 'S')];
+          const [oSym, rSym, sSym] = pArr;
+          const rVal = isNumericRadiusVal(op.r ?? op.radius) ? parseMathNumber(op.r ?? op.radius, 2.2) : 2.2;
+          const hVal = (op.h !== undefined || op.height !== undefined) ? parseMathNumber(op.h ?? op.height, 3.8) : 3.8;
+          emitPointIfMissing(oSym, 0, -1.2);
+          const oDecl = declaredPts.get(oSym);
+          const ox = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.x ?? 0, 0) : 0;
+          const oy = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.y ?? -1.2, -1.2) : -1.2;
+          emitPointIfMissing(rSym, ox + rVal, oy);
+          emitPointIfMissing(sSym, ox, oy + hVal);
+          op.pts = [oSym, rSym, sSym];
+          delete op.r; delete op.radius; delete op.h; delete op.height;
+        } else if (op.op === 'cylinder') {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 3 ? op.pts.map(cleanRef) : [cleanRef(op.center || op.o || 'O'), cleanRef(op.rim || op.a || 'A'), cleanRef(op.topCenter || op.top || op.o2 || "O'")];
+          const [oSym, rSym, topSym] = pArr;
+          const rVal = isNumericRadiusVal(op.r ?? op.radius) ? parseMathNumber(op.r ?? op.radius, 2.0) : 2.0;
+          const hVal = (op.h !== undefined || op.height !== undefined) ? parseMathNumber(op.h ?? op.height, 3.4) : 3.4;
+          emitPointIfMissing(oSym, 0, -1.4);
+          const oDecl = declaredPts.get(oSym);
+          const ox = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.x ?? 0, 0) : 0;
+          const oy = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.y ?? -1.4, -1.4) : -1.4;
+          emitPointIfMissing(rSym, ox + rVal, oy);
+          emitPointIfMissing(topSym, ox, oy + hVal);
+          op.pts = [oSym, rSym, topSym];
+          delete op.r; delete op.radius; delete op.h; delete op.height;
+        } else if (op.op === 'sphere') {
+          const hasExplicitRim = !!(Array.isArray(op.pts) && op.pts[1]) || !!(op.rim || op.a);
+          const oSym = (Array.isArray(op.pts) && op.pts[0]) ? cleanRef(op.pts[0]) : cleanRef(op.center || op.o || 'O');
+          const rSym = (Array.isArray(op.pts) && op.pts[1]) ? cleanRef(op.pts[1]) : cleanRef(op.rim || op.a || `__rim_sph_${oSym}`);
+          const rVal = isNumericRadiusVal(op.r ?? op.radius) ? parseMathNumber(op.r ?? op.radius, 2.4) : 2.4;
+          emitPointIfMissing(oSym, 0, 0);
+          const oDecl = declaredPts.get(oSym);
+          const ox = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.x ?? 0, 0) : 0;
+          const oy = (oDecl && oDecl.op === 'point_free') ? parseMathNumber(oDecl.y ?? 0, 0) : 0;
+          emitPointIfMissing(rSym, ox + rVal, oy, hasExplicitRim ? {} : { label: '', show: false, noDot: true });
+          op.pts = [oSym, rSym];
+          delete op.r; delete op.radius;
+        } else if (op.op === 'frustumCone') {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 4
+            ? op.pts.map(cleanRef)
+            : [cleanRef(op.o1 || op.center || 'O'), cleanRef(op.r1Pt || op.a || 'A'), cleanRef(op.o2 || op.topCenter || "O'"), cleanRef(op.r2Pt || op.b || "A'")];
+          const [o1, r1p, o2, r2p] = pArr;
+          const R1 = isNumericRadiusVal(op.r1 ?? op.R) ? parseMathNumber(op.r1 ?? op.R, 2.4) : 2.4;
+          const R2 = isNumericRadiusVal(op.r2 ?? op.r) ? parseMathNumber(op.r2 ?? op.r, 1.3) : 1.3;
+          const hVal = (op.h !== undefined || op.height !== undefined) ? parseMathNumber(op.h ?? op.height, 3.2) : 3.2;
+          emitPointIfMissing(o1, 0, -1.4);
+          emitPointIfMissing(r1p, R1, -1.4);
+          emitPointIfMissing(o2, 0, -1.4 + hVal);
+          emitPointIfMissing(r2p, R2, -1.4 + hVal);
+          op.pts = [o1, r1p, o2, r2p];
+          delete op.r1; delete op.r2; delete op.R; delete op.r; delete op.h; delete op.height;
+        }
+        emitOp(op);
+        continue;
+      }
+
+      // 7. Universal Pair / Triple String & Numeric Circle Radius Normalization on Standard Ops
+      if (['midpoint', 'point_on_segment', 'point_on_line', 'segment', 'line', 'ray', 'tick_mark'].includes(op.op)) {
+        if (op.a === undefined || op.b === undefined) {
+          const pr = parsePairRef(op.s || op.seg || op.ab || op.edge || op.pts);
+          if (pr) {
+            op.a = pr[0]; op.b = pr[1];
+            delete op.s; delete op.seg; delete op.ab; delete op.edge; delete op.pts;
+          }
+        }
+      } else if (op.op === 'foot_perp') {
+        if (op.a === undefined || op.b === undefined) {
+          const pr = parsePairRef(op.line || op.s || op.seg || op.ab || op.to);
+          if (pr) {
+            op.a = pr[0]; op.b = pr[1];
+            delete op.line; delete op.s; delete op.seg; delete op.ab; delete op.to;
+          }
+        }
+      } else if (op.op === 'line_parallel' || op.op === 'line_perp' || op.op === 'point_parallel' || op.op === 'point_perp') {
+        if (op.a === undefined || op.b === undefined) {
+          const pr = parsePairRef(op.line || op.s || op.seg || op.ab || op.to);
+          if (pr) {
+            op.a = pr[0]; op.b = pr[1];
+            delete op.line; delete op.s; delete op.seg; delete op.ab; delete op.to;
+          }
+        }
+      } else if (op.op === 'intersection_ll') {
+        const p1 = parsePairRef(op.l1);
+        const p2 = parsePairRef(op.l2);
+        if (p1) op.l1 = p1;
+        if (p2) op.l2 = p2;
+      } else if (op.op === 'intersection_lc') {
+        const pl = parsePairRef(op.line || op.l1);
+        if (pl) { op.line = pl; if (op.l1 !== undefined && !Array.isArray(op.l1)) delete op.l1; }
+        if (op.circle !== undefined || op.l2 !== undefined) {
+          op.circle = normalizeCirclePairSlot(op.circle !== undefined ? op.circle : op.l2);
+        } else if ((op.center || op.o) && isNumericRadiusVal(op.r ?? op.radius)) {
+          const cSym = cleanRef(op.center || op.o);
+          op.circle = [cSym, ensureRimForNumericRadius(cSym, op.r ?? op.radius)];
+          delete op.r; delete op.radius;
+        }
+      } else if (op.op === 'intersection_cc' || op.op === 'common_tangent') {
+        const rawC1 = op.c1 ?? op.circle1 ?? op.l1;
+        const rawC2 = op.c2 ?? op.circle2 ?? op.l2;
+        if (rawC1 !== undefined) op.c1 = normalizeCirclePairSlot(rawC1);
+        if (rawC2 !== undefined) op.c2 = normalizeCirclePairSlot(rawC2);
+      } else if (op.op === 'circle' || op.op === 'point_on_circle' || op.op === 'tangent_point') {
+        const cSym = cleanRef(op.center || op.o);
+        if (op.rim === undefined && isNumericRadiusVal(op.r ?? op.radius)) {
+          op.center = cSym || 'O';
+          op.rim = ensureRimForNumericRadius(op.center, op.r ?? op.radius);
+          delete op.r; delete op.radius;
+        } else if (!cSym && op.circle !== undefined) {
+          const cNorm = normalizeCirclePairSlot(op.circle);
+          if (Array.isArray(cNorm) && cNorm.length >= 2) {
+            op.center = cNorm[0]; op.rim = cNorm[1];
+            delete op.circle;
+          }
+        }
+      } else if (op.op === 'right_angle' || op.op === 'angle_mark') {
+        const tr = parseTripleRef(op.pts || op.ang);
+        if (tr) {
+          op.a = tr[0]; op.v = tr[1]; op.b = tr[2];
+          delete op.pts; delete op.ang;
+        }
+      } else if (op.op === 'angle_bisector') {
+        const tr = parseTripleRef(op.pts || op.ang);
+        if (tr) {
+          op.a = tr[0]; op.o = tr[1]; op.b = tr[2];
+          delete op.pts; delete op.ang;
+        } else if (op.o === undefined) {
+          if (op.v !== undefined || op.vertex !== undefined) {
+            op.o = cleanRef(op.v !== undefined ? op.v : op.vertex);
+            delete op.v; delete op.vertex;
+          } else if (op.c !== undefined) {
+            op.o = cleanRef(op.b);
+            op.b = cleanRef(op.c);
+            delete op.c;
+          }
+        }
+      } else if (op.op === 'connect_polygon' || op.op === 'section' || op.op === 'polygon_fill') {
+        if (typeof op.pts === 'string') {
+          op.pts = parseVertexList(op.pts);
+        }
+        if (op.op === 'section' && !op.fill) {
+          op.fill = 'rgba(15, 23, 42, 0.06)';
+        }
+      } else if (op.op === 'arc' || op.op === 'arc3' || op.op === 'sector') {
+        if (typeof op.pts === 'string') {
+          op.pts = parseVertexList(op.pts);
+        }
+      }
+
+      emitOp(op);
+    }
+
+    if (expandedMacroCount > 0) {
+      fixes.push(`Đã bung ${expandedMacroCount} lệnh gộp/rút gọn thành ${outOps.length} thao tác dựng hình chuẩn.`);
+    }
+    plan.ops = outOps;
+    return plan;
   }
 
   function normalizeOpMotionProps(op) {
@@ -1423,6 +2798,33 @@ ${prob}`;
         break;
       case 'tangent_point':
         push(op.p || op.from || op.a); push(op.center || op.o); push(op.rim || op.r);
+        break;
+      case 'rotate':
+        push(op.center || op.c || op.o); push(op.point || op.p || op.from);
+        break;
+      case 'angle_bisector':
+        push(op.a); push(op.o || op.v || op.vertex); push(op.b);
+        break;
+      case 'common_tangent': {
+        const c1 = Array.isArray(op.c1) ? op.c1 : [];
+        const c2 = Array.isArray(op.c2) ? op.c2 : [];
+        push(c1[0]); push(c1[1]); push(c2[0]); push(c2[1]);
+        break;
+      }
+      case 'arc':
+      case 'sector':
+        if (Array.isArray(op.pts) && op.pts.length >= 3) {
+          push(op.pts[0]); push(op.pts[1]); push(op.pts[2]);
+        } else {
+          push(op.center || op.o); push(op.start || op.a || op.from); push(op.end || op.b || op.to);
+        }
+        break;
+      case 'arc3':
+      case 'cone':
+      case 'cylinder':
+      case 'sphere':
+      case 'frustumCone':
+        if (Array.isArray(op.pts)) op.pts.forEach(push);
         break;
       case 'intersection_ll': {
         const l1 = Array.isArray(op.l1) ? op.l1 : [op.a1, op.b1];
@@ -1632,6 +3034,72 @@ ${prob}`;
           }
           break;
         }
+        case 'rotate': {
+          const c = get(op.center || op.c || op.o);
+          const p = get(op.point || op.p || op.from);
+          if (c && p) {
+            const deg = Number.isFinite(Number(op.angleDeg ?? op.ang ?? op.angle)) ? Number(op.angleDeg ?? op.ang ?? op.angle) : 60;
+            const k = Number.isFinite(Number(op.k)) ? Number(op.k) : 1;
+            const rad = (deg * Math.PI) / 180;
+            const dx = p.x - c.x, dy = p.y - c.y;
+            const cs = Math.cos(rad), sn = Math.sin(rad);
+            pt = {
+              x: c.x + (dx * cs - dy * sn) * k,
+              y: c.y + (dx * sn + dy * cs) * k
+            };
+          }
+          break;
+        }
+        case 'angle_bisector': {
+          const a = get(op.a), o = get(op.o || op.v || op.vertex), b = get(op.b);
+          if (a && o && b) {
+            const d1 = dist2D(a, o), d2 = dist2D(b, o);
+            if (d1 > 1e-9 && d2 > 1e-9) {
+              let lx = (a.x - o.x) / d1 + (b.x - o.x) / d2;
+              let ly = (a.y - o.y) / d1 + (b.y - o.y) / d2;
+              const m = Math.hypot(lx, ly);
+              if (m < 1e-9) { lx = -(a.y - o.y) / d1; ly = (a.x - o.x) / d1; }
+              else { lx /= m; ly /= m; }
+              const bDir = { x: o.x + lx * d1, y: o.y + ly * d1 };
+              if (op.onOpposite || op.intersectOpposite) {
+                const dx1 = bDir.x - o.x, dy1 = bDir.y - o.y;
+                const dx2 = b.x - a.x, dy2 = b.y - a.y;
+                const det = dx1 * dy2 - dy1 * dx2;
+                if (Math.abs(det) > 1e-9) {
+                  const t = ((a.x - o.x) * dy2 - (a.y - o.y) * dx2) / det;
+                  pt = { x: o.x + t * dx1, y: o.y + t * dy1 };
+                } else {
+                  pt = bDir;
+                }
+              } else {
+                pt = bDir;
+              }
+            }
+          }
+          break;
+        }
+        case 'common_tangent': {
+          const c1 = Array.isArray(op.c1) ? op.c1 : [];
+          const c2 = Array.isArray(op.c2) ? op.c2 : [];
+          const p1 = get(c1[0]), p2 = get(c1[1]), p3 = get(c2[0]), p4 = get(c2[1]);
+          if (p1 && p2 && p3 && p4) {
+            const r1 = dist2D(p1, p2), r2 = dist2D(p3, p4);
+            const dx = p3.x - p1.x, dy = p3.y - p1.y, dist = Math.hypot(dx, dy);
+            if (dist > 1e-9) {
+              const l = (op.inner ? -(r1 + r2) : (r2 - r1)) / dist;
+              if (Math.abs(l) <= 1) {
+                const ux = dx / dist, uy = dy / dist;
+                const boardWhich = !(Number(op.which) || 0);
+                const h = Math.sqrt(Math.max(0, 1 - l * l)) * (boardWhich ? -1 : 1);
+                const nx = ux * l - uy * h, ny = uy * l + ux * h;
+                const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
+                const t2 = op.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
+                pt = op.on === 2 ? t2 : t1;
+              }
+            }
+          }
+          break;
+        }
       }
 
       if (pt && Number.isFinite(pt.x) && Number.isFinite(pt.y)) {
@@ -1818,7 +3286,17 @@ ${prob}`;
       } else if (d.t === 'path' && Array.isArray(d.pts) && d.pts.length >= 2) {
         const rawDeg = (((-Number(d.k || 0) * 360) % 360) + 360) % 360;
         const deg = Number(rawDeg.toFixed(4));
-        out.push({ op: 'point_on_circle', id: sym, label: p.label || sym, center: symOf(d.pts[0]), rim: symOf(d.pts[1]), angleDeg: deg, show: p.show !== false });
+        out.push({ op: 'point_on_circle', id: sym, label: p.label !== undefined ? p.label : sym, center: symOf(d.pts[0]), rim: symOf(d.pts[1]), angleDeg: deg, show: p.show !== false });
+      } else if (d.t === 'rot') {
+        const isMathDef = geoBlock.defCoordSpace === 'math_y_up';
+        const deg = Number(((isMathDef ? 1 : -1) * (Number(d.ang) || 0)).toFixed(4));
+        out.push({ op: 'rotate', id: sym, label: p.label !== undefined ? p.label : sym, center: symOf(d.c), point: symOf(d.p), angleDeg: deg, k: Number.isFinite(Number(d.k)) ? Number(d.k) : 1, show: p.show !== false, ...(p.noDot ? { noDot: true } : {}) });
+      } else if (d.t === 'bis') {
+        out.push({ op: 'angle_bisector', id: sym, label: p.label !== undefined ? p.label : sym, a: symOf(d.a), o: symOf(d.o), b: symOf(d.b), show: p.show !== false, ...(p.noDot ? { noDot: true } : {}) });
+      } else if (d.t === 'ctan' && Array.isArray(d.c1) && Array.isArray(d.c2)) {
+        const isMathDef = geoBlock.defCoordSpace === 'math_y_up';
+        const whichMath = isMathDef ? (d.which ? 1 : 0) : (d.which ? 0 : 1);
+        out.push({ op: 'common_tangent', id: sym, label: p.label !== undefined ? p.label : sym, c1: [symOf(d.c1[0]), symOf(d.c1[1])], c2: [symOf(d.c2[0]), symOf(d.c2[1])], inner: !!d.inner, which: whichMath, on: d.on === 2 ? 2 : 1, show: p.show !== false, ...(p.noDot ? { noDot: true } : {}) });
       }
     }
 
@@ -1831,6 +3309,14 @@ ${prob}`;
         out.push({ op: sh.kind, a: sPts[0], b: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux });
       } else if (sh.kind === 'circle' && sPts.length >= 2) {
         out.push({ op: 'circle', center: sPts[0], rim: sPts[1], dashed: !!sh.dashed, aux: !!sh.aux });
+      } else if ((sh.kind === 'arc' || sh.kind === 'arc3' || sh.kind === 'sector') && sPts.length >= 3) {
+        out.push({ op: sh.kind, pts: sPts.slice(0, 3), dashed: !!sh.dashed, ...(sh.fill ? { fill: sh.fill } : {}), aux: !!sh.aux });
+      } else if ((sh.kind === 'cone' || sh.kind === 'cylinder') && sPts.length >= 3) {
+        out.push({ op: sh.kind, pts: sPts.slice(0, 3), ...(sh.fill ? { fill: sh.fill } : {}) });
+      } else if (sh.kind === 'sphere' && sPts.length >= 2) {
+        out.push({ op: 'sphere', pts: sPts.slice(0, 2), ...(sh.fill ? { fill: sh.fill } : {}) });
+      } else if (sh.kind === 'frustumCone' && sPts.length >= 4) {
+        out.push({ op: 'frustumCone', pts: sPts.slice(0, 4), ...(sh.fill ? { fill: sh.fill } : {}) });
       } else if (sh.kind === 'polygon' && sPts.length >= 3) {
         if (sh.width === 0 && sh.fill) out.push({ op: 'polygon_fill', pts: sPts, fill: sh.fill });
         else out.push({ op: 'connect_polygon', pts: sPts, fill: sh.fill || undefined });
@@ -1860,8 +3346,8 @@ ${prob}`;
       throw new Error('Kịch bản hình học không hợp lệ (cần đối tượng JSON hoặc chuỗi JSON).');
     }
 
-    // Fast Idempotency / Clone
-    const plan = JSON.parse(JSON.stringify(rawPlan));
+    // PASS 0: Expand Compact Shorthands, Array-Tuples & High-Level Geometry Macros
+    const plan = expandCompactAiGeoMacros(rawPlan, fixes);
     let rawOps = Array.isArray(plan.ops)
       ? plan.ops
       : (Array.isArray(plan.constructions)
@@ -1956,7 +3442,7 @@ ${prob}`;
         const wasStr = typeof op[field] === 'string';
         const val = parseMathNumber(op[field], NaN);
         if (Number.isFinite(val)) {
-          const rounded = Math.abs(val) < 1e-12 ? 0 : Number(val.toFixed(6));
+          const rounded = Math.abs(val) < 1e-12 ? 0 : Number(val.toFixed(9));
           if (wasStr && !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(String(op[field]).trim())) {
             fixes.push(`Đã tính giá trị biểu thức số "${op[field]}" -> ${rounded} cho trường "${field}".`);
           }
@@ -1988,8 +3474,10 @@ ${prob}`;
       evalNumField('ratio');
       evalNumField('k');
       evalNumField('angleDeg');
+      evalNumField('ang');
       evalNumField('angle');
       evalNumField('which');
+      evalNumField('on');
       evalNumField('n');
       evalNumField('width');
 
@@ -2095,7 +3583,7 @@ ${prob}`;
       if (Math.abs(clamped - r) > 1e-6) {
         fixes.push(`Đã kẹp tỷ số point_on_segment của "${op.id}" từ ${r} vào khoảng an toàn [0.08, 0.92] -> ${clamped}.`);
       }
-      op.ratio = Number(clamped.toFixed(4));
+      op.ratio = Number(clamped.toFixed(8));
       if (op.k !== undefined) delete op.k;
 
       if (aKey) {
@@ -2233,10 +3721,11 @@ ${prob}`;
     } else if (plan.meta && typeof plan.meta.is3D === 'boolean') {
       is3D = plan.meta.is3D;
     } else {
-      const hasCircleOp = ops.some(o => o.op === 'circle' || o.op === 'point_on_circle' || o.op === 'intersection_lc' || o.op === 'intersection_cc' || o.op === 'tangent_point');
-      const has3DKeyword = /hình\s*chóp|tứ\s*diện|lăng\s*trụ|hình\s*hộp|mặt\s*phẳng|giao\s*tuyến|thiết\s*diện|S\.[A-Z]{3,4}/i.test(allContextText);
+      const hasCircleOp = ops.some(o => o.op === 'circle' || o.op === 'point_on_circle' || o.op === 'intersection_lc' || o.op === 'intersection_cc' || o.op === 'tangent_point' || o.op === 'common_tangent' || o.op === 'arc' || o.op === 'arc3' || o.op === 'sector');
+      const hasRevSolidOp = ops.some(o => o.op === 'cone' || o.op === 'cylinder' || o.op === 'sphere' || o.op === 'frustumCone');
+      const has3DKeyword = /hình\s*chóp|tứ\s*diện|lăng\s*trụ|hình\s*hộp|hình\s*nón|hình\s*trụ|mặt\s*cầu|mặt\s*phẳng|giao\s*tuyến|thiết\s*diện|S\.[A-Z]{3,4}/i.test(allContextText);
       const hasApexS = ops.some(o => getOpProducedId(o) === 'S') && ops.some(o => o.dashed === true);
-      is3D = has3DKeyword || hasApexS || (!hasCircleOp && ops.some(o => o.dashed === true && o.op === 'segment' && !o.aux));
+      is3D = hasRevSolidOp || has3DKeyword || hasApexS || (!hasCircleOp && ops.some(o => o.dashed === true && o.op === 'segment' && !o.aux));
     }
     plan.is3D = is3D;
 
@@ -3164,6 +4653,9 @@ ${prob}`;
       } else if ((op.op === 'line_parallel' || op.op === 'line_perp') && op.drawSegment !== false) {
         referencedInShapes.add(op.id);
         referencedInShapes.add(cleanRef(op.through || op.o || op.p));
+      } else if (op.op === 'angle_bisector' && (((op.onOpposite || op.intersectOpposite) && op.drawSegment !== false) || op.drawRay || op.asRay || op.drawSegment)) {
+        referencedInShapes.add(op.id);
+        referencedInShapes.add(cleanRef(op.o || op.v || op.vertex));
       }
     }
     const referencedByOtherPts = new Set();
@@ -3377,7 +4869,7 @@ ${prob}`;
     const addShapeRec = (kind, ptIds, opts = {}) => {
       const useCustomCol = !!(opts.explicitColor && opts.color);
       const useCustomW = !!(opts.explicitWidth && Number.isFinite(opts.width));
-      const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle';
+      const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle' || kind === 'arc' || kind === 'arc3' || kind === 'sector';
       const sh = {
         id: genId(),
         kind,
@@ -4070,6 +5562,9 @@ ${prob}`;
               op.show !== false,
               { noDot: op.noDot }
             );
+            if (op.noAutoConnect) {
+              Object.defineProperty(pt, '_noAutoConnect', { value: true, enumerable: false, configurable: true });
+            }
             if (op.drawExtensions) {
               const cur = evalCurrentCoords();
               const ci = cur.get(pt.id);
@@ -4294,6 +5789,180 @@ ${prob}`;
           }
           break;
         }
+        case 'rotate': {
+          const cPt = resolvePt(op.center || op.c || op.o);
+          const pPt = resolvePt(op.point || op.p || op.from);
+          if (cPt && pPt) {
+            const deg = Number.isFinite(Number(op.angleDeg ?? op.ang ?? op.angle)) ? Number(op.angleDeg ?? op.ang ?? op.angle) : 60;
+            const k = Number.isFinite(Number(op.k)) ? Number(op.k) : 1;
+            // Negate angleDeg in Canvas (+y DOWN) so +angleDeg rotates CCW in Math (+y UP)!
+            const pt = registerPoint(
+              op.id || op.label,
+              { t: 'rot', c: cPt.id, p: pPt.id, ang: -deg, k },
+              op.label ?? op.id,
+              op.show !== false,
+              { noDot: op.noDot }
+            );
+            if (hasExplicitOpMotion) customMotionPtIds.add(pt.id);
+            if (op.show !== false) {
+              const st = makeStepForPt(pt.id, stepLabel || `Quay ${pPt.label} quanh ${cPt.label} góc ${deg}° được ${pt.label}`, mMeta);
+              rawSteps.push(st);
+              recordSymStep(cleanRef(op.id || op.label), st);
+            }
+          }
+          break;
+        }
+        case 'angle_bisector': {
+          const aPt = resolvePt(op.a);
+          const oPt = resolvePt(op.o || op.v || op.vertex);
+          const bPt = resolvePt(op.b);
+          if (aPt && oPt && bPt) {
+            const isOnOpp = !!(op.onOpposite || op.intersectOpposite);
+            let pt;
+            if (isOnOpp) {
+              const helperKey = `__bis_${oPt.id}_${cleanRef(op.id || op.label)}`;
+              const helperPt = symToPt.get(helperKey) || registerPoint(helperKey, { t: 'bis', a: aPt.id, o: oPt.id, b: bPt.id }, '', false, { noDot: true });
+              pt = registerPoint(
+                op.id || op.label,
+                { t: 'inter', l1: [oPt.id, helperPt.id], c1: false, l2: [aPt.id, bPt.id], c2: false, which: 0 },
+                op.label ?? op.id,
+                op.show !== false,
+                { noDot: op.noDot }
+              );
+              if (op.drawSegment === false) {
+                Object.defineProperty(pt, '_noAutoConnect', { value: true, enumerable: false, configurable: true });
+              } else if (!findEdge(oPt.id, pt.id)) {
+                const hasExpDash = op.dashed !== undefined;
+                const segDash = hasExpDash ? !!op.dashed : (planIs3D ? classify3DSegmentDashed(oPt.id, pt.id, evalCurrentCoords()) : false);
+                const sh = addShapeRec('segment', [oPt.id, pt.id], { dashed: segDash, explicitDashed: hasExpDash ? segDash : undefined, aux: op.aux !== undefined ? !!op.aux : true, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth });
+                const stS = makeStepForShape(sh.id, stepLabel || `Đường phân giác ${oPt.label}${pt.label}`, !!op.tempHide, mMeta);
+                rawSteps.push(stS);
+                recordSymStep(cleanRef(op.id || op.label), stS);
+              }
+            } else {
+              pt = registerPoint(
+                op.id || op.label,
+                { t: 'bis', a: aPt.id, o: oPt.id, b: bPt.id },
+                op.label ?? op.id,
+                op.show !== false,
+                { noDot: op.noDot }
+              );
+              if (op.drawRay || op.asRay) {
+                const sh = addShapeRec('ray', [oPt.id, pt.id], { dashed: !!op.dashed, aux: op.aux !== undefined ? !!op.aux : true, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth });
+                const stR = makeStepForShape(sh.id, stepLabel || `Tia phân giác góc ${aPt.label}${oPt.label}${bPt.label}`, !!op.tempHide, mMeta);
+                rawSteps.push(stR);
+                recordSymStep(cleanRef(op.id || op.label), stR);
+              } else if (op.drawSegment && !findEdge(oPt.id, pt.id)) {
+                const sh = addShapeRec('segment', [oPt.id, pt.id], { dashed: !!op.dashed, aux: op.aux !== undefined ? !!op.aux : true, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth });
+                const stS = makeStepForShape(sh.id, stepLabel || `Đoạn phân giác ${oPt.label}${pt.label}`, !!op.tempHide, mMeta);
+                rawSteps.push(stS);
+                recordSymStep(cleanRef(op.id || op.label), stS);
+              }
+            }
+            if (op.show !== false && pt) {
+              const stP = makeStepForPt(pt.id, stepLabel || `Điểm phân giác ${pt.label}`, mMeta);
+              rawSteps.push(stP);
+              recordSymStep(cleanRef(op.id || op.label), stP);
+            }
+          }
+          break;
+        }
+        case 'common_tangent': {
+          const c1 = Array.isArray(op.c1) ? op.c1 : [];
+          const c2 = Array.isArray(op.c2) ? op.c2 : [];
+          const o1 = resolvePt(c1[0]), r1 = resolvePt(c1[1]);
+          const o2 = resolvePt(c2[0]), r2 = resolvePt(c2[1]);
+          if (o1 && r1 && o2 && r2) {
+            const pt = registerPoint(
+              op.id || op.label,
+              {
+                t: 'ctan',
+                c1: [o1.id, r1.id],
+                c2: [o2.id, r2.id],
+                inner: !!op.inner,
+                which: !(Number(op.which) || 0),
+                on: op.on === 2 ? 2 : 1
+              },
+              op.label ?? op.id,
+              op.show !== false,
+              { noDot: op.noDot }
+            );
+            if (op.show !== false) {
+              const st = makeStepForPt(pt.id, stepLabel || `Tiếp điểm chung ${pt.label}`, mMeta);
+              rawSteps.push(st);
+              recordSymStep(cleanRef(op.id || op.label), st);
+            }
+          }
+          break;
+        }
+        case 'arc':
+        case 'sector': {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 3
+            ? [op.pts[0], op.pts[1], op.pts[2]]
+            : [op.center || op.o, op.start || op.a || op.from, op.end || op.b || op.to];
+          const o = resolvePt(pArr[0]), s = resolvePt(pArr[1]), e = resolvePt(pArr[2]);
+          if (o && s && e) {
+            const fillVal = op.op === 'sector'
+              ? ((op.explicitColor && op.fill) ? op.fill : (op.fill || 'rgba(15, 23, 42, 0.06)'))
+              : undefined;
+            const sh = addShapeRec(op.op, [o.id, s.id, e.id], {
+              dashed: !!op.dashed,
+              fill: fillVal,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux,
+              arrow: !!op.arrow
+            });
+            const st = makeStepForShape(sh.id, stepLabel || (op.op === 'sector' ? `Hình quạt ${s.label}${o.label}${e.label}` : `Cung ${s.label}${e.label}`), !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || `${op.op}_${o.label}_${s.label}_${e.label}`), st);
+          }
+          break;
+        }
+        case 'arc3': {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 3 ? op.pts : [op.a, op.b, op.c];
+          const p1 = resolvePt(pArr[0]), p2 = resolvePt(pArr[1]), p3 = resolvePt(pArr[2]);
+          if (p1 && p2 && p3) {
+            const sh = addShapeRec('arc3', [p1.id, p2.id, p3.id], {
+              dashed: !!op.dashed,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux
+            });
+            const st = makeStepForShape(sh.id, stepLabel || `Cung qua ${p1.label}, ${p2.label}, ${p3.label}`, !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || `arc3_${p1.label}${p2.label}${p3.label}`), st);
+          }
+          break;
+        }
+        case 'cone':
+        case 'cylinder':
+        case 'sphere':
+        case 'frustumCone':
+        case 'frustumcone':
+        case 'frustum_cone': {
+          const kindName = (op.op === 'frustumcone' || op.op === 'frustum_cone') ? 'frustumCone' : op.op;
+          const minPts = kindName === 'sphere' ? 2 : (kindName === 'frustumCone' ? 4 : 3);
+          const resolved = (Array.isArray(op.pts) ? op.pts : []).map(sym => resolvePt(sym)).filter(Boolean);
+          if (resolved.length >= minPts) {
+            const sh = addShapeRec(kindName, resolved.slice(0, minPts).map(p => p.id), {
+              fill: op.fill,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth
+            });
+            const kindVi = kindName === 'cone' ? 'Hình nón' : (kindName === 'cylinder' ? 'Hình trụ' : (kindName === 'sphere' ? 'Mặt cầu' : 'Hình nón cụt'));
+            const st = makeStepForShape(sh.id, stepLabel || `Dựng ${kindVi}`, !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || `${kindName}_${resolved[0].label}`), st);
+          }
+          break;
+        }
       }
     }
 
@@ -4315,13 +5984,18 @@ ${prob}`;
     };
 
     const connectLineToPointIfMissing = (pt, aId, bId) => {
+      if (pt._noAutoConnect) return;
+      const paObj = ptObjMap[aId], pbObj = ptObjMap[bId];
+      if ((!paObj || !paObj.show) && (!pbObj || !pbObj.show)) return;
       if (isLineCoveredByShapes(pt.id, aId, bId, healCoords)) return;
       const ca = healCoords.get(aId), cb = healCoords.get(bId), cp = healCoords.get(pt.id);
       if (!ca || !cb || !cp) return;
       const proj = pointSegProj(cp, ca, cb);
       const abDrawn = !!findEdge(aId, bId);
       let anchorId;
-      if (!abDrawn && proj && proj.k > 1.02) anchorId = aId;
+      if (paObj && paObj.show && (!pbObj || !pbObj.show)) anchorId = aId;
+      else if (pbObj && pbObj.show && (!paObj || !paObj.show)) anchorId = bId;
+      else if (!abDrawn && proj && proj.k > 1.02) anchorId = aId;
       else if (!abDrawn && proj && proj.k < -0.02) anchorId = bId;
       else anchorId = dist2D(ca, cp) <= dist2D(cb, cp) ? aId : bId;
       if (anchorId === pt.id || findEdge(anchorId, pt.id)) return;
@@ -4485,12 +6159,38 @@ ${prob}`;
     const coords = K.Tt({ points: ptMap, shapes });
 
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const expandBox = (bx, by) => {
+      if (!Number.isFinite(bx) || !Number.isFinite(by)) return;
+      if (bx < x0) x0 = bx;
+      if (bx > x1) x1 = bx;
+      if (by < y0) y0 = by;
+      if (by > y1) y1 = by;
+    };
     for (const p of pts) {
       if (!p.show) continue;
       const c = coords.get(p.id);
-      if (!c || !Number.isFinite(c.x) || !Number.isFinite(c.y)) continue;
-      if (c.x < x0) x0 = c.x; if (c.x > x1) x1 = c.x;
-      if (c.y < y0) y0 = c.y; if (c.y > y1) y1 = c.y;
+      if (!c) continue;
+      expandBox(c.x, c.y);
+    }
+    for (const sh of shapes) {
+      if (!sh || sh.hidden || !Array.isArray(sh.pts) || sh.pts.length < 2) continue;
+      if (sh.kind === 'circle' || sh.kind === 'sphere' || sh.kind === 'cone' || sh.kind === 'cylinder' || sh.kind === 'frustumCone') {
+        const co = coords.get(sh.pts[0]), cr = coords.get(sh.pts[1]);
+        if (co && cr) {
+          const rad = dist2D(co, cr);
+          const ry = (sh.kind === 'circle' || sh.kind === 'sphere') ? rad : rad * 0.35;
+          expandBox(co.x - rad, co.y - ry);
+          expandBox(co.x + rad, co.y + ry);
+        }
+        if (sh.kind === 'frustumCone' && sh.pts.length >= 4) {
+          const co2 = coords.get(sh.pts[2]), cr2 = coords.get(sh.pts[3]);
+          if (co2 && cr2) {
+            const rad2 = dist2D(co2, cr2);
+            expandBox(co2.x - rad2, co2.y - rad2 * 0.35);
+            expandBox(co2.x + rad2, co2.y + rad2 * 0.35);
+          }
+        }
+      }
     }
     if (!Number.isFinite(x0)) { x0 = 0; y0 = 0; x1 = 4; y1 = 4; }
 
@@ -5756,8 +7456,8 @@ ${prob}`;
         ? `Đề bài / Yêu cầu dựng hình:\n${promptInput}`
         : 'Hãy đọc kỹ đề bài Toán Hình học trong ảnh đính kèm (kể cả đề tự luận, trắc nghiệm hoặc bảng Đúng/Sai 4 mệnh đề) và dựng hình chính xác toàn bộ giả thiết.',
       wantAux
-        ? 'Hãy dựng thêm các điểm, giao tuyến, giao điểm, góc vuông chính phục vụ các câu hỏi / mệnh đề a, b, c, d (nếu đề bài hoặc bảng Đúng/Sai có). Giữ tổng số lệnh "ops" gọn gàng khoảng 20–35 bước cốt lõi.'
-        : 'Chỉ dựng các yếu tố trong giả thiết chính của đề bài (chưa cần dựng nét phụ của các câu hỏi a, b, c, d).',
+        ? 'Hãy dựng thêm các điểm, giao tuyến, giao điểm, góc vuông chính phục vụ các câu hỏi / mệnh đề a, b, c, d (nếu đề bài hoặc bảng Đúng/Sai có). Ưu tiên tối đa lệnh gộp gọn ("pyramid", "prism", "segments", "tangents_from_point", "circumcircle", "incircle", cặp "A-C", bỏ "label" trùng "id") để mảng "ops" chỉ khoảng 8–18 lệnh gọn sạch.'
+        : 'Chỉ dựng các yếu tố trong giả thiết chính của đề bài (chưa cần dựng nét phụ của các câu hỏi a, b, c, d). Ưu tiên dùng lệnh gộp ("pyramid", "prism", "segments", cặp "A-C", bỏ "label" trùng "id") để JSON ngắn gọn nhất.',
       'Trả về DUY NHẤT 1 đối tượng JSON gọn sạch theo schema quy định (không viết giải thích ngoài JSON).'
     ].join('\n\n');
 
@@ -6082,6 +7782,9 @@ ${prob}`;
     parseMathNumber,
     sanitizeLlmJsonText,
     extractJsonObject,
+    expandCompactAiGeoMacros,
+    simulatePlanCoords,
+    convertGeometryBlockToOps,
     validateAndHealAiGeoPlan,
     refineTikzConstraints,
     compileAiGeoPlan,
