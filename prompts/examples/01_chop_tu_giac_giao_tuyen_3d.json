@@ -15,24 +15,24 @@
     "gate1_space": "Hình không gian 3D (solid_3d). Đáy tứ giác lồi tổng quát ABCD không có cặp cạnh đối song song, S đặt cao phía trên đáy (+y hướng lên).",
     "gate2_dag_anchors": ["A", "B", "C", "D", "S"],
     "gate3_coplanar_intersections": [
-      "O = AC ∩ BD đồng phẳng trong (ABCD), det = 17.99 != 0",
-      "K = AM ∩ SO đồng phẳng trong (SAC), det = -18.47 != 0",
-      "I = BK ∩ SD đồng phẳng trong (SBD), det = -15.25 != 0",
+      "O = AC ∩ BD đồng phẳng trong (ABCD), det = 22.11 != 0",
+      "K = AM ∩ SO đồng phẳng trong (SAC), det = -19.35 != 0",
+      "I = BK ∩ SD đồng phẳng trong (SBD), det = -11.77 != 0",
       "MN // CD (đường trung bình tam giác SCD) -> cấm dùng intersection_ll, dùng line_parallel Ax // CD"
     ],
     "gate4_dashed_edges": ["AD", "AC", "BD", "SO", "AM", "BK", "AI"],
     "gate5_motion_story": "Phong cách Đỗ Miinh: vẽ nét phấn khung đáy và cạnh bên -> nảy giao điểm O, K, I -> phát sáng giao tuyến SO và Ax -> hiện dần miền tô thiết diện ABMI -> nhịp nhấn kết luận và lặp mượt."
   },
   "ops": [
-    { "op": "point_free", "id": "A", "label": "A", "x": -2.8, "y": 0.0, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc A" },
-    { "op": "point_free", "id": "B", "label": "B", "x": -1.3, "y": -2.0, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc B" },
-    { "op": "point_free", "id": "C", "label": "C", "x": 1.9, "y": -1.7, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc C" },
-    { "op": "point_free", "id": "D", "label": "D", "x": 3.2, "y": 0.2, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc D" },
+    { "op": "point_free", "id": "A", "label": "A", "x": -2.8, "y": 0.2, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc A" },
+    { "op": "point_free", "id": "B", "label": "B", "x": -1.7, "y": -1.8, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc B" },
+    { "op": "point_free", "id": "C", "label": "C", "x": 1.7, "y": -2.2, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc C" },
+    { "op": "point_free", "id": "D", "label": "D", "x": 3.2, "y": 0.5, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc D" },
     { "op": "segment", "a": "A", "b": "B", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy trước AB" },
     { "op": "segment", "a": "B", "b": "C", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy trước BC" },
     { "op": "segment", "a": "C", "b": "D", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy phải CD" },
     { "op": "segment", "a": "A", "b": "D", "dashed": true, "effect": "draw", "easing": "easeInOut", "step": "Vẽ cạnh đáy khuất AD (nét đứt)" },
-    { "op": "point_free", "id": "S", "label": "S", "x": -0.4, "y": 3.8, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh chóp S phía trên đáy" },
+    { "op": "point_free", "id": "S", "label": "S", "x": 0.8, "y": 3.8, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh chóp S phía trên đáy" },
     { "op": "segment", "a": "S", "b": "A", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SA" },
     { "op": "segment", "a": "S", "b": "B", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SB" },
     { "op": "segment", "a": "S", "b": "C", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SC" },
@@ -56,17 +56,17 @@
   ],
   "geometry": {
     "points": [
-      { "id": "pt_A", "label": "A", "show": true, "named": true, "nx": -2.8, "ny": 0.0, "def": { "t": "free", "x": 252, "y": 381 } },
-      { "id": "pt_B", "label": "B", "show": true, "named": true, "nx": -1.3, "ny": -2.0, "def": { "t": "free", "x": 336, "y": 493 } },
-      { "id": "pt_C", "label": "C", "show": true, "named": true, "nx": 1.9, "ny": -1.7, "def": { "t": "free", "x": 515, "y": 476 } },
-      { "id": "pt_D", "label": "D", "show": true, "named": true, "nx": 3.2, "ny": 0.2, "def": { "t": "free", "x": 588, "y": 370 } },
-      { "id": "pt_S", "label": "S", "show": true, "named": true, "nx": -0.4, "ny": 3.8, "def": { "t": "free", "x": 386, "y": 168 } },
-      { "id": "pt_O", "label": "O", "show": true, "named": true, "nx": 0.413, "ny": -1.162, "def": { "t": "inter", "l1": ["pt_A", "pt_C"], "c1": false, "l2": ["pt_B", "pt_D"], "c2": false, "which": 0 } },
-      { "id": "pt_M", "label": "M", "show": true, "named": true, "nx": 0.75, "ny": 1.05, "def": { "t": "mid", "a": "pt_S", "b": "pt_C" } },
-      { "id": "pt_N", "label": "N", "show": true, "named": true, "nx": 1.4, "ny": 2.0, "def": { "t": "mid", "a": "pt_S", "b": "pt_D" } },
-      { "id": "pt_K", "label": "K", "show": true, "named": true, "nx": 0.083, "ny": 0.853, "def": { "t": "inter", "l1": ["pt_A", "pt_M"], "c1": false, "l2": ["pt_S", "pt_O"], "c2": false, "which": 0 } },
-      { "id": "pt_I", "label": "I", "show": true, "named": true, "nx": 0.888, "ny": 2.512, "def": { "t": "inter", "l1": ["pt_B", "pt_K"], "c1": false, "l2": ["pt_S", "pt_D"], "c2": false, "which": 0 } },
-      { "id": "pt_x", "label": "x", "show": true, "named": true, "noDot": true, "nx": -4.035, "ny": -1.805, "def": { "t": "vec", "o": "pt_A", "a": "pt_D", "b": "pt_C", "k": 0.95, "perp": false } }
+      { "id": "pt_A", "label": "A", "show": true, "named": true, "nx": -2.8, "ny": 0.2, "def": { "t": "free", "x": 280, "y": 350 } },
+      { "id": "pt_B", "label": "B", "show": true, "named": true, "nx": -1.7, "ny": -1.8, "def": { "t": "free", "x": 335, "y": 450 } },
+      { "id": "pt_C", "label": "C", "show": true, "named": true, "nx": 1.7, "ny": -2.2, "def": { "t": "free", "x": 505, "y": 470 } },
+      { "id": "pt_D", "label": "D", "show": true, "named": true, "nx": 3.2, "ny": 0.5, "def": { "t": "free", "x": 580, "y": 335 } },
+      { "id": "pt_S", "label": "S", "show": true, "named": true, "nx": 0.8, "ny": 3.8, "def": { "t": "free", "x": 460, "y": 170 } },
+      { "id": "pt_O", "label": "O", "show": true, "named": true, "nx": -0.2905, "ny": -1.1384, "def": { "t": "inter", "l1": ["pt_A", "pt_C"], "c1": false, "l2": ["pt_B", "pt_D"], "c2": false, "which": 0 } },
+      { "id": "pt_M", "label": "M", "show": true, "named": true, "nx": 1.25, "ny": 0.8, "def": { "t": "mid", "a": "pt_S", "b": "pt_C" } },
+      { "id": "pt_N", "label": "N", "show": true, "named": true, "nx": 2.0, "ny": 2.15, "def": { "t": "mid", "a": "pt_S", "b": "pt_D" } },
+      { "id": "pt_K", "label": "K", "show": true, "named": true, "nx": 0.0999, "ny": 0.6296, "def": { "t": "inter", "l1": ["pt_A", "pt_M"], "c1": false, "l2": ["pt_S", "pt_O"], "c2": false, "which": 0 } },
+      { "id": "pt_I", "label": "I", "show": true, "named": true, "nx": 1.6167, "ny": 2.677, "def": { "t": "inter", "l1": ["pt_B", "pt_K"], "c1": false, "l2": ["pt_S", "pt_D"], "c2": false, "which": 0 } },
+      { "id": "pt_x", "label": "x", "show": true, "named": true, "noDot": true, "nx": -4.225, "ny": -2.365, "def": { "t": "vec", "o": "pt_A", "a": "pt_D", "b": "pt_C", "k": 0.95, "perp": false } }
     ],
     "shapes": [
       { "id": "sh_AB", "kind": "segment", "pts": ["pt_A", "pt_B"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
@@ -89,7 +89,7 @@
       { "id": "sh_MN", "kind": "segment", "pts": ["pt_M", "pt_N"], "color": "#1a1a1a", "width": 2.2, "dashed": false, "aux": true },
       { "id": "sh_Ax", "kind": "segment", "pts": ["pt_A", "pt_x"], "color": "#7c3aed", "width": 2.6, "dashed": false, "aux": true }
     ],
-    "bbox": { "x0": 180, "y0": 148, "x1": 612, "y1": 515, "width": 432, "height": 367 }
+    "bbox": { "x0": 195, "y0": 150, "x1": 605, "y1": 495, "width": 410, "height": 345 }
   },
   "motion": {
     "preset": "domiinh",
@@ -154,6 +154,6 @@
     ]
   },
   "exports": {
-    "tikzStatic": "\\begin{tikzpicture}[line join=round, line cap=round, >=Stealth, scale=0.85]\n  \\coordinate (A) at (-2.8, 0.0);\n  \\coordinate (B) at (-1.3, -2.0);\n  \\coordinate (C) at (1.9, -1.7);\n  \\coordinate (D) at (3.2, 0.2);\n  \\coordinate (S) at (-0.4, 3.8);\n  \\coordinate (O) at (intersection of A--C and B--D);\n  \\coordinate (M) at ($(S)!0.5!(C)$);\n  \\coordinate (N) at ($(S)!0.5!(D)$);\n  \\coordinate (K) at (intersection of A--M and S--O);\n  \\coordinate (I) at (intersection of B--K and S--D);\n  \\coordinate (Ax) at ($(A)+0.95*(C)-0.95*(D)$);\n  \\fill[orange!15] (A)--(B)--(M)--(I)--cycle;\n  \\draw[dashed] (A)--(D) (A)--(C) (B)--(D) (S)--(O) (A)--(M) (B)--(I) (A)--(I);\n  \\draw[thick] (A)--(B)--(C)--(D) (S)--(A) (S)--(B) (S)--(C) (S)--(D) (B)--(M)--(I) (M)--(N) (A)--(Ax);\n  \\foreach \\p/\\pos in {A/left,B/below left,C/below right,D/right,S/above,O/below,M/right,N/above right,K/left,I/above right} \\fill (\\p) circle (1.4pt) node[\\pos] {$\\p$};\n  \\node[below left] at (Ax) {$x$};\n\\end{tikzpicture}"
+    "tikzStatic": "\\begin{tikzpicture}[line join=round, line cap=round, >=Stealth, scale=0.85]\n  \\coordinate (A) at (-2.8, 0.2);\n  \\coordinate (B) at (-1.7, -1.8);\n  \\coordinate (C) at (1.7, -2.2);\n  \\coordinate (D) at (3.2, 0.5);\n  \\coordinate (S) at (0.8, 3.8);\n  \\coordinate (O) at (intersection of A--C and B--D);\n  \\coordinate (M) at ($(S)!0.5!(C)$);\n  \\coordinate (N) at ($(S)!0.5!(D)$);\n  \\coordinate (K) at (intersection of A--M and S--O);\n  \\coordinate (I) at (intersection of B--K and S--D);\n  \\coordinate (Ax) at ($(A)+0.95*(C)-0.95*(D)$);\n  \\fill[orange!15] (A)--(B)--(M)--(I)--cycle;\n  \\draw[dashed] (A)--(D) (A)--(C) (B)--(D) (S)--(O) (A)--(M) (B)--(I) (A)--(I);\n  \\draw[thick] (A)--(B)--(C)--(D) (S)--(A) (S)--(B) (S)--(C) (S)--(D) (B)--(M)--(I) (M)--(N) (A)--(Ax);\n  \\foreach \\p/\\pos in {A/left,B/below left,C/below right,D/right,S/above,O/below,M/right,N/above right,K/left,I/above right} \\fill (\\p) circle (1.4pt) node[\\pos] {$\\p$};\n  \\node[below left] at (Ax) {$x$};\n\\end{tikzpicture}"
   }
 }

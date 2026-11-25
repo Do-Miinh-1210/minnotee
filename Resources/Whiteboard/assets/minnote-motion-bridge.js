@@ -355,7 +355,14 @@
         const o = getPt(def.o), a = getPt(def.a), b = getPt(def.b);
         if (!o || !a || !b) return null;
         let dx = b.x - a.x, dy = b.y - a.y;
-        if (def.perp) { const tmp = dx; dx = -dy; dy = tmp; }
+        // Match MinNote Kernel Hg = e => ({ x: e.y, y: -e.x }) in Canvas Y-down
+        if (def.perp) { const tmp = dx; dx = dy; dy = -tmp; }
+        if (def.distVal != null) {
+          const len = Math.hypot(dx, dy);
+          if (len < 1e-12) return { x: o.x, y: o.y };
+          const dPx = safeEvalMathNumber(def.distVal) * ((geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559);
+          return { x: o.x + dx * dPx / len, y: o.y + dy * dPx / len };
+        }
         const k = def.k != null ? safeEvalMathNumber(def.k) : 1;
         return { x: o.x + dx * (Number.isFinite(k) ? k : 1), y: o.y + dy * (Number.isFinite(k) ? k : 1) };
       }
@@ -366,6 +373,28 @@
         if (!Number.isFinite(k)) k = 0.5;
         if (def.seg) k = clamp(k, 0, 1);
         return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+      }
+      case 'len': {
+        const a = getPt(def.a);
+        if (!a) return null;
+        const val = def.val != null ? safeEvalMathNumber(def.val) : 2;
+        const dPx = Math.max(1e-4, Number.isFinite(val) ? val : 2) * ((geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559);
+        const ang = def.ang != null ? safeEvalMathNumber(def.ang) : 0;
+        const rad = Number.isFinite(ang) ? ang : 0;
+        return { x: a.x + dPx * Math.cos(rad), y: a.y + dPx * Math.sin(rad) };
+      }
+      case 'polar': {
+        const o = getPt(def.o), r = getPt(def.ref);
+        if (!o || !r) return null;
+        const base = Math.atan2(r.y - o.y, r.x - o.x);
+        const degRaw = def.fixedAng ? (def.angVal != null ? safeEvalMathNumber(def.angVal) : 60) : (def.curAngDeg != null ? safeEvalMathNumber(def.curAngDeg) : 60);
+        const deg = Number.isFinite(degRaw) ? degRaw : 60;
+        const rad = base - deg * Math.PI / 180;
+        const cm = (geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559;
+        const dPx = def.fixedDist
+          ? Math.max(1e-4, (def.distVal != null ? safeEvalMathNumber(def.distVal) : 2) * cm)
+          : Math.max(4, def.curDistPx != null ? safeEvalMathNumber(def.curDistPx) : 120);
+        return { x: o.x + dPx * Math.cos(rad), y: o.y + dPx * Math.sin(rad) };
       }
       case 'inter': {
         if (!def.l1 || !def.l2) return null;
@@ -412,21 +441,214 @@
         }
         return pts[Math.min(def.which || 0, Math.max(0, pts.length - 1))] || null;
       }
+      case 'bis': {
+        const a = getPt(def.a), o = getPt(def.o), b = getPt(def.b);
+        if (!a || !o || !b) return null;
+        const d1 = dist2(a, o), d2 = dist2(b, o);
+        if (d1 < 1e-9 || d2 < 1e-9) return null;
+        let lx = (a.x - o.x) / d1 + (b.x - o.x) / d2;
+        let ly = (a.y - o.y) / d1 + (b.y - o.y) / d2;
+        const m = Math.hypot(lx, ly);
+        if (m < 1e-9) { lx = (a.y - o.y) / d1; ly = -(a.x - o.x) / d1; }
+        else { lx /= m; ly /= m; }
+        return { x: o.x + lx * d1, y: o.y + ly * d1 };
+      }
       case 'path': {
         if (!Array.isArray(def.pts) || !def.pts.length) return null;
         const ps = def.pts.map(getPt);
         if (ps.some((p) => !p)) return null;
-        const kind = def.on || def.kind || 'circle';
+        const kind = def.kind || def.on || 'circle';
         const rawK = def.k != null ? safeEvalMathNumber(def.k) : 0;
-        const ang = (def.kind === 'circle' && rawK >= 0 && rawK <= 1) ? (rawK * Math.PI * 2) : rawK;
+        const ang = (def.angleDeg != null && def.k == null)
+          ? (-safeEvalMathNumber(def.angleDeg) * Math.PI / 180)
+          : (rawK * Math.PI * 2);
         if (kind === 'circle' && ps.length >= 2) {
           const r = dist2(ps[0], ps[1]);
           return { x: ps[0].x + r * Math.cos(ang), y: ps[0].y + r * Math.sin(ang) };
         }
+        if (kind === 'ellipse' && ps.length >= 3) {
+          const rx = dist2(ps[0], ps[1]), ry = dist2(ps[0], ps[2]);
+          const rot = Math.atan2(ps[1].y - ps[0].y, ps[1].x - ps[0].x);
+          const lx = rx * Math.cos(ang), ly = ry * Math.sin(ang);
+          return {
+            x: ps[0].x + lx * Math.cos(rot) - ly * Math.sin(rot),
+            y: ps[0].y + lx * Math.sin(rot) + ly * Math.cos(rot)
+          };
+        }
         return ps[0];
+      }
+      case 'ctan': {
+        if (!def.c1 || !def.c2) return null;
+        const p1 = getPt(def.c1[0]), p2 = getPt(def.c1[1]), p3 = getPt(def.c2[0]), p4 = getPt(def.c2[1]);
+        if (!p1 || !p2 || !p3 || !p4) return null;
+        const r1 = dist2(p1, p2), r2 = dist2(p3, p4);
+        const dx = p3.x - p1.x, dy = p3.y - p1.y, d = Math.hypot(dx, dy);
+        if (d < 1e-9) return null;
+        const l = (def.inner ? -(r1 + r2) : (r2 - r1)) / d;
+        if (Math.abs(l) > 1) return null;
+        const ux = dx / d, uy = dy / d;
+        const h = Math.sqrt(Math.max(0, 1 - l * l)) * (def.which ? -1 : 1);
+        const nx = ux * l + uy * h, ny = uy * l - ux * h;
+        const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
+        const t2 = def.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
+        return def.on === 2 ? t2 : t1;
+      }
+      case 'p3d': {
+        const o = getPt(def.o);
+        if (!o) return null;
+        const cm = (geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559;
+        const vx = (safeEvalMathNumber(def.vx) || 0) * cm;
+        const vy = (safeEvalMathNumber(def.vy) || 0) * cm;
+        const vz = (safeEvalMathNumber(def.vz) || 0) * cm;
+        if (Array.isArray(def.view) && def.view.length >= 6) {
+          const m = def.view;
+          return { x: o.x + m[0] * vx + m[1] * vy + m[2] * vz, y: o.y + m[3] * vx + m[4] * vy + m[5] * vz };
+        }
+        return { x: o.x + vx - 0.35 * vy, y: o.y - vz + 0.28 * vy };
       }
       default:
         return geo ? null : null;
+    }
+  }
+
+  /**
+   * Evaluates a board-convention (`board_y_down`) parametric `def` directly in `math_y_up` space
+   * from normalized parent coordinates `getMathPt(id)`, preserving exact orientation under Y-reflection!
+   */
+  function evalBoardDefInMathSpace(def, getMathPt, cmInMath, inputIsAlreadyMathYUp) {
+    if (!def || !def.t || def.t === 'free') return null;
+    if (inputIsAlreadyMathYUp) {
+      return evalPointDef(def, getMathPt, { cmPx: cmInMath });
+    }
+    switch (def.t) {
+      case 'mid':
+      case 'foot':
+      case 'sum':
+      case 'on':
+        return evalPointDef(def, getMathPt, { cmPx: cmInMath });
+      case 'rot': {
+        const c = getMathPt(def.c), p = getMathPt(def.p);
+        if (!c || !p) return null;
+        const ang = -(safeEvalMathNumber(def.ang) || 0) * Math.PI / 180;
+        const k = def.k != null ? safeEvalMathNumber(def.k) : 1;
+        const dx = p.x - c.x, dy = p.y - c.y;
+        const cs = Math.cos(ang), sn = Math.sin(ang);
+        return { x: c.x + (dx * cs - dy * sn) * k, y: c.y + (dx * sn + dy * cs) * k };
+      }
+      case 'vec': {
+        const o = getMathPt(def.o), a = getMathPt(def.a), b = getMathPt(def.b);
+        if (!o || !a || !b) return null;
+        let dx = b.x - a.x, dy = b.y - a.y;
+        // Canvas Hg(dx_c, dy_c) = (dy_c, -dx_c) -> under R_Y becomes (-dy_m, dx_m) (+90 deg CCW)
+        if (def.perp) { const tmp = dx; dx = -dy; dy = tmp; }
+        if (def.distVal != null) {
+          const len = Math.hypot(dx, dy);
+          if (len < 1e-12) return { x: o.x, y: o.y };
+          const dCm = safeEvalMathNumber(def.distVal) * cmInMath;
+          return { x: o.x + dx * dCm / len, y: o.y + dy * dCm / len };
+        }
+        const k = def.k != null ? safeEvalMathNumber(def.k) : 1;
+        return { x: o.x + dx * (Number.isFinite(k) ? k : 1), y: o.y + dy * (Number.isFinite(k) ? k : 1) };
+      }
+      case 'len': {
+        const a = getMathPt(def.a);
+        if (!a) return null;
+        const val = def.val != null ? safeEvalMathNumber(def.val) : 2;
+        const dCm = Math.max(1e-4, Number.isFinite(val) ? val : 2) * cmInMath;
+        const ang = -(safeEvalMathNumber(def.ang) || 0);
+        return { x: a.x + dCm * Math.cos(ang), y: a.y + dCm * Math.sin(ang) };
+      }
+      case 'polar': {
+        const o = getMathPt(def.o), r = getMathPt(def.ref);
+        if (!o || !r) return null;
+        const base = Math.atan2(r.y - o.y, r.x - o.x);
+        const degRaw = def.fixedAng ? (def.angVal != null ? safeEvalMathNumber(def.angVal) : 60) : (def.curAngDeg != null ? safeEvalMathNumber(def.curAngDeg) : 60);
+        const deg = Number.isFinite(degRaw) ? degRaw : 60;
+        const rad = base + deg * Math.PI / 180;
+        const dCm = def.fixedDist
+          ? Math.max(1e-4, (def.distVal != null ? safeEvalMathNumber(def.distVal) : 2) * cmInMath)
+          : Math.max(4, def.curDistPx != null ? safeEvalMathNumber(def.curDistPx) : 120) * (cmInMath / 37.79527559);
+        return { x: o.x + dCm * Math.cos(rad), y: o.y + dCm * Math.sin(rad) };
+      }
+      case 'inter': {
+        if (!def.l1 || !def.l2) return null;
+        const p1 = getMathPt(def.l1[0]), p2 = getMathPt(def.l1[1]), p3 = getMathPt(def.l2[0]), p4 = getMathPt(def.l2[1]);
+        if (!p1 || !p2 || !p3 || !p4) return null;
+        if (!def.c1 && !def.c2) {
+          return evalPointDef(def, getMathPt, { cmPx: cmInMath });
+        }
+        if (def.c1 && def.c2) {
+          // Under R_Y, Canvas _Y swaps roots 0 <-> 1
+          return evalPointDef(Object.assign({}, def, { which: def.which ? 0 : 1 }), getMathPt, { cmPx: cmInMath });
+        }
+        return evalPointDef(def, getMathPt, { cmPx: cmInMath });
+      }
+      case 'bis': {
+        const a = getMathPt(def.a), o = getMathPt(def.o), b = getMathPt(def.b);
+        if (!a || !o || !b) return null;
+        const d1 = dist2(a, o), d2 = dist2(b, o);
+        if (d1 < 1e-9 || d2 < 1e-9) return null;
+        let lx = (a.x - o.x) / d1 + (b.x - o.x) / d2;
+        let ly = (a.y - o.y) / d1 + (b.y - o.y) / d2;
+        const m = Math.hypot(lx, ly);
+        if (m < 1e-9) { lx = -(a.y - o.y) / d1; ly = (a.x - o.x) / d1; }
+        else { lx /= m; ly /= m; }
+        return { x: o.x + lx * d1, y: o.y + ly * d1 };
+      }
+      case 'path': {
+        if (!Array.isArray(def.pts) || !def.pts.length) return null;
+        const ps = def.pts.map(getMathPt);
+        if (ps.some((p) => !p)) return null;
+        const kind = def.kind || def.on || 'circle';
+        const rawK = def.k != null ? safeEvalMathNumber(def.k) : 0;
+        const ang = (def.angleDeg != null && def.k == null)
+          ? (safeEvalMathNumber(def.angleDeg) * Math.PI / 180)
+          : (-rawK * Math.PI * 2);
+        if (kind === 'circle' && ps.length >= 2) {
+          const r = dist2(ps[0], ps[1]);
+          return { x: ps[0].x + r * Math.cos(ang), y: ps[0].y + r * Math.sin(ang) };
+        }
+        if (kind === 'ellipse' && ps.length >= 3) {
+          const rx = dist2(ps[0], ps[1]), ry = dist2(ps[0], ps[2]);
+          const rot = Math.atan2(ps[1].y - ps[0].y, ps[1].x - ps[0].x);
+          const lx = rx * Math.cos(ang), ly = ry * Math.sin(ang);
+          return {
+            x: ps[0].x + lx * Math.cos(rot) - ly * Math.sin(rot),
+            y: ps[0].y + lx * Math.sin(rot) + ly * Math.cos(rot)
+          };
+        }
+        return ps[0];
+      }
+      case 'ctan': {
+        if (!def.c1 || !def.c2) return null;
+        const p1 = getMathPt(def.c1[0]), p2 = getMathPt(def.c1[1]), p3 = getMathPt(def.c2[0]), p4 = getMathPt(def.c2[1]);
+        if (!p1 || !p2 || !p3 || !p4) return null;
+        const r1 = dist2(p1, p2), r2 = dist2(p3, p4);
+        const dx = p3.x - p1.x, dy = p3.y - p1.y, d = Math.hypot(dx, dy);
+        if (d < 1e-9) return null;
+        const l = (def.inner ? -(r1 + r2) : (r2 - r1)) / d;
+        if (Math.abs(l) > 1) return null;
+        const ux = dx / d, uy = dy / d;
+        const h = Math.sqrt(Math.max(0, 1 - l * l)) * (def.which ? -1 : 1);
+        const nx = ux * l - uy * h, ny = uy * l + ux * h;
+        const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
+        const t2 = def.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
+        return def.on === 2 ? t2 : t1;
+      }
+      case 'p3d': {
+        const o = getMathPt(def.o);
+        if (!o) return null;
+        const vx = (safeEvalMathNumber(def.vx) || 0) * cmInMath;
+        const vy = (safeEvalMathNumber(def.vy) || 0) * cmInMath;
+        const vz = (safeEvalMathNumber(def.vz) || 0) * cmInMath;
+        if (Array.isArray(def.view) && def.view.length >= 6) {
+          const m = def.view;
+          return { x: o.x + m[0] * vx + m[1] * vy + m[2] * vz, y: o.y - (m[3] * vx + m[4] * vy + m[5] * vz) };
+        }
+        return { x: o.x + vx - 0.35 * vy, y: o.y + vz - 0.28 * vy };
+      }
+      default:
+        return null;
     }
   }
 
@@ -468,8 +690,13 @@
       case 'sum': return [def.a, def.b, def.c];
       case 'vec': return [def.o, def.a, def.b];
       case 'on': return [def.a, def.b];
+      case 'len': return [def.a];
+      case 'polar': return [def.o, def.ref];
+      case 'p3d': return [def.o];
       case 'inter': return [...(def.l1 || []), ...(def.l2 || [])];
+      case 'bis': return [def.a, def.o, def.b];
       case 'path': return Array.isArray(def.pts) ? def.pts : [];
+      case 'ctan': return [...(def.c1 || []), ...(def.c2 || [])];
       default: return [];
     }
   }
@@ -558,7 +785,13 @@
         : opts.geo.points;
       const shapes = (opts.geo.shapes || []).filter((s) => s && !s.hidden && s.kind !== 'flatLink');
       return {
-        geo: { points: ptsObj, shapes },
+        geo: {
+          points: ptsObj,
+          shapes,
+          _coordSpace: opts.geo._coordSpace,
+          cmPx: opts.geo.cmPx || opts.geo.pxPerCm,
+          params: opts.geo.params
+        },
         replay: opts.replay || (Array.isArray(opts.steps) ? { steps: opts.steps, title: opts.title || 'Hình học MinNote' } : null),
         isDemoFallback: false
       };
@@ -696,13 +929,14 @@
     validPtIds.forEach(visitPt);
 
     // Check coordinate system: canvas Y-down vs already math Y-up
-    const coordSpace = opts.coordSpace || (geo._coordSpace === 'math-y-up' ? 'math-y-up' : 'canvas');
+    const rawCoordTag = opts.coordSpace || geo._coordSpace || 'board_y_down';
+    const isInputMathYUp = rawCoordTag === 'math-y-up' || rawCoordTag === 'math_y_up';
     const rawMath = new Map();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const id of topoPtIds) {
       const c = liveCoords.get(id);
       const mx = c.x;
-      const my = coordSpace === 'math-y-up' ? c.y : -c.y;
+      const my = isInputMathYUp ? c.y : -c.y;
       rawMath.set(id, { x: mx, y: my });
       if (mx < minX) minX = mx;
       if (mx > maxX) maxX = mx;
@@ -710,7 +944,7 @@
       if (my > maxY) maxY = my;
     }
 
-    // Origin at bottom-leftmost primary point & scale dominant span to ~5.2 cm
+    // Origin at bottom-leftmost primary point & scale dominant span to ~5.4 cm
     const primaryIds = topoPtIds.filter((id) => {
       const d = geo.points[id] && geo.points[id].def;
       return !d || d.t === 'free';
@@ -731,16 +965,38 @@
     if (bottomBand.length) originId = bottomBand[0];
     const originRaw = rawMath.get(originId) || { x: 0, y: 0 };
 
-    // Choose scale: if already in small math coords (~[1..10]), keep 1.0; else normalize to ~5.4 cm
+    // Choose scale: if already in small math coords (~[1.5..11.5]), keep 1.0; else normalize to ~5.4 cm
     const scale = (spanRaw >= 1.5 && spanRaw <= 11.5) ? 1.0 : (5.4 / spanRaw);
+    const cmPx = (geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559;
+    const round6 = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? (Math.abs(n) < 1e-9 ? 0 : Number(n.toFixed(6))) : 0;
+    };
 
     const mathCoords = new Map();
     const intCoords = new Map();
     let bMinX = Infinity, bMaxX = -Infinity, bMinY = Infinity, bMaxY = -Infinity;
+    const validSet = new Set(topoPtIds);
+
     for (const id of topoPtIds) {
-      const p = rawMath.get(id);
-      const sx = Number(((p.x - originRaw.x) * scale).toFixed(3));
-      const sy = Number(((p.y - originRaw.y) * scale).toFixed(3));
+      const pt = geo.points[id];
+      const d = pt && pt.def;
+      const deps = pointDeps(d);
+      const isDerived = d && d.t && d.t !== 'free' && deps.length > 0 && deps.every((dep) => validSet.has(dep));
+      let sx, sy;
+      if (isDerived) {
+        // Re-evaluate derived point directly from normalized parent mathCoords so incidence & orthogonality hold to < 1e-12!
+        const ev = evalBoardDefInMathSpace(d, (depId) => mathCoords.get(depId), cmPx * scale, isInputMathYUp);
+        if (ev && Number.isFinite(ev.x) && Number.isFinite(ev.y)) {
+          sx = round6(ev.x);
+          sy = round6(ev.y);
+        }
+      }
+      if (sx === undefined || sy === undefined) {
+        const p = rawMath.get(id);
+        sx = round6((p.x - originRaw.x) * scale);
+        sy = round6((p.y - originRaw.y) * scale);
+      }
       const nx = id === originId ? 0 : Math.round(sx * 2) / 2;
       const ny = id === originId ? 0 : Math.round(sy * 2) / 2;
       mathCoords.set(id, { x: sx, y: sy });
@@ -804,7 +1060,7 @@
         : (geo._hasSolid || allShapes.some((s) => s.kind === 'solid' || s.look3 || ['cone', 'cylinder', 'sphere', 'frustumCone'].includes(s.kind)) || (hasDashed && hasApexS))
     );
 
-    // Build normalized points, shapes & ops
+    // Build normalized points, shapes & ops while 100% preserving EVERY live parametric constraint (`def`) in `board_y_down`!
     const normPoints = [];
     const ops = [];
 
@@ -813,24 +1069,32 @@
       const info = idMap.get(id);
       const mc = mathCoords.get(id);
       const ic = intCoords.get(id);
-      const d = pt.def || { t: 'free', x: mc.x, y: mc.y };
+      const lc = liveCoords.get(id);
+      const boardX = lc ? round6(isInputMathYUp ? lc.x : lc.x) : round6(mc.x * 56 + 400);
+      const boardY = lc ? round6(isInputMathYUp ? -lc.y : lc.y) : round6(-mc.y * 56 + 360);
+      const rawLabelStr = pt && pt.label ? String(pt.label).trim() : '';
+      const hasVisibleLabel = pt.show !== false && !pt.hidden && !pt.noName && !!rawLabelStr;
+      const cleanLabel = hasVisibleLabel ? (info.texLabel || rawLabelStr) : '';
+
+      const d = pt.def || { t: 'free', x: boardX, y: boardY };
       let symDef;
       switch (d.t) {
         case 'mid':
           symDef = { t: 'mid', a: S(d.a), b: S(d.b) };
-          ops.push({ op: 'midpoint', id: info.sym, label: info.texLabel || info.sym, a: S(d.a), b: S(d.b), ...(pt.show === false ? { show: false } : {}) });
+          ops.push({ op: 'midpoint', id: info.sym, label: cleanLabel, a: S(d.a), b: S(d.b), ...(pt.show === false ? { show: false } : {}) });
           break;
         case 'sum':
           symDef = { t: 'sum', a: S(d.a), b: S(d.b), c: S(d.c) };
-          ops.push({ op: 'point_sum', id: info.sym, label: info.texLabel || info.sym, a: S(d.a), b: S(d.b), c: S(d.c), ...(pt.show === false ? { show: false } : {}) });
+          ops.push({ op: 'point_sum', id: info.sym, label: cleanLabel, a: S(d.a), b: S(d.b), c: S(d.c), ...(pt.show === false ? { show: false } : {}) });
           break;
         case 'on': {
-          const kVal = Number((d.k != null ? d.k : 0.5).toFixed(3));
+          const kRaw = d.k != null ? safeEvalMathNumber(d.k) : 0.5;
+          const kVal = round6(Number.isFinite(kRaw) ? kRaw : 0.5);
           symDef = { t: 'on', a: S(d.a), b: S(d.b), k: kVal, seg: !!d.seg };
           ops.push({
             op: d.seg ? 'point_on_segment' : 'point_on_line',
             id: info.sym,
-            label: info.texLabel || info.sym,
+            label: cleanLabel,
             a: S(d.a),
             b: S(d.b),
             ratio: kVal,
@@ -840,71 +1104,172 @@
         }
         case 'foot':
           symDef = { t: 'foot', p: S(d.p), a: S(d.a), b: S(d.b) };
-          ops.push({ op: 'foot_perp', id: info.sym, label: info.texLabel || info.sym, p: S(d.p), a: S(d.a), b: S(d.b), drawDropSegment: false, markRightAngle: false, ...(pt.show === false ? { show: false } : {}) });
+          ops.push({ op: 'foot_perp', id: info.sym, label: cleanLabel, p: S(d.p), a: S(d.a), b: S(d.b), drawDropSegment: false, markRightAngle: false, ...(pt.show === false ? { show: false } : {}) });
           break;
         case 'inter':
-          if (!d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2)) {
-            symDef = { t: 'inter', l1: [S(d.l1[0]), S(d.l1[1])], c1: false, l2: [S(d.l2[0]), S(d.l2[1])], c2: false, which: d.which || 0 };
-            ops.push({ op: 'intersection_ll', id: info.sym, label: info.texLabel || info.sym, l1: [S(d.l1[0]), S(d.l1[1])], l2: [S(d.l2[0]), S(d.l2[1])], ...(pt.show === false ? { show: false } : {}) });
-          } else if (Array.isArray(d.l1) && Array.isArray(d.l2) && (!d.c1 || !d.c2)) {
-            const ln = d.c1 ? d.l2 : d.l1;
-            const cir = d.c1 ? d.l1 : d.l2;
-            symDef = { t: 'inter', l1: [S(ln[0]), S(ln[1])], c1: false, l2: [S(cir[0]), S(cir[1])], c2: true, which: d.which || 0 };
-            ops.push({ op: 'intersection_lc', id: info.sym, label: info.texLabel || info.sym, line: [S(ln[0]), S(ln[1])], circle: [S(cir[0]), S(cir[1])], which: d.which || 0, ...(pt.show === false ? { show: false } : {}) });
+          if (Array.isArray(d.l1) && Array.isArray(d.l2)) {
+            const whichBoard = isInputMathYUp && d.c1 && d.c2 ? (d.which ? 0 : 1) : (d.which || 0);
+            symDef = {
+              t: 'inter',
+              l1: [S(d.l1[0]), S(d.l1[1])],
+              c1: !!d.c1,
+              l2: [S(d.l2[0]), S(d.l2[1])],
+              c2: !!d.c2,
+              which: whichBoard
+            };
+            if (!d.c1 && !d.c2) {
+              ops.push({ op: 'intersection_ll', id: info.sym, label: cleanLabel, l1: [S(d.l1[0]), S(d.l1[1])], l2: [S(d.l2[0]), S(d.l2[1])], ...(pt.show === false ? { show: false } : {}) });
+            } else if (d.c1 && d.c2) {
+              ops.push({ op: 'intersection_cc', id: info.sym, label: cleanLabel, c1: [S(d.l1[0]), S(d.l1[1])], c2: [S(d.l2[0]), S(d.l2[1])], which: whichBoard, ...(pt.show === false ? { show: false } : {}) });
+            } else {
+              const ln = d.c1 ? d.l2 : d.l1;
+              const cir = d.c1 ? d.l1 : d.l2;
+              ops.push({ op: 'intersection_lc', id: info.sym, label: cleanLabel, line: [S(ln[0]), S(ln[1])], circle: [S(cir[0]), S(cir[1])], which: d.which || 0, ...(pt.show === false ? { show: false } : {}) });
+            }
           } else {
-            symDef = { t: 'free', x: mc.x, y: mc.y };
-            ops.push({ op: 'point_free', id: info.sym, label: info.texLabel || info.sym, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+            symDef = { t: 'free', x: boardX, y: boardY };
+            ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
           }
           break;
-        case 'vec':
-          symDef = { t: 'vec', o: S(d.o), a: S(d.a), b: S(d.b), k: Number((d.k != null ? d.k : 1).toFixed(3)), perp: !!d.perp };
+        case 'vec': {
+          const kVal = round6(d.k != null ? safeEvalMathNumber(d.k) : 1);
+          symDef = {
+            t: 'vec',
+            o: S(d.o),
+            a: S(d.a),
+            b: S(d.b),
+            k: kVal,
+            perp: !!d.perp,
+            ...(d.distVal != null ? { distVal: round6(safeEvalMathNumber(d.distVal)) } : {})
+          };
           ops.push({
             op: d.perp ? 'line_perp' : 'line_parallel',
             id: info.sym,
-            label: info.texLabel || info.sym,
+            label: cleanLabel,
             through: S(d.o),
             a: S(d.a),
             b: S(d.b),
-            k: Number((d.k != null ? d.k : 1).toFixed(3)),
+            k: kVal,
             drawSegment: false,
             ...(pt.noDot ? { noDot: true } : {}),
             ...(pt.show === false ? { show: false } : {})
           });
           break;
+        }
+        case 'rot': {
+          const angBoard = isInputMathYUp ? -(safeEvalMathNumber(d.ang) || 0) : (safeEvalMathNumber(d.ang) || 0);
+          const kVal = round6(d.k != null ? safeEvalMathNumber(d.k) : 1);
+          symDef = { t: 'rot', c: S(d.c), p: S(d.p), ang: round6(angBoard), k: kVal };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
+        }
+        case 'polar': {
+          symDef = {
+            t: 'polar',
+            o: S(d.o),
+            ref: S(d.ref),
+            ...(d.fixedAng != null ? { fixedAng: !!d.fixedAng } : {}),
+            ...(d.angVal != null ? { angVal: round6(safeEvalMathNumber(d.angVal)) } : {}),
+            ...(d.curAngDeg != null ? { curAngDeg: round6(safeEvalMathNumber(d.curAngDeg)) } : {}),
+            ...(d.fixedDist != null ? { fixedDist: !!d.fixedDist } : {}),
+            ...(d.distVal != null ? { distVal: round6(safeEvalMathNumber(d.distVal)) } : {}),
+            ...(d.curDistPx != null ? { curDistPx: round6(safeEvalMathNumber(d.curDistPx)) } : {})
+          };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
+        }
+        case 'len': {
+          const angBoard = isInputMathYUp ? -(safeEvalMathNumber(d.ang) || 0) : (safeEvalMathNumber(d.ang) || 0);
+          symDef = {
+            t: 'len',
+            a: S(d.a),
+            val: round6(d.val != null ? safeEvalMathNumber(d.val) : 2),
+            ang: round6(angBoard),
+            ...(d.lockedAng ? { lockedAng: true } : {})
+          };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
+        }
+        case 'bis':
+          symDef = { t: 'bis', a: S(d.a), o: S(d.o), b: S(d.b) };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
         case 'path':
           if (Array.isArray(d.pts) && d.pts.length >= 2) {
+            const kind = d.kind || d.on || 'circle';
             const oMc = mathCoords.get(d.pts[0]);
-            const deg = oMc ? Math.round((Math.atan2(mc.y - oMc.y, mc.x - oMc.x) * 180 / Math.PI + 360) % 360) : 60;
-            symDef = { t: 'path', kind: 'circle', pts: [S(d.pts[0]), S(d.pts[1])], angleDeg: deg };
-            ops.push({ op: 'point_on_circle', id: info.sym, label: info.texLabel || info.sym, center: S(d.pts[0]), rim: S(d.pts[1]), angleDeg: deg, ...(pt.show === false ? { show: false } : {}) });
+            const deg = oMc ? round6(((Math.atan2(mc.y - oMc.y, mc.x - oMc.x) * 180 / Math.PI) + 360) % 360) : 60;
+            const kBoard = d.k != null
+              ? (isInputMathYUp ? round6((((1 - safeEvalMathNumber(d.k)) % 1) + 1) % 1) : round6(safeEvalMathNumber(d.k)))
+              : round6((((-deg / 360) % 1) + 1) % 1);
+            symDef = {
+              t: 'path',
+              kind,
+              ...(d.on ? { on: d.on } : {}),
+              pts: d.pts.map(S),
+              k: kBoard,
+              ...(kind === 'circle' ? { angleDeg: deg } : {}),
+              ...(d.rot ? { rot: d.rot } : {})
+            };
+            if (kind === 'circle') {
+              ops.push({ op: 'point_on_circle', id: info.sym, label: cleanLabel, center: S(d.pts[0]), rim: S(d.pts[1]), angleDeg: deg, ...(pt.show === false ? { show: false } : {}) });
+            } else {
+              ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+            }
           } else {
-            symDef = { t: 'free', x: mc.x, y: mc.y };
-            ops.push({ op: 'point_free', id: info.sym, label: info.texLabel || info.sym, x: mc.x, y: mc.y });
+            symDef = { t: 'free', x: boardX, y: boardY };
+            ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y });
           }
           break;
-      default:
-        symDef = {
-          t: 'free',
-          x: Number((liveCoords.get(id) ? liveCoords.get(id).x : mc.x * 56 + 400).toFixed(2)),
-          y: Number((liveCoords.get(id) ? liveCoords.get(id).y : -mc.y * 56 + 360).toFixed(2))
-        };
-        ops.push({ op: 'point_free', id: info.sym, label: info.texLabel || info.sym, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
-        break;
+        case 'ctan':
+          if (Array.isArray(d.c1) && Array.isArray(d.c2)) {
+            symDef = {
+              t: 'ctan',
+              c1: d.c1.map(S),
+              c2: d.c2.map(S),
+              inner: !!d.inner,
+              which: isInputMathYUp ? !d.which : !!d.which,
+              on: d.on || 1
+            };
+          } else {
+            symDef = { t: 'free', x: boardX, y: boardY };
+          }
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
+        case 'p3d':
+          symDef = {
+            t: 'p3d',
+            o: S(d.o),
+            vx: round6(d.vx ?? 0),
+            vy: round6(d.vy ?? 0),
+            vz: round6(d.vz ?? 0),
+            ...(Array.isArray(d.view) ? { view: d.view.slice() } : {})
+          };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
+        default:
+          symDef = {
+            t: 'free',
+            x: boardX,
+            y: boardY
+          };
+          ops.push({ op: 'point_free', id: info.sym, label: cleanLabel, x: mc.x, y: mc.y, ...(pt.show === false ? { show: false } : {}) });
+          break;
       }
 
       normPoints.push({
         id: info.sym,
         tikzId: info.tikzId,
         origId: id,
-        label: pt.show === false ? '' : (info.texLabel || info.sym),
+        label: cleanLabel,
         show: pt.show !== false && !pt.hidden,
         noDot: !!pt.noDot,
         nx: ic.nx,
         ny: ic.ny,
         x: mc.x,
         y: mc.y,
-        canvasX: liveCoords.get(id) ? liveCoords.get(id).x : mc.x * 56 + 400,
-        canvasY: liveCoords.get(id) ? liveCoords.get(id).y : -mc.y * 56 + 360,
+        canvasX: boardX,
+        canvasY: boardY,
         def: symDef
       });
     }
@@ -934,6 +1299,8 @@
         ops.push({ op: sh.kind, id: shSym, a: pSyms[0], b: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'circle' && pSyms.length >= 2) {
         ops.push({ op: 'circle', id: shSym, center: pSyms[0], rim: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
+      } else if ((sh.kind === 'arc' || sh.kind === 'sector') && pSyms.length >= 3) {
+        ops.push({ op: sh.kind, id: shSym, pts: pSyms, dashed: !!sh.dashed, ...(sh.fill ? { fill: sh.fill } : {}), ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'polygon' && pSyms.length >= 3) {
         if (sh.width === 0 && sh.fill) {
           ops.push({ op: 'polygon_fill', id: shSym, pts: pSyms, fill: sh.fill, ...(sh.aux ? { aux: true } : {}) });
@@ -1251,20 +1618,37 @@
       lines.push('  \\begin{scope}[layer=camera, transform shape]');
     }
 
-    // Topological coordinates
+    // Topological coordinates (symbolic calc/intersection where exact, else 5-decimal normalized math coords)
     for (const p of points) {
       const tid = p.tikzId;
       const d = p.def;
-      let expr = `(${fmtNum(p.x, 2)},${fmtNum(p.y, 2)})`;
+      let expr = `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`;
       if (d.t === 'mid' && ptById.has(d.a) && ptById.has(d.b)) {
         expr = `($(${tidOf(d.a)})!0.5!(${tidOf(d.b)})$)`;
       } else if (d.t === 'on' && ptById.has(d.a) && ptById.has(d.b)) {
-        expr = `($(${tidOf(d.a)})!${fmtNum(d.k, 3)}!(${tidOf(d.b)})$)`;
+        const kEff = d.seg ? clamp(d.k != null ? d.k : 0.5, 0, 1) : (d.k != null ? d.k : 0.5);
+        expr = `($(${tidOf(d.a)})!${fmtNum(kEff, 5)}!(${tidOf(d.b)})$)`;
       } else if (d.t === 'sum' && ptById.has(d.a) && ptById.has(d.b) && ptById.has(d.c)) {
         expr = `($(${tidOf(d.a)})+(${tidOf(d.b)})-(${tidOf(d.c)})$)`;
       } else if (d.t === 'foot' && ptById.has(d.p) && ptById.has(d.a) && ptById.has(d.b)) {
         const pa = ptById.get(d.a), pb = ptById.get(d.b);
         if (dist2(pa, pb) > 1e-4) expr = `($(${tidOf(d.a)})!(${tidOf(d.p)})!(${tidOf(d.b)})$)`;
+      } else if (d.t === 'rot' && ptById.has(d.c) && ptById.has(d.p)) {
+        const deg = -(d.ang || 0);
+        const kVal = d.k != null ? d.k : 1;
+        expr = `($(${tidOf(d.c)})!${fmtNum(kVal, 5)}!${fmtNum(deg, 4)}:(${tidOf(d.p)})$)`;
+      } else if (d.t === 'vec' && d.distVal == null && ptById.has(d.o) && ptById.has(d.a) && ptById.has(d.b)) {
+        const kVal = d.k != null ? d.k : 1;
+        if (!d.perp) {
+          if (Math.abs(kVal - 1) < 1e-5) {
+            expr = `($(${tidOf(d.o)})+(${tidOf(d.b)})-(${tidOf(d.a)})$)`;
+          } else {
+            const ks = fmtNum(kVal, 5);
+            expr = `($(${tidOf(d.o)})+${ks}*(${tidOf(d.b)})-${ks}*(${tidOf(d.a)})$)`;
+          }
+        } else if (d.o === d.a) {
+          expr = `($(${tidOf(d.a)})!${fmtNum(kVal, 5)}!90:(${tidOf(d.b)})$)`;
+        }
       } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2)) {
         const p1 = ptById.get(d.l1[0]), p2 = ptById.get(d.l1[1]), p3 = ptById.get(d.l2[0]), p4 = ptById.get(d.l2[1]);
         if (p1 && p2 && p3 && p4) {
@@ -1324,12 +1708,12 @@
           }
         }
 
-        const isRev = !!(it.rev ?? st.rev);
+        const isRev = !!(it.rev || st.rev);
         const curTag = `cur_${toAlphaSuffix(k)}_${subIdx + 1}`;
         const strokeCol = sh.aux ? 'blue!75!black' : 'black';
         const baseW = sh.dashed ? '0.45pt' : (sh.aux ? '0.65pt' : '0.7pt');
         const dashOpt = sh.dashed ? 'dashed, ' : '';
-        const arrowOpt = sh.arrow ? '-Stealth, ' : '';
+        const arrowOpt = sh.arrow ? (isRev ? 'Stealth-, ' : '-Stealth, ') : '';
 
         if (st.mode === 'cue') {
           if (sh.pts.length >= 2) {
@@ -1344,31 +1728,34 @@
           case 'line':
           case 'ray': {
             if (sh.pts.length < 2) break;
-            const aId = tidOf(isRev ? sh.pts[1] : sh.pts[0]);
-            const bId = tidOf(isRev ? sh.pts[0] : sh.pts[1]);
-            let startRef = aId;
-            let endRef = bId;
+            // Compute geometric locus endpoints first so `ray` never reverses its infinite direction
+            const rawA = tidOf(sh.pts[0]);
+            const rawB = tidOf(sh.pts[1]);
+            let geomStart = rawA;
+            let geomEnd = rawB;
             if (sh.kind === 'line') {
-              startRef = `s_${curTag}`;
-              endRef = `e_${curTag}`;
-              geomCmds.push(`      \\coordinate (${startRef}) at ($(${aId})!-0.22!(${bId})$);`);
-              geomCmds.push(`      \\coordinate (${endRef}) at ($(${aId})!1.22!(${bId})$);`);
+              geomStart = `s_${curTag}`;
+              geomEnd = `e_${curTag}`;
+              geomCmds.push(`      \\coordinate (${geomStart}) at ($(${rawA})!-0.22!(${rawB})$);`);
+              geomCmds.push(`      \\coordinate (${geomEnd}) at ($(${rawA})!1.22!(${rawB})$);`);
             } else if (sh.kind === 'ray') {
-              endRef = `e_${curTag}`;
-              geomCmds.push(`      \\coordinate (${endRef}) at ($(${aId})!1.22!(${bId})$);`);
+              geomEnd = `e_${curTag}`;
+              geomCmds.push(`      \\coordinate (${geomEnd}) at ($(${rawA})!1.22!(${rawB})$);`);
             }
+            const startRef = isRev ? geomEnd : geomStart;
+            const endRef = isRev ? geomStart : geomEnd;
+            const progExpr = `($(${startRef})!${pVar}!(${endRef})$)`;
 
             if (fx === 'fade') {
               geomCmds.push(`      \\draw[${dashOpt}${arrowOpt}${strokeCol}, line width=${baseW}, opacity={${pVar}}] (${startRef}) -- (${endRef});`);
             } else {
-              geomCmds.push(`      \\coordinate (${curTag}) at ($(${startRef})!${pVar}!(${endRef})$);`);
               if (fx === 'glow' || fx === 'pulse') {
                 const glowCol = fx === 'pulse' ? 'orange!85!red' : 'cyan!75!blue';
-                geomCmds.push(`      \\draw[${glowCol}, line width=3.2pt, opacity={0.55*bump(${pVar})}] (${startRef}) -- (${curTag});`);
+                geomCmds.push(`      \\draw[${glowCol}, line width=3.2pt, opacity={0.55*bump(${pVar})}] (${startRef}) -- ${progExpr};`);
               }
-              geomCmds.push(`      \\draw[${dashOpt}${arrowOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${startRef}) -- (${curTag});`);
+              geomCmds.push(`      \\draw[${dashOpt}${arrowOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${startRef}) -- ${progExpr};`);
               if (fx === 'chalk') {
-                geomCmds.push(`      \\fill[${strokeCol}, opacity={0.75*bump(${pVar})}] (${curTag}) circle (1.2pt);`);
+                geomCmds.push(`      \\fill[${strokeCol}, opacity={0.75*bump(${pVar})}] ${progExpr} circle (1.2pt);`);
               }
             }
             break;
@@ -1377,13 +1764,60 @@
             if (sh.pts.length < 2) break;
             const oP = ptById.get(sh.pts[0]), rP = ptById.get(sh.pts[1]);
             if (!oP || !rP) break;
-            const R = fmtNum(Math.max(0.2, dist2(oP, rP)), 2);
+            const R = fmtNum(Math.max(0.05, dist2(oP, rP)), 5);
             const oTid = tidOf(sh.pts[0]);
             const sweep = isRev ? `-360*${pVar}` : `360*${pVar}`;
             if (fx === 'glow' || fx === 'pulse') {
               geomCmds.push(`      \\draw[cyan!70!blue, line width=3.2pt, opacity={0.55*bump(${pVar})}] ($(${oTid})+(0:${R})$) arc (0:{${sweep}}:${R});`);
             }
             geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] ($(${oTid})+(0:${R})$) arc (0:{${sweep}}:${R});`);
+            break;
+          }
+          case 'arc':
+          case 'sector': {
+            if (sh.pts.length < 3) break;
+            const oP = ptById.get(sh.pts[0]), p1 = ptById.get(sh.pts[1]), p2 = ptById.get(sh.pts[2]);
+            if (!oP || !p1 || !p2) break;
+            const R = fmtNum(Math.max(0.05, dist2(oP, p1)), 5);
+            const oTid = tidOf(sh.pts[0]);
+            // Math +y UP angles: MinNote canvas sweeps from p1 CCW in math coords to p2
+            const a1 = Math.atan2(p1.y - oP.y, p1.x - oP.x) * 180 / Math.PI;
+            const a2 = Math.atan2(p2.y - oP.y, p2.x - oP.x) * 180 / Math.PI;
+            let diff = ((a2 - a1) % 360 + 360) % 360;
+            if (diff < 1e-3) diff = 360;
+            const endDeg = a1 + diff;
+            const a1s = fmtNum(a1, 4);
+            const endS = fmtNum(endDeg, 4);
+            const diffS = fmtNum(diff, 4);
+            const startAng = isRev ? endS : a1s;
+            const dynEnd = isRev ? `{${endS}-${diffS}*${pVar}}` : `{${a1s}+${diffS}*${pVar}}`;
+            if (sh.kind === 'sector') {
+              fillCmds.push(`      \\fill[cyan!22!gray, opacity={0.28*${pVar}}] (${oTid}) -- ($(${oTid})+(${startAng}:${R})$) arc (${startAng}:${dynEnd}:${R}) -- cycle;`);
+              geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${oTid}) -- ($(${oTid})+(${startAng}:${R})$) arc (${startAng}:${dynEnd}:${R}) -- cycle;`);
+            } else {
+              geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] ($(${oTid})+(${startAng}:${R})$) arc (${startAng}:${dynEnd}:${R});`);
+            }
+            break;
+          }
+          case 'arc3': {
+            if (sh.pts.length < 3) break;
+            const p1 = ptById.get(sh.pts[0]), p2 = ptById.get(sh.pts[1]), p3 = ptById.get(sh.pts[2]);
+            if (!p1 || !p2 || !p3) break;
+            const d = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+            if (Math.abs(d) > 1e-5) {
+              const s1 = p1.x * p1.x + p1.y * p1.y, s2 = p2.x * p2.x + p2.y * p2.y, s3 = p3.x * p3.x + p3.y * p3.y;
+              const cx = (s1 * (p2.y - p3.y) + s2 * (p3.y - p1.y) + s3 * (p1.y - p2.y)) / d;
+              const cy = (s1 * (p3.x - p2.x) + s2 * (p1.x - p3.x) + s3 * (p2.x - p1.x)) / d;
+              const r = fmtNum(Math.hypot(p1.x - cx, p1.y - cy), 5);
+              const a1 = Math.atan2(p1.y - cy, p1.x - cx) * 180 / Math.PI;
+              const norm = (a) => ((a - a1) % 360 + 360) % 360;
+              const a2n = norm(Math.atan2(p2.y - cy, p2.x - cx) * 180 / Math.PI);
+              const a3n = norm(Math.atan2(p3.y - cy, p3.x - cx) * 180 / Math.PI);
+              const span = a2n <= a3n ? a3n : (a3n - 360);
+              const startA = isRev ? fmtNum(a1 + span, 4) : fmtNum(a1, 4);
+              const endExpr = isRev ? `{${fmtNum(a1 + span, 4)}-(${fmtNum(span, 4)})*${pVar}}` : `{${fmtNum(a1, 4)}+(${fmtNum(span, 4)})*${pVar}}`;
+              geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${fmtNum(cx, 5)},${fmtNum(cy, 5)}) ++(${startA}:${r}) arc (${startA}:${endExpr}:${r});`);
+            }
             break;
           }
           case 'polygon':
@@ -1395,23 +1829,36 @@
             }
             if (sh.width !== 0) {
               for (let eIdx = 0; eIdx < sh.pts.length; eIdx++) {
-                const u = tidOf(sh.pts[eIdx]);
-                const v = tidOf(sh.pts[(eIdx + 1) % sh.pts.length]);
-                const eCur = `${curTag}_e${eIdx}`;
-                geomCmds.push(`      \\coordinate (${eCur}) at ($(${u})!${pVar}!(${v})$);`);
-                geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${u}) -- (${eCur});`);
+                const rawU = tidOf(sh.pts[eIdx]);
+                const rawV = tidOf(sh.pts[(eIdx + 1) % sh.pts.length]);
+                const u = isRev ? rawV : rawU;
+                const v = isRev ? rawU : rawV;
+                geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${u}) -- ($(${u})!${pVar}!(${v})$);`);
               }
             }
             break;
           }
           case 'right': {
             if (sh.pts.length < 3) break;
-            markCmds.push(`      \\path[opacity={${pVar}}] pic[draw, line width=0.55pt, angle radius=6pt]{right angle=${tidOf(sh.pts[0])}--${tidOf(sh.pts[1])}--${tidOf(sh.pts[2])}};`);
+            const pa = ptById.get(sh.pts[0]), pv = ptById.get(sh.pts[1]), pb = ptById.get(sh.pts[2]);
+            if (pa && pv && pb && dist2(pa, pv) > 1e-4 && dist2(pb, pv) > 1e-4) {
+              const cross = (pa.x - pv.x) * (pb.y - pv.y) - (pa.y - pv.y) * (pb.x - pv.x);
+              const leg1 = cross >= 0 ? tidOf(sh.pts[0]) : tidOf(sh.pts[2]);
+              const leg2 = cross >= 0 ? tidOf(sh.pts[2]) : tidOf(sh.pts[0]);
+              markCmds.push(`      \\path[opacity={${pVar}}] pic[draw, line width=0.55pt, angle radius=6pt]{right angle=${leg1}--${tidOf(sh.pts[1])}--${leg2}};`);
+            }
             break;
           }
           case 'angle': {
             if (sh.pts.length < 3) break;
-            markCmds.push(`      \\path[opacity={${pVar}}] pic[draw, line width=0.55pt, angle radius=8pt]{angle=${tidOf(sh.pts[0])}--${tidOf(sh.pts[1])}--${tidOf(sh.pts[2])}};`);
+            const pa = ptById.get(sh.pts[0]), pv = ptById.get(sh.pts[1]), pb = ptById.get(sh.pts[2]);
+            if (pa && pv && pb && dist2(pa, pv) > 1e-4 && dist2(pb, pv) > 1e-4) {
+              // Order legs in Math +y UP so TikZ `angle` pic ALWAYS sweeps the interior angle <= 180 deg CCW!
+              const cross = (pa.x - pv.x) * (pb.y - pv.y) - (pa.y - pv.y) * (pb.x - pv.x);
+              const leg1 = cross >= 0 ? tidOf(sh.pts[0]) : tidOf(sh.pts[2]);
+              const leg2 = cross >= 0 ? tidOf(sh.pts[2]) : tidOf(sh.pts[0]);
+              markCmds.push(`      \\path[opacity={${pVar}}] pic[draw, line width=0.55pt, angle radius=8pt]{angle=${leg1}--${tidOf(sh.pts[1])}--${leg2}};`);
+            }
             break;
           }
           case 'tick': {
@@ -1649,21 +2096,37 @@
     // Default: 'full' (`mn-geo-motion/2.0`)
     const betaAnim = exportBetaTikzAnimated(Object.assign({}, opts, { _prebuiltModel: model }));
     const w = getWin();
+    let tikzExporter = (w && w.MinNoteTikzExport) || null;
+    if (!tikzExporter && typeof require === 'function') {
+      try { tikzExporter = require('./minnote-tikz-exporter.js'); } catch (_) {}
+    }
     let tikzStatic = '';
-    if (w && w.MinNoteTikzExport && typeof w.MinNoteTikzExport.generateTikz === 'function') {
+    if (tikzExporter && typeof tikzExporter.generateTikz === 'function') {
       try {
-        tikzStatic = w.MinNoteTikzExport.generateTikz(model.rawGeo).code || '';
+        tikzStatic = tikzExporter.generateTikz(model.rawGeo).code || '';
       } catch (_) {}
     }
     if (!tikzStatic) {
-      // Clean static TikZ fallback for Node.js / standalone environments
+      // Exact static TikZ fallback preserving symbolic/5-decimal precision
       const sLines = ['\\begin{tikzpicture}[every node/.style={font=\\normalsize}]'];
-      for (const p of model.points) sLines.push(`\\coordinate (${p.tikzId}) at (${fmtNum(p.nx, 1)},${fmtNum(p.ny, 1)});`);
+      const ptMap = new Map(model.points.map((x) => [x.id, x]));
+      for (const p of model.points) {
+        const d = p.def || {};
+        let cExpr = `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`;
+        if (d.t === 'mid' && ptMap.has(d.a) && ptMap.has(d.b)) {
+          cExpr = `($(${ptMap.get(d.a).tikzId})!0.5!(${ptMap.get(d.b).tikzId})$)`;
+        } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2) && [...d.l1, ...d.l2].every((k) => ptMap.has(k))) {
+          cExpr = `(intersection of ${ptMap.get(d.l1[0]).tikzId}--${ptMap.get(d.l1[1]).tikzId} and ${ptMap.get(d.l2[0]).tikzId}--${ptMap.get(d.l2[1]).tikzId})`;
+        }
+        sLines.push(`\\coordinate (${p.tikzId}) at ${cExpr};`);
+      }
       for (const sh of model.shapes) {
         if (sh.kind === 'segment' && sh.pts.length >= 2) {
-          const u = model.points.find((x) => x.id === sh.pts[0]);
-          const v = model.points.find((x) => x.id === sh.pts[1]);
+          const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
           if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) -- (${v.tikzId});`);
+        } else if (sh.kind === 'circle' && sh.pts.length >= 2) {
+          const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
+          if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) circle[radius=${fmtNum(dist2(u, v), 5)}];`);
         }
       }
       sLines.push('\\end{tikzpicture}');
@@ -1677,10 +2140,13 @@
         is3D: model.is3D,
         createdAt: new Date().toISOString(),
         generator: 'MinNote Motion Bridge v2.0',
-        coordSystem: 'cartesian-y-up'
+        coordSystem: 'cartesian-y-up',
+        defCoordSpace: 'board_y_down'
       },
       ops: model.ops,
       geometry: {
+        coordSpace: 'math_y_up',
+        defCoordSpace: 'board_y_down',
         points: model.points.map((p) => ({
           id: p.id,
           label: p.label,
@@ -1791,13 +2257,43 @@
     }
 
     // Second pass: clean TikZ lines for static geometric parser `K.uC` while recording shape -> macro timing!
+    // First remove multi-line `\tikzset{...}` blocks and animation `declare function={...}` definitions cleanly
+    const stripBalancedBlocks = (text, headRe) => {
+      let out = '';
+      let i = 0;
+      while (i < text.length) {
+        const rest = text.slice(i);
+        const hm = headRe.exec(rest);
+        if (!hm || hm.index !== 0) {
+          out += text[i++];
+          continue;
+        }
+        let j = i + hm[0].length - 1; // points to '{'
+        let depth = 0;
+        while (j < text.length) {
+          if (text[j] === '\\' && j + 1 < text.length) { j += 2; continue; }
+          if (text[j] === '{') depth++;
+          else if (text[j] === '}') {
+            depth--;
+            if (depth === 0) { j++; break; }
+          }
+          j++;
+        }
+        i = j;
+      }
+      return out;
+    };
+    const preCleanedSrc = stripBalancedBlocks(
+      stripBalancedBlocks(src, /^\\tikzset\s*\{/),
+      /^declare\s+function\s*=\s*\{/
+    );
+
     const cleanedLines = [];
-    for (const rawLine of lineArr) {
+    for (const rawLine of preCleanedSrc.split('\n')) {
       const ln = rawLine.trim();
       if (!ln) continue;
       if (/^\\providecommand\{\\t\}/.test(ln)) continue;
       if (/^\\pgfmathsetmacro/.test(ln)) continue;
-      if (/^\\tikzset\{layer/.test(ln)) continue;
       if (/^\\ifdim\b/.test(ln) || /^\\fi\b/.test(ln) || /^\\else\b/.test(ln)) continue;
       if (/^%\s*!TIKZVID/.test(ln)) continue;
       if (/^\\path\s*\([^)]+\)\s*rectangle\s*\([^)]+\)\s*;$/.test(ln)) continue;
@@ -1846,7 +2342,6 @@
         .replace(/,\s*scale\s*=\s*\{[^}]*\}/g, '')
         .replace(/\{[0-9.]+\s*(?:pt\s*\+\s*[0-9.]+pt\s*\*\s*|\*\s*)\\[A-Za-z0-9_]+(?:\s*pt)?\}/g, '1.2pt');
 
-      // Strip declare function block of animation functions if multi-line
       cleanedLines.push(outLn);
     }
 
@@ -1880,6 +2375,7 @@
       let def = { t: 'free', x: 0, y: 0 };
       const numM = expr.match(/^\(\s*([+-]?[0-9.]+)\s*,\s*([+-]?[0-9.]+)\s*\)$/);
       const lerpM = expr.match(/^\(\$\(\s*([^)]+)\s*\)!([+-]?[0-9.]+)!\(\s*([^)]+)\s*\)\$\)$/);
+      const rotM = expr.match(/^\(\$\(\s*([^)]+)\s*\)!([+-]?[0-9.]+)!([+-]?[0-9.]+):\(\s*([^)]+)\s*\)\$\)$/);
       const sumM = expr.match(/^\(\$\(\s*([^)]+)\s*\)\+\(\s*([^)]+)\s*\)-\(\s*([^)]+)\s*\)\$\)$/);
       const interM = expr.match(/^\(intersection of\s+([A-Za-z0-9_']+)--([A-Za-z0-9_']+)\s+and\s+([A-Za-z0-9_']+)--([A-Za-z0-9_']+)\)$/);
       const footM = expr.match(/^\(\$\(\s*([^)]+)\s*\)!\(\s*([^)]+)\s*\)!\(\s*([^)]+)\s*\)\$\)$/);
@@ -1887,11 +2383,13 @@
       const linVecM = expr.match(/^\(\$\(\s*([^)]+)\s*\)\+([+-]?[0-9.]+)\*\(\s*([^)]+)\s*\)-([+-]?[0-9.]+)\*\(\s*([^)]+)\s*\)\$\)$/);
       if (numM) {
         def = { t: 'free', x: parseFloat(numM[1]), y: -parseFloat(numM[2]) };
+      } else if (rotM && ptByName.has(rotM[1]) && ptByName.has(rotM[4])) {
+        def = { t: 'rot', c: ptByName.get(rotM[1]).id, p: ptByName.get(rotM[4]).id, k: parseFloat(rotM[2]), ang: -parseFloat(rotM[3]) };
       } else if (linVecM && ptByName.has(linVecM[1]) && ptByName.has(linVecM[3]) && ptByName.has(linVecM[5])) {
         def = { t: 'vec', o: ptByName.get(linVecM[1]).id, a: ptByName.get(linVecM[5]).id, b: ptByName.get(linVecM[3]).id, k: parseFloat(linVecM[2]), perp: false };
       } else if (lerpM && ptByName.has(lerpM[1]) && ptByName.has(lerpM[3])) {
         const k = parseFloat(lerpM[2]);
-        def = Math.abs(k - 0.5) < 0.01
+        def = Math.abs(k - 0.5) < 1e-4
           ? { t: 'mid', a: ptByName.get(lerpM[1]).id, b: ptByName.get(lerpM[3]).id }
           : { t: 'on', a: ptByName.get(lerpM[1]).id, b: ptByName.get(lerpM[3]).id, k, seg: k >= 0 && k <= 1 };
       } else if (sumM && ptByName.has(sumM[1]) && ptByName.has(sumM[2]) && ptByName.has(sumM[3])) {
@@ -1907,17 +2405,33 @@
       ptByName.set(name, pt);
     }
 
-    // Parse `\draw[...] (A) -- (B);` and `\draw[...] (O) circle[radius=R];` and `\fill[...] (A) -- (B) -- (C) -- cycle;`
+    const curCoords = evalGeoMap({ points: pts, shapes: [] });
+
+    // Parse `\draw[...] (A) -- (B);`, `\draw[...] (O) circle[radius=R];`, `\fill[...] ... -- cycle;`, and `pic{right angle=...}`
     for (const rawLn of tikzCode.split('\n')) {
       const ln = rawLn.trim();
-      const drawSegM = ln.match(/^\\draw(\[[^\]]*\])?\s*\(\s*([A-Za-z0-9_']+)\s*\)\s*--\s*\(\s*([A-Za-z0-9_']+)\s*\)\s*;/);
-      if (drawSegM && ptByName.has(drawSegM[2]) && ptByName.has(drawSegM[3])) {
-        const optsStr = drawSegM[1] || '';
+      const cirM = ln.match(/^\\draw(\[[^\]]*\])?\s*\(\s*([A-Za-z0-9_']+)\s*\)\s*circle\s*(?:\[\s*radius\s*=\s*([0-9.]+)(?:cm)?\s*\]|\(\s*([0-9.]+)(?:cm)?\s*\))\s*;/);
+      if (cirM && ptByName.has(cirM[2])) {
+        const optsStr = cirM[1] || '';
+        const oPt = ptByName.get(cirM[2]);
+        const rVal = parseFloat(cirM[3] || cirM[4]);
+        const oC = curCoords.get(oPt.id) || { x: 0, y: 0 };
+        let rimPt = pts.find((p) => p.id !== oPt.id && curCoords.get(p.id) && Math.abs(dist2(oC, curCoords.get(p.id)) - rVal) < 1e-3);
+        if (!rimPt) {
+          rimPt = { id: nextId('pt'), label: '', show: false, noDot: true, noName: true, def: { t: 'free', x: oC.x + rVal, y: oC.y } };
+          pts.push(rimPt);
+          curCoords.set(rimPt.id, { x: oC.x + rVal, y: oC.y });
+        }
+        shapes.push({ id: nextId('sh'), kind: 'circle', pts: [oPt.id, rimPt.id], dashed: /dashed/.test(optsStr) });
+        continue;
+      }
+      const rtPicM = ln.match(/pic(?:\[[^\]]*\])?\{(right\s+angle|angle)\s*=\s*([A-Za-z0-9_']+)--([A-Za-z0-9_']+)--([A-Za-z0-9_']+)\}/);
+      if (rtPicM && ptByName.has(rtPicM[2]) && ptByName.has(rtPicM[3]) && ptByName.has(rtPicM[4])) {
         shapes.push({
           id: nextId('sh'),
-          kind: 'segment',
-          pts: [ptByName.get(drawSegM[2]).id, ptByName.get(drawSegM[3]).id],
-          dashed: /dashed/.test(optsStr)
+          kind: /right/.test(rtPicM[1]) ? 'right' : 'angle',
+          pts: [ptByName.get(rtPicM[2]).id, ptByName.get(rtPicM[3]).id, ptByName.get(rtPicM[4]).id],
+          aux: true
         });
         continue;
       }
@@ -1932,6 +2446,33 @@
             width: 0,
             fill: 'rgba(14, 165, 233, 0.14)'
           });
+        }
+        continue;
+      }
+      const drawHeadM = ln.match(/^\\draw(\[[^\]]*\])?\s*(.+);$/);
+      if (drawHeadM) {
+        const optsStr = drawHeadM[1] || '';
+        const body = drawHeadM[2];
+        const chains = body.split(/(?<=\))\s+(?=\()/);
+        for (const ch of chains) {
+          const isCycle = /--\s*cycle\b/.test(ch);
+          const names = [...ch.matchAll(/\(\s*([A-Za-z0-9_']+)\s*\)/g)].map((x) => x[1]).filter((n) => ptByName.has(n));
+          for (let i = 0; i + 1 < names.length; i++) {
+            shapes.push({
+              id: nextId('sh'),
+              kind: 'segment',
+              pts: [ptByName.get(names[i]).id, ptByName.get(names[i + 1]).id],
+              dashed: /dashed/.test(optsStr)
+            });
+          }
+          if (isCycle && names.length >= 3) {
+            shapes.push({
+              id: nextId('sh'),
+              kind: 'segment',
+              pts: [ptByName.get(names[names.length - 1]).id, ptByName.get(names[0]).id],
+              dashed: /dashed/.test(optsStr)
+            });
+          }
         }
       }
     }
@@ -1948,8 +2489,14 @@
     let seq = 1;
     const mkId = (p) => `${p}_${seq++}`;
 
-    const regPt = (sym, def, label, show = true) => {
-      const pt = { id: mkId('pt'), label: show ? String(label || sym || '') : '', show: show !== false, def };
+    const regPt = (sym, def, label, show = true, extra = {}) => {
+      const pt = {
+        id: mkId('pt'),
+        label: show ? String(label != null ? label : (sym || '')) : '',
+        show: show !== false,
+        ...(extra.noDot ? { noDot: true } : {}),
+        def
+      };
       pts.push(pt);
       if (sym) symToPt.set(String(sym).trim(), pt);
       return pt;
@@ -1960,14 +2507,14 @@
       if (!op || !op.op) continue;
       switch (op.op) {
         case 'point_free': {
-          const pt = regPt(op.id || op.label, { t: 'free', x: safeEvalMathNumber(op.x ?? 0) || 0, y: -(safeEvalMathNumber(op.y ?? 0) || 0) }, op.label || op.id, op.show !== false);
+          const pt = regPt(op.id || op.label, { t: 'free', x: safeEvalMathNumber(op.x ?? 0) || 0, y: -(safeEvalMathNumber(op.y ?? 0) || 0) }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
           if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           break;
         }
         case 'point_sum': {
           const a = getP(op.a), b = getP(op.b), c = getP(op.c);
           if (a && b && c) {
-            const pt = regPt(op.id || op.label, { t: 'sum', a: a.id, b: b.id, c: c.id }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'sum', a: a.id, b: b.id, c: c.id }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -1975,7 +2522,7 @@
         case 'midpoint': {
           const a = getP(op.a), b = getP(op.b);
           if (a && b) {
-            const pt = regPt(op.id || op.label, { t: 'mid', a: a.id, b: b.id }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'mid', a: a.id, b: b.id }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -1985,7 +2532,7 @@
           const a = getP(op.a), b = getP(op.b);
           if (a && b) {
             const k = safeEvalMathNumber(op.ratio ?? op.k ?? 0.4);
-            const pt = regPt(op.id || op.label, { t: 'on', a: a.id, b: b.id, k: Number.isFinite(k) ? k : 0.4, seg: op.op === 'point_on_segment' }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'on', a: a.id, b: b.id, k: Number.isFinite(k) ? k : 0.4, seg: op.op === 'point_on_segment' }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -1994,7 +2541,7 @@
           const l1 = op.l1 || [], l2 = op.l2 || [];
           const a1 = getP(l1[0]), a2 = getP(l1[1]), b1 = getP(l2[0]), b2 = getP(l2[1]);
           if (a1 && a2 && b1 && b2) {
-            const pt = regPt(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [b1.id, b2.id], c2: false, which: 0 }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [b1.id, b2.id], c2: false, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -2003,7 +2550,27 @@
           const ln = op.line || op.l1 || [], cir = op.circle || op.l2 || [];
           const a1 = getP(ln[0]), a2 = getP(ln[1]), o = getP(cir[0]), r = getP(cir[1]);
           if (a1 && a2 && o && r) {
-            const pt = regPt(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [o.id, r.id], c2: true, which: Number(op.which) || 0 }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [o.id, r.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
+          }
+          break;
+        }
+        case 'intersection_cc': {
+          const c1 = op.c1 || op.circle1 || op.l1 || [];
+          const c2 = op.c2 || op.circle2 || op.l2 || [];
+          const o1 = getP(c1[0]), r1 = getP(c1[1]), o2 = getP(c2[0]), r2 = getP(c2[1]);
+          if (o1 && r1 && o2 && r2) {
+            const pt = regPt(op.id || op.label, { t: 'inter', l1: [o1.id, r1.id], c1: true, l2: [o2.id, r2.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
+          }
+          break;
+        }
+        case 'tangent_point': {
+          const ext = getP(op.p || op.from || op.a), o = getP(op.center || op.o), r = getP(op.rim || op.r);
+          if (ext && o && r) {
+            const midKey = `__thales_${ext.id}_${o.id}`;
+            const midPt = symToPt.get(midKey) || regPt(midKey, { t: 'mid', a: o.id, b: ext.id }, '', false, { noDot: true });
+            const pt = regPt(op.id || op.label, { t: 'inter', l1: [midPt.id, o.id], c1: true, l2: [o.id, r.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -2011,7 +2578,7 @@
         case 'foot_perp': {
           const p = getP(op.p), a = getP(op.a), b = getP(op.b);
           if (p && a && b) {
-            const pt = regPt(op.id || op.label, { t: 'foot', p: p.id, a: a.id, b: b.id }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'foot', p: p.id, a: a.id, b: b.id }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
             if (op.drawDropSegment !== false) shapes.push({ id: mkId('sh'), kind: 'segment', pts: [p.id, pt.id], dashed: !!op.dashed, aux: true });
           }
@@ -2022,7 +2589,7 @@
           if (o && r) {
             const deg = safeEvalMathNumber(op.angleDeg ?? 60) || 60;
             const norm = (((-deg / 360) % 1) + 1) % 1;
-            const pt = regPt(op.id || op.label, { t: 'path', kind: 'circle', pts: [o.id, r.id], k: norm }, op.label || op.id, op.show !== false);
+            const pt = regPt(op.id || op.label, { t: 'path', kind: 'circle', pts: [o.id, r.id], k: norm }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.id) opIdMap.set(op.id, { kind: 'point', id: pt.id });
           }
           break;
@@ -2031,10 +2598,14 @@
         case 'line_perp': {
           const o = getP(op.through || op.o), a = getP(op.a), b = getP(op.b);
           if (o && a && b) {
-            const pt = regPt(op.id || op.label, { t: 'vec', o: o.id, a: a.id, b: b.id, k: safeEvalMathNumber(op.k ?? 1) || 1, perp: op.op === 'line_perp' }, op.label || op.id, op.show !== false);
-            const sh = { id: mkId('sh'), kind: op.asLine ? 'line' : 'segment', pts: [o.id, pt.id], dashed: !!op.dashed, aux: true };
-            shapes.push(sh);
-            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+            const pt = regPt(op.id || op.label, { t: 'vec', o: o.id, a: a.id, b: b.id, k: safeEvalMathNumber(op.k ?? 1) || 1, perp: op.op === 'line_perp' }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            if (op.drawSegment !== false) {
+              const sh = { id: mkId('sh'), kind: op.asLine ? 'line' : 'segment', pts: [o.id, pt.id], dashed: !!op.dashed, aux: true };
+              shapes.push(sh);
+              if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+            } else if (op.id) {
+              opIdMap.set(op.id, { kind: 'point', id: pt.id });
+            }
           }
           break;
         }
@@ -2043,7 +2614,7 @@
         case 'ray': {
           const a = getP(op.a), b = getP(op.b);
           if (a && b) {
-            const sh = { id: mkId('sh'), kind: op.op, pts: [a.id, b.id], dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}) };
+            const sh = { id: mkId('sh'), kind: op.op, pts: [a.id, b.id], dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}), ...(op.arrow ? { arrow: true } : {}) };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }
@@ -2052,7 +2623,17 @@
         case 'circle': {
           const o = getP(op.center || op.o), r = getP(op.rim || op.r);
           if (o && r) {
-            const sh = { id: mkId('sh'), kind: 'circle', pts: [o.id, r.id], dashed: !!op.dashed };
+            const sh = { id: mkId('sh'), kind: 'circle', pts: [o.id, r.id], dashed: !!op.dashed, ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'arc':
+        case 'sector': {
+          const pList = (op.pts || [op.center || op.o, op.a, op.b]).map(getP).filter(Boolean);
+          if (pList.length >= 3) {
+            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.fill ? { fill: op.fill } : {}) };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }
@@ -2087,6 +2668,16 @@
         case 'right_angle': {
           const a = getP(op.a), v = getP(op.v || op.b), b = getP(op.v ? op.b : op.c);
           if (a && v && b) shapes.push({ id: mkId('sh'), kind: 'right', pts: [a.id, v.id, b.id], aux: true });
+          break;
+        }
+        case 'angle_mark': {
+          const a = getP(op.a), v = getP(op.v || op.b), b = getP(op.v ? op.b : op.c);
+          if (a && v && b) shapes.push({ id: mkId('sh'), kind: 'angle', pts: [a.id, v.id, b.id], n: op.n || 1, aux: true });
+          break;
+        }
+        case 'tick_mark': {
+          const a = getP(op.a), b = getP(op.b);
+          if (a && b) shapes.push({ id: mkId('sh'), kind: 'tick', pts: [a.id, b.id], n: op.n || 1, aux: true });
           break;
         }
         default:
@@ -2320,19 +2911,38 @@
   }
 
   function placePointsOnBoard(pointsList, shapesList, board, isInputMathYUp) {
-    // Flip Y if input was cartesian Y-up
+    // Step 1: Convert `math_y_up` defs cleanly to `board_y_down` (preserving orientation of rot, len, inter_cc, ctan, path)
     const normalized = pointsList.map((p) => {
-      if (p.def && p.def.t === 'free') {
-        return {
-          ...p,
-          def: {
-            ...p.def,
-            x: Number(p.def.x) || 0,
-            y: isInputMathYUp ? -(Number(p.def.y) || 0) : (Number(p.def.y) || 0)
-          }
-        };
+      if (!p.def || !p.def.t) return p;
+      const d = p.def;
+      if (!isInputMathYUp) {
+        if (d.t === 'free') {
+          return { ...p, def: { ...d, x: Number(d.x) || 0, y: Number(d.y) || 0 } };
+        }
+        return p;
       }
-      return p;
+      switch (d.t) {
+        case 'free':
+          return { ...p, def: { ...d, x: Number(d.x) || 0, y: -(Number(d.y) || 0) } };
+        case 'rot':
+          return { ...p, def: { ...d, ang: -(Number(d.ang) || 0) } };
+        case 'len':
+          return { ...p, def: { ...d, ang: -(Number(d.ang) || 0) } };
+        case 'inter':
+          if (d.c1 && d.c2) {
+            return { ...p, def: { ...d, which: d.which ? 0 : 1 } };
+          }
+          return p;
+        case 'ctan':
+          return { ...p, def: { ...d, which: !d.which } };
+        case 'path':
+          if (d.k != null && !d._kAlreadyBoard) {
+            return { ...p, def: { ...d, k: (((1 - Number(d.k)) % 1) + 1) % 1 } };
+          }
+          return p;
+        default:
+          return p;
+      }
     });
 
     const coords = evalGeoMap({ points: normalized, shapes: shapesList });
@@ -2344,6 +2954,16 @@
       if (c.x > x1) x1 = c.x;
       if (c.y < y0) y0 = c.y;
       if (c.y > y1) y1 = c.y;
+    }
+    for (const sh of (shapesList || [])) {
+      if (sh && sh.kind === 'circle' && Array.isArray(sh.pts) && sh.pts.length >= 2) {
+        const o = coords.get(sh.pts[0]), rPt = coords.get(sh.pts[1]);
+        if (o && rPt) {
+          const r = dist2(o, rPt);
+          x0 = Math.min(x0, o.x - r); x1 = Math.max(x1, o.x + r);
+          y0 = Math.min(y0, o.y - r); y1 = Math.max(y1, o.y + r);
+        }
+      }
     }
     if (!Number.isFinite(x0)) { x0 = 0; y0 = 0; x1 = 4; y1 = 4; }
 
@@ -2357,16 +2977,55 @@
     if (Number.isFinite(vc.index)) pageIdx = vc.index;
     const center = { x: vc.x || 440, y: vc.y || 350 };
 
+    const cmPx = 37.79527559;
     const placedPts = normalized.map((p) => {
-      if (p.def && p.def.t === 'free') {
+      if (!p.def || !p.def.t) return p;
+      const d = p.def;
+      if (d.t === 'free') {
         return {
           ...p,
           def: {
-            ...p.def,
-            x: center.x + (p.def.x - cxRaw) * scale,
-            y: center.y + (p.def.y - cyRaw) * scale
+            ...d,
+            x: center.x + (d.x - cxRaw) * scale,
+            y: center.y + (d.y - cyRaw) * scale
           }
         };
+      }
+      if (Math.abs(scale - 1) > 1e-6) {
+        // Scale metric length parameters proportionally when converting math units -> canvas pixels
+        const unitScale = isInputMathYUp ? (scale / cmPx) : scale;
+        if (d.t === 'len' && d.val != null) {
+          return { ...p, def: { ...d, val: Number(d.val) * unitScale } };
+        }
+        if (d.t === 'polar') {
+          return {
+            ...p,
+            def: {
+              ...d,
+              ...(d.fixedDist && d.distVal != null ? { distVal: Number(d.distVal) * unitScale } : {}),
+              ...(!d.fixedDist && d.curDistPx != null ? { curDistPx: Number(d.curDistPx) * scale } : {})
+            }
+          };
+        }
+        if (d.t === 'vec' && d.distVal != null) {
+          return { ...p, def: { ...d, distVal: Number(d.distVal) * unitScale } };
+        }
+        if (d.t === 'p3d') {
+          return {
+            ...p,
+            def: {
+              ...d,
+              vx: (Number(d.vx) || 0) * unitScale,
+              vy: (Number(d.vy) || 0) * unitScale,
+              vz: (Number(d.vz) || 0) * unitScale
+            }
+          };
+        }
+      }
+      if (d._kAlreadyBoard) {
+        const cleanDef = Object.assign({}, d);
+        delete cleanDef._kAlreadyBoard;
+        return { ...p, def: cleanDef };
       }
       return p;
     });
@@ -2544,9 +3203,14 @@
       }
       const mapPid = (s) => symMap.get(String(s)) || String(s);
 
+      let synthesizedFromMathProps = 0;
       const convertedPts = rawPts.map((rp) => {
         const bid = symMap.get(String(rp.id || rp.label));
-        const d = rp.def ? JSON.parse(JSON.stringify(rp.def)) : { t: 'free', x: rp.x ?? rp.nx ?? 0, y: rp.y ?? rp.ny ?? 0 };
+        const hadDef = !!(rp.def && rp.def.t);
+        if (!hadDef) synthesizedFromMathProps++;
+        const d = hadDef
+          ? JSON.parse(JSON.stringify(rp.def))
+          : { t: 'free', x: safeEvalMathNumber(rp.x ?? rp.nx ?? 0) || 0, y: safeEvalMathNumber(rp.y ?? rp.ny ?? 0) || 0 };
         if (d.a) d.a = mapPid(d.a);
         if (d.b) d.b = mapPid(d.b);
         if (d.c) d.c = mapPid(d.c);
@@ -2555,14 +3219,18 @@
         if (d.ref) d.ref = mapPid(d.ref);
         if (Array.isArray(d.l1)) d.l1 = d.l1.map(mapPid);
         if (Array.isArray(d.l2)) d.l2 = d.l2.map(mapPid);
+        if (Array.isArray(d.c1)) d.c1 = d.c1.map(mapPid);
+        if (Array.isArray(d.c2)) d.c2 = d.c2.map(mapPid);
         if (Array.isArray(d.pts)) d.pts = d.pts.map(mapPid);
         if (d.t === 'path' && d.angleDeg != null && d.k == null) {
           d.k = (((-Number(d.angleDeg) / 360) % 1) + 1) % 1;
+          d._kAlreadyBoard = true;
         }
-        const hasLbl = rp.show !== false && !!(rp.label || rp.id);
+        const rawLbl = rp.label !== undefined ? String(rp.label) : String(rp.id || '');
+        const hasLbl = rp.show !== false && !rp.noName && !!rawLbl.trim();
         return {
           id: bid,
-          label: hasLbl ? String(rp.label || rp.id).replace(/^\$|\$$/g, '') : '',
+          label: hasLbl ? rawLbl.replace(/^\$|\$$/g, '') : '',
           show: rp.show !== false,
           ...(rp.noDot ? { noDot: true } : {}),
           ...(hasLbl ? { named: true } : { noName: true }),
@@ -2588,22 +3256,40 @@
         };
       });
 
-      // Smart orientation detection: check whether `def.{x,y}` on free points is ALREADY canvas Y-down
-      // (e.g. `nx/ny` is math Y-up while `def.x/def.y` is pixel canvas Y-down, as in MinNote native & examples!)
+      // Deterministic coordinate-space resolution for `def`:
+      // 1) Explicit `geometry.defCoordSpace` / `meta.defCoordSpace` (`board_y_down` vs `math_y_up`)
+      // 2) Synthesized free points from `x,y` / `nx,ny` when `def` was omitted -> `math_y_up` (unless `coordSpace === 'board_y_down'`)
+      // 3) Legacy untagged JSONs: correlation between `y/ny` (+up) and `def.y`, with magnitude fallback when collinear on horizontal line!
+      const explicitDefSpace = (data.geometry && data.geometry.defCoordSpace) || (data.meta && data.meta.defCoordSpace) || '';
+      const explicitCoordSpace = (data.geometry && data.geometry.coordSpace) || (data.meta && data.meta.coordSystem) || '';
       let isMathYUp = false;
-      const freeRawPts = rawPts.filter((rp) => (!rp.def || rp.def.t === 'free') && rp.def && Number.isFinite(Number(rp.def.y)));
-      const withNy = freeRawPts.filter((rp) => Number.isFinite(Number(rp.ny)));
-      if (withNy.length >= 2) {
-        let corr = 0;
-        const p0 = withNy[0];
-        for (let i = 1; i < withNy.length; i++) {
-          corr += (Number(withNy[i].ny) - Number(p0.ny)) * (Number(withNy[i].def.y) - Number(p0.def.y));
+
+      if (explicitDefSpace === 'board_y_down' || explicitDefSpace === 'canvas' || explicitCoordSpace === 'board_y_down' || explicitCoordSpace === 'canvas') {
+        isMathYUp = false;
+      } else if (explicitDefSpace === 'math_y_up' || explicitDefSpace === 'math-y-up') {
+        isMathYUp = true;
+      } else {
+        const freeRawPts = rawPts.filter((rp) => rp.def && rp.def.t === 'free' && Number.isFinite(Number(rp.def.y)));
+        if (freeRawPts.length === 0 && synthesizedFromMathProps > 0) {
+          isMathYUp = true;
+        } else {
+          const withMathY = freeRawPts.filter((rp) => Number.isFinite(Number(rp.y ?? rp.ny)));
+          let corr = 0;
+          if (withMathY.length >= 2) {
+            const p0 = withMathY[0];
+            const my0 = Number(p0.y ?? p0.ny);
+            for (let i = 1; i < withMathY.length; i++) {
+              const myi = Number(withMathY[i].y ?? withMathY[i].ny);
+              corr += (myi - my0) * (Number(withMathY[i].def.y) - Number(p0.def.y));
+            }
+          }
+          if (Math.abs(corr) > 1e-6) {
+            isMathYUp = corr > 0;
+          } else if (freeRawPts.length > 0) {
+            const maxCoord = Math.max(...freeRawPts.map((rp) => Math.max(Math.abs(Number(rp.def.x) || 0), Math.abs(Number(rp.def.y) || 0))));
+            isMathYUp = maxCoord <= 45;
+          }
         }
-        // Positive correlation between ny (+up) and def.y means def.y is also +up; negative means def.y is canvas Y-down!
-        isMathYUp = corr > 0;
-      } else if (freeRawPts.length > 0) {
-        const maxCoord = Math.max(...freeRawPts.map((rp) => Math.max(Math.abs(Number(rp.def.x) || 0), Math.abs(Number(rp.def.y) || 0))));
-        isMathYUp = maxCoord <= 40 && (!data.meta || data.meta.coordSystem !== 'canvas');
       }
 
       const placed = placePointsOnBoard(convertedPts, convertedShapes, b, isMathYUp);
@@ -2827,22 +3513,22 @@
       meta: { title: 'Đường tròn (O) & Hai tiếp tuyến AB, AC', is3D: false, coordSystem: 'cartesian-y-up' },
       ops: [
         { op: 'point_free', id: 'O', label: 'O', x: 0, y: 0 },
-        { op: 'point_free', id: 'R', label: 'R', x: 2.2, y: 0, show: false },
+        { op: 'point_free', id: 'R', label: '', x: 0, y: 2.2, show: false },
         { op: 'circle', id: 'cir_O', center: 'O', rim: 'R' },
         { op: 'point_free', id: 'A', label: 'A', x: 5.0, y: 0 },
-        { op: 'midpoint', id: 'I', label: 'I', a: 'O', b: 'A', show: false },
-        { op: 'intersection_lc', id: 'B', label: 'B', line: ['O', 'R'], circle: ['O', 'R'], which: 0, show: false },
-        { op: 'point_on_circle', id: 'T1', label: 'B', center: 'O', rim: 'R', angleDeg: 64 },
-        { op: 'point_on_circle', id: 'T2', label: 'C', center: 'O', rim: 'R', angleDeg: -64 },
-        { op: 'segment', a: 'A', b: 'T1', dashed: false },
-        { op: 'segment', a: 'A', b: 'T2', dashed: false },
-        { op: 'segment', a: 'O', b: 'T1', dashed: true, aux: true },
-        { op: 'segment', a: 'O', b: 'T2', dashed: true, aux: true },
+        { op: 'midpoint', id: 'M', label: 'M', a: 'O', b: 'A', show: false },
+        { op: 'intersection_cc', id: 'B', label: 'B', c1: ['O', 'R'], c2: ['M', 'O'], which: 0 },
+        { op: 'intersection_cc', id: 'C', label: 'C', c1: ['O', 'R'], c2: ['M', 'O'], which: 1 },
+        { op: 'segment', a: 'A', b: 'B', dashed: false },
+        { op: 'segment', a: 'A', b: 'C', dashed: false },
+        { op: 'segment', a: 'O', b: 'B', dashed: true, aux: true },
+        { op: 'segment', a: 'O', b: 'C', dashed: true, aux: true },
         { op: 'segment', a: 'O', b: 'A', dashed: true, aux: true },
-        { op: 'segment', a: 'T1', b: 'T2', dashed: false, aux: true },
-        { op: 'intersection_ll', id: 'H', label: 'H', l1: ['O', 'A'], l2: ['T1', 'T2'] },
-        { op: 'right_angle', a: 'O', v: 'T1', b: 'A' },
-        { op: 'right_angle', a: 'A', v: 'H', b: 'T1' }
+        { op: 'segment', a: 'B', b: 'C', dashed: false, aux: true },
+        { op: 'intersection_ll', id: 'H', label: 'H', l1: ['O', 'A'], l2: ['B', 'C'] },
+        { op: 'right_angle', a: 'O', v: 'B', b: 'A' },
+        { op: 'right_angle', a: 'O', v: 'C', b: 'A' },
+        { op: 'right_angle', a: 'O', v: 'H', b: 'B' }
       ],
       motion: {
         preset: 'manim',

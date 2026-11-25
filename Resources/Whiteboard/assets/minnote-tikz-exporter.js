@@ -78,11 +78,11 @@
         const o = getPt(def.o), a = getPt(def.a), b = getPt(def.b);
         if (!o || !a || !b) return null;
         let dx = b.x - a.x, dy = b.y - a.y;
-        if (def.perp) { const t = dx; dx = -dy; dy = t; }
+        if (def.perp) { const t = dx; dx = dy; dy = -t; }
         if (def.distVal != null) {
           const len = Math.hypot(dx, dy);
           if (len < 1e-12) return { x: o.x, y: o.y };
-          const dPx = def.distVal * ((geo && geo.pxPerCm) || 56);
+          const dPx = def.distVal * ((geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559);
           return { x: o.x + dx * dPx / len, y: o.y + dy * dPx / len };
         }
         const k = def.k != null ? def.k : 1;
@@ -98,7 +98,7 @@
       case 'len': {
         const a = getPt(def.a);
         if (!a) return null;
-        const dPx = Math.max(1e-3, (def.val != null ? def.val : 2) * ((geo && geo.pxPerCm) || 56));
+        const dPx = Math.max(1e-3, (def.val != null ? def.val : 2) * ((geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559));
         const ang = def.ang || 0;
         return { x: a.x + dPx * Math.cos(ang), y: a.y + dPx * Math.sin(ang) };
       }
@@ -108,7 +108,7 @@
         const base = Math.atan2(r.y - o.y, r.x - o.x);
         const deg = def.fixedAng ? (def.angVal != null ? def.angVal : 60) : (def.curAngDeg != null ? def.curAngDeg : 60);
         const rad = base - deg * Math.PI / 180;
-        const dPx = def.fixedDist ? Math.max(1e-3, (def.distVal != null ? def.distVal : 2) * ((geo && geo.pxPerCm) || 56)) : Math.max(4, def.curDistPx || 120);
+        const dPx = def.fixedDist ? Math.max(1e-3, (def.distVal != null ? def.distVal : 2) * ((geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559)) : Math.max(4, def.curDistPx || 120);
         return { x: o.x + dPx * Math.cos(rad), y: o.y + dPx * Math.sin(rad) };
       }
       case 'inter': {
@@ -164,7 +164,7 @@
         let lx = (a.x - o.x) / d1 + (b.x - o.x) / d2;
         let ly = (a.y - o.y) / d1 + (b.y - o.y) / d2;
         const m = Math.hypot(lx, ly);
-        if (m < 1e-9) { lx = -(a.y - o.y) / d1; ly = (a.x - o.x) / d1; }
+        if (m < 1e-9) { lx = (a.y - o.y) / d1; ly = -(a.x - o.x) / d1; }
         else { lx /= m; ly /= m; }
         return { x: o.x + lx * d1, y: o.y + ly * d1 };
       }
@@ -172,15 +172,17 @@
         if (!Array.isArray(def.pts) || !def.pts.length) return null;
         const ps = def.pts.map(getPt);
         if (ps.some((p) => !p)) return null;
+        const kind = def.kind || def.on || 'circle';
         const k = def.k != null ? def.k : 0;
-        if (def.on === 'circle' && ps.length >= 2) {
+        const rad = (def.angleDeg != null && def.k == null) ? (-def.angleDeg * Math.PI / 180) : (k * Math.PI * 2);
+        if (kind === 'circle' && ps.length >= 2) {
           const r = dist2(ps[0], ps[1]);
-          return { x: ps[0].x + r * Math.cos(k), y: ps[0].y + r * Math.sin(k) };
+          return { x: ps[0].x + r * Math.cos(rad), y: ps[0].y + r * Math.sin(rad) };
         }
-        if (def.on === 'ellipse' && ps.length >= 3) {
+        if (kind === 'ellipse' && ps.length >= 3) {
           const rx = dist2(ps[0], ps[1]), ry = dist2(ps[0], ps[2]);
           const rot = Math.atan2(ps[1].y - ps[0].y, ps[1].x - ps[0].x);
-          const lx = rx * Math.cos(k), ly = ry * Math.sin(k);
+          const lx = rx * Math.cos(rad), ly = ry * Math.sin(rad);
           return {
             x: ps[0].x + lx * Math.cos(rot) - ly * Math.sin(rot),
             y: ps[0].y + lx * Math.sin(rot) + ly * Math.cos(rot)
@@ -199,7 +201,7 @@
         if (Math.abs(l) > 1) return null;
         const ux = dx / d, uy = dy / d;
         const h = Math.sqrt(Math.max(0, 1 - l * l)) * (def.which ? -1 : 1);
-        const nx = ux * l - uy * h, ny = uy * l + ux * h;
+        const nx = ux * l + uy * h, ny = uy * l - ux * h;
         const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
         const t2 = def.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
         return def.on === 2 ? t2 : t1;
@@ -207,7 +209,7 @@
       case 'p3d': {
         const o = getPt(def.o);
         if (!o) return null;
-        const cm = (geo && geo.pxPerCm) || 56;
+        const cm = (geo && (geo.cmPx || geo.pxPerCm)) || 37.79527559;
         const x = (def.vx || 0) * cm, y = (def.vy || 0) * cm, z = (def.vz || 0) * cm;
         return { x: o.x + x - 0.35 * y, y: o.y - z + 0.28 * y };
       }
@@ -217,6 +219,12 @@
   }
 
   function evalGeo(geo) {
+    if (typeof window !== 'undefined' && window.__mnGeoKernel && typeof window.__mnGeoKernel.Tt === 'function' && geo && geo.points && !Array.isArray(geo.points)) {
+      try {
+        const kMap = window.__mnGeoKernel.Tt(geo);
+        if (kMap && kMap.size > 0) return kMap;
+      } catch (_) {}
+    }
     const map = new Map();
     if (!geo || !geo.points) return map;
     const visiting = new Set();
@@ -285,9 +293,9 @@
       [2, '2']
     ];
     for (const [val, repr] of table) {
-      if (Math.abs(k - val) <= 0.02) return repr;
+      if (Math.abs(k - val) <= 1e-4) return repr;
     }
-    return fmtNum(k, 2);
+    return fmtNum(k, 5);
   }
 
   function snapCleanDeg(deg) {
@@ -295,9 +303,9 @@
     if (d <= -180) d += 360;
     const specials = [-150, -135, -120, -90, -60, -45, -30, 0, 30, 45, 60, 90, 120, 135, 150, 180];
     for (const sp of specials) {
-      if (Math.abs(d - sp) <= 1.6) return sp;
+      if (Math.abs(d - sp) <= 1e-3) return sp;
     }
-    return Math.round(d);
+    return Math.abs(d - Math.round(d)) <= 1e-3 ? Math.round(d) : Number(fmtNum(d, 4));
   }
 
   function sanitizeTikzPointIdentity(rawLabel, usedIds, fallbackCounter) {
@@ -503,6 +511,7 @@
           if (qy > qMaxY) qMaxY = qy;
         }
         if (degenerate) continue;
+        if (typeof opts.isValidSnap === 'function' && !opts.isValidSnap(qMap, s)) continue;
 
         const qW = qMaxX - qMinX;
         const qH = qMaxY - qMinY;
@@ -615,14 +624,14 @@
     return { points, shapes };
   }
 
-  function topoSortPoints(pointIds, pointsObj, symbolicSet) {
+  function topoSortPoints(pointIds, pointsObj, derivedSet) {
     const visited = new Set();
     const temp = new Set();
     const order = [];
     const visit = (id) => {
       if (visited.has(id) || temp.has(id)) return;
       temp.add(id);
-      if (symbolicSet.has(id)) {
+      if (derivedSet.has(id)) {
         const pt = pointsObj[id];
         for (const dep of pointDeps(pt && pt.def)) {
           if (pointsObj[dep]) visit(dep);
@@ -671,19 +680,17 @@
     for (const pt of Object.values(target.points)) {
       if (pt && pt.show && !pt.hidden && liveCoords.get(pt.id)) activePtSet.add(pt.id);
     }
-    // Pull in transitive deps for symbolic derived points
+    // Pull in transitive deps for ALL derived points so every constraint can be re-evaluated after snapping free points
     let expanded = true;
     while (expanded) {
       expanded = false;
       for (const pid of [...activePtSet]) {
         const pt = target.points[pid];
-        if (!pt || !pt.def) continue;
-        if (['mid', 'foot', 'sum', 'on', 'rot', 'vec', 'inter'].includes(pt.def.t)) {
-          const deps = pointDeps(pt.def);
-          if (deps.length && deps.every((d) => target.points[d] && liveCoords.get(d))) {
-            for (const d of deps) {
-              if (!activePtSet.has(d)) { activePtSet.add(d); expanded = true; }
-            }
+        if (!pt || !pt.def || pt.def.t === 'free') continue;
+        const deps = pointDeps(pt.def);
+        if (deps.length && deps.every((d) => target.points[d] && liveCoords.get(d))) {
+          for (const d of deps) {
+            if (!activePtSet.has(d)) { activePtSet.add(d); expanded = true; }
           }
         }
       }
@@ -705,59 +712,61 @@
       rawMathMap.set(id, { x: c.x, y: -c.y });
     }
 
-    // Classify primary vs symbolic derived points
+    // Separate true free degrees of freedom (`primaryIds`) from constrained/derived points (`derivedSet`)
+    // NEVER snap derived points (mid, foot, sum, on, rot, vec, inter ll/lc/cc, bis, path, ctan, polar, len, p3d) independently!
+    const derivedSet = new Set();
     const symbolicSet = new Set();
     for (const id of activeIds) {
       const pt = target.points[id];
-      if (canExportSymbolically(pt, activePtSet, renderShapes)) {
-        symbolicSet.add(id);
+      const d = pt && pt.def;
+      if (d && d.t && d.t !== 'free') {
+        const isRevCtrl = renderShapes.some((sh) => isRevolutionKind(sh.kind) && Array.isArray(sh.pts) && sh.pts.includes(id));
+        const deps = pointDeps(d);
+        if (!(isRevCtrl && d.t !== 'mid' && d.t !== 'sum') && deps.length > 0 && deps.every((dep) => activePtSet.has(dep))) {
+          derivedSet.add(id);
+          if (canExportSymbolically(pt, activePtSet, renderShapes)) {
+            symbolicSet.add(id);
+          }
+        }
       }
     }
-    // Detect dependency cycles (if any, demote to primary)
-    const primaryIds = activeIds.filter((id) => !symbolicSet.has(id));
+
+    // Break any cycle in derivedSet safely before topological evaluation
+    const checkVisited = new Set();
+    const checkStack = new Set();
+    const breakCycles = (id) => {
+      if (checkVisited.has(id)) return;
+      if (checkStack.has(id)) {
+        derivedSet.delete(id);
+        symbolicSet.delete(id);
+        return;
+      }
+      checkStack.add(id);
+      if (derivedSet.has(id)) {
+        for (const dep of pointDeps(target.points[id] && target.points[id].def)) {
+          if (activePtSet.has(dep)) breakCycles(dep);
+        }
+      }
+      checkStack.delete(id);
+      checkVisited.add(id);
+    };
+    for (const id of activeIds) breakCycles(id);
+
+    const primaryIds = activeIds.filter((id) => !derivedSet.has(id));
     if (primaryIds.length === 0) {
+      derivedSet.delete(activeIds[0]);
       symbolicSet.delete(activeIds[0]);
       primaryIds.push(activeIds[0]);
     }
 
-    // Pick canonical origin (0, 0)
-    let originId = primaryIds[0];
-    const revShape = renderShapes.find((sh) => isRevolutionKind(sh.kind) && sh.pts && primaryIds.includes(sh.pts[0]));
-    const conicShape = renderShapes.find((sh) => ['circle', 'ellipse', 'annulus', 'hyperbola'].includes(sh.kind) && sh.pts && primaryIds.includes(sh.pts[0]));
-    if (revShape) {
-      originId = revShape.pts[0];
-    } else if (conicShape && primaryIds.length <= 4) {
-      originId = conicShape.pts[0];
-    } else {
-      // Bottom-leftmost primary point (preferring labeled vertices like A or O)
-      let minY = Infinity;
-      for (const id of primaryIds) {
-        const p = rawMathMap.get(id);
-        if (p.y < minY) minY = p.y;
-      }
-      const ys = primaryIds.map((id) => rawMathMap.get(id).y);
-      const ySpan = Math.max(...ys) - Math.min(...ys) || 1;
-      const bottomBand = primaryIds.filter((id) => rawMathMap.get(id).y <= minY + 0.06 * ySpan);
-      bottomBand.sort((a, b) => rawMathMap.get(a).x - rawMathMap.get(b).x);
-      originId = bottomBand[0] || primaryIds[0];
-    }
+    const sortedIds = topoSortPoints(activeIds, target.points, derivedSet);
+    const cmPx = (target && (target.cmPx || target.pxPerCm)) || 37.79527559;
 
-    // Run Optimal Integer Grid Normalization on primary points
-    // For revolution solids (O + R), full diameter is 2*R so scale target span cleanly (~2.5..4.5cm radius)
-    const gridOpts = revShape
-      ? Object.assign({}, o, { targetWidthRange: [2.2, 4.5], idealSpan: 3.0 })
-      : o;
-    const grid = optimizePrimaryGrid(primaryIds, rawMathMap, originId, gridOpts);
-
-    // Evaluate final TikZ coordinates for ALL points (primary + symbolic derived!)
-    const tikzCoords = new Map(grid.coords);
-    const sortedIds = topoSortPoints(activeIds, target.points, symbolicSet);
-    const resolvedSymbolic = new Set();
-
-    function evalFinalDerived(id) {
+    function evalDerivedInMathSpace(id, coordLookup, scaleFactor) {
       const pt = target.points[id];
-      const d = pt.def;
-      const g = (k) => tikzCoords.get(k);
+      const d = pt && pt.def;
+      if (!d) return null;
+      const g = (k) => coordLookup.get(k);
       switch (d.t) {
         case 'mid': {
           const a = g(d.a), b = g(d.b);
@@ -796,41 +805,211 @@
           if (!vo || !a || !b) return null;
           let dx = b.x - a.x, dy = b.y - a.y;
           if (d.perp) {
-            // Match actual rawMath sign (canvas Hg is (-dy, dx) in Y-down -> (dy, -dx) in Y-up, i.e., -90 deg CCW)
-            const t = dx; dx = dy; dy = -t;
+            // Kernel Hg in Canvas Y-down is (dy_c, -dx_c) -> in Math Y-up is (-dy_m, dx_m), i.e., +90 deg CCW
+            const t = dx; dx = -dy; dy = t;
+          }
+          if (d.distVal != null) {
+            const len = Math.hypot(dx, dy);
+            if (len < 1e-9) return { x: vo.x, y: vo.y };
+            const dCm = d.distVal * cmPx * scaleFactor;
+            return { x: vo.x + dx * dCm / len, y: vo.y + dy * dCm / len };
           }
           const k = d.k != null ? d.k : 1;
           return { x: vo.x + dx * k, y: vo.y + dy * k };
         }
+        case 'len': {
+          const a = g(d.a);
+          if (!a) return null;
+          const dCm = Math.max(1e-4, (d.val != null ? d.val : 2) * cmPx * scaleFactor);
+          const ang = -(d.ang || 0);
+          return { x: a.x + dCm * Math.cos(ang), y: a.y + dCm * Math.sin(ang) };
+        }
+        case 'polar': {
+          const po = g(d.o), pr = g(d.ref);
+          if (!po || !pr) return null;
+          const base = Math.atan2(pr.y - po.y, pr.x - po.x);
+          const deg = d.fixedAng ? (d.angVal != null ? d.angVal : 60) : (d.curAngDeg != null ? d.curAngDeg : 60);
+          const rad = base + deg * Math.PI / 180;
+          const dCm = (d.fixedDist ? Math.max(1e-4, (d.distVal != null ? d.distVal : 2) * cmPx) : Math.max(4, d.curDistPx || 120)) * scaleFactor;
+          return { x: po.x + dCm * Math.cos(rad), y: po.y + dCm * Math.sin(rad) };
+        }
         case 'inter': {
+          if (!d.l1 || !d.l2) return null;
           const p1 = g(d.l1[0]), p2 = g(d.l1[1]), p3 = g(d.l2[0]), p4 = g(d.l2[1]);
           if (!p1 || !p2 || !p3 || !p4) return null;
-          const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
-          const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
-          const det = d1x * d2y - d1y * d2x;
-          if (Math.abs(det) < 1e-6) return null;
-          const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / det;
-          return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+          if (!d.c1 && !d.c2) {
+            const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+            const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+            const det = d1x * d2y - d1y * d2x;
+            if (Math.abs(det) < 1e-6) return null;
+            const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / det;
+            return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+          }
+          const pts = [];
+          if (d.c1 && d.c2) {
+            const r1 = dist2(p1, p2), r2 = dist2(p3, p4);
+            const dx = p3.x - p1.x, dy = p3.y - p1.y, dist = Math.hypot(dx, dy);
+            if (dist > 1e-7 && dist <= r1 + r2 + 1e-5 && dist >= Math.abs(r1 - r2) - 1e-5) {
+              const a = (r1 * r1 - r2 * r2 + dist * dist) / (2 * dist);
+              const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+              const xm = p1.x + a * dx / dist, ym = p1.y + a * dy / dist;
+              // Exact R_Y image of Canvas _Y roots (which=0 -> -h*dy, +h*dx; which=1 -> +h*dy, -h*dx)
+              pts.push({ x: xm - h * dy / dist, y: ym + h * dx / dist });
+              pts.push({ x: xm + h * dy / dist, y: ym - h * dx / dist });
+            }
+          } else {
+            const c = d.c1 ? p1 : p3;
+            const r = d.c1 ? dist2(p1, p2) : dist2(p3, p4);
+            const la = d.c1 ? p3 : p1;
+            const lb = d.c1 ? p4 : p2;
+            const dx = lb.x - la.x, dy = lb.y - la.y, d2 = dx * dx + dy * dy;
+            if (d2 > 1e-9) {
+              const fx = la.x - c.x, fy = la.y - c.y;
+              const B = 2 * (fx * dx + fy * dy);
+              const C = fx * fx + fy * fy - r * r;
+              const disc = B * B - 4 * d2 * C;
+              if (disc >= -1e-5) {
+                const s = Math.sqrt(Math.max(0, disc));
+                const t1 = (-B - s) / (2 * d2);
+                const t2 = (-B + s) / (2 * d2);
+                pts.push({ x: la.x + dx * t1, y: la.y + dy * t1 });
+                pts.push({ x: la.x + dx * t2, y: la.y + dy * t2 });
+              }
+            }
+          }
+          return pts[Math.min(d.which || 0, Math.max(0, pts.length - 1))] || null;
+        }
+        case 'bis': {
+          const a = g(d.a), bo = g(d.o), b = g(d.b);
+          if (!a || !bo || !b) return null;
+          const d1 = dist2(a, bo), d2 = dist2(b, bo);
+          if (d1 < 1e-9 || d2 < 1e-9) return null;
+          let lx = (a.x - bo.x) / d1 + (b.x - bo.x) / d2;
+          let ly = (a.y - bo.y) / d1 + (b.y - bo.y) / d2;
+          const m = Math.hypot(lx, ly);
+          if (m < 1e-9) { lx = -(a.y - bo.y) / d1; ly = (a.x - bo.x) / d1; }
+          else { lx /= m; ly /= m; }
+          return { x: bo.x + lx * d1, y: bo.y + ly * d1 };
+        }
+        case 'path': {
+          if (!Array.isArray(d.pts) || !d.pts.length) return null;
+          const ps = d.pts.map(g);
+          if (ps.some((p) => !p)) return null;
+          const kind = d.kind || d.on || 'circle';
+          const k = d.k != null ? d.k : 0;
+          const rad = (d.angleDeg != null && d.k == null) ? (d.angleDeg * Math.PI / 180) : (-k * Math.PI * 2);
+          if (kind === 'circle' && ps.length >= 2) {
+            const r = dist2(ps[0], ps[1]);
+            return { x: ps[0].x + r * Math.cos(rad), y: ps[0].y + r * Math.sin(rad) };
+          }
+          if (kind === 'ellipse' && ps.length >= 3) {
+            const rx = dist2(ps[0], ps[1]), ry = dist2(ps[0], ps[2]);
+            const rot = Math.atan2(ps[1].y - ps[0].y, ps[1].x - ps[0].x);
+            const lx = rx * Math.cos(rad), ly = ry * Math.sin(rad);
+            return {
+              x: ps[0].x + lx * Math.cos(rot) - ly * Math.sin(rot),
+              y: ps[0].y + lx * Math.sin(rot) + ly * Math.cos(rot)
+            };
+          }
+          return ps[0];
+        }
+        case 'ctan': {
+          if (!d.c1 || !d.c2) return null;
+          const p1 = g(d.c1[0]), p2 = g(d.c1[1]), p3 = g(d.c2[0]), p4 = g(d.c2[1]);
+          if (!p1 || !p2 || !p3 || !p4) return null;
+          const r1 = dist2(p1, p2), r2 = dist2(p3, p4);
+          const dx = p3.x - p1.x, dy = p3.y - p1.y, dist = Math.hypot(dx, dy);
+          if (dist < 1e-9) return null;
+          const l = (d.inner ? -(r1 + r2) : (r2 - r1)) / dist;
+          if (Math.abs(l) > 1) return null;
+          const ux = dx / dist, uy = dy / dist;
+          const h = Math.sqrt(Math.max(0, 1 - l * l)) * (d.which ? -1 : 1);
+          const nx = ux * l - uy * h, ny = uy * l + ux * h;
+          const t1 = { x: p1.x - nx * r1, y: p1.y - ny * r1 };
+          const t2 = d.inner ? { x: p3.x + nx * r2, y: p3.y + ny * r2 } : { x: p3.x - nx * r2, y: p3.y - ny * r2 };
+          return d.on === 2 ? t2 : t1;
+        }
+        case 'p3d': {
+          const po = g(d.o);
+          if (!po) return null;
+          const sCm = cmPx * scaleFactor;
+          const x = (d.vx || 0) * sCm, y = (d.vy || 0) * sCm, z = (d.vz || 0) * sCm;
+          return { x: po.x + x - 0.35 * y, y: po.y + z - 0.28 * y };
         }
         default:
           return null;
       }
     }
 
+    // Pick canonical origin (0, 0)
+    let originId = primaryIds[0];
+    const revShape = renderShapes.find((sh) => isRevolutionKind(sh.kind) && sh.pts && primaryIds.includes(sh.pts[0]));
+    const conicShape = renderShapes.find((sh) => ['circle', 'ellipse', 'annulus', 'hyperbola'].includes(sh.kind) && sh.pts && primaryIds.includes(sh.pts[0]));
+    if (revShape) {
+      originId = revShape.pts[0];
+    } else if (conicShape && primaryIds.length <= 4) {
+      originId = conicShape.pts[0];
+    } else {
+      // Bottom-leftmost primary point (preferring labeled vertices like A or O)
+      let minY = Infinity;
+      for (const id of primaryIds) {
+        const p = rawMathMap.get(id);
+        if (p.y < minY) minY = p.y;
+      }
+      const ys = primaryIds.map((id) => rawMathMap.get(id).y);
+      const ySpan = Math.max(...ys) - Math.min(...ys) || 1;
+      const bottomBand = primaryIds.filter((id) => rawMathMap.get(id).y <= minY + 0.06 * ySpan);
+      bottomBand.sort((a, b) => rawMathMap.get(a).x - rawMathMap.get(b).x);
+      originId = bottomBand[0] || primaryIds[0];
+    }
+
+    // Validate candidate primary grid snap so circle intersections / tangents never vanish!
+    const isValidSnap = (qMap, sFactor) => {
+      if (!derivedSet.size) return true;
+      const simMap = new Map(qMap);
+      for (const id of sortedIds) {
+        if (!derivedSet.has(id)) continue;
+        const ev = evalDerivedInMathSpace(id, simMap, sFactor);
+        if (!ev || !Number.isFinite(ev.x) || !Number.isFinite(ev.y)) return false;
+        simMap.set(id, ev);
+      }
+      // Ensure distinct derived intersections (e.g. two tangent points B, C) do not collapse into one point
+      const visIds = sortedIds.filter((id) => target.points[id] && target.points[id].show);
+      for (let i = 0; i < visIds.length; i++) {
+        for (let j = i + 1; j < visIds.length; j++) {
+          const rA = rawMathMap.get(visIds[i]), rB = rawMathMap.get(visIds[j]);
+          const sA = simMap.get(visIds[i]), sB = simMap.get(visIds[j]);
+          if (rA && rB && sA && sB && dist2(rA, rB) * sFactor > 0.25 && dist2(sA, sB) < 0.08) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
+    // Run Optimal Integer Grid Normalization on FREE primary points only
+    const gridOpts = revShape
+      ? Object.assign({}, o, { targetWidthRange: [2.2, 4.5], idealSpan: 3.0, isValidSnap })
+      : Object.assign({}, o, { isValidSnap });
+    const grid = optimizePrimaryGrid(primaryIds, rawMathMap, originId, gridOpts);
+
+    // Evaluate final TikZ coordinates for ALL points (snapped primary + exact re-evaluated derived!)
+    const tikzCoords = new Map(grid.coords);
+    const resolvedSymbolic = new Set();
+
     for (const id of sortedIds) {
-      if (!symbolicSet.has(id)) continue;
-      const ev = evalFinalDerived(id);
+      if (!derivedSet.has(id)) continue;
+      const ev = evalDerivedInMathSpace(id, tikzCoords, grid.scale);
       if (ev && Number.isFinite(ev.x) && Number.isFinite(ev.y)) {
         tikzCoords.set(id, ev);
-        resolvedSymbolic.add(id);
+        if (symbolicSet.has(id)) resolvedSymbolic.add(id);
       } else {
-        // Fallback: quantize from raw math coord so coordinate is always valid
+        // Safe non-NaN fallback scaled from rawMathMap without destructive grid rounding
         const raw = rawMathMap.get(id);
         const origRaw = rawMathMap.get(originId);
-        const step = grid.gridStep;
         tikzCoords.set(id, {
-          x: Math.round(((raw.x - origRaw.x) * grid.scale) / step) * step,
-          y: Math.round(((raw.y - origRaw.y) * grid.scale) / step) * step
+          x: Number(((raw.x - origRaw.x) * grid.scale).toFixed(5)),
+          y: Number(((raw.y - origRaw.y) * grid.scale).toFixed(5))
         });
       }
     }
@@ -854,7 +1033,7 @@
     const declVars = []; // [{ name, val }]
     const declMap = new Map(); // name -> val
     const addDecl = (name, val) => {
-      const vStr = fmtNum(val, 2);
+      const vStr = fmtNum(val, 5);
       if (declMap.has(name)) {
         if (declMap.get(name) === vStr) return name;
         return null;
@@ -865,7 +1044,8 @@
     };
 
     const primaryExpr = new Map(); // ptId -> TikZ coord expr string
-    const primaryOrder = sortedIds.filter((id) => !resolvedSymbolic.has(id));
+    const primaryOrder = sortedIds.filter((id) => !derivedSet.has(id));
+    const nonSymbolicDerivedOrder = sortedIds.filter((id) => derivedSet.has(id) && !resolvedSymbolic.has(id));
 
     // Check if there is a revolution solid for canonical variable names (r, h, b, R)
     const revRadiusVar = new Map(); // shape.id -> { rVar, bVar, r2Var, b2Var, hVar }
@@ -965,8 +1145,13 @@
           primaryExpr.set(id, `(${fmtNum(x, 2)},${fmtNum(y, 2)})`);
         }
       } else {
-        primaryExpr.set(id, `(${fmtNum(x, 2)},${fmtNum(y, 2)})`);
+        primaryExpr.set(id, `(${fmtNum(x, 5)},${fmtNum(y, 5)})`);
       }
+    }
+    for (const id of nonSymbolicDerivedOrder) {
+      const p = tikzCoords.get(id);
+      if (!p) continue;
+      primaryExpr.set(id, `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`);
     }
 
     // Build symbolic TikZ expression for each derived point
@@ -997,37 +1182,37 @@
         case 'rot': {
           const deg = snapCleanDeg(-(d.ang || 0));
           const k = d.k != null ? d.k : 1;
-          if (Math.abs(k - 1) < 0.02 && (deg === 180 || deg === -180)) {
+          if (Math.abs(k - 1) < 1e-4 && (deg === 180 || deg === -180)) {
             return `($(${T(d.c)})!-1!(${T(d.p)})$)`;
           }
-          return `($(${T(d.c)})!${fmtNum(k, 2)}!${deg}:(${T(d.p)})$)`;
+          return `($(${T(d.c)})!${fmtNum(k, 5)}!${deg}:(${T(d.p)})$)`;
         }
         case 'vec': {
           const k = d.k != null ? d.k : 1;
           if (!d.perp) {
-            if (Math.abs(k - 1) < 0.02) {
+            if (Math.abs(k - 1) < 1e-4) {
               return isOriginCoord(d.a)
                 ? `($(${T(d.o)})+(${T(d.b)})$)`
                 : `($(${T(d.o)})+(${T(d.b)})-(${T(d.a)})$)`;
             }
-            if (Math.abs(k + 1) < 0.02) {
+            if (Math.abs(k + 1) < 1e-4) {
               return `($(${T(d.o)})+(${T(d.a)})-(${T(d.b)})$)`;
             }
-            const ks = fmtNum(k, 2);
+            const ks = fmtNum(k, 5);
             return `($(${T(d.o)})+${ks}*(${T(d.b)})-${ks}*(${T(d.a)})$)`;
           }
-          // Perpendicular vector from o along perp(a->b)
+          // Perpendicular vector from o along +90 deg CCW of (a->b) in Math Y-up
           if (d.o === d.a) {
-            return `($(${T(d.a)})!${fmtNum(k, 2)}!-90:(${T(d.b)})$)`;
+            return `($(${T(d.a)})!${fmtNum(k, 5)}!90:(${T(d.b)})$)`;
           }
           const c = tikzCoords.get(id);
-          return `(${fmtNum(c.x, 2)},${fmtNum(c.y, 2)})`;
+          return `(${fmtNum(c.x, 5)},${fmtNum(c.y, 5)})`;
         }
         case 'inter':
           return `(intersection of ${T(d.l1[0])}--${T(d.l1[1])} and ${T(d.l2[0])}--${T(d.l2[1])})`;
         default: {
           const c = tikzCoords.get(id);
-          return `(${fmtNum(c.x, 2)},${fmtNum(c.y, 2)})`;
+          return `(${fmtNum(c.x, 5)},${fmtNum(c.y, 5)})`;
         }
       }
     }
@@ -1096,9 +1281,9 @@
       const p1 = tikzCoords.get(id1), p2 = tikzCoords.get(id2);
       const r = dist2(p1, p2);
       for (const [k, v] of declMap.entries()) {
-        if (Math.abs(Number(v) - r) < 0.015) return k;
+        if (Math.abs(Number(v) - r) < 1e-5) return k;
       }
-      return fmtNum(r, 2);
+      return fmtNum(r, 5);
     };
 
     const fillStyleStr = () => o.hatchFills

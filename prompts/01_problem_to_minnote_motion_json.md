@@ -18,8 +18,8 @@ TRƯỚC KHI SINH MẢNG "ops", BẠN BẮT BUỘC THỰC HIỆN KHÓA SUY LUẬ
 - Quy ước trục tọa độ toán học cho mọi điểm gốc: +x hướng sang phải, +y hướng LÊN TRÊN. Mọi giá trị số (x, y, ratio, k, angleDeg) PHẢI là số thập phân JSON thuần (VD: 1.732, -0.5, 0.38), TUYỆT ĐỐI CẤM viết chuỗi biểu thức như "sqrt(3)/2" hay "-3/2".
 - Phân loại rõ spaceType: "plane_2d" | "solid_3d" | "revolution_3d" | "analytic_oxy" | "analytic_oxyz" và đặt meta.is3D đúng (true cho 3D, false cho 2D).
 - Mẫu tọa độ gốc 3D chống suy biến góc nhìn (đảm bảo không có 3 đỉnh không thẳng hàng nào bị chiếu trùng nhau, đỉnh S luôn nằm CAO HƠN đáy):
-  * Chóp tứ giác lồi tổng quát S.ABCD (các cặp cạnh đối KHÔNG song song):
-    A(-2.8, 0.0), B(-1.3, -2.0), C(1.9, -1.7), D(3.2, 0.2), S(-0.4, 3.8). (Thứ tự vòng lồi A->B->C->D không tự cắt; chỉ AD khuất).
+  * Chóp tứ giác lồi tổng quát S.ABCD (các cặp cạnh đối KHÔNG song song, góc nhìn chống trùng nét chiếu 2D như BM-MN):
+    A(-2.8, 0.2), B(-1.7, -1.8), C(1.7, -2.2), D(3.2, 0.5), S(0.8, 3.8). (Thứ tự vòng lồi A->B->C->D không tự cắt; chỉ AD khuất).
   * Chóp đáy hình bình hành / chữ nhật / thoi / vuông ABCD:
     A(-2.2, 0.0), D(2.6, 0.0), B(-3.6, -1.8), C bắt buộc dựng bằng "point_sum" (a:"B", b:"D", c:"A" => C = B + D - A). Nếu SA ⊥ (ABCD) thì đặt S(-2.2, 3.9); nếu chóp đều S.ABCD tâm O thì đặt S trên đường thẳng đứng qua O: S(-0.5, 3.8).
   * Chóp tam giác S.ABC:
@@ -35,7 +35,7 @@ TRƯỚC KHI SINH MẢNG "ops", BẠN BẮT BUỘC THỰC HIỆN KHÓA SUY LUẬ
   * Điểm lấy tổng quát trên đoạn AB (KHÔNG phải trung điểm): "point_on_segment" với ratio thuộc [0.15, 0.85] và BẮT BUỘC ratio != 0.5 (ưu tiên 0.35, 0.38 hoặc 0.65 để không vô tình tạo đường trung bình song song giả!). Nếu đề cho tỉ lệ k = AM/AB thì nhập đúng số thập phân (VD: AM = 1/3 AB => ratio: 0.3333).
   * Điểm trên tia đối / phần kéo dài ngoài đoạn AB: "point_on_line" (ratio < 0 hoặc ratio > 1, VD: 1.35 hoặc -0.4).
   * Hình chiếu vuông góc từ P xuống đường AB: "foot_perp" {"op":"foot_perp","id":"H","p":"P","a":"A","b":"B","drawDropSegment":true,"markRightAngle":true}.
-  * Tiếp điểm B, C kẻ từ điểm A ngoài đường tròn (O; R): TUYỆT ĐỐI CẤM đoán góc "point_on_circle" hay chấm đại "point_free"! Phải dựng trung điểm M = midpoint(O, A), vẽ đường tròn Thales đường kính OA {"op":"circle","center":"M","rim":"O","dashed":true,"aux":true}, dựng điểm cực H0 trên đoạn OA với ratio = (R/OA)^2, kẻ phương vuông góc Q0 = line_perp qua H0 vuông góc OA (show:false, drawSegment:false), rồi lấy B, C bằng "intersection_lc" giữa line ["H0","Q0"] và circle ["O","P_R"] (which: 0 và 1) — đảm bảo góc OBA = OCA = 90° chính xác tuyệt đối!
+  * Tiếp điểm B, C kẻ từ điểm A ngoài đường tròn (O; R): TUYỆT ĐỐI CẤM đoán góc "point_on_circle", chấm đại "point_free" hay gán tỉ số tĩnh! Phải dựng trung điểm M = midpoint(O, A), vẽ đường tròn Thales đường kính OA {"op":"circle","center":"M","rim":"O","dashed":true,"aux":true}, rồi lấy B, C bằng "intersection_cc" giữa c1:["O","P_R"] và c2:["M","O"] (which: 0 và which: 1) hoặc "tangent_point" — đảm bảo góc OBA = OCA = 90.000° bất biến tuyệt đối ngay cả khi kéo thả đỉnh A hoặc O!
 
 [CỔNG 3 — KIỂM CHỨNG ĐỒNG PHẲNG 3D & CHỐNG SUY BIẾN SONG SONG (det != 0)]
 - Trước MỖI lệnh "intersection_ll" (giao của l1=[X,Y] và l2=[U,V]):

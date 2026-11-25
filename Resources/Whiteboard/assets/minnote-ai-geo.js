@@ -36,7 +36,8 @@
           if (a && b) res = { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
         } else if (d.t === 'on') {
           const a = evalPt(d.a), b = evalPt(d.b);
-          const k = Number.isFinite(Number(d.k)) ? Number(d.k) : 0.5;
+          let k = Number.isFinite(Number(d.k)) ? Number(d.k) : 0.5;
+          if (d.seg) k = Math.min(1, Math.max(0, k));
           if (a && b) res = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
         } else if (d.t === 'foot') {
           const p = evalPt(d.p), a = evalPt(d.a), b = evalPt(d.b);
@@ -49,7 +50,8 @@
           const o = evalPt(d.o), a = evalPt(d.a), b = evalPt(d.b);
           if (o && a && b) {
             let dx = b.x - a.x, dy = b.y - a.y;
-            if (d.perp) { const tmp = dx; dx = -dy; dy = tmp; }
+            // Match live kernel Hg({x, y}) = {x: y, y: -x} in Canvas (+y DOWN) space (= +90° CCW in Math +y UP space)
+            if (d.perp) { const tmp = dx; dx = dy; dy = -tmp; }
             const k = Number.isFinite(Number(d.k)) ? Number(d.k) : 1;
             res = { x: o.x + dx * k, y: o.y + dy * k };
           }
@@ -146,9 +148,9 @@ Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/tr�
 2. CHỐNG TỨ GIÁC ĐÁY TỰ CẮT (ANTI-BOWTIE ABCD) & HỆ TRỤC (+x phải, +y HƯỚNG LÊN):
    - Đáy tứ giác ABCD BẮT BUỘC đi đúng vòng lồi khép kín A -> B -> C -> D -> A (CẤM chéo hình nơ AB cắt CD hoặc BC cắt DA).
    - Chóp đáy HÌNH BÌNH HÀNH / CHỮ NHẬT / VUÔNG / THOI ABCD: đặt A(-2.2, 0.0), B(-3.6, -1.8), D(2.6, 0.0), và BẮT BUỘC C dùng "point_sum" (a:"B", b:"D", c:"A" => C = B + D - A); chỉ AB, AD "dashed": true. Nếu SA ⊥ (ABCD): S(-2.2, 4.0).
-   - Chóp TỨ GIÁC LỒI THƯỜNG S.ABCD (hai cặp cạnh đối KHÔNG song song): A(-2.8, 0.0), B(-1.2, -2.0), C(1.9, -1.7), D(3.2, 0.2), S(-0.4, 3.8); chỉ AD "dashed": true.
+   - Chóp TỨ GIÁC LỒI THƯỜNG S.ABCD (hai cặp cạnh đối KHÔNG song song, tránh ảo giác BM-MN thẳng hàng): A(-2.8, 0.2), B(-1.7, -1.8), C(1.7, -2.2), D(3.2, 0.5), S(0.8, 3.8); chỉ AD "dashed": true.
    - Chóp tam giác S.ABC: A(-2.5, 0.0), B(-0.6, -1.8), C(2.8, 0.0), S(-0.2, 3.6); chỉ AC "dashed": true.
-   - Đỉnh chóp S BẮT BUỘC nằm phía trên đáy (y > 0, thường y từ 3.4 đến 4.2) và lệch khỏi các cạnh đáy để không mặt bên nào bị suy biến thành đoạn thẳng.
+   - Đỉnh chóp S BẮT BUỘC nằm phía trên đáy (y > 0, thường y từ 3.4 đến 4.2), lệch khỏi các cạnh đáy và tránh để 2 đoạn không thẳng hàng trong 3D (như BM và MN) chiếu suýt thẳng hàng 180°.
    - Lăng trụ / Hình hộp: dựng đáy dưới trước, đặt A' bằng "point_free" ở phía trên, các đỉnh B', C', D' dùng "point_sum" theo véc-tơ AA'.
 3. CHỐNG GIAO ĐIỂM GIẢ 2 ĐƯỜNG CHÉO NHAU TRONG 3D (ANTI-SKEW) & CHỐNG SUY BIẾN SONG SONG:
    - Lệnh "intersection_ll" (l1, l2) CHỈ ĐƯỢC DÙNG khi l1 và l2 cùng thuộc một mặt phẳng (đồng phẳng) VÀ không song song!
@@ -195,7 +197,7 @@ QUY TẮC KHÓA CHẶT CHỐNG SAI HÌNH:
 1. Chỉ đỉnh gốc dùng {"op":"point_free","id":"A","x":-2.2,"y":0} (trục +x sang phải, +y HƯỚNG LÊN, số thập phân tường minh).
 2. Đáy ABCD lồi đúng vòng A->B->C->D (cấm tự cắt hình nơ!):
    - Hình bình hành/chữ nhật/vuông/thoi: A(-2.2,0), B(-3.6,-1.8), D(2.6,0), C={"op":"point_sum","id":"C","a":"B","b":"D","c":"A"} (AB, AD dashed:true).
-   - Tứ giác lồi thường: A(-2.8,0), B(-1.2,-2.0), C(1.9,-1.7), D(3.2,0.2) (AD dashed:true). Đỉnh chóp S đặt phía trên đáy (y ≈ 3.8).
+   - Tứ giác lồi thường: A(-2.8,0.2), B(-1.7,-1.8), C(1.7,-2.2), D(3.2,0.5), S(0.8,3.8) (AD dashed:true; góc nhìn tách rõ không trùng nét BM-MN).
 3. Trung điểm: {"op":"midpoint","id":"M","a":"S","b":"C"}. Điểm thuộc đoạn tổng quát: {"op":"point_on_segment","id":"N","a":"S","b":"D","ratio":0.38} (ratio != 0.5!).
 4. Giao 2 đường ĐỒNG PHẲNG: {"op":"intersection_ll","id":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true}. CẤM giao 2 đường chéo nhau 3D hoặc 2 đường song song! Nếu song song dùng {"op":"line_parallel","id":"x","label":"x","through":"A","a":"C","b":"D","asLine":true,"noDot":true,"aux":true}.
 5. Tiếp tuyến từ A ngoài đường tròn (O;R): lấy M=midpoint(O,A), tiếp điểm B,C={"op":"intersection_cc","id":"B","c1":["M","O"],"c2":["O","R"],"which":0|1}, góc vuông {"op":"right_angle","a":"O","v":"B","b":"A"}.
@@ -980,6 +982,11 @@ ${prob}`;
     inter_cc: 'intersection_cc',
     intersect_cc: 'intersection_cc',
     circle_intersection: 'intersection_cc',
+    tangent: 'tangent_point',
+    tangent_from_point: 'tangent_point',
+    tangents: 'tangents_from_point',
+    two_tangents: 'tangents_from_point',
+    tangent_pair: 'tangents_from_point',
     polygon: 'connect_polygon',
     fill_polygon: 'polygon_fill',
     right: 'right_angle',
@@ -1179,7 +1186,8 @@ ${prob}`;
         case 'ratio_point':
         case 'point_on_line': {
           const a = get(op.a), b = get(op.b);
-          const k = Number.isFinite(Number(op.ratio ?? op.k)) ? Number(op.ratio ?? op.k) : (op.op === 'point_on_line' ? 1.3 : 0.38);
+          let k = Number.isFinite(Number(op.ratio ?? op.k)) ? Number(op.ratio ?? op.k) : (op.op === 'point_on_line' ? 1.3 : 0.38);
+          if (op.op !== 'point_on_line') k = Math.min(1, Math.max(0, k));
           if (a && b) pt = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
           break;
         }
@@ -1486,7 +1494,8 @@ ${prob}`;
           out.push({ op: 'intersection_ll', id: sym, label: p.label || sym, l1: [symOf(d.l1[0]), symOf(d.l1[1])], l2: [symOf(d.l2[0]), symOf(d.l2[1])], which: Number(d.which) || 0, show: p.show !== false });
         }
       } else if (d.t === 'path' && Array.isArray(d.pts) && d.pts.length >= 2) {
-        const deg = -Number(d.k || 0) * 360;
+        const rawDeg = (((-Number(d.k || 0) * 360) % 360) + 360) % 360;
+        const deg = Number(rawDeg.toFixed(4));
         out.push({ op: 'point_on_circle', id: sym, label: p.label || sym, center: symOf(d.pts[0]), rim: symOf(d.pts[1]), angleDeg: deg, show: p.show !== false });
       }
     }
@@ -1571,6 +1580,52 @@ ${prob}`;
           : ((op.circle || op.c2) ? 'intersection_lc' : 'intersection_ll');
       } else {
         op.op = lower;
+      }
+
+      // Expand tangents_from_point into two true dynamic Thales tangent_point ops (+ optional segments/right_angles)
+      if (op.op === 'tangents_from_point') {
+        const extSym = cleanRef(op.p || op.from || op.a);
+        const oSym = cleanRef(op.center || op.o);
+        const rSym = cleanRef(op.rim || op.r);
+        const pairIds = Array.isArray(op.ids) && op.ids.length >= 2
+          ? [cleanRef(op.ids[0]), cleanRef(op.ids[1])]
+          : [cleanRef(op.id1 || op.b || 'T1'), cleanRef(op.id2 || op.c || 'T2')];
+        if (extSym && oSym && rSym && pairIds[0] && pairIds[1]) {
+          ops.push({
+            op: 'tangent_point',
+            id: pairIds[0],
+            label: pairIds[0],
+            p: extSym,
+            center: oSym,
+            rim: rSym,
+            which: 1,
+            side: 'upper',
+            effect: op.effect || 'pop',
+            step: op.step || `Tiếp điểm ${pairIds[0]} từ ${extSym} tới (${oSym})`
+          });
+          ops.push({
+            op: 'tangent_point',
+            id: pairIds[1],
+            label: pairIds[1],
+            p: extSym,
+            center: oSym,
+            rim: rSym,
+            which: 0,
+            side: 'lower',
+            effect: op.effect || 'pop',
+            step: `Tiếp điểm ${pairIds[1]} từ ${extSym} tới (${oSym})`
+          });
+          if (op.drawSegments || op.drawTangents) {
+            ops.push({ op: 'segment', a: extSym, b: pairIds[0], dashed: false, step: `Tiếp tuyến ${extSym}${pairIds[0]}` });
+            ops.push({ op: 'segment', a: extSym, b: pairIds[1], dashed: false, step: `Tiếp tuyến ${extSym}${pairIds[1]}` });
+          }
+          if (op.markRightAngles) {
+            ops.push({ op: 'right_angle', a: oSym, v: pairIds[0], b: extSym, aux: true, step: `Góc vuông tại ${pairIds[0]}` });
+            ops.push({ op: 'right_angle', a: oSym, v: pairIds[1], b: extSym, aux: true, step: `Góc vuông tại ${pairIds[1]}` });
+          }
+          fixes.push(`Đã tách tangents_from_point thành 2 tiếp điểm động Thales (${pairIds[0]}, ${pairIds[1]}).`);
+        }
+        continue;
       }
 
       // Evaluate math expressions in numeric fields safely
@@ -1743,8 +1798,8 @@ ${prob}`;
     // Synthesize missing fundamental anchor vertices if referenced but never declared
     const missingAnchors = [];
     const fallbackAnchorCoords = {
-      A: [-2.5, 0], B: [-1.2, -1.9], C: [2.0, -1.7], D: [2.8, 0.1],
-      S: [-0.3, 3.7], O: [0, 0], R: [2.4, 0]
+      A: [-2.8, 0.2], B: [-1.7, -1.8], C: [1.7, -2.2], D: [3.2, 0.5],
+      S: [0.8, 3.8], O: [0, 0], R: [2.4, 0]
     };
     const seenMissing = new Set();
     for (const op of ops) {
@@ -2095,7 +2150,7 @@ ${prob}`;
     // 8C: Apex S projecting nearly collinearly onto a lateral edge or base edge
     if (is3D && ptOpById.has('S') && ptOpById.get('S').op === 'point_free' && baseVertexIds.length >= 3) {
       const sOp = ptOpById.get('S');
-      const keepVerticalSA = /SA\s*(?:⊥|\\perp|vuông\s*góc)/i.test(allContextText);
+      const keepVerticalSA = /SA\s*(?:⊥|\\perp|vuông)/i.test(allContextText);
       const isApexCollapsed = () => {
         const sc = simCoords.get('S');
         if (!sc) return false;
@@ -2149,8 +2204,67 @@ ${prob}`;
     const { map3 } = is3D ? build3DLiftedCoords(ops, simCoords) : { map3: new Map() };
     const droppedPointIds = new Set();
     const skippedSegmentPairs = new Set();
+    const emittedCircleRoots = new Map(); // canonical circle-pair or line-circle key -> Array<{id, x, y}>
+
+    const evalBothCircleRootsMath = (candOp, cMap) => {
+      if (!candOp) return null;
+      if (candOp.op === 'intersection_lc') {
+        const ln = Array.isArray(candOp.line) ? candOp.line : candOp.l1;
+        const cir = Array.isArray(candOp.circle) ? candOp.circle : candOp.l2;
+        const a = cMap.get(cleanRef(ln && ln[0])), b = cMap.get(cleanRef(ln && ln[1]));
+        const c = cMap.get(cleanRef(cir && cir[0])), rPt = cMap.get(cleanRef(cir && cir[1]));
+        if (!a || !b || !c || !rPt) return null;
+        const rad = dist2D(c, rPt);
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= 1e-10 || rad <= 1e-8) return null;
+        const fx = a.x - c.x, fy = a.y - c.y;
+        const B = 2 * (fx * dx + fy * dy);
+        const C = fx * fx + fy * fy - rad * rad;
+        const disc = B * B - 4 * d2 * C;
+        if (disc < -1e-5) return null;
+        const s = Math.sqrt(Math.max(0, disc));
+        const t0 = (-B - s) / (2 * d2), t1 = (-B + s) / (2 * d2);
+        return [
+          { x: a.x + t0 * dx, y: a.y + t0 * dy },
+          { x: a.x + t1 * dx, y: a.y + t1 * dy }
+        ];
+      }
+      if (candOp.op === 'intersection_cc' || candOp.op === 'tangent_point') {
+        let p1, p2, p3, p4;
+        if (candOp.op === 'tangent_point') {
+          const ext = cMap.get(cleanRef(candOp.p || candOp.from || candOp.a));
+          const o = cMap.get(cleanRef(candOp.center || candOp.o));
+          const r = cMap.get(cleanRef(candOp.rim || candOp.r));
+          if (ext && o && r) {
+            p1 = { x: (ext.x + o.x) * 0.5, y: (ext.y + o.y) * 0.5 };
+            p2 = o; p3 = o; p4 = r;
+          }
+        } else {
+          const c1 = Array.isArray(candOp.c1) ? candOp.c1 : (Array.isArray(candOp.circle1) ? candOp.circle1 : candOp.l1);
+          const c2 = Array.isArray(candOp.c2) ? candOp.c2 : (Array.isArray(candOp.circle2) ? candOp.circle2 : candOp.l2);
+          p1 = cMap.get(cleanRef(c1 && c1[0])); p2 = cMap.get(cleanRef(c1 && c1[1]));
+          p3 = cMap.get(cleanRef(c2 && c2[0])); p4 = cMap.get(cleanRef(c2 && c2[1]));
+        }
+        if (!p1 || !p2 || !p3 || !p4) return null;
+        const r1 = dist2D(p1, p2), r2 = dist2D(p3, p4);
+        const dx = p3.x - p1.x, dyS = (-p3.y) - (-p1.y);
+        const d = Math.hypot(dx, dyS);
+        if (d <= 1e-8 || d > r1 + r2 + 1e-4 || d < Math.abs(r1 - r2) - 1e-4) return null;
+        const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+        const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+        const xm = p1.x + (a * dx) / d;
+        const ymS = (-p1.y) + (a * dyS) / d;
+        return [
+          { x: xm + (h * dyS) / d, y: -(ymS - (h * dx) / d) },
+          { x: xm - (h * dyS) / d, y: -(ymS + (h * dx) / d) }
+        ];
+      }
+      return null;
+    };
 
     const healedOpsPass9 = [];
+    const obsoleteHelperIds = new Set();
     for (let idx = 0; idx < ops.length; idx++) {
       const op = ops[idx];
       if (!op || !op.op) continue;
@@ -2173,22 +2287,156 @@ ${prob}`;
         }
       }
 
-      // 9A: Thales Tangent Upgrade on intersection_lc when [M, O] (Thales circle center + rim) was mistakenly passed as line
+      // 9A: Thales Tangent Upgrades & Circle Root Disambiguation (intersection_lc / intersection_cc / tangent_point)
       if (op.op === 'intersection_lc') {
         const ln = Array.isArray(op.line) ? op.line : op.l1;
         const cir = Array.isArray(op.circle) ? op.circle : op.l2;
         const mSym = cleanRef(ln && ln[0]);
         const l1Sym = cleanRef(ln && ln[1]);
         const cCenterSym = cleanRef(cir && cir[0]);
+        const cRimSym = cleanRef(cir && cir[1]);
         const mOp = ptOpById.get(mSym);
+        const qOp = ptOpById.get(l1Sym);
         const stepTxt = String(op.step || op.note || '');
+        // Case 9A-1: [M, O] (Thales circle center + rim) mistakenly passed as line
         if (mOp && mOp.op === 'midpoint' && l1Sym === cCenterSym && /tiếp\s*điểm|tiếp\s*tuyến|thales|tangent/i.test(stepTxt) && cir) {
           op.op = 'intersection_cc';
           op.c1 = [ln[0], ln[1]];
           op.c2 = [cir[0], cir[1]];
           delete op.line; delete op.circle;
-          simCoords = simulatePlanCoords(ops);
+          simCoords = simulatePlanCoords([...healedOpsPass9, ...ops.slice(idx)]);
           fixes.push(`Đã nâng cấp tiếp điểm "${op.id}" sang giao 2 đường tròn Thales (intersection_cc).`);
+        } else if (
+          // Case 9A-2: Static polar chord (H0 = point_on_segment(O, P, ratio), Q0 = line_perp(H0, O, P)) -> upgrade to drag-invariant Thales intersection_cc!
+          mOp && (mOp.op === 'point_on_segment' || mOp.op === 'point_on_line') && mOp.show === false &&
+          qOp && (qOp.op === 'line_perp' || qOp.op === 'point_perp') && qOp.show === false &&
+          cCenterSym && cRimSym
+        ) {
+          const segEnds = [cleanRef(mOp.a), cleanRef(mOp.b)];
+          const extSym = segEnds[0] === cCenterSym ? segEnds[1] : (segEnds[1] === cCenterSym ? segEnds[0] : '');
+          const cO = simCoords.get(cCenterSym), cR = simCoords.get(cRimSym), cExt = simCoords.get(extSym);
+          const origTarget = simCoords.get(getOpProducedId(op));
+          if (extSym && cO && cR && cExt && origTarget) {
+            const rad = dist2D(cO, cR), dOA = dist2D(cO, cExt);
+            const hRatio = Number(mOp.ratio ?? mOp.k ?? 0);
+            const projDist = cleanRef(mOp.a) === cCenterSym ? hRatio * dOA : (1 - hRatio) * dOA;
+            if (dOA > rad + 1e-4 && Math.abs(projDist * dOA - rad * rad) <= 0.08 * rad * rad) {
+              let thalesMidId = '';
+              for (const prev of healedOpsPass9) {
+                if (prev && prev.op === 'midpoint') {
+                  const pa = cleanRef(prev.a), pb = cleanRef(prev.b);
+                  if ((pa === cCenterSym && pb === extSym) || (pa === extSym && pb === cCenterSym)) {
+                    thalesMidId = getOpProducedId(prev);
+                    break;
+                  }
+                }
+              }
+              if (!thalesMidId) {
+                thalesMidId = `__thales_${cCenterSym}_${extSym}`;
+                const midOp = { op: 'midpoint', id: thalesMidId, label: '', a: cCenterSym, b: extSym, show: false, noDot: true };
+                healedOpsPass9.push(midOp);
+                ptOpById.set(thalesMidId, midOp);
+              }
+              op.op = 'intersection_cc';
+              op.c1 = [thalesMidId, cCenterSym];
+              op.c2 = [cCenterSym, cRimSym];
+              delete op.line; delete op.circle;
+              simCoords = simulatePlanCoords([...healedOpsPass9, ...ops.slice(idx)]);
+              const rootsAfter = evalBothCircleRootsMath(op, simCoords);
+              if (rootsAfter) {
+                op.which = dist2D(rootsAfter[1], origTarget) < dist2D(rootsAfter[0], origTarget) ? 1 : 0;
+              }
+              simCoords = simulatePlanCoords([...healedOpsPass9, ...ops.slice(idx)]);
+              obsoleteHelperIds.add(mSym);
+              obsoleteHelperIds.add(l1Sym);
+              fixes.push(`Đã nâng cấp tiếp điểm "${op.id}" từ dây cung tĩnh (${mSym}${l1Sym}) sang giao 2 đường tròn Thales động (bất biến khi kéo thả).`);
+            }
+          }
+        }
+      }
+
+      if (op.op === 'intersection_lc' || op.op === 'intersection_cc' || op.op === 'tangent_point') {
+        const pid = getOpProducedId(op);
+        const roots = evalBothCircleRootsMath(op, simCoords);
+        if (roots && dist2D(roots[0], roots[1]) > 1e-4) {
+          let w = Number(op.which) ? 1 : 0;
+          const sideStr = String(op.side || '').trim().toLowerCase();
+          if (sideStr === 'upper' || sideStr === 'top') {
+            w = roots[1].y >= roots[0].y ? 1 : 0;
+          } else if (sideStr === 'lower' || sideStr === 'bottom') {
+            w = roots[1].y <= roots[0].y ? 1 : 0;
+          } else if (sideStr === 'right') {
+            w = roots[1].x >= roots[0].x ? 1 : 0;
+          } else if (sideStr === 'left') {
+            w = roots[1].x <= roots[0].x ? 1 : 0;
+          }
+          if (op.side !== undefined) delete op.side;
+
+          // Build canonical key & collect known points on circle / already-emitted sibling roots to avoid collapsing 2 intersections onto 1 point
+          let groupKey = '';
+          const avoidCoords = [];
+          const explicitExclude = cleanRef(op.exclude || op.otherThan);
+          if (explicitExclude && simCoords.has(explicitExclude)) {
+            avoidCoords.push(simCoords.get(explicitExclude));
+          }
+          if (op.exclude !== undefined) delete op.exclude;
+          if (op.otherThan !== undefined) delete op.otherThan;
+
+          if (op.op === 'intersection_lc') {
+            const ln = (Array.isArray(op.line) ? op.line : op.l1).map(cleanRef);
+            const cir = (Array.isArray(op.circle) ? op.circle : op.l2).map(cleanRef);
+            const lKey = ln[0] < ln[1] ? `${ln[0]}|${ln[1]}` : `${ln[1]}|${ln[0]}`;
+            groupKey = `lc:${lKey}@${cir[0]}|${cir[1]}`;
+            const cO = simCoords.get(cir[0]), cR = simCoords.get(cir[1]);
+            const rad = (cO && cR) ? dist2D(cO, cR) : 0;
+            // If secant/diameter passes through a known point on the circle (e.g. B on (O)), avoid returning B itself unless B is explicitly requested
+            for (const endSym of ln) {
+              if (!endSym || endSym === pid) continue;
+              const cEnd = simCoords.get(endSym);
+              if (cEnd && cO && rad > 1e-6 && Math.abs(dist2D(cEnd, cO) - rad) <= Math.max(1e-3, rad * 0.005)) {
+                avoidCoords.push(cEnd);
+              }
+            }
+          } else if (op.op === 'tangent_point') {
+            const extSym = cleanRef(op.p || op.from || op.a);
+            const oSym = cleanRef(op.center || op.o);
+            const rSym = cleanRef(op.rim || op.r);
+            groupKey = `tan:${extSym}@${oSym}|${rSym}`;
+          } else {
+            const c1 = (Array.isArray(op.c1) ? op.c1 : (Array.isArray(op.circle1) ? op.circle1 : op.l1)).map(cleanRef);
+            const c2 = (Array.isArray(op.c2) ? op.c2 : (Array.isArray(op.circle2) ? op.circle2 : op.l2)).map(cleanRef);
+            const k1 = `${c1[0]}|${c1[1]}`, k2 = `${c2[0]}|${c2[1]}`;
+            groupKey = `cc:${k1 < k2 ? k1 + '::' + k2 : k2 + '::' + k1}`;
+            // If both circles share a rim reference point (e.g. [O1, A] and [O2, A]), avoid returning A itself when a distinct 2nd intersection exists
+            const cO1 = simCoords.get(c1[0]), cR1 = simCoords.get(c1[1]);
+            const cO2 = simCoords.get(c2[0]), cR2 = simCoords.get(c2[1]);
+            const rad1 = (cO1 && cR1) ? dist2D(cO1, cR1) : 0;
+            const rad2 = (cO2 && cR2) ? dist2D(cO2, cR2) : 0;
+            // Exclude circle centers (e.g. in Thales [M, O] ∩ [O, R], O is rim of c1 AND center of c2, not on c2!)
+            if (cR1 && cO2 && rad2 > 1e-6 && c1[1] !== pid && Math.abs(dist2D(cR1, cO2) - rad2) <= Math.max(1e-3, rad2 * 0.005)) {
+              avoidCoords.push(cR1);
+            }
+            if (cR2 && cO1 && rad1 > 1e-6 && c2[1] !== pid && Math.abs(dist2D(cR2, cO1) - rad1) <= Math.max(1e-3, rad1 * 0.005)) {
+              avoidCoords.push(cR2);
+            }
+          }
+
+          const prevSiblings = groupKey ? (emittedCircleRoots.get(groupKey) || []) : [];
+          for (const sib of prevSiblings) avoidCoords.push(sib);
+
+          const chosen = roots[w];
+          const alt = roots[1 - w];
+          const hitsAvoid = avoidCoords.some(ac => ac && dist2D(chosen, ac) <= 1e-3);
+          const altClear = avoidCoords.every(ac => !ac || dist2D(alt, ac) > 1e-2);
+          if (hitsAvoid && altClear) {
+            w = 1 - w;
+            fixes.push(`Đã tự động chuyển nhánh nghiệm which=${w} cho điểm "${pid}" để chọn nghiệm giao phân biệt.`);
+          }
+          op.which = w;
+          if (groupKey && pid) {
+            if (!emittedCircleRoots.has(groupKey)) emittedCircleRoots.set(groupKey, []);
+            emittedCircleRoots.get(groupKey).push({ id: pid, x: roots[w].x, y: roots[w].y });
+          }
         }
       }
 
@@ -2353,7 +2601,233 @@ ${prob}`;
 
       healedOpsPass9.push(op);
     }
-    ops = healedOpsPass9;
+    if (obsoleteHelperIds.size) {
+      const stillReferenced = new Set();
+      for (const op of healedOpsPass9) {
+        const pid = getOpProducedId(op);
+        if (pid && obsoleteHelperIds.has(pid)) continue;
+        for (const d of getOpDependencies(op)) stillReferenced.add(d);
+      }
+      ops = healedOpsPass9.filter(op => {
+        const pid = getOpProducedId(op);
+        return !(pid && obsoleteHelperIds.has(pid) && !stillReferenced.has(pid));
+      });
+    } else {
+      ops = healedOpsPass9;
+    }
+
+    // ------------------------------------------------------------------------
+    // PASS 9.5: Post-Eval 3D Projection Illusion Guard (Anti False-Collinearity)
+    // Ensures non-collinear 3D segments meeting at a vertex (e.g. BM & MN at M)
+    // do not project within < 12° of 180° (dot < -0.978) looking like one line.
+    // ------------------------------------------------------------------------
+    if (is3D) {
+      const curPtOpMap = new Map();
+      for (const op of ops) {
+        const pid = getOpProducedId(op);
+        if (pid) curPtOpMap.set(pid, op);
+      }
+      const sFreeOp = curPtOpMap.get('S');
+      if (sFreeOp && sFreeOp.op === 'point_free') {
+        // 1. Build exact symbolic collinearity line sets
+        const lineSets = [];
+        const addCollinearTriple = (x, y, z) => {
+          const pts3 = [cleanRef(x), cleanRef(y), cleanRef(z)].filter(Boolean);
+          if (new Set(pts3).size < 2) return;
+          lineSets.push(new Set(pts3));
+        };
+        for (const op of ops) {
+          const pid = getOpProducedId(op);
+          if (!pid) continue;
+          if (op.op === 'midpoint' || op.op === 'point_on_segment' || op.op === 'ratio_point' || op.op === 'point_on_line' || op.op === 'foot_perp') {
+            addCollinearTriple(op.a, op.b, pid);
+          } else if (op.op === 'intersection_ll' && Array.isArray(op.l1) && Array.isArray(op.l2)) {
+            addCollinearTriple(op.l1[0], op.l1[1], pid);
+            addCollinearTriple(op.l2[0], op.l2[1], pid);
+          }
+        }
+        let merged = true;
+        while (merged) {
+          merged = false;
+          for (let i = 0; i < lineSets.length && !merged; i++) {
+            for (let j = i + 1; j < lineSets.length; j++) {
+              let shared = 0;
+              for (const v of lineSets[j]) {
+                if (lineSets[i].has(v) && ++shared >= 2) break;
+              }
+              if (shared >= 2) {
+                for (const v of lineSets[j]) lineSets[i].add(v);
+                lineSets.splice(j, 1);
+                merged = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // 2. Collect drawn undirected adjacency among symbolic points
+        const segAdj = new Map();
+        const addDrawnEdge = (u, v) => {
+          const a = cleanRef(u), b = cleanRef(v);
+          if (!a || !b || a === b) return;
+          if (!segAdj.has(a)) segAdj.set(a, new Set());
+          if (!segAdj.has(b)) segAdj.set(b, new Set());
+          segAdj.get(a).add(b);
+          segAdj.get(b).add(a);
+        };
+        for (const op of ops) {
+          if (op.op === 'segment' || op.op === 'line' || op.op === 'ray') {
+            addDrawnEdge(op.a, op.b);
+          } else if ((op.op === 'polygon_base' || op.op === 'connect_polygon' || op.op === 'section') && Array.isArray(op.pts)) {
+            for (let i = 0; i < op.pts.length; i++) {
+              addDrawnEdge(op.pts[i], op.pts[(i + 1) % op.pts.length]);
+            }
+          } else if (op.op === 'foot_perp' && op.drawDropSegment !== false) {
+            addDrawnEdge(op.p, getOpProducedId(op));
+          } else if ((op.op === 'line_parallel' || op.op === 'line_perp') && op.drawSegment !== false) {
+            addDrawnEdge(op.through || op.o || op.p, getOpProducedId(op));
+          }
+        }
+
+        const evalProjMetrics = () => {
+          const c2 = simulatePlanCoords(ops);
+          const { map3: m3 } = build3DLiftedCoords(ops, c2);
+          if (quadIds && quadIds.length === 4) {
+            const qPts = quadIds.map(id => c2.get(id));
+            if (qPts.some(p => !p) || !isQuadStrictlyConvex(qPts[0], qPts[1], qPts[2], qPts[3])) {
+              return { ok: false, worstDot: -1, minDist: 0 };
+            }
+            // Ensure apex S stays well above base and front faces stay positive if standard view
+            const sc = c2.get('S');
+            if (!sc) return { ok: false, worstDot: -1, minDist: 0 };
+            const maxBaseY = Math.max(...qPts.map(p => p.y));
+            if (sc.y <= maxBaseY + 1.2) return { ok: false, worstDot: -1, minDist: 0 };
+          }
+          // Minimum pairwise separation among shown named points
+          const namedIds = [...curPtOpMap.keys()].filter(id => {
+            const o = curPtOpMap.get(id);
+            return o && o.show !== false && !o.noDot && /^[A-Z]/.test(id) && c2.has(id);
+          });
+          let minDist = Infinity;
+          for (let i = 0; i < namedIds.length; i++) {
+            for (let j = i + 1; j < namedIds.length; j++) {
+              const d = dist2D(c2.get(namedIds[i]), c2.get(namedIds[j]));
+              if (d < minDist) minDist = d;
+            }
+          }
+          let worstDot = 1.0; // most negative dot (closest to -1 = 180°)
+          let worstTriple = '';
+          for (const [mId, nbrSet] of segAdj.entries()) {
+            const cm = c2.get(mId);
+            if (!cm || nbrSet.size < 2) continue;
+            const nbrs = [...nbrSet];
+            for (let i = 0; i < nbrs.length; i++) {
+              for (let j = i + 1; j < nbrs.length; j++) {
+                const u = nbrs[i], v = nbrs[j];
+                if (lineSets.some(ls => ls.has(u) && ls.has( mId ) && ls.has(v))) continue;
+                const u3 = m3.get(u), m3p = m3.get(mId), v3 = m3.get(v);
+                if (u3 && m3p && v3) {
+                  const ux3 = u3.x - m3p.x, uy3 = u3.y - m3p.y, uz3 = u3.z - m3p.z;
+                  const vx3 = v3.x - m3p.x, vy3 = v3.y - m3p.y, vz3 = v3.z - m3p.z;
+                  const l3 = Math.hypot(ux3, uy3, uz3) * Math.hypot(vx3, vy3, vz3);
+                  if (l3 > 1e-6) {
+                    const cx3 = uy3 * vz3 - uz3 * vy3, cy3 = uz3 * vx3 - ux3 * vz3, cz3 = ux3 * vy3 - uy3 * vx3;
+                    if (Math.hypot(cx3, cy3, cz3) / l3 < 0.035) continue;
+                  }
+                }
+                const cu = c2.get(u), cv = c2.get(v);
+                if (!cu || !cv) continue;
+                const ux = cu.x - cm.x, uy = cu.y - cm.y;
+                const vx = cv.x - cm.x, vy = cv.y - cm.y;
+                const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+                if (lu < 1e-6 || lv < 1e-6) continue;
+                const dot = (ux * vx + uy * vy) / (lu * lv);
+                if (dot < worstDot) {
+                  worstDot = dot;
+                  worstTriple = `${u}-${mId}-${v}`;
+                }
+              }
+            }
+          }
+          return { ok: true, worstDot, minDist, worstTriple };
+        };
+
+        const keepVerticalSA = /SA\s*(?:⊥|\\perp|vuông)/i.test(allContextText);
+        const initM = evalProjMetrics();
+        if (initM.ok && initM.worstDot < -0.978) {
+          const snapFree = () => {
+            const snap = new Map();
+            for (const [id, o] of curPtOpMap.entries()) {
+              if (o.op === 'point_free') snap.set(id, { x: o.x, y: o.y });
+            }
+            return snap;
+          };
+          const restoreFree = (snap) => {
+            for (const [id, xy] of snap.entries()) {
+              const o = curPtOpMap.get(id);
+              if (o && o.op === 'point_free') { o.x = xy.x; o.y = xy.y; }
+            }
+          };
+          const origSnap = snapFree();
+          let bestSnap = null;
+          let bestScore = -Infinity;
+
+          const tryCandidate = () => {
+            const m = evalProjMetrics();
+            if (!m.ok || m.minDist < 0.36) return false;
+            // Target >= 15° away from 180° (cos(165°) = -0.9659)
+            const score = Math.min(m.worstDot, -0.92) * 100 + Math.min(m.minDist, 0.9) * 8;
+            if (m.worstDot >= -0.966 && score > bestScore) {
+              bestScore = score;
+              bestSnap = snapFree();
+              return m.worstDot >= -0.955 && m.minDist >= 0.50;
+            }
+            return false;
+          };
+
+          // Tier 1: Nudge free apex S alone
+          const sNudges = keepVerticalSA
+            ? [[0, 0.55], [0, -0.45], [0, 0.85]]
+            : [[-0.55, 0], [0.55, 0], [0.95, 0], [-0.95, 0], [1.2, 0.1], [-1.2, 0.1], [0.75, 0.25], [-0.75, 0.25]];
+          for (const [dx, dy] of sNudges) {
+            restoreFree(origSnap);
+            sFreeOp.x = Number((origSnap.get('S').x + dx).toFixed(4));
+            sFreeOp.y = Number((origSnap.get('S').y + dy).toFixed(4));
+            if (tryCandidate()) break;
+          }
+
+          // Tier 2: If steep base edge (e.g. CD) still locks BM // MN, apply gentle perspective-preserving base+apex shift on free ABCD
+          if (!bestSnap && !keepVerticalSA && quadIds && quadIds.length === 4 && quadIds.every(id => curPtOpMap.get(id) && curPtOpMap.get(id).op === 'point_free')) {
+            const [qA, qB, qC, qD] = quadIds;
+            const comboShifts = [
+              { S: [1.2, 0], A: [0, 0.2], B: [-0.4, 0.2], C: [-0.2, -0.5], D: [0, 0.3] },
+              { S: [-0.7, 0], A: [0, 0.2], B: [0.5, -0.1], C: [0, 0], D: [0.1, -0.4] },
+              { S: [1.0, 0.1], A: [0, 0.2], B: [-0.3, 0.1], C: [-0.2, -0.4], D: [0.1, 0.3] }
+            ];
+            for (const sh of comboShifts) {
+              restoreFree(origSnap);
+              for (const [k, id] of [['S', 'S'], ['A', qA], ['B', qB], ['C', qC], ['D', qD]]) {
+                const d = sh[k];
+                const baseXY = origSnap.get(id);
+                if (d && baseXY) {
+                  curPtOpMap.get(id).x = Number((baseXY.x + d[0]).toFixed(4));
+                  curPtOpMap.get(id).y = Number((baseXY.y + d[1]).toFixed(4));
+                }
+              }
+              if (tryCandidate()) break;
+            }
+          }
+
+          if (bestSnap) {
+            restoreFree(bestSnap);
+            simCoords = simulatePlanCoords(ops);
+            fixes.push(`Đã tinh chỉnh góc chiếu 3D để xóa ảo giác thẳng hàng trên hình chiếu phẳng (${initM.worstTriple}).`);
+          } else {
+            restoreFree(origSnap);
+          }
+        }
+      }
+    }
 
     // ------------------------------------------------------------------------
     // PASS 10: Disconnected Auxiliary Free Points Check & Final NaN Verification
@@ -2581,19 +3055,23 @@ ${prob}`;
     const addShapeRec = (kind, ptIds, opts = {}) => {
       const useCustomCol = !!(opts.explicitColor && opts.color);
       const useCustomW = !!(opts.explicitWidth && Number.isFinite(opts.width));
+      const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle';
       const sh = {
         id: genId(),
         kind,
         pts: ptIds,
         color: useCustomCol ? opts.color : appStyle.color,
         width: opts.width === 0 ? 0 : (useCustomW ? opts.width : appStyle.width),
-        ...(opts.dashed ? { dashed: true } : {}),
+        ...(hasStrokeDash ? { dashed: !!opts.dashed } : (opts.dashed ? { dashed: true } : {})),
         ...(opts.aux ? { aux: true } : {}),
         ...(opts.fill ? { fill: opts.fill } : {}),
         ...(opts.arrow ? { arrow: true } : {}),
         ...(opts.plain ? { plain: true } : {}),
         ...(Number.isFinite(opts.n) ? { n: opts.n } : {})
       };
+      if (opts.explicitDashed !== undefined) {
+        Object.defineProperty(sh, '_explicitDashed', { value: !!opts.explicitDashed, enumerable: false, configurable: true });
+      }
       shapes.push(sh);
       if (kind === 'segment' && ptIds.length >= 2) {
         const k = ptIds[0] < ptIds[1] ? ptIds[0] + '|' + ptIds[1] : ptIds[1] + '|' + ptIds[0];
@@ -2697,6 +3175,248 @@ ${prob}`;
       return inside;
     };
 
+    const isSegmentOnHullBoundary = (cu, cv, hullCoords) => {
+      if (!cu || !cv || hullCoords.length < 3) return false;
+      for (let i = 0; i < hullCoords.length; i++) {
+        const a = hullCoords[i], b = hullCoords[(i + 1) % hullCoords.length];
+        const prU = pointSegProj(cu, a, b);
+        const prV = pointSegProj(cv, a, b);
+        if (!prU || !prV) continue;
+        const tol = Math.max(0.03, prU.len * 0.015);
+        if (prU.perp <= tol && prV.perp <= tol && prU.k >= -0.02 && prU.k <= 1.02 && prV.k >= -0.02 && prV.k <= 1.02) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // True 3D Polyhedral Face Visibility Classifier:
+    // Reconstructs polyhedron base + lateral (+ top prism) faces and propagates face membership
+    // through mid / on / foot / inter / vec / sum so front-face chords (SB, SC, BM, MN, MI) are SOLID
+    // while back-face / base / interior chords (AD, AC, BD, SO, AM, BK, BI, AI) are DASHED!
+    const build3DFaceVisibilityModel = (coordsMap) => {
+      if (!planIs3D) return { valid: false };
+      const skelPts = pts.filter(p =>
+        p && p.show && !p.noDot && p.def && (p.def.t === 'free' || p.def.t === 'sum') && coordsMap.get(p.id)
+      );
+      if (skelPts.length < 4) return { valid: false };
+
+      const intersectSets = (sA, sB) => {
+        const out = new Set();
+        if (!sA || !sB) return out;
+        for (const x of sA) if (sB.has(x)) out.add(x);
+        return out;
+      };
+      const unionSets = (sA, sB) => {
+        const out = new Set(sA || []);
+        if (sB) for (const x of sB) out.add(x);
+        return out;
+      };
+
+      const orderCycle = (cyclePts) => {
+        if (cyclePts.length <= 2) return cyclePts.slice();
+        const idSet = new Set(cyclePts.map(p => p.id));
+        const adj = new Map(cyclePts.map(p => [p.id, []]));
+        for (const sh of shapes) {
+          if (!sh || sh.hidden || sh.kind !== 'segment' || !Array.isArray(sh.pts) || sh.pts.length < 2) continue;
+          const [u, v] = sh.pts;
+          if (idSet.has(u) && idSet.has(v) && u !== v) {
+            if (!adj.get(u).includes(v)) adj.get(u).push(v);
+            if (!adj.get(v).includes(u)) adj.get(v).push(u);
+          }
+        }
+        // Walk cycle if base edges already form a clean simple cycle/path of all vertices
+        if ([...adj.values()].every(nb => nb.length >= 1 && nb.length <= 2)) {
+          const start = cyclePts.find(p => adj.get(p.id).length === 1) || cyclePts[0];
+          const visited = [start];
+          const seen = new Set([start.id]);
+          while (visited.length < cyclePts.length) {
+            const cur = visited[visited.length - 1];
+            const nxtId = (adj.get(cur.id) || []).find(nid => !seen.has(nid));
+            if (!nxtId) break;
+            seen.add(nxtId);
+            visited.push(cyclePts.find(p => p.id === nxtId));
+          }
+          if (visited.length === cyclePts.length) return visited;
+        }
+        // Radial fallback around 2D centroid
+        let cx = 0, cy = 0;
+        for (const p of cyclePts) {
+          const c = coordsMap.get(p.id);
+          cx += c.x; cy += c.y;
+        }
+        cx /= cyclePts.length; cy /= cyclePts.length;
+        return cyclePts.slice().sort((u, v) => {
+          const cu = coordsMap.get(u.id), cv = coordsMap.get(v.id);
+          return Math.atan2(cu.y - cy, cu.x - cx) - Math.atan2(cv.y - cy, cv.x - cx);
+        });
+      };
+
+      const faceVisible = new Map();
+      const facesOfPoint = new Map();
+      const skeletonEdgeKeys = new Set();
+      const markSkelEdge = (a, b) => skeletonEdgeKeys.add(a < b ? `${a}|${b}` : `${b}|${a}`);
+      const seedFace = (pid, fid) => {
+        if (!facesOfPoint.has(pid)) facesOfPoint.set(pid, new Set());
+        facesOfPoint.get(pid).add(fid);
+      };
+
+      // Check Prism (e.g. ABC.A'B'C' or ABCD.A'B'C'D' or A1B1C1D1) vs Pyramid (S.ABCD / S.ABC)
+      const byLabel = new Map(skelPts.filter(p => p.label).map(p => [p.label, p]));
+      const prismPairs = [];
+      for (const p of skelPts) {
+        const m = /^([A-Z])(?:'|′|1)$/.exec(p.label || '');
+        if (m && byLabel.has(m[1])) {
+          prismPairs.push({ base: byLabel.get(m[1]), top: p });
+        }
+      }
+
+      if (prismPairs.length >= 3 && prismPairs.length * 2 === skelPts.length) {
+        const orderedBase = orderCycle(prismPairs.map(x => x.base));
+        const topMap = new Map(prismPairs.map(x => [x.base.id, x.top]));
+        const orderedTop = orderedBase.map(b => topMap.get(b.id));
+        const m = orderedBase.length;
+        const hullIds = computeSkeletonHullIds(coordsMap);
+        const hullCoords = hullIds.map(id => coordsMap.get(id)).filter(Boolean);
+
+        let anyExplicitBaseDash = false;
+        for (let i = 0; i < m; i++) {
+          const eB = findEdge(orderedBase[i].id, orderedBase[(i + 1) % m].id);
+          if (eB && eB._explicitDashed && eB.dashed) anyExplicitBaseDash = true;
+        }
+        faceVisible.set('base', false);
+        faceVisible.set('top', true);
+
+        for (let i = 0; i < m; i++) {
+          const b0 = orderedBase[i], b1 = orderedBase[(i + 1) % m];
+          const t0 = orderedTop[i], t1 = orderedTop[(i + 1) % m];
+          const fId = `lat_${i}`;
+          markSkelEdge(b0.id, b1.id);
+          markSkelEdge(t0.id, t1.id);
+          markSkelEdge(b0.id, t0.id);
+          seedFace(b0.id, 'base'); seedFace(t0.id, 'top');
+          seedFace(b0.id, fId); seedFace(b1.id, fId);
+          seedFace(t0.id, fId); seedFace(t1.id, fId);
+
+          const eB = findEdge(b0.id, b1.id);
+          if (anyExplicitBaseDash && eB && eB._explicitDashed !== undefined) {
+            faceVisible.set(fId, !eB.dashed);
+          } else {
+            faceVisible.set(fId, isSegmentOnHullBoundary(coordsMap.get(b0.id), coordsMap.get(b1.id), hullCoords));
+          }
+        }
+      } else {
+        // Pyramid / Tetrahedron: in Canvas (+y DOWN), highest vertex on screen has MINIMUM c.y!
+        let apex = skelPts.find(p => p.label === 'S') || null;
+        if (!apex) {
+          apex = skelPts.reduce((best, p) => (coordsMap.get(p.id).y < coordsMap.get(best.id).y ? p : best), skelPts[0]);
+        }
+        const basePts = orderCycle(skelPts.filter(p => p.id !== apex.id));
+        const m = basePts.length;
+        if (m < 3) return { valid: false };
+
+        let sigma = 0;
+        for (let i = 0; i < m; i++) {
+          const c0 = coordsMap.get(basePts[i].id), c1 = coordsMap.get(basePts[(i + 1) % m].id);
+          sigma += (c0.x * c1.y - c1.x * c0.y);
+        }
+        if (Math.abs(sigma) < 1e-8) return { valid: false };
+
+        let anyExplicitBaseDash = false;
+        for (let i = 0; i < m; i++) {
+          const eB = findEdge(basePts[i].id, basePts[(i + 1) % m].id);
+          if (eB && eB._explicitDashed && eB.dashed) anyExplicitBaseDash = true;
+        }
+        faceVisible.set('base', false);
+
+        const cs = coordsMap.get(apex.id);
+        for (let i = 0; i < m; i++) {
+          const v0 = basePts[i], v1 = basePts[(i + 1) % m];
+          const fId = `lat_${i}`;
+          markSkelEdge(v0.id, v1.id);
+          markSkelEdge(apex.id, v0.id);
+          seedFace(v0.id, 'base');
+          seedFace(v0.id, fId);
+          seedFace(v1.id, fId);
+          seedFace(apex.id, fId);
+
+          const eB = findEdge(v0.id, v1.id);
+          if (anyExplicitBaseDash && eB && eB._explicitDashed !== undefined) {
+            faceVisible.set(fId, !eB.dashed);
+          } else {
+            const c0 = coordsMap.get(v0.id), c1 = coordsMap.get(v1.id);
+            const crossLat = (c0.x - cs.x) * (c1.y - cs.y) - (c0.y - cs.y) * (c1.x - cs.x);
+            faceVisible.set(fId, sigma * crossLat > 1e-6);
+          }
+        }
+      }
+
+      // Propagate face membership through DAG definitions in multi-pass topological order
+      const getFaces = (id) => facesOfPoint.get(id) || new Set();
+      for (let pass = 0; pass < 3; pass++) {
+        let changed = false;
+        for (const pt of pts) {
+          if (!pt || !pt.def || facesOfPoint.has(pt.id)) continue;
+          const d = pt.def;
+          let nextSet = null;
+          if (d.t === 'mid' || d.t === 'on') {
+            if (d.a && d.b && (facesOfPoint.has(d.a) || facesOfPoint.has(d.b))) {
+              nextSet = intersectSets(getFaces(d.a), getFaces(d.b));
+            }
+          } else if (d.t === 'foot') {
+            if (d.a && d.b && (facesOfPoint.has(d.a) || facesOfPoint.has(d.b))) {
+              nextSet = intersectSets(getFaces(d.a), getFaces(d.b));
+            }
+          } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2)) {
+            const f1 = intersectSets(getFaces(d.l1[0]), getFaces(d.l1[1]));
+            const f2 = intersectSets(getFaces(d.l2[0]), getFaces(d.l2[1]));
+            nextSet = unionSets(f1, f2);
+          } else if (d.t === 'vec' && !d.perp && d.o && d.a && d.b) {
+            nextSet = intersectSets(getFaces(d.o), intersectSets(getFaces(d.a), getFaces(d.b)));
+          } else if (d.t === 'sum' && d.a && d.b && d.c) {
+            nextSet = intersectSets(getFaces(d.a), intersectSets(getFaces(d.b), getFaces(d.c)));
+          }
+          if (nextSet) {
+            facesOfPoint.set(pt.id, nextSet);
+            changed = true;
+          }
+        }
+        if (!changed) break;
+      }
+
+      return { valid: true, faceVisible, facesOfPoint, skeletonEdgeKeys, intersectSets };
+    };
+
+    const classify3DSegmentDashed = (uId, vId, coordsMap, visModelArg) => {
+      if (!planIs3D) return false;
+      const cu = coordsMap.get(uId), cv = coordsMap.get(vId);
+      if (!cu || !cv) return false;
+      const hullIds = computeSkeletonHullIds(coordsMap);
+      const hullCoords = hullIds.map(id => coordsMap.get(id)).filter(Boolean);
+      if (hullCoords.length < 3) return false;
+
+      // 1. Lies on 2D outer silhouette boundary of polyhedron -> SOLID (dashed: false)
+      if (isSegmentOnHullBoundary(cu, cv, hullCoords)) return false;
+
+      // 2. Extends outside the polyhedron silhouette (e.g. Ax outside ABCD) -> SOLID (dashed: false)
+      const midC = { x: (cu.x + cv.x) * 0.5, y: (cu.y + cv.y) * 0.5 };
+      if (!pointInHull(midC, hullCoords)) return false;
+
+      // 3. Inside silhouette: check True 3D Face Membership!
+      const vm = visModelArg || build3DFaceVisibilityModel(coordsMap);
+      if (vm && vm.valid) {
+        const fU = vm.facesOfPoint.get(uId) || new Set();
+        const fV = vm.facesOfPoint.get(vId) || new Set();
+        for (const fId of fU) {
+          if (fV.has(fId) && vm.faceVisible.get(fId) === true) {
+            return false; // Shares at least one VISIBLE FRONT FACE (e.g. SB, SC, BM on SBC; MN, MI on SCD) -> SOLID!
+          }
+        }
+        return true; // Shares only hidden back/base face (AD, AI, AC, BD) or strictly 3D interior (SO, AM, BK, BI) -> DASHED!
+      }
+      return true;
+    };
+
     const emitSilhouetteSegment = (pStart, pEnd, styleOpts, descLabel, explicitDashed, motionMeta) => {
       const existingDirect = findEdge(pStart.id, pEnd.id);
       if (existingDirect) return existingDirect;
@@ -2731,26 +3451,23 @@ ${prob}`;
             c2: false,
             which: 0
           }, '', false);
-          const cc = evalCurrentCoords().get(pCross.id) || { x: cs.x + cr.t * (ce.x - cs.x), y: cs.y + cr.t * (ce.y - cs.y) };
-          const mid1Inside = pointInHull({ x: (cs.x + cc.x) / 2, y: (cs.y + cc.y) / 2 }, hullCoords);
-          const mid2Inside = pointInHull({ x: (cc.x + ce.x) / 2, y: (cc.y + ce.y) / 2 }, hullCoords);
-          const sh1 = addShapeRec('segment', [pStart.id, pCross.id], { ...styleOpts, dashed: mid1Inside });
+          const nextCur = evalCurrentCoords();
+          const vm = build3DFaceVisibilityModel(nextCur);
+          const dash1 = classify3DSegmentDashed(pStart.id, pCross.id, nextCur, vm);
+          const dash2 = classify3DSegmentDashed(pCross.id, pEnd.id, nextCur, vm);
+          const sh1 = addShapeRec('segment', [pStart.id, pCross.id], { ...styleOpts, dashed: dash1 });
           rawSteps.push(makeStepForShape(sh1.id, descLabel || `Kẻ qua ${pStart.label}`, false, motionMeta));
-          const sh2 = addShapeRec('segment', [pCross.id, pEnd.id], { ...styleOpts, dashed: mid2Inside });
+          const sh2 = addShapeRec('segment', [pCross.id, pEnd.id], { ...styleOpts, dashed: dash2 });
           rawSteps.push(makeStepForShape(sh2.id, `${descLabel || 'Kéo dài'} (ra ngoài khối)`, false, motionMeta));
           return sh2;
         }
       }
 
-      let finalDashed = explicitDashed;
-      if (finalDashed === undefined) {
-        if (planIs3D && cs && ce && hullCoords.length >= 3) {
-          finalDashed = pointInHull({ x: (cs.x + ce.x) / 2, y: (cs.y + ce.y) / 2 }, hullCoords);
-        } else {
-          finalDashed = false;
-        }
-      }
-      const sh = addShapeRec('segment', [pStart.id, pEnd.id], { ...styleOpts, dashed: !!finalDashed });
+      const hasExp = explicitDashed !== undefined;
+      const finalDashed = hasExp
+        ? !!explicitDashed
+        : (planIs3D ? classify3DSegmentDashed(pStart.id, pEnd.id, cur) : false);
+      const sh = addShapeRec('segment', [pStart.id, pEnd.id], { ...styleOpts, dashed: finalDashed, explicitDashed: hasExp ? finalDashed : undefined });
       rawSteps.push(makeStepForShape(sh.id, descLabel, false, motionMeta));
       return sh;
     };
@@ -2888,7 +3605,9 @@ ${prob}`;
           if (p && a && b) {
             const pt = registerPoint(op.id || op.label, { t: 'foot', p: p.id, a: a.id, b: b.id }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.drawDropSegment !== false) {
-              const sh = addShapeRec('segment', [p.id, pt.id], { dashed: !!op.dashed, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux });
+              const hasExpDash = op.dashed !== undefined;
+              const dropDash = hasExpDash ? !!op.dashed : (planIs3D ? classify3DSegmentDashed(p.id, pt.id, evalCurrentCoords()) : false);
+              const sh = addShapeRec('segment', [p.id, pt.id], { dashed: dropDash, explicitDashed: hasExpDash ? dropDash : undefined, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux });
               const stS = makeStepForShape(sh.id, stepLabel || `Kẻ ${p.label}${pt.label} ⊥ ${a.label}${b.label}`, !!op.tempHide, mMeta);
               rawSteps.push(stS);
               recordSymStep(cleanRef(op.id || op.label), stS);
@@ -2925,7 +3644,8 @@ ${prob}`;
             let oppK = null;
 
             if (isLineStyle && co && ca && cb) {
-              const rawDir = isPerp ? { x: -(cb.y - ca.y), y: cb.x - ca.x } : { x: cb.x - ca.x, y: cb.y - ca.y };
+              // Match kernel Hg({x, y}) = {x: y, y: -x} in Canvas (+y DOWN) space
+              const rawDir = isPerp ? { x: cb.y - ca.y, y: -(cb.x - ca.x) } : { x: cb.x - ca.x, y: cb.y - ca.y };
               const dLen = Math.hypot(rawDir.x, rawDir.y);
               if (dLen > 1e-6) {
                 const hullSpan = hullCoords.length >= 2
@@ -3058,7 +3778,27 @@ ${prob}`;
           const a1 = resolvePt(ln && ln[0]), a2 = resolvePt(ln && ln[1]);
           const o = resolvePt(cir && cir[0]), r = resolvePt(cir && cir[1]);
           if (a1 && a2 && o && r) {
-            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [o.id, r.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [a1.id, a2.id], c1: false, l2: [o.id, r.id], c2: true, which: Number(op.which) ? 1 : 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            // Runtime secant-endpoint & sibling collision guard
+            const curAfter = evalCurrentCoords();
+            const cNew = curAfter.get(pt.id);
+            const cO = curAfter.get(o.id), cR = curAfter.get(r.id);
+            const rad = (cO && cR) ? dist2D(cO, cR) : 0;
+            if (cNew && rad > 1e-6) {
+              const hitsKnownEnd = [a1, a2].some(ep => ep.id !== pt.id && curAfter.get(ep.id) && Math.abs(dist2D(curAfter.get(ep.id), cO) - rad) <= rad * 0.005 && dist2D(cNew, curAfter.get(ep.id)) < 1e-4);
+              const hitsSibling = pts.some(other =>
+                other && other.id !== pt.id && other.def && other.def.t === 'inter' && !other.def.c1 && other.def.c2 &&
+                other.def.l2[0] === o.id && other.def.l2[1] === r.id &&
+                ((other.def.l1[0] === a1.id && other.def.l1[1] === a2.id) || (other.def.l1[0] === a2.id && other.def.l1[1] === a1.id)) &&
+                curAfter.get(other.id) && dist2D(cNew, curAfter.get(other.id)) < 1e-4
+              );
+              if (hitsKnownEnd || hitsSibling) {
+                const origW = pt.def.which;
+                pt.def.which = 1 - origW;
+                const altC = evalCurrentCoords().get(pt.id);
+                if (!altC || dist2D(altC, cNew) < 1e-4) pt.def.which = origW;
+              }
+            }
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Giao điểm ${pt.label}`, mMeta);
               rawSteps.push(st);
@@ -3073,7 +3813,23 @@ ${prob}`;
           const o1 = resolvePt(c1 && c1[0]), r1 = resolvePt(c1 && c1[1]);
           const o2 = resolvePt(c2 && c2[0]), r2 = resolvePt(c2 && c2[1]);
           if (o1 && r1 && o2 && r2) {
-            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [o1.id, r1.id], c1: true, l2: [o2.id, r2.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [o1.id, r1.id], c1: true, l2: [o2.id, r2.id], c2: true, which: Number(op.which) ? 1 : 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const curAfter = evalCurrentCoords();
+            const cNew = curAfter.get(pt.id);
+            if (cNew) {
+              const hitsSibling = pts.some(other =>
+                other && other.id !== pt.id && other.def && other.def.t === 'inter' && other.def.c1 && other.def.c2 &&
+                ((other.def.l1[0] === o1.id && other.def.l1[1] === r1.id && other.def.l2[0] === o2.id && other.def.l2[1] === r2.id) ||
+                 (other.def.l1[0] === o2.id && other.def.l1[1] === r2.id && other.def.l2[0] === o1.id && other.def.l2[1] === r1.id)) &&
+                curAfter.get(other.id) && dist2D(cNew, curAfter.get(other.id)) < 1e-4
+              );
+              if (hitsSibling) {
+                const origW = pt.def.which;
+                pt.def.which = 1 - origW;
+                const altC = evalCurrentCoords().get(pt.id);
+                if (!altC || dist2D(altC, cNew) < 1e-4) pt.def.which = origW;
+              }
+            }
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Giao điểm ${pt.label} của hai đường tròn`, mMeta);
               rawSteps.push(st);
@@ -3087,9 +3843,27 @@ ${prob}`;
           const o = resolvePt(op.center || op.o);
           const r = resolvePt(op.rim || op.r);
           if (ext && o && r) {
-            const thalesMidKey = `__thales_${ext.id}_${o.id}`;
-            const midPt = symToPt.get(thalesMidKey) || registerPoint(thalesMidKey, { t: 'mid', a: o.id, b: ext.id }, '', false, { noDot: true });
-            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [midPt.id, o.id], c1: true, l2: [o.id, r.id], c2: true, which: Number(op.which) || 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            // Reuse existing dynamic midpoint(O, P) if already defined in plan, else synthesize hidden Thales center
+            let midPt = pts.find(cand =>
+              cand && cand.def && cand.def.t === 'mid' &&
+              ((cand.def.a === o.id && cand.def.b === ext.id) || (cand.def.a === ext.id && cand.def.b === o.id))
+            ) || null;
+            if (!midPt) {
+              const thalesMidKey = `__thales_${ext.id}_${o.id}`;
+              midPt = symToPt.get(thalesMidKey) || registerPoint(thalesMidKey, { t: 'mid', a: o.id, b: ext.id }, '', false, { noDot: true });
+            }
+            const pt = registerPoint(op.id || op.label, { t: 'inter', l1: [midPt.id, o.id], c1: true, l2: [o.id, r.id], c2: true, which: Number(op.which) ? 1 : 0 }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            // Runtime sibling collision guard: never allow two tangent points from ext to (o, r) to pick the same branch
+            const curAfter = evalCurrentCoords();
+            const cNew = curAfter.get(pt.id);
+            if (cNew) {
+              const collided = pts.some(other =>
+                other && other.id !== pt.id && other.def && other.def.t === 'inter' && other.def.c1 && other.def.c2 &&
+                curAfter.get(other.id) && dist2D(cNew, curAfter.get(other.id)) < 1e-4 &&
+                ((other.def.l1[0] === midPt.id && other.def.l2[0] === o.id) || (other.def.l2[0] === midPt.id && other.def.l1[0] === o.id))
+              );
+              if (collided) pt.def.which = 1 - pt.def.which;
+            }
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Tiếp điểm ${pt.label} từ ${ext.label} tới (${o.label})`, mMeta);
               rawSteps.push(st);
@@ -3105,8 +3879,12 @@ ${prob}`;
           if (a && b) {
             const existing = op.op === 'segment' ? findEdge(a.id, b.id) : null;
             if (existing) break;
-            const sh = addShapeRec(op.op, [a.id, b.id], { dashed: !!op.dashed, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux, arrow: !!op.arrow });
-            const kindTxt = op.op === 'line' ? 'Đường thẳng' : (op.op === 'ray' ? 'Tia' : (op.dashed ? 'Nét đứt' : 'Đoạn'));
+            const hasExpDash = op.dashed !== undefined;
+            const segDash = hasExpDash
+              ? !!op.dashed
+              : (op.op === 'segment' && planIs3D ? classify3DSegmentDashed(a.id, b.id, evalCurrentCoords()) : false);
+            const sh = addShapeRec(op.op, [a.id, b.id], { dashed: segDash, explicitDashed: hasExpDash ? segDash : undefined, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux, arrow: !!op.arrow });
+            const kindTxt = op.op === 'line' ? 'Đường thẳng' : (op.op === 'ray' ? 'Tia' : (segDash ? 'Nét đứt' : 'Đoạn'));
             const st = makeStepForShape(sh.id, stepLabel || `${kindTxt} ${a.label}${b.label}`, !!op.tempHide, mMeta);
             rawSteps.push(st);
             recordSymStep(cleanRef(op.id || `${cleanRef(op.a)}-${cleanRef(op.b)}`), st);
@@ -3118,11 +3896,10 @@ ${prob}`;
         case 'section': {
           const ids = (Array.isArray(op.pts) ? op.pts : []).map(sym => resolvePt(sym)).filter(Boolean);
           const dashedSet = new Set((Array.isArray(op.dashedEdges) ? op.dashedEdges : []).map(s => String(s).replace(/\s+/g, '')));
-          const hasExplicitDashList = Array.isArray(op.dashedEdges);
+          const hasNonEmptyDashList = Array.isArray(op.dashedEdges) && op.dashedEdges.length > 0;
           const isEdgeDashed = (la, lb) => dashedSet.has(`${la}-${lb}`) || dashedSet.has(`${lb}-${la}`) || dashedSet.has(`${la}${lb}`) || dashedSet.has(`${lb}${la}`);
           const curCoords = planIs3D ? evalCurrentCoords() : null;
-          const hullIds = curCoords ? computeSkeletonHullIds(curCoords) : [];
-          const hullCoords = hullIds.map(id => curCoords.get(id)).filter(Boolean);
+          const visModel = curCoords ? build3DFaceVisibilityModel(curCoords) : null;
           const edgeMotion = { ...mMeta };
           if (edgeMotion.effect === 'fade' && op.fill) {
             // Keep edges drawn cleanly while fill uses fade
@@ -3132,11 +3909,12 @@ ${prob}`;
             const pA = ids[i], pB = ids[(i + 1) % ids.length];
             if (findEdge(pA.id, pB.id)) continue;
             let edgeDashed = isEdgeDashed(pA.label, pB.label);
-            if (!hasExplicitDashList && planIs3D && curCoords && hullCoords.length >= 3) {
-              const ca = curCoords.get(pA.id), cb = curCoords.get(pB.id);
-              if (ca && cb) edgeDashed = pointInHull({ x: (ca.x + cb.x) / 2, y: (ca.y + cb.y) / 2 }, hullCoords);
+            let expEdge = hasNonEmptyDashList;
+            if (!hasNonEmptyDashList && planIs3D && curCoords) {
+              edgeDashed = classify3DSegmentDashed(pA.id, pB.id, curCoords, visModel);
+              expEdge = false;
             }
-            const sh = addShapeRec('segment', [pA.id, pB.id], { dashed: edgeDashed, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux });
+            const sh = addShapeRec('segment', [pA.id, pB.id], { dashed: edgeDashed, explicitDashed: expEdge ? edgeDashed : undefined, color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: !!op.aux });
             const stE = makeStepForShape(sh.id, `Cạnh ${pA.label}${pB.label}`, !!op.tempHide, edgeMotion);
             rawSteps.push(stE);
           }
@@ -3201,10 +3979,11 @@ ${prob}`;
       throw new Error('Không dựng được điểm nào từ dữ liệu AI.');
     }
 
-    // Post-compile Connectivity Healer: ensure no derived point (inter, foot, mid/on-segment/on-line) floats disconnected
+    // Post-compile Connectivity & True 3D Visibility Healer
     const healCoords = evalCurrentCoords();
     const healHullIds = planIs3D ? computeSkeletonHullIds(healCoords) : [];
     const healHullCoords = healHullIds.map(id => healCoords.get(id)).filter(Boolean);
+    const healVisModel = planIs3D ? build3DFaceVisibilityModel(healCoords) : null;
     const ptObjMap = Object.fromEntries(pts.map(p => [p.id, p]));
 
     const insertStepNearPoint = (ptId, stepObj) => {
@@ -3212,11 +3991,6 @@ ${prob}`;
       if (idx >= 0) rawSteps.splice(idx, 0, stepObj);
       else rawSteps.push(stepObj);
     };
-
-    function opExtDashed(existingLine) {
-      if (!planIs3D) return true;
-      return !!(existingLine && existingLine.dashed);
-    }
 
     const connectLineToPointIfMissing = (pt, aId, bId) => {
       if (isLineCoveredByShapes(pt.id, aId, bId, healCoords)) return;
@@ -3229,12 +4003,12 @@ ${prob}`;
       else if (!abDrawn && proj && proj.k < -0.02) anchorId = bId;
       else anchorId = dist2D(ca, cp) <= dist2D(cb, cp) ? aId : bId;
       if (anchorId === pt.id || findEdge(anchorId, pt.id)) return;
-      const can = healCoords.get(anchorId);
-      const midCoord = { x: (can.x + cp.x) / 2, y: (can.y + cp.y) / 2 };
-      const insideHull = planIs3D && healHullCoords.length >= 3 && pointInHull(midCoord, healHullCoords);
       const existingLine = findEdge(aId, bId);
+      const segDashed = planIs3D
+        ? classify3DSegmentDashed(anchorId, pt.id, healCoords, healVisModel)
+        : !!(existingLine ? existingLine.dashed : true);
       const anchorPt = ptObjMap[anchorId];
-      const sh = addShapeRec('segment', [anchorId, pt.id], { dashed: insideHull || !!opExtDashed(existingLine), aux: true });
+      const sh = addShapeRec('segment', [anchorId, pt.id], { dashed: segDashed, aux: true });
       insertStepNearPoint(pt.id, makeStepForShape(sh.id, `Nối ${anchorPt ? anchorPt.label : ''}${pt.label}`, false, defaultFx ? { effect: defaultFx } : null));
     };
 
@@ -3245,20 +4019,41 @@ ${prob}`;
         connectLineToPointIfMissing(pt, pt.def.l2[0], pt.def.l2[1]);
       } else if (pt.def.t === 'foot' && pt.def.p && pt.def.a && pt.def.b) {
         if (!findEdge(pt.def.p, pt.id)) {
-          const sh = addShapeRec('segment', [pt.def.p, pt.id], { dashed: false, aux: true });
+          const dropDash = planIs3D ? classify3DSegmentDashed(pt.def.p, pt.id, healCoords, healVisModel) : false;
+          const sh = addShapeRec('segment', [pt.def.p, pt.id], { dashed: dropDash, aux: true });
           insertStepNearPoint(pt.id, makeStepForShape(sh.id, `Hạ ${ptObjMap[pt.def.p]?.label || ''}${pt.label} vuông góc`, false, defaultFx ? { effect: defaultFx } : null));
         }
         connectLineToPointIfMissing(pt, pt.def.a, pt.def.b);
       } else if ((pt.def.t === 'mid' || (pt.def.t === 'on' && pt.def.seg)) && pt.def.a && pt.def.b) {
         if (!isLineCoveredByShapes(pt.id, pt.def.a, pt.def.b, healCoords) && !findEdge(pt.def.a, pt.def.b)) {
-          const ca = healCoords.get(pt.def.a), cb = healCoords.get(pt.def.b);
-          const midC = ca && cb ? { x: (ca.x + cb.x) / 2, y: (ca.y + cb.x * 0 + cb.y) / 2 } : null;
-          const insideHull = midC && planIs3D && healHullCoords.length >= 3 && pointInHull(midC, healHullCoords);
-          const sh = addShapeRec('segment', [pt.def.a, pt.def.b], { dashed: insideHull });
+          const segDash = planIs3D ? classify3DSegmentDashed(pt.def.a, pt.def.b, healCoords, healVisModel) : false;
+          const sh = addShapeRec('segment', [pt.def.a, pt.def.b], { dashed: segDash });
           insertStepNearPoint(pt.id, makeStepForShape(sh.id, `Nối ${ptObjMap[pt.def.a]?.label || ''}${ptObjMap[pt.def.b]?.label || ''}`, false, defaultFx ? { effect: defaultFx } : null));
         }
       } else if (pt.def.t === 'on' && !pt.def.seg && pt.def.a && pt.def.b) {
         connectLineToPointIfMissing(pt, pt.def.a, pt.def.b);
+      }
+    }
+
+    // Heal blatantly wrong 3D dashed/solid flags on non-skeleton chords (e.g. front-face BM/MN/MI or interior/back AC/BD/SO/AM/BK/AI)
+    if (planIs3D && healVisModel && healVisModel.valid && healHullCoords.length >= 3) {
+      for (const sh of shapes) {
+        if (!sh || sh.hidden || sh.kind !== 'segment' || !Array.isArray(sh.pts) || sh.pts.length < 2) continue;
+        const [u, v] = sh.pts;
+        const eKey = u < v ? `${u}|${v}` : `${v}|${u}`;
+        const cu = healCoords.get(u), cv = healCoords.get(v);
+        if (!cu || !cv) continue;
+        if (isSegmentOnHullBoundary(cu, cv, healHullCoords)) {
+          sh.dashed = false;
+          continue;
+        }
+        if (healVisModel.skeletonEdgeKeys.has(eKey) && sh._explicitDashed !== undefined) {
+          continue; // Respect explicit view-defining base/lateral skeleton edges
+        }
+        const midC = { x: (cu.x + cv.x) * 0.5, y: (cu.y + cv.y) * 0.5 };
+        if (pointInHull(midC, healHullCoords)) {
+          sh.dashed = classify3DSegmentDashed(u, v, healCoords, healVisModel);
+        }
       }
     }
 

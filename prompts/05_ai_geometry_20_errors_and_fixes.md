@@ -251,10 +251,8 @@ Tài liệu này tổng hợp **20 lỗi hình học, đại số và diễn ho�
     { "op": "point_free", "id": "A", "label": "A", "x": 5.0, "y": 0.0, "effect": "pop" },
     { "op": "midpoint", "id": "M", "label": "M", "a": "O", "b": "A", "effect": "pop" },
     { "op": "circle", "center": "M", "rim": "O", "dashed": true, "aux": true, "effect": "draw", "step": "Đường tròn Thales đường kính OA" },
-    { "op": "point_on_segment", "id": "H0", "label": "", "a": "O", "b": "A", "ratio": 0.16, "show": false, "step": "ratio = (R/OA)^2 = 4/25 = 0.16" },
-    { "op": "line_perp", "id": "Q0", "label": "", "through": "H0", "a": "O", "b": "A", "drawSegment": false, "show": false },
-    { "op": "intersection_lc", "id": "B", "label": "B", "line": ["H0", "Q0"], "circle": ["O", "P_R"], "which": 1, "effect": "pop" },
-    { "op": "intersection_lc", "id": "C", "label": "C", "line": ["H0", "Q0"], "circle": ["O", "P_R"], "which": 0, "effect": "pop" }
+    { "op": "intersection_cc", "id": "B", "label": "B", "c1": ["O", "P_R"], "c2": ["M", "O"], "which": 0, "effect": "pop" },
+    { "op": "intersection_cc", "id": "C", "label": "C", "c1": ["O", "P_R"], "c2": ["M", "O"], "which": 1, "effect": "pop" }
   ]
   ```
 

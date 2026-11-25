@@ -75,7 +75,7 @@ flowchart TD
    - **Đặc trưng**: Phong cách `domiinh` với hiệu ứng nét phấn `chalk`, nảy điểm `pop`, phát sáng giao tuyến `glow`, nhịp nhấn kết luận `pulse`, tô mặt `fade` và vòng lặp `loop: true`.
 2. [`examples/02_duong_tron_tiep_tuyen_2d.json`](./examples/02_duong_tron_tiep_tuyen_2d.json)
    - **Chủ đề**: Đường tròn $(O; R)$ và hai tiếp tuyến $AB, AC$ kẻ từ điểm $A$ nằm ngoài đường tròn, dây cung tiếp điểm $BC \perp OA$ tại $H$.
-   - **Đặc trưng**: Dựng tiếp điểm chính xác tuyệt đối ($\widehat{OBA} = \widehat{OCA} = 90^\circ$) qua đường tròn Thales đường kính $OA$ kết hợp `intersection_lc`, kịch bản phong cách `manim`.
+   - **Đặc trưng**: Dựng tiếp điểm chính xác tuyệt đối ($\widehat{OBA} = \widehat{OCA} = 90.000^\circ$, bất biến khi kéo thả) qua đường tròn Thales đường kính $OA$ kết hợp `intersection_cc`, kịch bản phong cách `manim`.
 3. [`examples/03_betatikz_chop_video_loop.betatikz.json`](./examples/03_betatikz_chop_video_loop.betatikz.json)
    - **Chủ đề**: Gói dự án chuẩn `"format": "tikzvid-project/1"` mở trực tiếp trong **BetaTikz** để xuất video MP4 1080p/4K vòng lặp mượt, đồng thời nạp ngược được vào **MinNote** với đầy đủ ràng buộc điểm và các mốc thời gian `[tStart, tEnd]`.
 

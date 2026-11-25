@@ -16,8 +16,8 @@
     "gate2_dag_anchors": ["O", "P_R", "A"],
     "gate3_coplanar_intersections": [
       "M = midpoint(O, A) = (2, 0) là tâm đường tròn Thales đường kính OA",
-      "Trục dây cung tiếp điểm đi qua H0 (OH0 = R^2 / OA = 1 => ratio = 0.25 trên OA) vuông góc OA cắt (O; R) tại đúng B(1, sqrt(3)) và C(1, -sqrt(3)) bằng intersection_lc",
-      "Góc OBA = 90 độ chính xác tuyệt đối, đường tròn Thales (M, O) đi qua đúng O, B, A, C; H = OA ∩ BC có det != 0"
+      "Tiếp điểm B, C dựng bằng ràng buộc động intersection_cc giữa đường tròn Thales [M, O] và đường tròn [O, P_R] (which: 1 -> B(1, sqrt(3)), which: 0 -> C(1, -sqrt(3)))",
+      "Bất biến kéo thả động: dù kéo A hay O đi bất kỳ đâu ngoài (O; R), góc OBA = OCA = 90.000° chính xác tới 1e-9 và OH * OA = R^2; H = OA ∩ BC có det != 0"
     ],
     "gate4_dashed_edges": ["Đường tròn phụ Thales (M, O) dùng dashed: true, aux: true để phân biệt với đường tròn chính (O; R)"],
     "gate5_motion_story": "Phong cách Manim: vẽ đường tròn (O) mượt -> nối trục OA và chấm trung điểm M -> quét đường tròn phụ Thales (M; MO) nét đứt -> bật sáng 2 tiếp điểm B, C -> phóng tia tiếp tuyến AB, AC phát sáng -> hạ dây BC vuông góc OA tại H và đóng dấu các góc vuông."
@@ -30,10 +30,8 @@
     { "op": "segment", "a": "O", "b": "A", "dashed": false, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Nối đoạn thẳng tâm - điểm ngoài OA" },
     { "op": "midpoint", "id": "M", "label": "M", "a": "O", "b": "A", "effect": "pop", "easing": "spring", "step": "Dựng trung điểm M của OA" },
     { "op": "circle", "center": "M", "rim": "O", "dashed": true, "aux": true, "effect": "draw", "easing": "smoothstep", "durationMul": 1.2, "step": "Dựng đường tròn Thales (M; MO) đường kính OA" },
-    { "op": "point_on_segment", "id": "H0", "label": "", "a": "O", "b": "A", "ratio": 0.25, "show": false, "step": "Điểm cực đối ngẫu OH0 = R^2/OA" },
-    { "op": "line_perp", "id": "Q0", "label": "", "through": "H0", "a": "O", "b": "A", "k": 1.0, "drawSegment": false, "show": false, "step": "Phương dây cung tiếp điểm vuông góc OA" },
-    { "op": "intersection_lc", "id": "B", "label": "B", "line": ["H0", "Q0"], "circle": ["O", "P_R"], "which": 1, "effect": "pop", "easing": "spring", "step": "Tiếp điểm B = (O) ∩ đường tròn đường kính OA" },
-    { "op": "intersection_lc", "id": "C", "label": "C", "line": ["H0", "Q0"], "circle": ["O", "P_R"], "which": 0, "effect": "pop", "easing": "spring", "step": "Tiếp điểm C = (O) ∩ đường tròn đường kính OA" },
+    { "op": "intersection_cc", "id": "B", "label": "B", "c1": ["O", "P_R"], "c2": ["M", "O"], "which": 0, "effect": "pop", "easing": "spring", "step": "Tiếp điểm B = (O; R) ∩ đường tròn Thales (M; MO)" },
+    { "op": "intersection_cc", "id": "C", "label": "C", "c1": ["O", "P_R"], "c2": ["M", "O"], "which": 1, "effect": "pop", "easing": "spring", "step": "Tiếp điểm C = (O; R) ∩ đường tròn Thales (M; MO)" },
     { "op": "segment", "a": "A", "b": "B", "dashed": false, "effect": "glow", "easing": "smootherstep", "durationMul": 1.2, "rev": false, "step": "Kẻ tiếp tuyến thứ nhất AB" },
     { "op": "segment", "a": "A", "b": "C", "dashed": false, "effect": "glow", "easing": "smootherstep", "durationMul": 1.2, "rev": false, "step": "Kẻ tiếp tuyến thứ hai AC" },
     { "op": "segment", "a": "O", "b": "B", "dashed": true, "aux": true, "effect": "draw", "easing": "easeOut", "step": "Nối bán kính OB tới tiếp điểm B" },
