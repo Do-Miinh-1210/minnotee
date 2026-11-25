@@ -750,9 +750,6 @@
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
           e.preventDefault();
           if (typeof window.openNBVariationModal === 'function') window.openNBVariationModal();
-        } else if ((e.ctrlKey || e.metaKey) && e.key === '3') {
-          e.preventDefault();
-          if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
         } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'h' || e.key === 'H')) {
           e.preventDefault();
           if (typeof window.openNBChemModal === 'function') window.openNBChemModal();
@@ -874,30 +871,9 @@
         const oldV = document.getElementById('tb-btn-variation');
         if (oldV) oldV.remove();
 
-        // 4. Nút Hình học không gian 3D Native (Ctrl + 3)
-        if (!document.getElementById('tb-btn-spatial')) {
-          const btnS = document.createElement('button');
-          btnS.id = 'tb-btn-spatial';
-          btnS.className = 'tb';
-          btnS.title = 'Hình học không gian 3D Native (Ctrl + 3)';
-          btnS.setAttribute('aria-label', 'Hình 3D');
-          btnS.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-            <span>3D</span>
-          `;
-          btnS.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.openNBSpatialModal === 'function') window.openNBSpatialModal();
-          };
-          targetGroup.appendChild(btnS);
-        } else {
-          document.getElementById('tb-btn-spatial').removeAttribute('style');
-        }
+        // 4. Đã gỡ nút Hình học không gian 3D Native
+        const oldS = document.getElementById('tb-btn-spatial');
+        if (oldS) oldS.remove();
 
         // 5. Nút Cân bằng Hóa học (Ctrl + H)
         if (!document.getElementById('tb-btn-chem')) {
@@ -958,65 +934,9 @@
           document.getElementById('tb-btn-word').removeAttribute('style');
         }
 
-        // 6b. Nút Nhập file Word (.docx, .doc) trực tiếp
-        if (!document.getElementById('tb-btn-import-word')) {
-          const btnIW = document.createElement('button');
-          btnIW.id = 'tb-btn-import-word';
-          btnIW.className = 'tb';
-          btnIW.title = 'Nhập trực tiếp file Word .docx / .doc vào trang viết';
-          btnIW.setAttribute('aria-label', 'Import Word');
-          btnIW.innerHTML = `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <path d="M12 18v-6"></path>
-              <path d="m9 15 3 3 3-3"></path>
-            </svg>
-            <span>Nhập Word</span>
-          `;
-          btnIW.onclick = async function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (window.chrome && window.chrome.webview) {
-              try {
-                const picked = await new Promise(resolve => {
-                  window.__wordPickCallback = resolve;
-                  window.chrome.webview.postMessage({ type: 'PICK_WORD' });
-                });
-                if (picked) {
-                  const res = await new Promise(resolve => {
-                    window.__wordConvertCallback = resolve;
-                    window.chrome.webview.postMessage({ type: 'CONVERT_WORD' });
-                  });
-                  if (res && res.pdf && typeof window.minnoteImportPdf === 'function') {
-                    await window.minnoteImportPdf(res.pdf);
-                  }
-                }
-              } catch (err) {
-                console.error('WPF Word Import error:', err);
-              }
-            } else if (window.noteRenderer && typeof window.noteRenderer.pickWord === 'function') {
-              try {
-                const picked = await window.noteRenderer.pickWord();
-                if (picked) {
-                  const res = await window.noteRenderer.convertWord();
-                  if (res && res.pdf && typeof window.minnoteImportPdf === 'function') {
-                    await window.minnoteImportPdf(res.pdf);
-                  }
-                }
-              } catch (err) {
-                console.error('Import Word error:', err);
-              }
-            } else {
-              if (window.MinNoteDialog) {
-                window.MinNoteDialog.alert('Tính năng nhập file Word trực tiếp yêu cầu chạy trên ứng dụng MinNote.', 'Thông báo');
-              }
-            }
-          };
-          targetGroup.appendChild(btnIW);
-        } else {
-          document.getElementById('tb-btn-import-word').removeAttribute('style');
-        }
+        // 6b. Đã gỡ nút Nhập file Word trực tiếp trên thanh công cụ
+        const oldIW = document.getElementById('tb-btn-import-word');
+        if (oldIW) oldIW.remove();
 
         // 6c. Nút Google Drive
         if (!document.getElementById('tb-btn-google-drive')) {
