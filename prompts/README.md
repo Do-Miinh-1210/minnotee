@@ -1,100 +1,104 @@
-# Thư Viện Prompt & Chuẩn Giao Tiếp Hình Học Chuyển Động MinNote (`mn-geo-motion/2.0`)
+# Thư Viện Prompt & Chuẩn Giao Tiếp Hình Học Động MinNote (`mn-geo-motion/2.0`)
 
-Thư mục `prompts/` cung cấp **bộ chuẩn ngôn ngữ trung gian hai chiều (`mn-geo-motion/2.0`)** và hệ thống **Prompt Khóa Chặt Hình Học (Geometric Constraint-Locked Prompts)** kết nối liền mạch giữa:
-1. **Đề bài Toán / Ảnh chụp đề thi** (tự luận, trắc nghiệm, bảng Đúng/Sai 4 ý, hình vẽ SGK/viết tay),
-2. **Mọi mô hình AI bên ngoài** (ChatGPT, Claude, Google Gemini, DeepSeek, Grok, Qwen/Llama Local LLM, Antigravity CLI),
-3. **Bảng dựng hình tham số & Kịch bản hiệu ứng MinNote** (`MinNoteAiGeo` + `MinNoteGeoReplay` + `MinNoteMotionBridge`),
-4. **Mã TikZ Chuyển Động liên tục (`out_tikz` / `animateinline`)** và **Hệ thống xuất Video Loop 60fps BetaTikz (`tikzvid-project/1`)**.
+> [!IMPORTANT]
+> ### ⭐ TỆP QUAN TRỌNG NHẤT — SAO CHÉP 1 CHẠM DÙNG NGAY: [`PROMPT_CHUAN_DUNG_HINH_MINNOTE.md`](./PROMPT_CHUAN_DUNG_HINH_MINNOTE.md)
+> Nếu bạn muốn nhờ **ChatGPT, Claude, Google Gemini, DeepSeek hoặc Grok** đọc đề bài (hoặc ảnh chụp đề bài) và dựng hình chuẩn xác lên bảng MinNote, **chỉ cần mở duy nhất tệp [`PROMPT_CHUAN_DUNG_HINH_MINNOTE.md`](./PROMPT_CHUAN_DUNG_HINH_MINNOTE.md)**!
+> - Toàn bộ **Từ điển 20 công cụ dựng hình gốc (`ops`) kèm cú pháp JSON đầy đủ**, **Hướng dẫn dựng từng bước 6 dạng toán trọng tâm 2D/3D**, **Hệ thống hiệu ứng diễn hoạt** và **Ví dụ JSON mẫu hoàn chỉnh** đều nằm gọn trong **01 khung sao chép duy nhất**.
+> - Nội dung này cũng được tích hợp sẵn ngay trong ứng dụng tại: **`✨ AI Hình` (`Ctrl + Alt + G`) → tab `📦 Nạp / Lưu JSON` → nút `📋 Chép Prompt Dựng Hình Chi Tiết`**.
 
 ---
 
-## 1. Kiến Trúc Tổng Thể & Luồng Dữ Liệu Hai Chiều
+## 1. Phân Tách Rõ Ràng Giữa JSON & TikZ Trong MinNote (`v0.0.9.11`)
+
+MinNote tách biệt rành mạch hai luồng làm việc để giao diện gọn nhẹ, không chồng chéo:
+
+1. **Luồng JSON Hình Học Động — Cửa sổ `✨ AI Hình` (`Ctrl + Alt + G`) → tab `📦 Nạp / Lưu JSON`**:
+   - **Chép Prompt**: Bấm **`📋 Chép Prompt Dựng Hình Chi Tiết`** (hoặc bấm **`👁 Xem nội dung Prompt`** để đọc trực tiếp toàn bộ từ điển 20 công cụ ngay trong hộp thoại).
+   - **Nạp & Lưu 01 chuẩn JSON duy nhất (`mn-geo-motion/2.0`)**: Dán khối JSON từ AI ngoài, mở tệp `.json` (`📂 Mở tệp .json`), hoặc lưu hình đang có trên bảng ra tệp `.json` sạch gọn (`💾 Lưu bảng ra .json` / `📋 Chép JSON từ bảng`), rồi bấm **`🚀 Dựng Hình Lên Bảng`**.
+2. **Luồng Mã TikZ Tĩnh & TikZ Chuyển Động — Cửa sổ `📐 Xuất TikZ`**:
+   - Chuyển đổi trực tiếp giữa **2 tab ngay trong cùng một khung xem mã TikZ**:
+     - Tab **`📐 TikZ Tĩnh (Chuẩn SGK)`**: Xuất mã TikZ phẳng/không gian chuẩn sách giáo khoa & đề thi THPT (tọa độ lưới nguyên $\mathbb{Z}^2$, kiểm định 12 quy tắc Preflight, đẩy sang Kho hình MatrixExamAI Pro).
+     - Tab **`🎬 TikZ Chuyển Động (BetaTikz)`**: Hiển thị tức thì mã TikZ diễn hoạt liên tục **`out_tikz` (`\t ∈ [0, 1]`)** cho BetaTikz hoặc **`LaTeX animateinline`** cho PDF/Beamer, kèm thanh xem trước trục thời gian và nút lưu gói dự án **`.betatikz.json`**.
+
+---
+
+## 2. Kiến Trúc Tổng Thể & Luồng Dữ Liệu Hai Chiều
 
 ```mermaid
 flowchart TD
     subgraph INPUT["1. Nguồn Đầu Vào Toán Học"]
         P1["📄 Đề bài văn bản / LaTeX"]
-        P2["🖼️ Ảnh chụp đề thi / Hình vẽ tay"]
+        P2["🖼️ Ảnh chụp đề thi / Bảng Đúng-Sai"]
         P3["📐 Mã TikZ tĩnh / tkz-euclide / Manim"]
     end
 
-    subgraph AI_HUB["2. Các Mô Hình AI Ngoài + Thư Viện Prompt Khóa Chặt"]
-        LLM["🤖 ChatGPT · Claude · Gemini · DeepSeek · Grok · Local LLM"]
-        G5["🔒 5-Gate Geometric Reasoning\n(Không gian -> DAG -> Đồng phẳng -> Nét khuất -> Hiệu ứng)"]
-        LLM --- G5
+    subgraph AI_HUB["2. AI Ngoài + Prompt Chuẩn Cụ Thể"]
+        MST["⭐ PROMPT_CHUAN_DUNG_HINH_MINNOTE.md\n(20 công cụ ops + 6 dạng toán + Ví dụ mẫu)"]
+        LLM["🤖 ChatGPT · Claude · Gemini · DeepSeek · Grok"]
+        MST --> LLM
     end
 
-    subgraph SCHEMA["3. Chuẩn Giao Tiếp Trung Gian"]
-        J2["📦 JSON Chuẩn mn-geo-motion/2.0\n(meta + checks + ops + geometry + motion + exports)"]
-        VAL["🛡️ Auto-Healer & JSON Schema\nvalidateAndHealAiGeoPlan()"]
+    subgraph JSON_IO["3. AI Hình -> Tab 📦 Nạp / Lưu JSON"]
+        J2["📦 Chuẩn JSON duy nhất: mn-geo-motion/2.0\n(meta + checks + ops + motion)"]
+        VAL["🛡️ validateAndHealAiGeoPlan()\n(Khóa DAG · Chống chéo 3D · Tự sửa nét khuất)"]
         J2 --> VAL
     end
 
-    subgraph MINNOTE["4. MinNote Whiteboard & Replay Studio"]
-        KRN["⚙️ Nhân Ràng Buộc Hình Học\n(free, sum, mid, on_seg, foot, inter_ll, inter_lc/cc)"]
-        RPL["🎬 Kịch Bản Diễn Hoạt Sư Phạm\n(domiinh · manim · 3d_standard | chalk · glow · pop · pulse · fade)"]
+    subgraph BOARD["4. Bảng Hình Học Động MinNote"]
+        KRN["⚙️ Nhân Ràng Buộc Kéo Thả Bất Biến\n(point_sum · midpoint · foot_perp · tangent_point · intersection_ll)"]
+        RPL["🎬 Diễn Hoạt Từng Nét\n(domiinh · manim · 3d_standard | chalk · glow · pop · pulse · fade)"]
         KRN <--> RPL
     end
 
-    subgraph BETATIKZ["5. Xuất Bản LaTeX & Video Loop Chuyên Nghiệp"]
-        OUT["📜 Animated TikZ Liên Tục (out_tikz)\n\\tval in [0,1] · clp · smoothstep · bump · Fixed BBox"]
-        PRJ["🎞️ Gói Dự Án BetaTikz (tikzvid-project/1)\n5-Layer Camera Rig · MP4/WebM/GIF Seamless Loop"]
-        PDF["📑 LaTeX animateinline PDF / Beamer"]
+    subgraph TIKZ_WIN["5. Cửa Sổ Xuất TikZ (2 Tab Trực Tiếp)"]
+        TKZ_S["📐 Tab 1: TikZ Tĩnh (Chuẩn SGK)"]
+        TKZ_A["🎬 Tab 2: TikZ Chuyển Động (BetaTikz)\nout_tikz \\t in [0,1] · animateinline · .betatikz.json"]
     end
 
-    P1 & P2 -->|"Prompt 01 hoặc 02"| LLM
+    P1 & P2 -->|"Sao chép 1 chạm"| MST
     P3 -->|"Prompt 04 (Dịch ngược ràng buộc)"| LLM
-    LLM -->|"Sinh JSON sạch"| J2
-    VAL -->|"importMotionJson() / Tab 3 AI Geo"| KRN
-    RPL -->|"exportMotionJson('full' | 'compact_llm')"| J2
-    RPL -->|"exportBetaTikzAnimated() / Prompt 03"| OUT
-    OUT <-->|"Đóng gói & Nạp ngược 2 chiều"| PRJ
-    OUT --> PDF
-    PRJ -->|"importMotionJson() khôi phục điểm + timeline"| KRN
+    LLM -->|"Trả về 1 khối JSON"| J2
+    VAL -->|"Dựng Hình Lên Bảng"| KRN
+    KRN <-->|"Lưu / Chép JSON từ bảng"| J2
+    KRN --> TKZ_S
+    RPL --> TKZ_A
 ```
 
 ---
 
-## 2. Danh Mục Tài Liệu & Ma Trận Chọn Prompt Tối Ưu
+## 3. Danh Mục Đầy Đủ Các Tài Liệu Trong `prompts/`
 
-| Tệp tài liệu | Mục đích sử dụng | Chi phí Prompt | Mô hình khuyên dùng | Khi nào nên chọn? |
-| :--- | :--- | :---: | :--- | :--- |
-| [`01_problem_to_minnote_motion_json.md`](./01_problem_to_minnote_motion_json.md) | **Đề Toán / Ảnh đề → JSON `mn-geo-motion/2.0`** kèm khóa suy luận 5 cổng (5-Gate Reasoning) | ~1.350 tokens | GPT-4o/o3, Claude Sonnet/Opus, Gemini Pro/Flash, DeepSeek-R1/V3 | Bài hình 3D nhiều giao tuyến, thiết diện, khoảng cách, đường tròn tiếp tuyến cần độ chính xác **100% không sai hình**. |
-| [`02_ultra_compact_token_saver.md`](./02_ultra_compact_token_saver.md) | **Prompt Siêu Gọn Tiết Kiệm Token** (~410 tokens) giữ nguyên 100% luật chống lỗi cốt lõi | **~410 tokens** *(giảm ~70%)* | Gemini Flash, GPT-4o-mini, DeepSeek-V3, Qwen-2.5/3 Local, Batch API | Gọi API hàng loạt (ngân hàng câu hỏi trăm câu), nhúng nút *Chép Prompt Mẫu*, hoặc dùng LLM nhỏ cần phản hồi nhanh. |
-| [`03_json_to_betatikz_video_loop.md`](./03_json_to_betatikz_video_loop.md) | **JSON `mn-geo-motion/2.0` / TikZ tĩnh → BetaTikz Video Loop (`tikzvid-project/1`)** | ~1.100 tokens | Claude Sonnet, Gemini Pro, DeepSeek-V3, GPT-4o | Khi muốn AI nâng cấp kịch bản thành phim toán học liên tục `t ∈ [0,1]` 5 tầng (Camera zoom, đường gióng động, công thức chạy, vòng lặp mượt). |
-| [`04_tikz_to_minnote_motion_json.md`](./04_tikz_to_minnote_motion_json.md) | **Mã TikZ / `tkz-euclide` / Manim → JSON `mn-geo-motion/2.0`** (nâng cấp tọa độ chết thành ràng buộc động) | ~950 tokens | Mọi LLM tầm trung trở lên | Khi có sẵn kho đề LaTeX/TikZ tĩnh muốn đưa vào MinNote để **kéo thả đỉnh không vỡ hình** và tự gán hiệu ứng giảng bài từng nét. |
-| [`05_ai_geometry_20_errors_and_fixes.md`](./05_ai_geometry_20_errors_and_fixes.md) | **Cẩm nang 20 Lỗi Kinh Điển của AI khi dựng hình Toán** & mẫu sửa chuẩn | Tài liệu tra cứu & Fine-tune | Dành cho Kỹ sư Prompt, Giáo viên & QA | Khi kiểm tra vì sao AI vẽ đáy tự cắt hình nơ, giao điểm chéo nhau 3D giả, tiếp tuyến lệch góc vuông, hoặc nhảy khung video. |
-| [`schemas/mn-geo-motion-v2.schema.json`](./schemas/mn-geo-motion-v2.schema.json) | **JSON Schema Draft 2020-12 chính thức** của chuẩn `mn-geo-motion/2.0` | Tệp Schema | OpenAI/Gemini Structured Outputs, `agy --json-schema`, trình kiểm thử | Ép đầu ra API trả về JSON hợp lệ tuyệt đối 100%, không bao giờ thừa chữ hay sai kiểu dữ liệu. |
+| Tệp tài liệu | Vai trò chính | Đối tượng sử dụng | Khi nào nên mở? |
+| :--- | :--- | :--- | :--- |
+| ⭐ **[`PROMPT_CHUAN_DUNG_HINH_MINNOTE.md`](./PROMPT_CHUAN_DUNG_HINH_MINNOTE.md)** | **#1 Flagship Master Prompt (1 khung copy duy nhất)** chứa trọn vẹn 20 công cụ `ops`, 6 dạng toán mẫu, hiệu ứng & JSON mẫu hoàn chỉnh | Giáo viên, Học sinh & Mọi mô hình AI ngoài | **Mặc định dùng cho 95% nhu cầu hằng ngày**: chỉ cần copy toàn bộ khung, dán đề/ảnh đề ở cuối là dựng chuẩn ngay! |
+| [`01_problem_to_minnote_motion_json.md`](./01_problem_to_minnote_motion_json.md) | **System Prompt + User Prompt tách rời** theo chuẩn Khóa Suy Luận 5 Cổng (`5-Gate Checks`), nhúng đầy đủ cú pháp JSON 20 công cụ & công thức dựng | Nhà phát triển ứng dụng, System Prompt cố định (Custom GPTs / Gems / Claude Projects) | Khi cài đặt cố định vào ô `System Instructions` của Custom GPT, Gemini Gem, Claude Project hoặc gọi qua SDK. |
+| [`02_ultra_compact_token_saver.md`](./02_ultra_compact_token_saver.md) | **Prompt Gọn Tiết Kiệm Token (nhúng đủ cú pháp JSON 20 công cụ + công thức dựng nhanh)** | Batch API ngân hàng câu hỏi lớn, Local LLM (`Qwen`, `Llama`), Prompt Caching | Khi xử lý tự động hàng trăm/nghìn câu hỏi qua API cần giảm chi phí token nhưng vẫn đầy đủ cú pháp JSON từng công cụ. |
+| [`03_json_to_betatikz_video_loop.md`](./03_json_to_betatikz_video_loop.md) | **Chuyển JSON `mn-geo-motion/2.0` / TikZ tĩnh sang Video Loop BetaTikz (`tikzvid-project/1`)** | Người làm video bài giảng Toán MP4 60fps bằng BetaTikz / Beamer | Khi muốn nhờ AI đạo diễn thêm chuyển động camera 5 tầng, công thức chạy theo biến thời gian $\t \in [0, 1]$ nâng cao. |
+| [`04_tikz_to_minnote_motion_json.md`](./04_tikz_to_minnote_motion_json.md) | **Dịch ngược mã TikZ / `tkz-euclide` / Manim sang JSON ràng buộc động `mn-geo-motion/2.0`** | Giáo viên có sẵn kho đề LaTeX/TikZ tĩnh | Khi muốn biến hình TikZ tọa độ chết thành hình động trên MinNote (kéo thả đỉnh không gãy hình + có hiệu ứng từng nét). |
+| [`05_ai_geometry_20_errors_and_fixes.md`](./05_ai_geometry_20_errors_and_fixes.md) | **Cẩm nang 20 Lỗi Kinh Điển của AI khi dựng hình Toán & cách khắc phục** | Giáo viên, Kỹ sư Prompt & Kiểm thử QA | Tài liệu tra cứu chuyên sâu về nguyên nhân toán học và mẫu sửa chuẩn cho 20 lỗi hình học 2D/3D phổ biến của LLM. |
+| [`schemas/mn-geo-motion-v2.schema.json`](./schemas/mn-geo-motion-v2.schema.json) | **JSON Schema Draft 2020-12 chính thức** của chuẩn `mn-geo-motion/2.0` | OpenAI / Gemini Structured Outputs, `agy --json-schema`, CI/CD | Ép API của các hãng AI trả về 100% đúng kiểu dữ liệu JSON Schema, không bao giờ sai trường hay thừa văn bản. |
 
 ---
 
-## 3. Bộ Ví Dụ Chuẩn Vàng (`examples/`)
+## 4. Bộ Ví Dụ Chuẩn Vàng (`examples/`)
 
 1. [`examples/01_chop_tu_giac_giao_tuyen_3d.json`](./examples/01_chop_tu_giac_giao_tuyen_3d.json)
-   - **Chủ đề**: Hình chóp tứ giác lồi $S.ABCD$, tìm giao tuyến $SO = (SAC) \cap (SBD)$, giao điểm $I = SD \cap (ABM)$, dựng thiết diện $ABMI$ và giao tuyến $Ax = (AMN) \cap (ABCD) \parallel CD$.
-   - **Đặc trưng**: Phong cách `domiinh` với hiệu ứng nét phấn `chalk`, nảy điểm `pop`, phát sáng giao tuyến `glow`, nhịp nhấn kết luận `pulse`, tô mặt `fade` và vòng lặp `loop: true`.
+   - **Nội dung**: Hình chóp tứ giác lồi $S.ABCD$, tìm giao tuyến $SO = (SAC) \cap (SBD)$, giao điểm $I = SD \cap (ABM)$, dựng thiết diện $ABMI$ và giao tuyến song song $Ax = (AMN) \cap (ABCD) \parallel CD$ (phong cách `domiinh`).
 2. [`examples/02_duong_tron_tiep_tuyen_2d.json`](./examples/02_duong_tron_tiep_tuyen_2d.json)
-   - **Chủ đề**: Đường tròn $(O; R)$ và hai tiếp tuyến $AB, AC$ kẻ từ điểm $A$ nằm ngoài đường tròn, dây cung tiếp điểm $BC \perp OA$ tại $H$.
-   - **Đặc trưng**: Dựng tiếp điểm chính xác tuyệt đối ($\widehat{OBA} = \widehat{OCA} = 90.000^\circ$, bất biến khi kéo thả) qua đường tròn Thales đường kính $OA$ kết hợp `intersection_cc`, kịch bản phong cách `manim`.
+   - **Nội dung**: Đường tròn $(O; R)$ và hai tiếp tuyến $AB, AC$ kẻ từ điểm ngoài $A$ qua đường tròn Thales đường kính $OA$ ($\widehat{OBA} = \widehat{OCA} = 90.000^\circ$ bất biến khi kéo thả), dây cung $BC \perp OA$ tại $H$ (phong cách `manim`).
 3. [`examples/03_betatikz_chop_video_loop.betatikz.json`](./examples/03_betatikz_chop_video_loop.betatikz.json)
-   - **Chủ đề**: Gói dự án chuẩn `"format": "tikzvid-project/1"` mở trực tiếp trong **BetaTikz** để xuất video MP4 1080p/4K vòng lặp mượt, đồng thời nạp ngược được vào **MinNote** với đầy đủ ràng buộc điểm và các mốc thời gian `[tStart, tEnd]`.
+   - **Nội dung**: Gói dự án video vòng lặp chuẩn `"format": "tikzvid-project/1"` mở trực tiếp trong **BetaTikz** để xuất MP4 1080p/4K, đồng thời nạp ngược được vào tab **`📦 Nạp / Lưu JSON`** của MinNote.
 
 ---
 
-## 4. Quy Trình Sử Dụng Nhanh Trong Thực Tế
+## 5. Hướng Dẫn Thao Tác Nhanh 3 Bước
 
-### Cách 1: Dùng AI ngoài (ChatGPT / Claude / Gemini / DeepSeek miễn phí) → Dán vào MinNote
-1. Mở [`02_ultra_compact_token_saver.md`](./02_ultra_compact_token_saver.md) (nhanh gọn) hoặc [`01_problem_to_minnote_motion_json.md`](./01_problem_to_minnote_motion_json.md) (bài khó 3D), sao chép khung Prompt.
-2. Dán Prompt kèm **ảnh chụp đề bài** hoặc **văn bản đề bài** vào ChatGPT / Claude / Gemini / DeepSeek.
-3. Sao chép khối JSON kết quả → Mở MinNote → **✨ AI Dựng Hình (`Ctrl + Alt + G`)** → Tab **🔄 JSON & Chuyển Động** (hoặc **Studio Chuyển Động `Ctrl + Alt + J`**) → Dán JSON → Bấm **🚀 Nạp Hình & Chạy Chuyển Động Ngay**.
-4. Bộ tự chữa lỗi `validateAndHealAiGeoPlan` của MinNote sẽ tự kiểm định lần cuối, dựng hình khóa chặt ràng buộc và phát diễn hoạt từng nét trên bảng!
-
-### Cách 2: Chỉnh sửa trên MinNote → Xuất sang AI khác hoặc BetaTikz Render Video 4K
-1. Sau khi dựng hoặc tinh chỉnh hình và hiệu ứng từng bước trên bảng MinNote, bấm nút **🔄 JSON / BetaTikz** trên thanh Kịch bản (hoặc nhấn `Ctrl + Alt + J`).
-2. Chọn chế độ xuất phù hợp:
-   - **🤖 Siêu gọn cho LLM (`compact_llm`)**: Tiết kiệm ~65% token để gửi lại cho ChatGPT/Claude nhờ viết thêm lời giảng lồng tiếng hoặc mở rộng câu d, e.
-   - **📦 Dự án BetaTikz (`.betatikz.json`)**: Mở thẳng trong ứng dụng `Beta1Tikz` để render video MP4 chuẩn H.264/BT.709 sắc nét không giật khung.
-   - **📄 Mã LaTeX `animateinline` (`.tex`)**: Chèn trực tiếp vào slide Beamer hoặc tài liệu PDF tương tác.
-
-### Cách 3: Tích hợp Tự động qua API / CLI (`Structured Outputs`)
-Truyền trực tiếp tệp [`schemas/mn-geo-motion-v2.schema.json`](./schemas/mn-geo-motion-v2.schema.json) vào tham số `response_format` (OpenAI / DeepSeek / vLLM), `responseSchema` (Gemini API), hoặc cờ `--json-schema` để đảm bảo 100% phản hồi tuân thủ lược đồ `mn-geo-motion/2.0`.
+1. **Bước 1 — Tạo JSON từ Đề bài / Ảnh đề**:
+   - Mở [`PROMPT_CHUAN_DUNG_HINH_MINNOTE.md`](./PROMPT_CHUAN_DUNG_HINH_MINNOTE.md) (hoặc bấm **`📋 Chép Prompt Dựng Hình Chi Tiết`** trong **`✨ AI Hình → 📦 Nạp / Lưu JSON`**).
+   - Dán vào ChatGPT / Claude / Gemini / DeepSeek kèm nội dung đề bài hoặc ảnh chụp đề bài.
+2. **Bước 2 — Dựng Hình & Diễn Hoạt Trên Bảng MinNote**:
+   - Sao chép khối JSON kết quả → Dán vào ô JSON trong tab **`📦 Nạp / Lưu JSON`** → Chọn phong cách (`✨ Đỗ Miinh`, `🎬 Manim`, hoặc `🧊 3D Chuẩn`) → Bấm **`🚀 Dựng Hình Lên Bảng`**.
+3. **Bước 3 — Xuất Mã TikZ Tĩnh hoặc TikZ Chuyển Động (Khi cần chèn LaTeX / Làm Video)**:
+   - Bấm nút **`📐 Xuất TikZ`** trên thanh công cụ:
+     - Giữ ở tab **`📐 TikZ Tĩnh (Chuẩn SGK)`** để chép mã TikZ chèn vào đề thi Word/LaTeX.
+     - Chuyển sang tab **`🎬 TikZ Chuyển Động (BetaTikz)`** để xem ngay mã TikZ động `\t ∈ [0, 1]`, sao chép vào BetaTikz hoặc bấm **`📦 Lưu gói .betatikz.json`**.

@@ -473,6 +473,65 @@ html.dark .mn-ag-stat-pill.warn {
   background: rgba(245, 158, 11, 0.14);
 }
 
+.mn-ag-stat-pill.info {
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.08);
+  line-height: 1.4;
+}
+
+html.dark .mn-ag-stat-pill.info {
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.mn-ag-prompt-helper-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--mn80-border, #e2e8f0);
+  background: var(--mn80-bg-soft, #f8fafc);
+}
+
+.mn-ag-helper-caption {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--mn80-text-soft, #475569);
+}
+
+#mn-ag-prompt-preview-box {
+  display: none;
+  flex-direction: column;
+  margin-top: 2px;
+}
+
+#mn-ag-prompt-preview-ta {
+  width: 100%;
+  min-height: 132px;
+  max-height: 210px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--mn80-border, #e2e8f0);
+  background: var(--mn80-bg, #ffffff);
+  color: var(--mn80-text-soft, #334155);
+  font-family: 'Consolas', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 11.2px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+html.dark #mn-ag-prompt-preview-ta {
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
 .mn-ag-json-toolbar {
   display: flex;
   align-items: center;
@@ -532,6 +591,28 @@ html.dark .mn-ag-stat-pill.warn {
   border-radius: 11px;
   border: 1px solid var(--mn80-border, #e2e8f0);
   background: var(--mn80-bg-soft, #f8fafc);
+}
+
+.mn-ag-motion-box.compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.mn-ag-motion-inline-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mn-ag-motion-box.compact .mn-ag-check {
+  background: var(--mn80-bg, #ffffff);
+  padding: 4px 9px;
 }
 
 .mn-ag-motion-row {
@@ -637,6 +718,12 @@ html.dark .mn-ag-stat-pill.warn {
 
 .mn-ag-export-btn.accent:hover {
   background: rgba(37, 99, 235, 0.18);
+}
+
+.mn-ag-export-btn.active {
+  border-color: var(--mn80-accent, #2563eb);
+  color: var(--mn80-accent, #2563eb);
+  background: var(--mn80-accent-soft, rgba(37, 99, 235, 0.1));
 }
 
 @media (max-width: 500px) {

@@ -4,6 +4,9 @@ Tài liệu này định nghĩa bộ quy tắc kỹ thuật và Prompt chuyên d
 1. **Mã TikZ Chuyển Động Liên Tục (`out_tikz`)** điều khiển bởi tham số thời gian thực $\t \in [0, 1]$ tương thích hoàn toàn với `tikz_engine.py`, `tikz_timeline.py` và `tikz_effects.py` của **BetaTikz (`Beta1Tikz`)**.
 2. **Gói Dự Án Video Vòng Lặp Mượt (`tikzvid-project/1`)** mở trực tiếp trong BetaTikz để xuất MP4 1080p/4K 60fps hoặc nạp ngược lại vào MinNote không mất ràng buộc!
 
+> [!TIP]
+> **Xuất trực tiếp ngay trong ứng dụng MinNote (`v0.0.9.11`)**: Với mọi hình đã dựng trên bảng MinNote, bạn chỉ cần mở **`📐 Xuất TikZ`** và bấm sang tab **`🎬 TikZ Chuyển Động (BetaTikz)`** để xem tức thì mã `out_tikz` (`\t ∈ [0, 1]`), chuyển qua `LaTeX animateinline`, hoặc bấm **`📦 Lưu gói .betatikz.json`** mà không cần gọi AI ngoài! Chỉ dùng Prompt ở Mục 2 dưới đây khi bạn muốn nhờ AI bên ngoài viết thêm hiệu ứng đạo diễn nâng cao (như công thức biến đổi đại số chạy song song hoặc kịch bản nhiều cảnh).
+
 ---
 
 ## 1. Kiến Trúc Kỹ Thuật Của Engine Liên Tục BetaTikz (`\t` $\in [0, 1]$)

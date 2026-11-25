@@ -616,8 +616,158 @@ html.dark {
 }
 
 /* ============================================================================
- * 5. TIKZ EXPORTER STUDIO MODAL
+ * 5. TIKZ EXPORTER STUDIO MODAL (Unified Static TikZ + Animated BetaTikz)
  * ============================================================================ */
+.mn-tikz-head {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mn-tikz-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mn-tikz-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mn-tikz-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--mn80-bg-muted);
+  border: 1px solid var(--mn80-border);
+  flex-wrap: wrap;
+}
+
+.mn-tikz-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--mn80-text-soft);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.mn-tikz-mode-btn:hover:not(.active) {
+  background: var(--mn80-bg);
+  color: var(--mn80-accent);
+}
+
+.mn-tikz-mode-btn.active {
+  background: var(--mn80-accent);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+}
+
+.mn-tikz-opts-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--mn80-bg-soft);
+  border: 1px solid var(--mn80-border);
+}
+
+.mn-tikz-static-opts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mn-tikz-anim-opts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mn-tikz-fmt-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--mn80-bg-muted);
+  border: 1px solid var(--mn80-border);
+}
+
+.mn-tikz-fmt-pill {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--mn80-text-soft);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.mn-tikz-fmt-pill:hover:not(.active) {
+  color: var(--mn80-accent);
+}
+
+.mn-tikz-fmt-pill.active {
+  background: var(--mn80-accent);
+  color: #ffffff;
+}
+
+.mn-tikz-ctrl-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mn80-text-soft);
+  white-space: nowrap;
+}
+
+.mn-tikz-inline-select {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--mn80-border-strong);
+  background: var(--mn80-bg);
+  color: var(--mn80-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.mn-tikz-inline-select:focus {
+  border-color: var(--mn80-accent);
+  box-shadow: 0 0 0 2px var(--mn80-accent-ring);
+}
+
 .mn-tikz-split {
   display: grid;
   grid-template-columns: 1.25fr 0.9fr;
@@ -654,6 +804,7 @@ html.dark {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 
 .mn-tikz-preview-stage {
@@ -701,6 +852,166 @@ html.dark .mn-tikz-preview-stage.empty {
 .mn-tikz-diag-item.ok { color: var(--mn80-ok); }
 .mn-tikz-diag-item.warn { color: var(--mn80-warn); }
 .mn-tikz-diag-item.err { color: var(--mn80-danger); }
+
+.mn-tikz-anim-side {
+  justify-content: flex-start;
+}
+
+.mn-tikz-anim-card {
+  padding: 12px 13px;
+  border-radius: 10px;
+  background: var(--mn80-bg-soft);
+  border: 1px solid var(--mn80-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mn-tikz-anim-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--mn80-text);
+}
+
+.mn-tikz-anim-card-head span {
+  font-size: 11.2px;
+  font-weight: 600;
+  color: var(--mn80-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mn-tikz-anim-timeline {
+  position: relative;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--mn80-bg-muted);
+  border: 1px solid var(--mn80-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mn-tikz-tl-empty {
+  font-size: 11px;
+  color: var(--mn80-text-muted);
+}
+
+.mn-tikz-tl-seg {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0 1px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.mn-tikz-tl-seg.fx-draw { background: #2563eb; }
+.mn-tikz-tl-seg.fx-chalk { background: #0d9488; }
+.mn-tikz-tl-seg.fx-glow { background: #0284c7; }
+.mn-tikz-tl-seg.fx-pop { background: #7c3aed; }
+.mn-tikz-tl-seg.fx-pulse { background: #ea580c; }
+.mn-tikz-tl-seg.fx-fade { background: #64748b; }
+.mn-tikz-tl-seg.fx-wipe { background: #0891b2; }
+.mn-tikz-tl-seg.fx-stamp { background: #16a34a; }
+.mn-tikz-tl-seg.fx-hold {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(16, 185, 129, 0.8),
+    rgba(16, 185, 129, 0.8) 6px,
+    rgba(5, 150, 105, 0.9) 6px,
+    rgba(5, 150, 105, 0.9) 12px
+  );
+}
+
+.mn-tikz-anim-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 122px;
+  overflow-y: auto;
+}
+
+.mn-tikz-anim-step-list:empty {
+  display: none;
+}
+
+.mn-tikz-step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.3px;
+  line-height: 1.4;
+  color: var(--mn80-text-soft);
+}
+
+.mn-tikz-step-t {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 10.8px;
+  color: var(--mn80-text-muted);
+  flex-shrink: 0;
+}
+
+.mn-tikz-step-fx {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.2px;
+  font-weight: 700;
+  background: var(--mn80-accent-soft);
+  color: var(--mn80-accent);
+  flex-shrink: 0;
+}
+
+.mn-tikz-step-lbl {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.mn-tikz-anim-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--mn80-warn-soft);
+  border: 1px solid rgba(217, 119, 6, 0.32);
+  color: var(--mn80-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mn-tikz-anim-guide {
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--mn80-text-soft);
+}
+
+.mn-tikz-guide-item code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--mn80-bg-muted);
+  border: 1px solid var(--mn80-border);
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: var(--mn80-text);
+}
 
 /* ============================================================================
  * 6. MATRIXEXAMAI PRO SETTINGS TAB & FIGURE SYNC GALLERY

@@ -458,7 +458,7 @@ Tài liệu này tổng hợp **20 lỗi hình học, đại số và diễn ho�
 
 ## Tổng Kết Cơ Chế Bảo Vệ Kép (2-Layer Defense) Của MinNote
 
-1. **Lớp 1 — Khóa từ trong trứng nước bằng Prompt (`01` & `02`) + JSON Schema (`mn-geo-motion-v2.schema.json`)**:
-   Chặn đứng lỗi từ phía LLM nhờ 5 cổng kiểm định toán học trước khi sinh `ops`.
+1. **Lớp 1 — Khóa từ trong trứng nước bằng Prompt Chuẩn ([`PROMPT_CHUAN_DUNG_HINH_MINNOTE.md`](./PROMPT_CHUAN_DUNG_HINH_MINNOTE.md), [`01`](./01_problem_to_minnote_motion_json.md), [`02`](./02_ultra_compact_token_saver.md)) + JSON Schema (`mn-geo-motion-v2.schema.json`)**:
+   Chặn đứng lỗi từ phía LLM nhờ từ điển 20 công cụ `ops` tường minh, 6 quy trình dựng mẫu và 5 cổng kiểm định toán học trước khi sinh `ops`.
 2. **Lớp 2 — Tự động chữa lành tại trình biên dịch (`MinNoteAiGeo.validateAndHealAiGeoPlan`)**:
    Tự động gỡ rào markdown/dấu phẩy thừa, tính biểu thức căn thức an toàn không dùng `eval`, đảo lại tứ giác tự cắt thành lồi, chặn giao điểm song song `|det| < 1e-5`, cảnh báo đường chéo nhau 3D, dịch `ratio = 0.5` giả thành `0.38`, sắp xếp tô-pô DAG và lật đỉnh `S` lên trên đáy nếu AI nhầm dấu trục tung!

@@ -268,6 +268,10 @@
           "maxItems": 2,
           "items": { "type": "string" }
         },
+        "a1": { "type": "string" },
+        "b1": { "type": "string" },
+        "a2": { "type": "string" },
+        "b2": { "type": "string" },
         "line": {
           "type": "array",
           "minItems": 2,
@@ -292,6 +296,18 @@
           "maxItems": 2,
           "items": { "type": "string" }
         },
+        "circle1": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "circle2": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
         "which": {
           "type": "integer",
           "enum": [0, 1]
@@ -307,6 +323,7 @@
         },
         "dashed": { "type": "boolean" },
         "extDashed": { "type": "boolean" },
+        "dashedExtensions": { "type": "boolean" },
         "drawExtensions": { "type": "boolean" },
         "drawDropSegment": { "type": "boolean" },
         "drawSegment": { "type": "boolean" },
@@ -314,6 +331,7 @@
         "asLine": { "type": "boolean" },
         "bothSides": { "type": "boolean" },
         "keepDirection": { "type": "boolean" },
+        "perp": { "type": "boolean" },
         "noDot": { "type": "boolean" },
         "show": { "type": "boolean" },
         "aux": { "type": "boolean" },
@@ -566,6 +584,7 @@
       "additionalProperties": true,
       "properties": {
         "preset": { "$ref": "#/$defs/PresetId" },
+        "defaultEffect": { "$ref": "#/$defs/EffectId" },
         "fps": { "type": "integer", "minimum": 12, "maximum": 120 },
         "durationSec": { "type": "number", "minimum": 1, "maximum": 600 },
         "holdEndSec": { "type": "number", "minimum": 0, "maximum": 30 },

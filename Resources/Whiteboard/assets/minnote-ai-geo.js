@@ -1,10 +1,10 @@
 /**
- * MinNote v0.0.9.5 — AI Dựng Hình Từng Nét, Tự Động Kiểm Chứng/Sửa Lỗi Hình Học & Cầu Nối JSON Chuyển Động
+ * MinNote v0.0.9.11 — AI Dựng Hình Từng Nét, Tự Động Kiểm Chứng/Sửa Lỗi Hình Học & Nạp/Lưu Chuẩn JSON
  * - Nút #tb-btn-ai-geo cạnh Sơ Đồ Tư Duy + nút ✨ AI Dựng hình trên thanh chọn ảnh/đề bài
  * - Bộ kiểm chứng & tự sửa lỗi hình học AI (validateAndHealAiGeoPlan): chống tứ giác tự cắt (bow-tie),
  *   chống giao điểm song song / chéo nhau 3D, chống bẫy giả trung điểm 0.5, lật đỉnh S bị ngược trục Y,
  *   sắp xếp topo phá vòng lặp phụ thuộc, tính an toàn biểu thức toán ("sqrt(3)/2") không dùng trình thực thi động.
- * - Tab 3 "🔄 JSON & Chuyển Động": nạp/xuất mn-geo-motion/2.0, AI ops JSON, BetaTikz tikzvid-project/1 & điều khiển hiệu ứng.
+ * - Tab 3 "📦 Nạp / Lưu JSON": Prompt dựng hình chi tiết 20 công cụ cho AI ngoài & luồng nạp/lưu chuẩn mn-geo-motion/2.0 gọn sạch.
  */
 (function (root) {
   'use strict';
@@ -186,26 +186,204 @@ SCHEMA "ops" (Và cấu trúc JSON tổng thể {"schema":"mn-geo-motion/2.0","t
 - {"op":"angle_mark","a":"B","v":"A","b":"C","n":1,"aux":true,"step":"Kí hiệu góc"}
 - {"op":"polygon_fill","pts":["A","M","N"],"fill":"rgba(15, 23, 42, 0.06)","effect":"fade","step":"Tô mặt (AMN)"}`;
 
-  function buildCompactExternalPrompt(problemText, motionOpts = {}) {
-    const preset = motionOpts.preset || 'domiinh';
-    const defFx = motionOpts.defaultEffect || 'chalk';
-    const prob = String(problemText || '').trim() || '[DÁN ĐỀ BÀI TOÁN HÌNH HỌC 2D/3D HOẶC ĐÍNH KÈM ẢNH ĐỀ BÀI VÀO ĐÂY]';
-    return `Bạn là Kỹ sư Dựng hình Tham số chuẩn MinNote (mn-geo-motion/2.0). Hãy đọc đề bài dưới đây và xuất DUY NHẤT 1 JSON hợp lệ (không giải thích ngoài JSON):
-{"schema":"mn-geo-motion/2.0","title":"Tên hình","is3D":true|false,"ops":[...],"motion":{"preset":"${preset}","defaultEffect":"${defFx}","loop":${motionOpts.loop !== false},"handPen":${motionOpts.handPen !== false},"followCamera":${motionOpts.followCamera !== false},"orbit3d":${!!motionOpts.orbit3d}}}
+  function presetDefaultEffect(preset) {
+    if (preset === 'manim') return 'glow';
+    if (preset === '3d_standard') return 'draw';
+    return 'chalk';
+  }
 
-QUY TẮC KHÓA CHẶT CHỐNG SAI HÌNH:
-1. Chỉ đỉnh gốc dùng {"op":"point_free","id":"A","x":-2.2,"y":0} (trục +x sang phải, +y HƯỚNG LÊN, số thập phân tường minh).
-2. Đáy ABCD lồi đúng vòng A->B->C->D (cấm tự cắt hình nơ!):
-   - Hình bình hành/chữ nhật/vuông/thoi: A(-2.2,0), B(-3.6,-1.8), D(2.6,0), C={"op":"point_sum","id":"C","a":"B","b":"D","c":"A"} (AB, AD dashed:true).
-   - Tứ giác lồi thường: A(-2.8,0.2), B(-1.7,-1.8), C(1.7,-2.2), D(3.2,0.5), S(0.8,3.8) (AD dashed:true; góc nhìn tách rõ không trùng nét BM-MN).
-3. Trung điểm: {"op":"midpoint","id":"M","a":"S","b":"C"}. Điểm thuộc đoạn tổng quát: {"op":"point_on_segment","id":"N","a":"S","b":"D","ratio":0.38} (ratio != 0.5!).
-4. Giao 2 đường ĐỒNG PHẲNG: {"op":"intersection_ll","id":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true}. CẤM giao 2 đường chéo nhau 3D hoặc 2 đường song song! Nếu song song dùng {"op":"line_parallel","id":"x","label":"x","through":"A","a":"C","b":"D","asLine":true,"noDot":true,"aux":true}.
-5. Tiếp tuyến từ A ngoài đường tròn (O;R): lấy M=midpoint(O,A), tiếp điểm B,C={"op":"intersection_cc","id":"B","c1":["M","O"],"c2":["O","R"],"which":0|1}, góc vuông {"op":"right_angle","a":"O","v":"B","b":"A"}.
-6. Hạ vuông góc: {"op":"foot_perp","id":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"markRightAngle":true}. Nối cạnh: {"op":"segment","a":"S","b":"A","dashed":false,"effect":"${defFx}","step":"..."}. Thiết diện: {"op":"connect_polygon","pts":[...],"dashedEdges":["A-I"],"fill":"rgba(15,23,42,0.06)","effect":"fade"}.
-7. Gắn "effect" hợp lý trên từng op: "${defFx}" cho nét vẽ, "pop" cho giao điểm/trung điểm quan trọng, "glow" hoặc "pulse" cho giao tuyến kết luận, "fade" cho tô mặt.
+  function buildDetailedExternalPrompt(problemText, motionOpts = {}) {
+    const preset = ['domiinh', 'manim', '3d_standard'].includes(motionOpts.preset)
+      ? motionOpts.preset
+      : 'domiinh';
+    const defFx = motionOpts.defaultEffect || presetDefaultEffect(preset);
+    const loopVal = motionOpts.loop !== false;
+    const handPenVal = motionOpts.handPen !== false;
+    const followCamVal = motionOpts.followCamera === true;
+    const orbit3dVal = motionOpts.orbit3d !== undefined ? !!motionOpts.orbit3d : (preset === '3d_standard');
+    const prob = String(problemText || '').trim() || '[DÁN ĐỀ BÀI TOÁN HÌNH HỌC 2D/3D HOẶC ĐÍNH KÈM ẢNH ĐỀ BÀI VÀO ĐÂY]';
+
+    return `Bạn là Kỹ sư Dựng hình Tham số Động chuẩn MinNote (schema "mn-geo-motion/2.0").
+Nhiệm vụ của bạn: Đọc kỹ đề bài Toán Hình học (2D hoặc 3D, văn bản hoặc ảnh đề bài) ở cuối tài liệu này và xuất DUY NHẤT 1 khối mã JSON hợp lệ để nạp trực tiếp vào bảng vẽ tương tác MinNote.
+
+================================================================================
+PHẦN 1 — NGUYÊN LÝ HẠT NHÂN HÌNH HỌC THAM SỐ ĐỘNG MINNOTE ("mn-geo-motion/2.0")
+================================================================================
+1. Hệ trục tọa độ Đề-các chuẩn Toán học:
+   - Trục +x hướng sang PHẢI, trục +y HƯỚNG LÊN TRÊN (tuyệt đối không dùng hệ tọa độ màn hình +y hướng xuống).
+   - Vùng tọa độ chuẩn đẹp trên bảng: x, y ∈ [-4.5, 4.5].
+   - Mọi tham số tọa độ/tỉ lệ (x, y, ratio, k, angleDeg) phải ghi bằng số thập phân tường minh (ví dụ: -2.8, 0.38, 1.732) hoặc biểu thức số học sạch trong chuỗi (ví dụ: "sqrt(3)/2").
+2. Nguyên tắc Khóa Ràng Buộc Động (DAG như Geometer's Sketchpad / GeoGebra):
+   - CHỈ các đỉnh tự do ban đầu (như đỉnh đáy A, B, D, đỉnh chóp S, tâm O, điểm mốc bán kính R) mới được dùng "point_free".
+   - MỌI điểm sinh ra từ giả thiết hình học (đỉnh thứ 4 hình bình hành, trung điểm, điểm chia tỉ lệ, chân đường cao, giao điểm, tiếp điểm, điểm thuộc đường tròn) BẮT BUỘC phải dùng đúng công cụ ràng buộc tương ứng bên dưới để khi giáo viên/học sinh nắm kéo đỉnh tự do trên bảng MinNote, toàn bộ hình biến đổi động mà KHÔNG BAO GIỜ vỡ tính chất vuông góc, song song, tiếp xúc hay đồng quy!
+   - Thứ tự khai báo (DAG): Điểm gốc phải được khai báo TRƯỚC khi bất kỳ lệnh dựng điểm hoặc nối cạnh nào tham chiếu tới "id" của điểm đó. Không để điểm sinh ra bị trơ trọi (phải nối các đoạn thẳng liên quan).
+
+================================================================================
+PHẦN 2 — TỪ ĐIỂN ĐẦY ĐỦ 20 CÔNG CỤ DỰNG HÌNH TRONG APP MINNOTE ("ops")
+================================================================================
+Mỗi phần tử trong mảng "ops" là 1 lệnh dựng hình theo đúng cú pháp JSON sau:
+
+1. point_free — Điểm gốc tự do ban đầu:
+   {"op":"point_free","id":"A","label":"A","x":-2.8,"y":0.2,"step":"Đặt đỉnh A"}
+   (Nếu là điểm mốc phụ ẩn như điểm bán kính R của đường tròn thì thêm: "show":false,"noDot":true,"label":"").
+
+2. point_sum — Quy tắc véc-tơ hình bình hành (C = B + D - A, tức véc-tơ AC = AB + AD):
+   {"op":"point_sum","id":"C","label":"C","a":"B","b":"D","c":"A","step":"Dựng đỉnh C = B + D - A"}
+   (BẮT BUỘC dùng cho đỉnh thứ 4 của hình bình hành, chữ nhật, hình vuông, hình thoi và các đỉnh đáy trên của lăng trụ / hình hộp).
+
+3. midpoint — Trung điểm chính xác của đoạn thẳng AB:
+   {"op":"midpoint","id":"M","label":"M","a":"S","b":"C","effect":"pop","step":"Lấy M là trung điểm SC"}
+
+4. point_on_segment — Điểm chia tỉ lệ khóa chặt trong đoạn thẳng AB (ratio ∈ [0, 1], P = A + ratio*(B - A)):
+   {"op":"point_on_segment","id":"N","label":"N","a":"S","b":"D","ratio":0.38,"effect":"pop","step":"Lấy điểm N thuộc đoạn SD"}
+   (LƯU Ý SỐNG CÒN: Nếu đề chỉ nói "lấy điểm M thuộc đoạn..." mà KHÔNG nói trung điểm, BẮT BUỘC chọn ratio lệch như 0.35, 0.38 hoặc 0.65; TUYỆT ĐỐI CẤM lấy ratio = 0.5 để tránh bẫy sinh đường song song giả do định lý Thales!).
+
+5. point_on_line — Điểm nằm trên đường thẳng kéo dài ngoài đoạn AB (ratio < 0 hoặc ratio > 1):
+   {"op":"point_on_line","id":"E","label":"E","a":"A","b":"B","ratio":1.45,"step":"Lấy điểm E trên tia kéo dài AB"}
+
+6. point_on_circle — Điểm khóa trên đường tròn tâm center đi qua điểm mốc rim:
+   {"op":"point_on_circle","id":"D","label":"D","center":"O","rim":"R","angleDeg":125,"step":"Lấy điểm D trên (O)"}
+   (angleDeg tính ngược chiều kim đồng hồ từ tia +Ox; angleDeg = 90 là điểm chính Bắc cao nhất).
+
+7. foot_perp — Hạ đường cao / hình chiếu vuông góc chuẩn 90° từ điểm p xuống đường thẳng ab:
+   {"op":"foot_perp","id":"H","label":"H","p":"A","a":"S","b":"B","drawDropSegment":true,"dashed":false,"markRightAngle":true,"aux":true,"step":"Hạ AH ⊥ SB tại H"}
+   (Đặt "dashed":true nếu đoạn hạ vuông góc nằm khuất bên trong khối 3D hoặc trên mặt đáy).
+
+8. line_parallel — Dựng đường thẳng qua điểm through song song với đường thẳng ab:
+   {"op":"line_parallel","id":"x","label":"x","through":"S","a":"A","b":"B","k":1.2,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"glow","step":"Dựng giao tuyến Sx // AB"}
+
+9. line_perp — Dựng đường thẳng qua điểm through vuông góc với đường thẳng ab (trong mặt phẳng 2D):
+   {"op":"line_perp","id":"d","label":"d","through":"A","a":"O","b":"A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Kẻ đường thẳng d vuông góc với OA tại A"}
+
+10. intersection_ll — Giao điểm của 2 đường thẳng ĐỒNG PHẲNG và không song song:
+    {"op":"intersection_ll","id":"O","label":"O","l1":["A","C"],"l2":["B","D"],"drawExtensions":true,"dashedExtensions":true,"effect":"pop","step":"Gọi O = AC ∩ BD"}
+    (TUYỆT ĐỐI CẤM lấy giao của 2 đường chéo nhau trong 3D như SA và BC, hay AM và BD! Bật "drawExtensions":true nếu 2 đoạn cắt nhau ở phần kéo dài ngoài đoạn để MinNote tự vẽ nét nối kéo dài).
+
+11. intersection_lc — Giao điểm của đường thẳng và đường tròn (which: 0 hoặc 1):
+    {"op":"intersection_lc","id":"K","label":"K","line":["A","D"],"circle":["O","R"],"which":0,"effect":"pop","step":"Giao điểm K của AD và (O)"}
+
+12. intersection_cc — Giao điểm của 2 đường tròn c1=[tâm1, mốc1] và c2=[tâm2, mốc2] (which: 0 hoặc 1):
+    {"op":"intersection_cc","id":"B","label":"B","c1":["M","O"],"c2":["O","R"],"which":0,"effect":"pop","step":"Giao điểm B của hai đường tròn"}
+
+13. tangent_point — Tiếp điểm của tiếp tuyến kẻ từ điểm ngoài p tới đường tròn (center; rim):
+    {"op":"tangent_point","id":"B","label":"B","p":"A","center":"O","rim":"R","which":0,"effect":"pop","step":"Tiếp điểm B từ A tới (O)"}
+    (Tự động dựng đường tròn Thales đường kính p-center cắt (center; rim): dùng "which":0 cho tiếp điểm thứ nhất và "which":1 cho tiếp điểm thứ hai, bảo toàn góc ∠pB(center) = 90° chính xác tuyệt đối khi kéo thả!).
+
+14. segment — Nối đoạn thẳng giữa hai điểm a và b:
+    {"op":"segment","a":"A","b":"D","dashed":true,"aux":false,"effect":"chalk","step":"Nối cạnh khuất AD"}
+    ("dashed":true cho nét đứt khuất trong không gian 3D; "dashed":false cho nét liền nhìn thấy; thêm "rev":true nếu muốn bút vẽ theo chiều từ b về a).
+
+15. line & ray — Vẽ đường thẳng dài vô tận 2 đầu hoặc tia kéo dài 1 đầu:
+    {"op":"line","a":"S","b":"O","dashed":true,"aux":true,"step":"Đường trục SO"}
+    {"op":"ray","a":"S","b":"x","dashed":false,"aux":true,"effect":"glow","step":"Tia giao tuyến Sx"}
+
+16. circle — Vẽ đường tròn tâm center đi qua điểm mốc rim:
+    {"op":"circle","center":"O","rim":"R","dashed":false,"effect":"chalk","step":"Vẽ đường tròn tâm O bán kính OR"}
+
+17. connect_polygon — Nối khép kín đa giác đáy hoặc thiết diện (kèm danh sách cạnh khuất & màu tô tùy chọn):
+    {"op":"connect_polygon","pts":["A","B","C","D"],"dashedEdges":["A-D"],"step":"Dựng đáy tứ giác ABCD"}
+    (Hoặc dựng thiết diện kèm tô miền: {"op":"connect_polygon","pts":["A","B","M","N"],"dashedEdges":["A-N"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Thiết diện ABMN"}).
+
+18. polygon_fill — Tô màu nhạt làm nổi bật miền phẳng / thiết diện (không vẽ đè viền):
+    {"op":"polygon_fill","pts":["A","B","M","N"],"fill":"rgba(37, 99, 235, 0.08)","effect":"fade","step":"Tô miền thiết diện (ABMN)"}
+
+19. right_angle — Kí hiệu góc vuông chuẩn (CHÚ Ý: đỉnh góc vuông BẮT BUỘC đặt ở tham số giữa "v"):
+    {"op":"right_angle","a":"S","v":"A","b":"B","aux":true,"effect":"fade","step":"Kí hiệu góc vuông SAB tại A"}
+
+20. angle_mark & tick_mark — Kí hiệu góc bằng nhau (n cung) & đoạn thẳng bằng nhau (n vạch, n ∈ {1,2,3}):
+    {"op":"angle_mark","a":"S","v":"B","b":"A","n":1,"aux":true,"step":"Đánh dấu góc SBA"}
+    {"op":"tick_mark","a":"S","b":"M","n":1,"aux":true,"step":"Đánh dấu đoạn bằng nhau SM"}
+
+================================================================================
+PHẦN 3 — QUY TRÌNH DỰNG CỤ THỂ CHO 5 NHÓM HÌNH HỌC PHỔ BIẾN NHẤT
+================================================================================
+• Mẫu 1 — Chóp tứ giác lồi thường S.ABCD (giao tuyến, giao điểm đường-mặt, thiết diện):
+  - Tọa độ chuẩn chống suy biến: A(-2.8, 0.2), B(-1.7, -1.8), C(1.7, -2.2), D(3.2, 0.5), S(0.8, 3.8) (đi đúng vòng lồi A -> B -> C -> D, cấm nối chéo hình nơ).
+  - Nét liền / đứt chuẩn SGK: Cạnh đáy sau AD khuất ("dashed":true); các cạnh AB, BC, CD, SA, SB, SC, SD nhìn thấy ("dashed":false). Đoạn phụ nằm trên các mặt trước (SAB), (SBC), (SCD) vẽ nét LIỀN; đoạn nằm trên mặt sau (SAD), mặt đáy (ABCD) hoặc xuyên trong lòng khối (như AC, BD, SO, AM) vẽ nét ĐỨT ("dashed":true).
+  - Kiểm tra góc chiếu: Không để 3 điểm không thẳng hàng trong 3D (như B-M-N) có góc chiếu phẳng gần 180° (luôn giữ góc < 165°). Muốn tìm giao điểm của đường d với mặt (P), phải chọn mặt phụ chứa d cắt (P) theo giao tuyến Δ rồi lấy intersection_ll(d, Δ).
+
+• Mẫu 2 — Chóp đáy Hình bình hành / Chữ nhật / Vuông / Thoi (ABCD) & Đường cao đặc biệt:
+  - Khóa đáy chuẩn: Đặt A(-2.2, 0), B(-3.6, -1.8), D(2.6, 0) và BẮT BUỘC dựng C = point_sum(B, D, A). Khi đó AB, AD khuất ("dashed":true); BC, CD liền ("dashed":false).
+  - Nếu SA ⊥ (ABCD): Đặt S(-2.2, 3.8) thẳng đứng trên A ("SA" khuất "dashed":true), gắn right_angle(S, A, B) và right_angle(S, A, D).
+  - Nếu mặt bên (SAB) cân tại S và (SAB) ⊥ (ABCD): Lấy H = midpoint(A, B), đặt S(-2.9, 2.9) thẳng đứng trên H (x_S = x_H, y_S = y_H + 3.8), nối SH khuất + right_angle(S, H, A).
+  - Nếu chóp đều S.ABCD: Lấy tâm O = intersection_ll(["A","C"], ["B","D"]), đặt S(-0.5, 3.1) thẳng đứng trên O (x_S = x_O, y_S = y_O + 4.0), nối SO khuất + right_angle(S, O, D).
+
+• Mẫu 3 — Lăng trụ đứng / Lăng trụ xiên / Hình hộp ABC.A'B'C' (hoặc ABCD.A'B'C'D'):
+  - Dựng đáy dưới A(-2.6, 0), B(-0.6, -1.6), C(2.4, 0) (cạnh sau AC khuất "dashed":true; AB, BC liền).
+  - Đặt đỉnh A'(-2.6, 3.4) (thẳng đứng trên A nếu lăng trụ đứng, hoặc lệch xiên A'(-1.9, 3.4) nếu lăng trụ xiên).
+  - BẮT BUỘC khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA': B' = point_sum(B, A', A), C' = point_sum(C, A', A) để các cạnh bên song song và bằng nhau tuyệt đối; đáy trên A'B'C' vẽ nét liền hoàn toàn.
+
+• Mẫu 4 — Đường tròn (O; R), Tiếp tuyến, Cát tuyến & Đa giác nội tiếp 2D ("is3D": false):
+  - Đặt tâm O(0, 0) và điểm mốc ẩn R(2.2, 0) ("show":false, "noDot":true, "label":""), vẽ circle(O, R).
+  - Hai tiếp tuyến AB, AC từ điểm ngoài A(-4.4, 0): Dùng 2 lệnh tangent_point (p:"A", center:"O", rim:"R", which:0 cho B và which:1 cho C), nối AB, AC, OB, OC, OA, BC, lấy H = intersection_ll(["O","A"], ["B","C"]) và gắn right_angle tại B, C, H.
+  - Tam giác nhọn ABC nội tiếp (O): Dùng 3 lệnh point_on_circle với các góc không đối xứng (ví dụ angleDeg: 112, 210, 330) để tránh tam giác cân/vuông giả tạo.
+
+• Mẫu 5 — Góc & Khoảng cách trong không gian 3D:
+  - Góc giữa cạnh bên SC và đáy (ABCD) (khi SA ⊥ đáy): Nối hình chiếu AC ("dashed":true) và gắn angle_mark(S, C, A).
+  - Khoảng cách từ chân đường cao A đến mặt bên (SBC): Hạ AE = foot_perp(A, B, C) trên mặt đáy ("dashed":true), nối SE, rồi hạ AH = foot_perp(A, S, E) ("dashed":true, "markRightAngle":true).
+
+================================================================================
+PHẦN 4 — HIỆU ỨNG DIỄN HOẠT TỪNG NÉT TRONG MINNOTE
+================================================================================
+- Thuộc tính "effect" trên từng lệnh trong "ops":
+  + "chalk" : Nét phấn bảng tự nhiên (dùng cho các cạnh chính).
+  + "draw"  : Nét bút mực mượt (dùng cho đường phụ, đường chéo, đường cao).
+  + "pop"   : Nảy điểm nổi bật (dùng cho trung điểm, giao điểm, tiếp điểm quan trọng).
+  + "glow"  : Phát sáng nhấn mạnh (dùng cho giao tuyến, tia phụ kết luận).
+  + "pulse" : Nhịp sáng nhấn kết quả cuối cùng.
+  + "fade"  : Hiện êm dịu (dùng cho miền tô thiết diện polygon_fill và kí hiệu góc vuông).
+- Luôn ghi mô tả ngắn gọn, sư phạm vào trường "step" của mỗi lệnh để thanh Diễn Hoạt của MinNote thuyết minh từng bước dựng hình.
+
+================================================================================
+PHẦN 5 — KHUNG JSON MẪU CHUẨN DUY NHẤT CẦN XUẤT
+================================================================================
+CHỈ TRẢ VỀ ĐÚNG 1 KHỐI JSON HỢP LỆ THEO CẤU TRÚC MẪU DƯỚI ĐÂY (không giải thích dài dòng bên ngoài khối JSON, không dùng dấu phẩy thừa cuối mảng, không để bình luận // bên trong JSON):
+
+\`\`\`json
+{
+  "schema": "mn-geo-motion/2.0",
+  "title": "Hình chóp S.ABCD và giao tuyến (SAC), (SBD)",
+  "is3D": true,
+  "ops": [
+    {"op": "point_free", "id": "A", "label": "A", "x": -2.8, "y": 0.2, "step": "Đặt đỉnh A"},
+    {"op": "point_free", "id": "B", "label": "B", "x": -1.7, "y": -1.8, "step": "Đặt đỉnh B"},
+    {"op": "point_free", "id": "C", "label": "C", "x": 1.7, "y": -2.2, "step": "Đặt đỉnh C"},
+    {"op": "point_free", "id": "D", "label": "D", "x": 3.2, "y": 0.5, "step": "Đặt đỉnh D"},
+    {"op": "point_free", "id": "S", "label": "S", "x": 0.8, "y": 3.8, "step": "Đặt đỉnh chóp S"},
+    {"op": "connect_polygon", "pts": ["A", "B", "C", "D"], "dashedEdges": ["A-D"], "effect": "${defFx}", "step": "Dựng đáy tứ giác lồi ABCD"},
+    {"op": "segment", "a": "S", "b": "A", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SA"},
+    {"op": "segment", "a": "S", "b": "B", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SB"},
+    {"op": "segment", "a": "S", "b": "C", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SC"},
+    {"op": "segment", "a": "S", "b": "D", "dashed": false, "effect": "${defFx}", "step": "Nối cạnh bên SD"},
+    {"op": "segment", "a": "A", "b": "C", "dashed": true, "aux": true, "effect": "draw", "step": "Nối đường chéo đáy AC"},
+    {"op": "segment", "a": "B", "b": "D", "dashed": true, "aux": true, "effect": "draw", "step": "Nối đường chéo đáy BD"},
+    {"op": "intersection_ll", "id": "O", "label": "O", "l1": ["A", "C"], "l2": ["B", "D"], "effect": "pop", "step": "Gọi O = AC ∩ BD"},
+    {"op": "segment", "a": "S", "b": "O", "dashed": true, "aux": true, "effect": "glow", "step": "Nối giao tuyến SO = (SAC) ∩ (SBD)"}
+  ],
+  "motion": {
+    "preset": "${preset}",
+    "defaultEffect": "${defFx}",
+    "loop": ${loopVal},
+    "handPen": ${handPenVal},
+    "followCamera": ${followCamVal},
+    "orbit3d": ${orbit3dVal}
+  }
+}
+\`\`\`
 
 ĐỀ BÀI CẦN DỰNG:
 ${prob}`;
+  }
+
+  function buildCompactExternalPrompt(problemText, motionOpts = {}) {
+    return buildDetailedExternalPrompt(problemText, motionOpts);
+  }
+
+  function isPastedPromptText(rawText) {
+    const s = String(rawText || '').trim();
+    if (!s) return false;
+    if (/^(?:\{|\[|```(?:json|javascript|js|jsonc)?\b)/i.test(s)) return false;
+    return /Bạn là Kỹ sư Dựng hình|TỪ ĐIỂN[\s\S]{0,60}CÔNG CỤ DỰNG HÌNH|ĐỀ BÀI CẦN DỰNG/i.test(s);
   }
 
   // ==========================================================================
@@ -4384,13 +4562,15 @@ ${prob}`;
 
   function getModalMotionControls(bd) {
     const rootEl = bd || (hasDoc ? document.getElementById('mn-ai-geo-backdrop') : null);
+    const preset = modalState.motionPreset || 'domiinh';
+    const derivedFx = presetDefaultEffect(preset);
     if (!rootEl) {
       return {
-        preset: modalState.motionPreset || 'domiinh',
-        defaultEffect: modalState.defaultEffect || 'chalk',
+        preset,
+        defaultEffect: derivedFx,
         handPen: true,
-        followCamera: true,
-        orbit3d: false,
+        followCamera: false,
+        orbit3d: preset === '3d_standard',
         loop: true
       };
     }
@@ -4400,11 +4580,11 @@ ${prob}`;
     const orbChk = rootEl.querySelector('#mn-ag-opt-orbit3d');
     const loopChk = rootEl.querySelector('#mn-ag-opt-loop');
     return {
-      preset: modalState.motionPreset || 'domiinh',
-      defaultEffect: (fxSel && fxSel.value) || modalState.defaultEffect || 'chalk',
+      preset,
+      defaultEffect: (fxSel && fxSel.value) || derivedFx,
       handPen: handChk ? !!handChk.checked : true,
-      followCamera: camChk ? !!camChk.checked : true,
-      orbit3d: orbChk ? !!orbChk.checked : false,
+      followCamera: camChk ? !!camChk.checked : false,
+      orbit3d: orbChk ? !!orbChk.checked : (preset === '3d_standard'),
       loop: loopChk ? !!loopChk.checked : true
     };
   }
@@ -4428,7 +4608,7 @@ ${prob}`;
             </div>
             <div>
               <div class="mn-ag-title" id="mn-ag-heading">AI Dựng Hình Từng Nét</div>
-              <div class="mn-ag-sub">Kiểm chứng ràng buộc tự động · nét liền/đứt chuẩn · JSON &amp; chuyển động BetaTikz</div>
+              <div class="mn-ag-sub">Dựng hình ràng buộc động · Nạp TikZ · Nhập &amp; lưu chuẩn JSON</div>
             </div>
           </div>
           <div class="mn-ag-head-actions">
@@ -4440,7 +4620,7 @@ ${prob}`;
         <div class="mn-ag-tabs">
           <button type="button" class="mn-ag-tab active" id="mn-ag-tab-ai" data-ag-tab="ai">✨ AI Dựng từ Đề / Ảnh</button>
           <button type="button" class="mn-ag-tab" id="mn-ag-tab-tikz" data-ag-tab="tikz">📐 Nạp TikZ Chuẩn</button>
-          <button type="button" class="mn-ag-tab" id="mn-ag-tab-json" data-ag-tab="json">🔄 JSON &amp; Chuyển Động</button>
+          <button type="button" class="mn-ag-tab" id="mn-ag-tab-json" data-ag-tab="json">📦 Nạp / Lưu JSON</button>
         </div>
 
         <div class="mn-ag-body">
@@ -4502,70 +4682,50 @@ ${prob}`;
             </label>
           </div>
 
-          <!-- TAB 3: JSON & CHUYỂN ĐỘNG (MINNOTE ⇄ EXTERNAL AI ⇄ BETATIKZ) -->
+          <!-- TAB 3: NẠP / LƯU JSON CHUẨN DUY NHẤT (mn-geo-motion/2.0) -->
           <div id="mn-ag-pane-json" style="display:none;flex-direction:column;gap:9px;">
+            <div class="mn-ag-prompt-helper-card">
+              <div class="mn-ag-helper-caption">Bước 1 (nếu tạo từ AI ngoài): Chép Prompt dựng hình chi tiết rồi dán kết quả JSON vào ô dưới</div>
+              <div class="mn-ag-export-grid">
+                <button type="button" class="mn-ag-export-btn accent" id="mn-ag-copy-prompt" title="Chép Prompt hướng dẫn đầy đủ 20 công cụ dựng hình MinNote để dán vào ChatGPT, Claude, Gemini, DeepSeek">📋 Chép Prompt Dựng Hình Chi Tiết</button>
+                <button type="button" class="mn-ag-export-btn" id="mn-ag-toggle-prompt-view" aria-expanded="false" title="Xem trực tiếp nội dung Prompt hướng dẫn ngay trong hộp thoại">👁 Xem nội dung Prompt</button>
+              </div>
+              <div id="mn-ag-prompt-preview-box" style="display:none;">
+                <textarea id="mn-ag-prompt-preview-ta" class="mn-ag-textarea mono" readonly spellcheck="false"></textarea>
+              </div>
+            </div>
+
             <div class="mn-ag-json-toolbar">
               <div class="mn-ag-json-toolbar-left">
                 <input type="file" id="mn-ag-json-file" accept=".json,.betatikz.json,application/json,text/plain" style="display:none;" />
-                <button type="button" class="mn-ag-mini-btn" id="mn-ag-btn-load-json" title="Chọn tệp .json hoặc .betatikz.json từ máy">📂 Mở tệp .json / .betatikz.json</button>
-                <button type="button" class="mn-ag-mini-btn" id="mn-ag-btn-heal-json" title="Kiểm chứng & tự sửa lỗi JSON hình học ngay trong ô">🩺 Tự kiểm &amp; Sửa lỗi</button>
+                <button type="button" class="mn-ag-mini-btn" id="mn-ag-btn-load-json" title="Chọn tệp .json từ máy">📂 Mở tệp .json</button>
+                <button type="button" class="mn-ag-mini-btn" id="mn-ag-btn-save-json" title="Lưu hình học trên bảng hiện tại ra tệp .json chuẩn mn-geo-motion/2.0">💾 Lưu bảng ra .json</button>
+                <button type="button" class="mn-ag-mini-btn" id="mn-ag-export-full" title="Xuất hình học trên bảng hiện tại ra chuẩn JSON mn-geo-motion/2.0 và chép vào Clipboard">📋 Chép JSON từ bảng</button>
               </div>
               <div class="mn-ag-json-toolbar-right">
                 <button type="button" class="mn-ag-mini-btn" id="mn-ag-btn-clear-json" title="Xóa nội dung ô JSON">⌫ Xóa</button>
               </div>
             </div>
 
-            <textarea id="mn-ag-json-input" class="mn-ag-textarea json-io" spellcheck="false" placeholder="Dán JSON dựng hình (chuẩn mn-geo-motion/2.0, AI ops JSON từ ChatGPT/Claude/Gemini/DeepSeek, hoặc dự án BetaTikz tikzvid-project/1)... Kéo thả tệp .json vào đây cũng được!"></textarea>
+            <textarea id="mn-ag-json-input" class="mn-ag-textarea json-io" spellcheck="false" placeholder="Dán khối JSON từ AI hoặc kéo thả tệp .json vào đây..."></textarea>
 
             <div class="mn-ag-stats" id="mn-ag-json-stats">
-              <span class="mn-ag-stat-pill">Hỗ trợ mn-geo-motion/2.0 · AI ops JSON · BetaTikz tikzvid-project/1</span>
+              <span class="mn-ag-stat-pill">Tự động kiểm chứng &amp; sửa lỗi ràng buộc chuẩn mn-geo-motion/2.0</span>
             </div>
 
-            <div class="mn-ag-motion-box" id="mn-ag-motion-controls">
-              <div class="mn-ag-motion-row">
-                <span class="mn-ag-motion-lbl">Phong cách (Preset):</span>
+            <div class="mn-ag-motion-box compact" id="mn-ag-motion-controls">
+              <div class="mn-ag-motion-inline-left">
+                <span class="mn-ag-motion-lbl">Phong cách:</span>
                 <div class="mn-ag-preset-group" id="mn-ag-motion-presets">
                   <button type="button" class="mn-ag-preset-chip active" data-ag-preset="domiinh">✨ Đỗ Miinh</button>
                   <button type="button" class="mn-ag-preset-chip" data-ag-preset="manim">🎬 Manim</button>
                   <button type="button" class="mn-ag-preset-chip" data-ag-preset="3d_standard">🧊 3D Chuẩn</button>
                 </div>
               </div>
-
-              <div class="mn-ag-motion-row">
-                <label class="mn-ag-motion-lbl" for="mn-ag-default-effect">Hiệu ứng bước mặc định:</label>
-                <select id="mn-ag-default-effect" class="mn-ag-fx-select">
-                  <option value="chalk" selected>🖍 Phấn bảng</option>
-                  <option value="draw">✏ Vẽ nét</option>
-                  <option value="glow">✨ Phát sáng</option>
-                  <option value="pop">⚡ Nảy điểm</option>
-                </select>
-              </div>
-
-              <div class="mn-ag-options">
-                <label class="mn-ag-check">
-                  <input type="checkbox" id="mn-ag-opt-handpen" checked />
-                  <span>Tay cầm bút</span>
-                </label>
-                <label class="mn-ag-check">
-                  <input type="checkbox" id="mn-ag-opt-camera" checked />
-                  <span>Camera lò xo</span>
-                </label>
-                <label class="mn-ag-check">
-                  <input type="checkbox" id="mn-ag-opt-orbit3d" />
-                  <span>Tự xoay 3D 360°</span>
-                </label>
-                <label class="mn-ag-check">
-                  <input type="checkbox" id="mn-ag-opt-loop" checked />
-                  <span>Vòng lặp Video (Loop)</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="mn-ag-export-grid">
-              <button type="button" class="mn-ag-export-btn accent" id="mn-ag-export-full" title="Xuất hình & kịch bản trên bảng ra chuẩn mn-geo-motion/2.0 đầy đủ">📤 Xuất JSON Chuẩn (mn-geo-motion/2.0)</button>
-              <button type="button" class="mn-ag-export-btn" id="mn-ag-export-compact" title="Chép JSON siêu gọn tiết kiệm token để gửi cho AI khác phân tích/mở rộng">🤖 Chép JSON Gọn cho AI khác</button>
-              <button type="button" class="mn-ag-export-btn accent" id="mn-ag-export-betatikz" title="Mở Studio TikZ Chuyển Động / Xuất dự án Video Loop cho BetaTikz">🎬 Xuất TikZ Chuyển Động / BetaTikz</button>
-              <button type="button" class="mn-ag-export-btn" id="mn-ag-copy-prompt" title="Chép Prompt chuẩn khóa 5 cổng để dán vào ChatGPT, Claude, Gemini, DeepSeek rồi lấy JSON dán ngược vào đây">📋 Chép Prompt Mẫu Chuẩn</button>
+              <label class="mn-ag-check">
+                <input type="checkbox" id="mn-ag-json-animate" checked />
+                <span>Diễn hoạt từng nét</span>
+              </label>
             </div>
           </div>
 
@@ -4582,7 +4742,7 @@ ${prob}`;
         </div>
         <div class="mn-ag-foot" id="mn-ag-foot-json" style="display:none;">
           <button type="button" class="mn-ag-btn" id="mn-ag-insert-json-now">Chèn tĩnh</button>
-          <button type="button" class="mn-ag-btn primary" id="mn-ag-run-json">🚀 Nạp JSON &amp; Chạy Chuyển Động</button>
+          <button type="button" class="mn-ag-btn primary" id="mn-ag-run-json">🚀 Dựng Hình Lên Bảng</button>
         </div>
       </div>
     `;
@@ -4755,205 +4915,222 @@ ${prob}`;
       jsonTa.focus();
     });
 
-    bd.querySelector('#mn-ag-btn-heal-json').addEventListener('click', () => {
-      const raw = (jsonTa.value || '').trim();
-      if (!raw) {
-        setError('Vui lòng dán JSON dựng hình trước khi kiểm chứng & sửa lỗi.');
-        return;
-      }
-      try {
-        setError('');
-        const parsed = extractJsonObject(raw);
-        if (parsed && parsed.format === 'tikzvid-project/1') {
-          jsonTa.value = JSON.stringify(parsed, null, 2);
-          updateJsonPreviewStats();
-          showAppToast('✅ Tệp dự án BetaTikz (tikzvid-project/1) hợp lệ!', 'success');
-          return;
-        }
-        const healed = validateAndHealAiGeoPlan(raw, getModalMotionControls(bd));
-        const cleanCopy = { ...healed };
-        delete cleanCopy.healReport;
-        jsonTa.value = JSON.stringify(cleanCopy, null, 2);
-        updateJsonPreviewStats(healed.healReport);
-        showAppToast(
-          healed.healReport.fixedCount > 0
-            ? `🩺 Đã tự động sửa ${healed.healReport.fixedCount} lỗi hình học / cú pháp!`
-            : '✅ Kịch bản JSON đạt chuẩn hình học 100%!',
-          'success'
-        );
-      } catch (err) {
-        setError((err && err.message) ? err.message : 'Không thể phân tích JSON.');
-      }
-    });
+    const refreshPromptPreviewIfOpen = () => {
+      const prevBox = bd.querySelector('#mn-ag-prompt-preview-box');
+      const prevTa = bd.querySelector('#mn-ag-prompt-preview-ta');
+      if (!prevBox || !prevTa || prevBox.style.display === 'none') return;
+      const promptTa = bd.querySelector('#mn-ag-prompt');
+      const probTxt = promptTa ? promptTa.value : '';
+      prevTa.value = buildDetailedExternalPrompt(probTxt, getModalMotionControls(bd));
+    };
+
+    const promptMainTa = bd.querySelector('#mn-ag-prompt');
+    if (promptMainTa) {
+      promptMainTa.addEventListener('input', refreshPromptPreviewIfOpen);
+    }
 
     bd.querySelectorAll('[data-ag-preset]').forEach(btn => {
       btn.addEventListener('click', () => {
         const p = btn.dataset.agPreset || 'domiinh';
         modalState.motionPreset = p;
+        modalState.defaultEffect = presetDefaultEffect(p);
         bd.querySelectorAll('[data-ag-preset]').forEach(x => x.classList.toggle('active', x === btn));
-        const fxSel = bd.querySelector('#mn-ag-default-effect');
-        const orbChk = bd.querySelector('#mn-ag-opt-orbit3d');
-        if (fxSel) {
-          if (p === 'domiinh') fxSel.value = 'chalk';
-          else if (p === 'manim') fxSel.value = 'glow';
-          else if (p === '3d_standard') fxSel.value = 'draw';
-          modalState.defaultEffect = fxSel.value;
-        }
-        if (orbChk && p === '3d_standard') {
-          orbChk.checked = true;
-        }
+        refreshPromptPreviewIfOpen();
+        if ((jsonTa.value || '').trim()) updateJsonPreviewStats();
       });
     });
 
-    const fxSelectEl = bd.querySelector('#mn-ag-default-effect');
-    if (fxSelectEl) {
-      fxSelectEl.addEventListener('change', () => {
-        modalState.defaultEffect = fxSelectEl.value || 'chalk';
-      });
-    }
-
-    // Export & Interop Buttons inside Tab 3
-    bd.querySelector('#mn-ag-export-full').addEventListener('click', async () => {
-      await handleExportMotionJson(bd, 'full');
-    });
-
-    bd.querySelector('#mn-ag-export-compact').addEventListener('click', async () => {
-      await handleExportMotionJson(bd, 'compact_llm');
-    });
-
-    bd.querySelector('#mn-ag-export-betatikz').addEventListener('click', async () => {
-      setError('');
-      const mCtrl = getModalMotionControls(bd);
-      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
-        closeModal();
-        window.MinNoteMotionBridge.openStudioModal('betatikz', mCtrl);
-        return;
-      }
-      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.exportBetaTikzAnimated === 'function') {
-        try {
-          const res = window.MinNoteMotionBridge.exportBetaTikzAnimated({
-            preset: mCtrl.preset,
-            loop: mCtrl.loop,
-            fps: 24,
-            durationSec: 8
-          });
-          const tikzOut = (res && (res.outTikz || res.animateInlineTex)) || '';
-          if (tikzOut) {
-            await copyTextSafe(tikzOut);
-            showAppToast('🎬 Đã chép mã TikZ Chuyển Động (BetaTikz) vào Clipboard!', 'success');
-            return;
-          }
-        } catch (err) {
-          setError((err && err.message) ? err.message : 'Không xuất được TikZ chuyển động.');
-          return;
-        }
-      }
-      setError('Bộ xuất TikZ Chuyển Động / BetaTikz (MinNoteMotionBridge) chưa sẵn sàng hoặc chưa có hình trên bảng.');
-    });
-
+    // Step 1: External AI Prompt Copy & Inline Read-Only Preview
     bd.querySelector('#mn-ag-copy-prompt').addEventListener('click', async () => {
       setError('');
       const promptTa = bd.querySelector('#mn-ag-prompt');
       const probTxt = promptTa ? promptTa.value : '';
       const mCtrl = getModalMotionControls(bd);
-      const readyPrompt = buildCompactExternalPrompt(probTxt, mCtrl);
+      const readyPrompt = buildDetailedExternalPrompt(probTxt, mCtrl);
+      refreshPromptPreviewIfOpen();
       await copyTextSafe(readyPrompt);
-      showAppToast('📋 Đã chép Prompt Mẫu Chuẩn! Hãy dán vào ChatGPT/Claude/Gemini/DeepSeek rồi dán JSON trả về vào đây.', 'success');
+      showAppToast('📋 Đã chép Prompt Dựng Hình Chi Tiết! Hãy dán vào ChatGPT/Claude/Gemini/DeepSeek rồi dán khối JSON trả về vào ô dưới.', 'success');
+    });
+
+    const togglePromptBtn = bd.querySelector('#mn-ag-toggle-prompt-view');
+    const promptPreviewBox = bd.querySelector('#mn-ag-prompt-preview-box');
+    const promptPreviewTa = bd.querySelector('#mn-ag-prompt-preview-ta');
+    if (togglePromptBtn && promptPreviewBox && promptPreviewTa) {
+      togglePromptBtn.addEventListener('click', () => {
+        setError('');
+        const isHidden = promptPreviewBox.style.display === 'none';
+        if (isHidden) {
+          const promptTa = bd.querySelector('#mn-ag-prompt');
+          const probTxt = promptTa ? promptTa.value : '';
+          promptPreviewTa.value = buildDetailedExternalPrompt(probTxt, getModalMotionControls(bd));
+          promptPreviewBox.style.display = 'flex';
+          togglePromptBtn.setAttribute('aria-expanded', 'true');
+          togglePromptBtn.classList.add('active');
+          togglePromptBtn.textContent = '🙈 Ẩn nội dung Prompt';
+        } else {
+          promptPreviewBox.style.display = 'none';
+          togglePromptBtn.setAttribute('aria-expanded', 'false');
+          togglePromptBtn.classList.remove('active');
+          togglePromptBtn.textContent = '👁 Xem nội dung Prompt';
+        }
+      });
+    }
+
+    // Step 2: Canonical Board JSON Copy & Save (.json)
+    bd.querySelector('#mn-ag-export-full').addEventListener('click', async () => {
+      await handleExportMotionJson(bd, false);
+    });
+
+    bd.querySelector('#mn-ag-btn-save-json').addEventListener('click', async () => {
+      await handleExportMotionJson(bd, true);
     });
 
     // Primary Run Buttons across 3 Tabs
+    const shouldAnimateJson = () => {
+      const animChk = bd.querySelector('#mn-ag-json-animate');
+      return animChk ? !!animChk.checked : true;
+    };
     bd.querySelector('#mn-ag-run-ai').addEventListener('click', runAiConstruction);
     bd.querySelector('#mn-ag-run-tikz').addEventListener('click', () => runTikzImport(true));
     bd.querySelector('#mn-ag-insert-tikz-now').addEventListener('click', () => runTikzImport(false));
-    bd.querySelector('#mn-ag-run-json').addEventListener('click', () => runJsonImport(true));
+    bd.querySelector('#mn-ag-run-json').addEventListener('click', () => runJsonImport(shouldAnimateJson()));
     bd.querySelector('#mn-ag-insert-json-now').addEventListener('click', () => runJsonImport(false));
 
     return bd;
   }
 
-  async function handleExportMotionJson(bd, mode) {
-    setError('');
+  function exportBoardCanonicalJsonObject(bd) {
     const mCtrl = getModalMotionControls(bd);
+    if (hasWindow && window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.exportMotionJson === 'function') {
+      const exported = window.MinNoteMotionBridge.exportMotionJson({
+        mode: 'full',
+        includeExports: false,
+        preset: mCtrl.preset,
+        defaultEffect: mCtrl.defaultEffect,
+        handPen: mCtrl.handPen,
+        followCamera: mCtrl.followCamera,
+        orbit3d: mCtrl.orbit3d,
+        loop: mCtrl.loop
+      });
+      if (exported && typeof exported === 'object') {
+        const cleanObj = { ...exported };
+        delete cleanObj.exports;
+        return cleanObj;
+      }
+      if (typeof exported === 'string' && exported.trim()) {
+        const parsed = JSON.parse(exported);
+        if (parsed && typeof parsed === 'object') delete parsed.exports;
+        return parsed;
+      }
+    }
+
+    // Clean local fallback reading current board geometry
+    const b = getBoard();
+    const pageIdx = b && typeof b.currentPage === 'function' ? b.currentPage() : 0;
+    const pg = b && b.doc && Array.isArray(b.doc.pages) ? b.doc.pages[pageIdx] : null;
+    if (!pg || !pg.geo || !Object.keys(pg.geo.points || {}).length) {
+      return null;
+    }
+    const ops = convertGeometryBlockToOps({
+      points: Object.values(pg.geo.points || {}),
+      shapes: pg.geo.shapes || []
+    });
+    return {
+      schema: 'mn-geo-motion/2.0',
+      meta: { title: 'Hình từ MinNote', exportedAt: new Date().toISOString() },
+      ops,
+      geometry: {
+        points: Object.values(pg.geo.points || {}),
+        shapes: pg.geo.shapes || []
+      },
+      motion: {
+        preset: mCtrl.preset,
+        defaultEffect: mCtrl.defaultEffect,
+        fps: 24,
+        durationSec: 8,
+        holdEndSec: 1,
+        loop: mCtrl.loop,
+        handPen: mCtrl.handPen,
+        followCamera: mCtrl.followCamera,
+        orbit3d: mCtrl.orbit3d,
+        steps: []
+      }
+    };
+  }
+
+  async function saveJsonFileToDisk(jsonText, titleHint) {
+    const slug = String(titleHint || 'hinh_minnote')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .toLowerCase() || 'hinh_minnote';
+    const fileName = `${slug}.json`;
+
+    if (hasWindow && window.MinNoteMeaSync && typeof window.MinNoteMeaSync.isDesktopBridge === 'function' && window.MinNoteMeaSync.isDesktopBridge()) {
+      try {
+        const res = await window.MinNoteMeaSync.request('SAVE_MEDIA_FILE', {
+          fileName,
+          ext: '.json',
+          textData: jsonText
+        });
+        if (res) {
+          if (!res.cancelled) {
+            showAppToast(`💾 Đã lưu tệp "${res.fileName || fileName}" và chép vào Clipboard!`, 'success');
+          }
+          return res;
+        }
+      } catch {}
+    }
+
+    if (hasDoc) {
+      const blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      showAppToast(`💾 Đã lưu tệp "${fileName}" và chép vào Clipboard!`, 'success');
+    }
+    return { fileName };
+  }
+
+  async function handleExportMotionJson(bd, saveToDisk = false) {
+    setError('');
     const jsonTa = bd.querySelector('#mn-ag-json-input');
 
     try {
-      let exported = null;
-      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.exportMotionJson === 'function') {
-        exported = window.MinNoteMotionBridge.exportMotionJson({
-          mode,
-          preset: mCtrl.preset,
-          defaultEffect: mCtrl.defaultEffect,
-          handPen: mCtrl.handPen,
-          followCamera: mCtrl.followCamera,
-          orbit3d: mCtrl.orbit3d,
-          loop: mCtrl.loop
-        });
-      } else {
-        // Clean local fallback reading current board geometry
-        const b = getBoard();
-        const pageIdx = b && typeof b.currentPage === 'function' ? b.currentPage() : 0;
-        const pg = b && b.doc && Array.isArray(b.doc.pages) ? b.doc.pages[pageIdx] : null;
-        if (!pg || !pg.geo || !Object.keys(pg.geo.points || {}).length) {
-          throw new Error('Trên trang hiện tại chưa có hình học nào để xuất JSON.');
+      let exported = exportBoardCanonicalJsonObject(bd);
+      if (!exported && saveToDisk && jsonTa) {
+        const curRaw = (jsonTa.value || '').trim();
+        if (curRaw && !isPastedPromptText(curRaw)) {
+          const healed = validateAndHealAiGeoPlan(curRaw, getModalMotionControls(bd));
+          const cleanCopy = { ...healed };
+          delete cleanCopy.healReport;
+          if (!cleanCopy.schema) cleanCopy.schema = 'mn-geo-motion/2.0';
+          exported = cleanCopy;
         }
-        const ops = convertGeometryBlockToOps({
-          points: Object.values(pg.geo.points || {}),
-          shapes: pg.geo.shapes || []
-        });
-        exported = mode === 'compact_llm'
-          ? {
-              schema: 'mn-geo-motion/2.0',
-              meta: { title: 'Hình từ MinNote' },
-              ops,
-              motion: {
-                preset: mCtrl.preset,
-                defaultEffect: mCtrl.defaultEffect,
-                loop: mCtrl.loop,
-                handPen: mCtrl.handPen,
-                followCamera: mCtrl.followCamera,
-                orbit3d: mCtrl.orbit3d
-              }
-            }
-          : {
-              schema: 'mn-geo-motion/2.0',
-              meta: { title: 'Hình từ MinNote', exportedAt: new Date().toISOString() },
-              ops,
-              geometry: {
-                points: Object.values(pg.geo.points || {}),
-                shapes: pg.geo.shapes || []
-              },
-              motion: {
-                preset: mCtrl.preset,
-                defaultEffect: mCtrl.defaultEffect,
-                fps: 24,
-                durationSec: 8,
-                holdEndSec: 1,
-                loop: mCtrl.loop,
-                handPen: mCtrl.handPen,
-                followCamera: mCtrl.followCamera,
-                orbit3d: mCtrl.orbit3d,
-                steps: []
-              }
-            };
       }
 
       if (!exported) {
-        throw new Error('Chưa có đối tượng hình học nào trên trang để xuất JSON.');
+        throw new Error('Trên trang hiện tại chưa có đối tượng hình học nào để xuất ra JSON.');
       }
-      const jsonText = typeof exported === 'string'
-        ? exported
-        : JSON.stringify(exported, null, mode === 'compact_llm' ? 0 : 2);
+
+      const jsonText = JSON.stringify(exported, null, 2);
       if (jsonTa) {
-        jsonTa.value = typeof exported === 'string' ? exported : JSON.stringify(exported, null, 2);
+        jsonTa.value = jsonText;
         updateJsonPreviewStats();
       }
       await copyTextSafe(jsonText);
-      showAppToast(
-        mode === 'compact_llm'
-          ? '🤖 Đã chép JSON Gọn cho AI khác vào Clipboard!'
-          : '📤 Đã xuất & chép JSON Chuẩn (mn-geo-motion/2.0) vào Clipboard!',
-        'success'
-      );
+
+      if (saveToDisk) {
+        const titleHint = (exported.meta && exported.meta.title) || exported.title || 'hinh_minnote';
+        await saveJsonFileToDisk(jsonText, titleHint);
+      } else {
+        showAppToast('📋 Đã chép JSON chuẩn (mn-geo-motion/2.0) từ bảng vào Clipboard!', 'success');
+      }
     } catch (err) {
       setError((err && err.message) ? err.message : 'Không thể xuất JSON hình học.');
     }
@@ -4967,7 +5144,12 @@ ${prob}`;
     if (!statsEl) return;
 
     if (!raw) {
-      statsEl.innerHTML = '<span class="mn-ag-stat-pill">Hỗ trợ mn-geo-motion/2.0 · AI ops JSON · BetaTikz tikzvid-project/1</span>';
+      statsEl.innerHTML = '<span class="mn-ag-stat-pill">Tự động kiểm chứng &amp; sửa lỗi ràng buộc chuẩn mn-geo-motion/2.0</span>';
+      return;
+    }
+
+    if (isPastedPromptText(raw)) {
+      statsEl.innerHTML = '<span class="mn-ag-stat-pill info">ℹ Đây là nội dung Prompt mẫu — hãy dán vào ChatGPT/Claude/Gemini rồi chép khối JSON kết quả dán lại vào ô này.</span>';
       return;
     }
 
@@ -4985,9 +5167,9 @@ ${prob}`;
       }
 
       const rep = precomputedReport || validateAndHealAiGeoPlan(raw, getModalMotionControls(bd)).healReport;
-      const schemaTag = (parsed && parsed.schema) ? String(parsed.schema) : 'AI ops JSON';
+      const schemaTag = (parsed && parsed.schema) ? String(parsed.schema) : 'mn-geo-motion/2.0';
       const pills = [
-        `<span class="mn-ag-stat-pill ok">${schemaTag}</span>`,
+        `<span class="mn-ag-stat-pill ok">✓ ${schemaTag}</span>`,
         `<span class="mn-ag-stat-pill">${rep.stats.pointCount} điểm · ${rep.stats.totalOps} lệnh (${rep.stats.is3D ? '3D' : '2D'})</span>`
       ];
       if (rep.fixedCount > 0) {
@@ -5009,7 +5191,12 @@ ${prob}`;
     if (!bd || !b) return;
     const raw = (bd.querySelector('#mn-ag-json-input').value || '').trim();
     if (!raw) {
-      setError('Vui lòng dán JSON dựng hình hoặc chọn tệp .json / .betatikz.json trước khi nạp.');
+      setError('Vui lòng dán khối JSON dựng hình hoặc chọn tệp .json trước khi dựng lên bảng.');
+      return;
+    }
+    if (isPastedPromptText(raw)) {
+      setError('Ô nhập đang chứa nội dung Prompt hướng dẫn. Hãy gửi Prompt này cho AI (ChatGPT/Claude/Gemini) rồi dán kết quả JSON trả về vào đây.');
+      updateJsonPreviewStats();
       return;
     }
 
@@ -5745,6 +5932,7 @@ ${prob}`;
       });
     },
     AI_GEO_SYSTEM_PROMPT,
+    buildDetailedExternalPrompt,
     buildCompactExternalPrompt,
     parseMathNumber,
     sanitizeLlmJsonText,
@@ -5781,7 +5969,11 @@ ${prob}`;
         e.preventDefault();
         if (modalState.tab === 'ai') runAiConstruction();
         else if (modalState.tab === 'tikz') runTikzImport(true);
-        else if (modalState.tab === 'json') runJsonImport(true);
+        else if (modalState.tab === 'json') {
+          const bd = document.getElementById('mn-ai-geo-backdrop');
+          const animChk = bd && bd.querySelector('#mn-ag-json-animate');
+          runJsonImport(animChk ? !!animChk.checked : true);
+        }
       }
     });
   }

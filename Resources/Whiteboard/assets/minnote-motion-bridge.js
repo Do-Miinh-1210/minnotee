@@ -2093,47 +2093,57 @@
       };
     }
 
-    // Default: 'full' (`mn-geo-motion/2.0`)
-    const betaAnim = exportBetaTikzAnimated(Object.assign({}, opts, { _prebuiltModel: model }));
-    const w = getWin();
-    let tikzExporter = (w && w.MinNoteTikzExport) || null;
-    if (!tikzExporter && typeof require === 'function') {
-      try { tikzExporter = require('./minnote-tikz-exporter.js'); } catch (_) {}
-    }
-    let tikzStatic = '';
-    if (tikzExporter && typeof tikzExporter.generateTikz === 'function') {
-      try {
-        tikzStatic = tikzExporter.generateTikz(model.rawGeo).code || '';
-      } catch (_) {}
-    }
-    if (!tikzStatic) {
-      // Exact static TikZ fallback preserving symbolic/5-decimal precision
-      const sLines = ['\\begin{tikzpicture}[every node/.style={font=\\normalsize}]'];
-      const ptMap = new Map(model.points.map((x) => [x.id, x]));
-      for (const p of model.points) {
-        const d = p.def || {};
-        let cExpr = `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`;
-        if (d.t === 'mid' && ptMap.has(d.a) && ptMap.has(d.b)) {
-          cExpr = `($(${ptMap.get(d.a).tikzId})!0.5!(${ptMap.get(d.b).tikzId})$)`;
-        } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2) && [...d.l1, ...d.l2].every((k) => ptMap.has(k))) {
-          cExpr = `(intersection of ${ptMap.get(d.l1[0]).tikzId}--${ptMap.get(d.l1[1]).tikzId} and ${ptMap.get(d.l2[0]).tikzId}--${ptMap.get(d.l2[1]).tikzId})`;
-        }
-        sLines.push(`\\coordinate (${p.tikzId}) at ${cExpr};`);
+    // Default: 'full' or 'canonical' (`mn-geo-motion/2.0`)
+    const omitExports = opts.includeExports === false || mode === 'canonical';
+    let exportsPayload = undefined;
+
+    if (!omitExports) {
+      const betaAnim = exportBetaTikzAnimated(Object.assign({}, opts, { _prebuiltModel: model }));
+      const w = getWin();
+      let tikzExporter = (w && w.MinNoteTikzExport) || null;
+      if (!tikzExporter && typeof require === 'function') {
+        try { tikzExporter = require('./minnote-tikz-exporter.js'); } catch (_) {}
       }
-      for (const sh of model.shapes) {
-        if (sh.kind === 'segment' && sh.pts.length >= 2) {
-          const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
-          if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) -- (${v.tikzId});`);
-        } else if (sh.kind === 'circle' && sh.pts.length >= 2) {
-          const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
-          if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) circle[radius=${fmtNum(dist2(u, v), 5)}];`);
-        }
+      let tikzStatic = '';
+      if (tikzExporter && typeof tikzExporter.generateTikz === 'function') {
+        try {
+          tikzStatic = tikzExporter.generateTikz(model.rawGeo).code || '';
+        } catch (_) {}
       }
-      sLines.push('\\end{tikzpicture}');
-      tikzStatic = sLines.join('\n');
+      if (!tikzStatic) {
+        // Exact static TikZ fallback preserving symbolic/5-decimal precision
+        const sLines = ['\\begin{tikzpicture}[every node/.style={font=\\normalsize}]'];
+        const ptMap = new Map(model.points.map((x) => [x.id, x]));
+        for (const p of model.points) {
+          const d = p.def || {};
+          let cExpr = `(${fmtNum(p.x, 5)},${fmtNum(p.y, 5)})`;
+          if (d.t === 'mid' && ptMap.has(d.a) && ptMap.has(d.b)) {
+            cExpr = `($(${ptMap.get(d.a).tikzId})!0.5!(${ptMap.get(d.b).tikzId})$)`;
+          } else if (d.t === 'inter' && !d.c1 && !d.c2 && Array.isArray(d.l1) && Array.isArray(d.l2) && [...d.l1, ...d.l2].every((k) => ptMap.has(k))) {
+            cExpr = `(intersection of ${ptMap.get(d.l1[0]).tikzId}--${ptMap.get(d.l1[1]).tikzId} and ${ptMap.get(d.l2[0]).tikzId}--${ptMap.get(d.l2[1]).tikzId})`;
+          }
+          sLines.push(`\\coordinate (${p.tikzId}) at ${cExpr};`);
+        }
+        for (const sh of model.shapes) {
+          if (sh.kind === 'segment' && sh.pts.length >= 2) {
+            const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
+            if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) -- (${v.tikzId});`);
+          } else if (sh.kind === 'circle' && sh.pts.length >= 2) {
+            const u = ptMap.get(sh.pts[0]), v = ptMap.get(sh.pts[1]);
+            if (u && v) sLines.push(`\\draw[${sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt'}] (${u.tikzId}) circle[radius=${fmtNum(dist2(u, v), 5)}];`);
+          }
+        }
+        sLines.push('\\end{tikzpicture}');
+        tikzStatic = sLines.join('\n');
+      }
+      exportsPayload = {
+        tikzStatic,
+        tikzBetaAnimated: betaAnim.outTikz,
+        betatikzProject: betaAnim.betatikzProject
+      };
     }
 
-    return {
+    const outObj = {
       schema: SCHEMA_VERSION,
       meta: {
         title: model.title,
@@ -2176,13 +2186,12 @@
         orbit3d: model.motion.orbit3d,
         cameraKeyframes: model.motion.cameraKeyframes,
         steps: model.motion.steps
-      },
-      exports: {
-        tikzStatic,
-        tikzBetaAnimated: betaAnim.outTikz,
-        betatikzProject: betaAnim.betatikzProject
       }
     };
+    if (exportsPayload) {
+      outObj.exports = exportsPayload;
+    }
+    return outObj;
   }
 
   // ============================================================================
@@ -4158,8 +4167,26 @@
     refreshStudioContent();
   }
 
-  function openStudioModal(defaultTab) {
+  function openStudioModal(defaultTab, opts) {
     registerMotionFxShortAliases();
+    const w = getWin();
+    const tabKey = String(defaultTab || 'betatikz').trim().toLowerCase();
+    const isJsonRoute =
+      tabKey === 'json' ||
+      tabKey === 'export_json' ||
+      tabKey === 'import_json' ||
+      tabKey === 'import';
+
+    if (isJsonRoute) {
+      if (w && w.MinNoteAiGeo && typeof w.MinNoteAiGeo.open === 'function') {
+        return w.MinNoteAiGeo.open(Object.assign({}, opts || {}, { tab: 'json' }));
+      }
+    } else {
+      if (w && w.MinNoteTikzExport && typeof w.MinNoteTikzExport.openModal === 'function') {
+        return w.MinNoteTikzExport.openModal(Object.assign({}, opts || {}, { mode: 'animated' }));
+      }
+    }
+
     const el = ensureStudioModal();
     setStudioTab(defaultTab || 'betatikz');
     el.classList.add('open');
@@ -4175,27 +4202,57 @@
   }
 
   // ============================================================================
-  // 10. REPLAY PANEL QUICK PILL INJECTION (MutationObserver — NO EDITS TO geo-motion-replay.js!)
+  // 10. REPLAY PANEL QUICK PILLS INJECTION (MutationObserver — NO EDITS TO geo-motion-replay.js!)
   // ============================================================================
   function injectReplayPanelQuickPill() {
     if (typeof document === 'undefined') return;
     const panel = document.getElementById('mn-replay-panel') || document.getElementById('mn-geo-replay-panel');
     if (!panel) return;
     const toolsBar = panel.querySelector('.mn-rp-tools-bar');
-    if (!toolsBar || toolsBar.querySelector('#mn-rp-motion-bridge')) return;
+    if (!toolsBar) return;
 
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'mn-rp-motion-bridge';
-    btn.className = 'mn-rp-tool-btn mn-rp-bridge-pill';
-    btn.title = 'Xuất TikZ Chuyển Động, dự án BetaTikz (.betatikz.json) hoặc JSON Đa Năng (Ctrl+Alt+J)';
-    btn.innerHTML = '🔄 <span>JSON / BetaTikz</span>';
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openStudioModal('betatikz');
-    });
-    toolsBar.appendChild(btn);
+    const legacyMixedBtn = toolsBar.querySelector('#mn-rp-motion-bridge');
+    if (legacyMixedBtn) legacyMixedBtn.remove();
+
+    if (!toolsBar.querySelector('#mn-rp-tikz-anim')) {
+      const tikzBtn = document.createElement('button');
+      tikzBtn.type = 'button';
+      tikzBtn.id = 'mn-rp-tikz-anim';
+      tikzBtn.className = 'mn-rp-tool-btn mn-rp-tikz-pill';
+      tikzBtn.title = 'Xem & sao chép mã TikZ Chuyển Động / BetaTikz';
+      tikzBtn.innerHTML = '📐 <span>TikZ Động</span>';
+      tikzBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const w = getWin();
+        if (w && w.MinNoteTikzExport && typeof w.MinNoteTikzExport.openModal === 'function') {
+          w.MinNoteTikzExport.openModal({ mode: 'animated' });
+        } else {
+          openStudioModal('betatikz');
+        }
+      });
+      toolsBar.appendChild(tikzBtn);
+    }
+
+    if (!toolsBar.querySelector('#mn-rp-json-io')) {
+      const jsonBtn = document.createElement('button');
+      jsonBtn.type = 'button';
+      jsonBtn.id = 'mn-rp-json-io';
+      jsonBtn.className = 'mn-rp-tool-btn mn-rp-json-pill';
+      jsonBtn.title = 'Nạp hoặc lưu JSON hình học & chuyển động';
+      jsonBtn.innerHTML = '📦 <span>JSON</span>';
+      jsonBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const w = getWin();
+        if (w && w.MinNoteAiGeo && typeof w.MinNoteAiGeo.open === 'function') {
+          w.MinNoteAiGeo.open({ tab: 'json' });
+        } else {
+          openStudioModal('json');
+        }
+      });
+      toolsBar.appendChild(jsonBtn);
+    }
   }
 
   function initBrowserIntegrations() {
@@ -4227,10 +4284,39 @@
 
     w.addEventListener('keydown', (e) => {
       if (e.defaultPrevented) return;
-      if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'j' || e.key === 'J')) {
         e.preventDefault();
-        if (isStudioOpen()) closeStudioModal();
-        else openStudioModal('betatikz');
+        if (e.shiftKey) {
+          if (w.MinNoteTikzExport && typeof w.MinNoteTikzExport.openModal === 'function') {
+            const animAlreadyOpen =
+              typeof w.MinNoteTikzExport.isOpen === 'function' &&
+              w.MinNoteTikzExport.isOpen() &&
+              typeof w.MinNoteTikzExport.getMode === 'function' &&
+              w.MinNoteTikzExport.getMode() === 'animated';
+            if (animAlreadyOpen && typeof w.MinNoteTikzExport.closeModal === 'function') {
+              w.MinNoteTikzExport.closeModal();
+            } else {
+              w.MinNoteTikzExport.openModal({ mode: 'animated' });
+            }
+          } else if (isStudioOpen()) {
+            closeStudioModal();
+          } else {
+            openStudioModal('betatikz');
+          }
+          return;
+        }
+
+        if (w.MinNoteAiGeo && typeof w.MinNoteAiGeo.open === 'function') {
+          if (typeof w.MinNoteAiGeo.isOpen === 'function' && w.MinNoteAiGeo.isOpen() && typeof w.MinNoteAiGeo.close === 'function') {
+            w.MinNoteAiGeo.close();
+          } else {
+            w.MinNoteAiGeo.open({ tab: 'json' });
+          }
+        } else if (isStudioOpen()) {
+          closeStudioModal();
+        } else {
+          openStudioModal('json');
+        }
         return;
       }
       if (e.key === 'Escape' && isStudioOpen()) {

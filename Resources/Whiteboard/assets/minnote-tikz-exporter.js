@@ -1870,10 +1870,20 @@
   }
 
   // ============================================================================
-  // 7. STUDIO MODAL UI (Live Editor + Preflight + Compile Preview + AI + MEA Push)
+  // 7. UNIFIED TIKZ STUDIO MODAL (Static Textbook TikZ + Animated BetaTikz)
   // ============================================================================
   let modalBackdrop = null;
   let lastRenderedPng = '';
+  let currentMode = 'static'; // 'static' | 'animated'
+  let animState = {
+    fmt: 'out_tikz', // 'out_tikz' | 'animate'
+    fps: 24,
+    durationSec: 8,
+    preset: '', // '' | 'domiinh' | 'manim' | '3d_standard'
+    loop: true,
+    allowDemoFallback: false,
+    lastResult: null
+  };
 
   const DOMIINH_AI_SYSTEM_PROMPT =
     'Bạn là chuyên gia TikZ Toán học phong cách Thầy Đỗ Minh (MatrixExamAI Pro v5). ' +
@@ -1882,10 +1892,57 @@
     'cạnh khuất dashed line width=0.4pt, cạnh thấy line width=0.6pt, điểm circle (0.4pt) và nhãn \\foreach \\p/\\g dùng shift={(\\g:9pt)}. ' +
     'CHỈ trả về đúng một khối \\begin{tikzpicture}...\\end{tikzpicture}, không giải thích thêm.';
 
+  const ANIM_FX_CLASSES = new Set([
+    'draw', 'chalk', 'glow', 'pop', 'pulse', 'fade', 'wipe', 'stamp'
+  ]);
+
   function extractTikzBlock(text) {
     const raw = String(text || '').trim();
     const m = raw.match(/\\begin\{(tikzpicture|circuitikz)\}[\s\S]*?\\end\{\1\}/);
     return m ? m[0].trim() : raw.replace(/^```[a-z]*\s*/i, '').replace(/```$/i, '').trim();
+  }
+
+  async function copyEditorText(txt, fallbackEl, msg) {
+    const clean = String(txt || '').trim();
+    if (!clean) return;
+    try {
+      await navigator.clipboard.writeText(clean);
+      toast(msg || '📋 Đã sao chép mã TikZ!');
+    } catch (_) {
+      if (fallbackEl && typeof fallbackEl.select === 'function') {
+        fallbackEl.select();
+        document.execCommand('copy');
+      }
+      toast(msg || '📋 Đã sao chép mã TikZ!');
+    }
+  }
+
+  async function saveMediaOrBlob(textData, fileName, ext, mime) {
+    const clean = String(textData || '').trim();
+    if (!clean) return;
+    if (typeof window !== 'undefined' && window.MinNoteMeaSync && typeof window.MinNoteMeaSync.isDesktopBridge === 'function' && window.MinNoteMeaSync.isDesktopBridge()) {
+      try {
+        const res = await window.MinNoteMeaSync.request('SAVE_MEDIA_FILE', {
+          fileName,
+          ext,
+          textData: clean
+        });
+        if (res && !res.cancelled) toast('💾 Đã lưu tệp ' + (res.fileName || fileName));
+        return;
+      } catch (err) {
+        toast('Lỗi lưu tệp: ' + (err.message || err));
+        return;
+      }
+    }
+    const blob = new Blob([clean], { type: mime || 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('💾 Đã lưu tệp ' + fileName);
   }
 
   function ensureModal() {
@@ -1894,17 +1951,26 @@
     el.id = 'mn-tikz-export-backdrop';
     el.className = 'mn-v80-backdrop';
     el.innerHTML = `
-      <div class="mn-v80-modal wide" role="dialog" aria-modal="true" aria-label="Xuất mã TikZ chuẩn số nguyên DoMinhMath">
-        <div class="mn-v80-head">
-          <div class="mn-v80-title">
-            <span>📐 Xuất mã TikZ Chuẩn Số Nguyên (DoMinhMath / MEA v5)</span>
-            <span class="mn-v80-badge ok" id="mn-tikz-pf-badge">Preflight</span>
+      <div class="mn-v80-modal wide" role="dialog" aria-modal="true" aria-label="Xuất mã TikZ Tĩnh &amp; TikZ Chuyển Động">
+        <div class="mn-v80-head mn-tikz-head">
+          <div class="mn-tikz-head-left">
+            <div class="mn-v80-title">
+              <span>📐 Xuất TikZ</span>
+            </div>
+            <div class="mn-tikz-mode-switch" role="tablist" aria-label="Chế độ xuất TikZ">
+              <button type="button" role="tab" aria-selected="true" class="mn-tikz-mode-btn active" id="mn-tikz-tab-static" data-tikz-mode="static">📐 TikZ Tĩnh (Chuẩn SGK)</button>
+              <button type="button" role="tab" aria-selected="false" class="mn-tikz-mode-btn" id="mn-tikz-tab-animated" data-tikz-mode="animated">🎬 TikZ Chuyển Động (BetaTikz)</button>
+            </div>
           </div>
-          <button type="button" class="mn-v80-close" id="mn-tikz-close" title="Đóng">✕</button>
+          <div class="mn-tikz-head-right">
+            <span class="mn-v80-badge ok" id="mn-tikz-pf-badge">Preflight</span>
+            <button type="button" class="mn-v80-close" id="mn-tikz-close" title="Đóng (Esc)">✕</button>
+          </div>
         </div>
+
         <div class="mn-v80-body">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+          <div class="mn-tikz-opts-bar">
+            <div class="mn-tikz-static-opts" id="mn-tikz-static-opts">
               <label class="mn-v80-toggle">
                 <input type="checkbox" id="mn-tikz-opt-strict" />
                 <span>Số nguyên nghiêm ngặt (Z²)</span>
@@ -1922,36 +1988,111 @@
                 <span>Tô gạch chéo thiết diện</span>
               </label>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <button type="button" class="mn-v80-btn sm primary" id="mn-tikz-open-betatikz" title="Mở Studio TikZ Chuyển Động, xuất dự án BetaTikz (.betatikz.json) &amp; JSON (Ctrl+Alt+J)">🎬 TikZ Chuyển Động / BetaTikz &amp; JSON</button>
-              <button type="button" class="mn-v80-btn sm" id="mn-tikz-open-json" title="Xuất chuẩn JSON Đa Năng mn-geo-motion/2.0 cho các mô hình AI hoặc ứng dụng khác">📤 Xuất JSON</button>
-              <button type="button" class="mn-v80-btn sm" id="mn-tikz-regen">🔄 Tạo lại từ bảng vẽ</button>
+
+            <div class="mn-tikz-anim-opts" id="mn-tikz-anim-opts" style="display:none;">
+              <div class="mn-tikz-fmt-group" role="group" aria-label="Định dạng mã TikZ Động">
+                <button type="button" class="mn-tikz-fmt-pill active" data-anim-fmt="out_tikz">out_tikz (\\t ∈ [0,1])</button>
+                <button type="button" class="mn-tikz-fmt-pill" data-anim-fmt="animate">LaTeX animateinline</button>
+              </div>
+              <label class="mn-tikz-ctrl-inline">
+                <span>FPS</span>
+                <select id="mn-tikz-anim-fps" class="mn-tikz-inline-select">
+                  <option value="24" selected>24 FPS</option>
+                  <option value="30">30 FPS</option>
+                  <option value="60">60 FPS</option>
+                </select>
+              </label>
+              <label class="mn-tikz-ctrl-inline">
+                <span>Thời lượng</span>
+                <select id="mn-tikz-anim-dur" class="mn-tikz-inline-select">
+                  <option value="6">6s</option>
+                  <option value="8" selected>8s</option>
+                  <option value="10">10s</option>
+                  <option value="12">12s</option>
+                  <option value="16">16s</option>
+                </select>
+              </label>
+              <label class="mn-tikz-ctrl-inline">
+                <span>Phong cách</span>
+                <select id="mn-tikz-anim-preset" class="mn-tikz-inline-select">
+                  <option value="" selected>Theo kịch bản</option>
+                  <option value="domiinh">✨ Đỗ Miinh</option>
+                  <option value="manim">🎬 Manim</option>
+                  <option value="3d_standard">🧊 3D Chuẩn</option>
+                </select>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-anim-loop" checked />
+                <span>🔁 Vòng lặp mượt</span>
+              </label>
             </div>
+
+            <button type="button" class="mn-v80-btn sm" id="mn-tikz-regen">🔄 Tạo lại từ bảng</button>
           </div>
 
           <div class="mn-tikz-split">
-            <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;flex-direction:column;gap:8px;min-width:0;">
               <textarea id="mn-tikz-code" class="mn-tikz-editor" spellcheck="false" placeholder="% Mã TikZ sẽ xuất hiện ở đây..."></textarea>
               <div id="mn-tikz-stats" style="font-size:11.5px;color:var(--mn80-text-muted);"></div>
             </div>
 
-            <div class="mn-tikz-preview-pane">
+            <div class="mn-tikz-preview-pane" id="mn-tikz-static-side">
               <div class="mn-tikz-preview-stage empty" id="mn-tikz-preview-stage">
                 <div style="max-width:300px;line-height:1.55;">Nhấn <b>"▶ Biên dịch xem thử"</b> để xem ảnh kết quả biên dịch bằng LaTeX/TikZ.</div>
               </div>
               <div class="mn-tikz-diag-list" id="mn-tikz-diag-list"></div>
             </div>
+
+            <div class="mn-tikz-preview-pane mn-tikz-anim-side" id="mn-tikz-anim-side" style="display:none;">
+              <div class="mn-tikz-anim-card">
+                <div class="mn-tikz-anim-card-head">
+                  <strong>Trục thời gian diễn hoạt \\t ∈ [0, 1]</strong>
+                  <span id="mn-tikz-anim-summary">0 điểm • 0 nét • 0 bước</span>
+                </div>
+                <div class="mn-tikz-anim-timeline" id="mn-tikz-anim-timeline"></div>
+                <div class="mn-tikz-anim-step-list" id="mn-tikz-anim-steps"></div>
+              </div>
+
+              <div class="mn-tikz-anim-empty-box" id="mn-tikz-anim-empty-box" style="display:none;">
+                <div>Trang hiện tại chưa có hình học để sinh kịch bản TikZ Động. Bạn có thể nạp nhanh hình mẫu để xem thử ngay:</div>
+                <button type="button" class="mn-v80-btn sm primary" id="mn-tikz-anim-load-demo">🚀 Chèn mẫu Chóp S.ABCD lên bảng để thử ngay</button>
+              </div>
+
+              <div class="mn-tikz-anim-card mn-tikz-anim-guide">
+                <div class="mn-tikz-anim-card-head">
+                  <strong>Hướng dẫn sử dụng nhanh</strong>
+                </div>
+                <div class="mn-tikz-guide-item">
+                  <b>1. BetaTikz:</b> Bấm <b>Sao chép TikZ Động</b> (chế độ <code>out_tikz</code>) để dán thẳng vào BetaTikz, hoặc bấm <b>Lưu gói <code>.betatikz.json</code></b> để mở trực tiếp dự án Video Loop trong BetaTikz.
+                </div>
+                <div class="mn-tikz-guide-item">
+                  <b>2. LaTeX / Overleaf:</b> Chọn <b>LaTeX animateinline</b> rồi bấm <b>Lưu <code>.tex</code></b> để biên dịch PDF chuyển động độc lập.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="mn-v80-foot">
+
+        <div class="mn-v80-foot" id="mn-tikz-foot-static">
           <div class="mn-v80-foot-group">
-            <button type="button" class="mn-v80-btn" id="mn-tikz-copy">📋 Sao chép</button>
+            <button type="button" class="mn-v80-btn primary" id="mn-tikz-copy">📋 Sao chép TikZ</button>
             <button type="button" class="mn-v80-btn" id="mn-tikz-save">💾 Lưu .tex</button>
             <button type="button" class="mn-v80-btn" id="mn-tikz-compile">▶ Biên dịch xem thử</button>
           </div>
           <div class="mn-v80-foot-group">
             <button type="button" class="mn-v80-btn" id="mn-tikz-ai">✨ AI tối ưu chuẩn MEA v5</button>
             <button type="button" class="mn-v80-btn primary" id="mn-tikz-push">📤 Đẩy sang Kho hình MatrixExamAI Pro</button>
+          </div>
+        </div>
+
+        <div class="mn-v80-foot" id="mn-tikz-foot-anim" style="display:none;">
+          <div class="mn-v80-foot-group">
+            <button type="button" class="mn-v80-btn primary" id="mn-tikz-anim-copy">📋 Sao chép TikZ Động</button>
+            <button type="button" class="mn-v80-btn" id="mn-tikz-anim-save-tex">💾 Lưu .tex</button>
+            <button type="button" class="mn-v80-btn success" id="mn-tikz-anim-save-bt">📦 Lưu gói .betatikz.json</button>
+          </div>
+          <div class="mn-v80-foot-group">
+            <button type="button" class="mn-v80-btn" id="mn-tikz-anim-video">🎥 Xuất Video MP4 / GIF</button>
           </div>
         </div>
       </div>
@@ -1965,11 +2106,31 @@
     const statsEl = el.querySelector('#mn-tikz-stats');
     const stageEl = el.querySelector('#mn-tikz-preview-stage');
 
+    const tabStaticBtn = el.querySelector('#mn-tikz-tab-static');
+    const tabAnimBtn = el.querySelector('#mn-tikz-tab-animated');
+    const staticOptsEl = el.querySelector('#mn-tikz-static-opts');
+    const animOptsEl = el.querySelector('#mn-tikz-anim-opts');
+    const staticSideEl = el.querySelector('#mn-tikz-static-side');
+    const animSideEl = el.querySelector('#mn-tikz-anim-side');
+    const footStaticEl = el.querySelector('#mn-tikz-foot-static');
+    const footAnimEl = el.querySelector('#mn-tikz-foot-anim');
+
+    const animSummaryEl = el.querySelector('#mn-tikz-anim-summary');
+    const animTimelineEl = el.querySelector('#mn-tikz-anim-timeline');
+    const animStepsEl = el.querySelector('#mn-tikz-anim-steps');
+    const animEmptyBox = el.querySelector('#mn-tikz-anim-empty-box');
+
     const close = () => el.classList.remove('open');
     el.querySelector('#mn-tikz-close').addEventListener('click', close);
     el.addEventListener('click', (e) => { if (e.target === el) close(); });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && el.classList.contains('open')) {
+        e.preventDefault();
+        close();
+      }
+    });
 
-    const readOpts = () => ({
+    const readStaticOpts = () => ({
       strictInteger: !!el.querySelector('#mn-tikz-opt-strict').checked,
       allowHalf: !el.querySelector('#mn-tikz-opt-strict').checked,
       useForeach: !!el.querySelector('#mn-tikz-opt-foreach').checked,
@@ -1996,12 +2157,12 @@
       }).join('');
     };
 
-    const regenerate = () => {
+    const regenerateStatic = () => {
       lastRenderedPng = '';
-      const res = generateTikz(null, readOpts());
+      const res = generateTikz(null, readStaticOpts());
       if (!res.code) {
         codeArea.value = '% Chưa có đối tượng hình học nào trên trang hiện tại để xuất mã TikZ.';
-        statsEl.textContent = 'Hãy vẽ hình bằng công cụ Hình học MinNote (hoặc chọn một hình) rồi mở lại cửa sổ này.';
+        statsEl.textContent = 'Hãy vẽ hình bằng công cụ Hình học MinNote (hoặc dùng AI Hình) rồi mở lại cửa sổ này.';
         renderValidation(validateTikz(''));
         return;
       }
@@ -2014,67 +2175,221 @@
       renderValidation(res.validation);
     };
 
+    const updateAnimBadge = () => {
+      pfBadge.className = 'mn-v80-badge ok';
+      pfBadge.textContent = animState.fmt === 'animate' ? '🎬 animateinline' : '🎬 BetaTikz \\t ∈ [0,1]';
+    };
+
+    const regenerateAnimated = () => {
+      updateAnimBadge();
+      const bridge = typeof window !== 'undefined' ? window.MinNoteMotionBridge : null;
+      if (!bridge || typeof bridge.exportBetaTikzAnimated !== 'function') {
+        animState.lastResult = null;
+        codeArea.value = '% Chưa nạp mô-đun MinNoteMotionBridge.';
+        statsEl.textContent = 'Mô-đun TikZ Chuyển Động chưa sẵn sàng.';
+        animSummaryEl.textContent = '0 điểm • 0 nét • 0 bước';
+        animTimelineEl.innerHTML = '<div class="mn-tikz-tl-empty">Chưa sẵn sàng</div>';
+        animStepsEl.innerHTML = '';
+        animEmptyBox.style.display = 'none';
+        return;
+      }
+
+      const holdEndSec = Math.min(2.0, Math.max(0.6, Number((animState.durationSec * 0.125).toFixed(1))));
+      const res = bridge.exportBetaTikzAnimated({
+        fps: animState.fps,
+        durationSec: animState.durationSec,
+        holdEndSec,
+        loop: animState.loop,
+        preset: animState.preset || undefined,
+        forcePreset: !!animState.preset,
+        allowDemoFallback: !!animState.allowDemoFallback
+      });
+
+      if (!res || !res.outTikz) {
+        animState.lastResult = null;
+        codeArea.value =
+          '% Trang hiện tại chưa có hình học nào để xuất TikZ Chuyển Động.\n' +
+          '% Hãy vẽ hình trên bảng, mở "AI Hình" (Ctrl+Alt+G), hoặc bấm nút chèn hình mẫu ở cột bên phải.';
+        statsEl.textContent = 'Chưa có hình học trên trang hiện tại • Có thể bấm nút chèn mẫu Chóp S.ABCD bên phải để thử ngay.';
+        animSummaryEl.textContent = '0 điểm • 0 nét • 0 bước • 0 frames';
+        animTimelineEl.innerHTML = '<div class="mn-tikz-tl-empty">Chưa có kịch bản chuyển động trên trang</div>';
+        animStepsEl.innerHTML = '';
+        animEmptyBox.style.display = 'flex';
+        return;
+      }
+
+      animState.lastResult = res;
+      animEmptyBox.style.display = 'none';
+      codeArea.value = animState.fmt === 'animate' ? (res.animateInlineTex || res.outTikz) : res.outTikz;
+
+      const st = res.stats || { points: 0, shapes: 0, steps: 0, fps: animState.fps, durationSec: animState.durationSec };
+      const totalFrames = Math.round((st.fps || animState.fps) * (st.durationSec || animState.durationSec));
+      const summaryStr = `${st.points} điểm • ${st.shapes} nét • ${st.steps} bước • ${totalFrames} frames`;
+      animSummaryEl.textContent = summaryStr;
+      statsEl.textContent =
+        `Định dạng: ${animState.fmt === 'animate' ? 'LaTeX animateinline độc lập' : 'BetaTikz liên tục \\t ∈ [0,1]'} • ` +
+        `${summaryStr} (${st.fps} FPS, ${st.durationSec}s${animState.loop ? ', lặp mượt' : ''})`;
+
+      // Render visual timeline segments
+      const timelineSteps = Array.isArray(res.timeline) ? res.timeline : [];
+      const segHtml = timelineSteps.map((step, idx) => {
+        const [t0, t1] = Array.isArray(step.tRange) ? step.tRange : [0, 0.1];
+        const leftPct = (t0 * 100).toFixed(2);
+        const rawWidth = Math.max(1.5, (t1 - t0) * 100);
+        const widthPct = rawWidth.toFixed(2);
+        const fx = ANIM_FX_CLASSES.has(step.effect) ? step.effect : 'draw';
+        const stepTitle = step.customTitle || step.refId || `Bước ${idx + 1}`;
+        const segLabel = rawWidth >= 5.2 ? `B${idx + 1}` : (rawWidth >= 2.8 ? `${idx + 1}` : '');
+        return `<div class="mn-tikz-tl-seg fx-${fx}" style="left:${leftPct}%;width:${widthPct}%;" title="B${idx + 1} [${t0.toFixed(2)}..${t1.toFixed(2)}] (${escHtml(fx)}): ${escHtml(stepTitle)}">${segLabel}</div>`;
+      });
+      if (holdEndSec > 0 && animState.durationSec > 0) {
+        const hRatio = Math.min(0.38, Math.max(0.04, holdEndSec / animState.durationSec));
+        segHtml.push(
+          `<div class="mn-tikz-tl-seg fx-hold" style="left:${((1 - hRatio) * 100).toFixed(2)}%;width:${(hRatio * 100).toFixed(2)}%;" title="Giữ khung cuối (${holdEndSec}s)">Hold</div>`
+        );
+      }
+      animTimelineEl.innerHTML = segHtml.join('');
+
+      animStepsEl.innerHTML = timelineSteps.map((step, idx) => {
+        const [t0, t1] = Array.isArray(step.tRange) ? step.tRange : [0, 0.1];
+        const fx = step.effect || 'draw';
+        const stepTitle = step.customTitle || step.refId || `Bước ${idx + 1}`;
+        return (
+          `<div class="mn-tikz-step-row">` +
+            `<span class="mn-tikz-step-t">[${t0.toFixed(2)}..${t1.toFixed(2)}]</span>` +
+            `<span class="mn-tikz-step-fx">${escHtml(fx)}</span>` +
+            `<span class="mn-tikz-step-lbl">${escHtml(stepTitle)}</span>` +
+          `</div>`
+        );
+      }).join('');
+    };
+
+    const regenerate = () => {
+      if (currentMode === 'animated') regenerateAnimated();
+      else regenerateStatic();
+    };
+
+    const applyModeUI = (mode, opts) => {
+      currentMode = mode === 'animated' ? 'animated' : 'static';
+      if (opts && typeof opts === 'object') {
+        if (opts.fmt === 'animate' || opts.fmt === 'out_tikz') animState.fmt = opts.fmt;
+        if (Number.isFinite(Number(opts.fps)) && Number(opts.fps) > 0) animState.fps = Number(opts.fps);
+        if (Number.isFinite(Number(opts.durationSec)) && Number(opts.durationSec) > 0) animState.durationSec = Number(opts.durationSec);
+        if (opts.preset !== undefined) animState.preset = String(opts.preset || '');
+        if (opts.loop !== undefined) animState.loop = !!opts.loop;
+        animState.allowDemoFallback = !!opts.allowDemoFallback;
+      } else {
+        animState.allowDemoFallback = false;
+      }
+
+      const isAnim = currentMode === 'animated';
+      tabStaticBtn.classList.toggle('active', !isAnim);
+      tabStaticBtn.setAttribute('aria-selected', String(!isAnim));
+      tabAnimBtn.classList.toggle('active', isAnim);
+      tabAnimBtn.setAttribute('aria-selected', String(isAnim));
+
+      staticOptsEl.style.display = isAnim ? 'none' : 'flex';
+      animOptsEl.style.display = isAnim ? 'flex' : 'none';
+      staticSideEl.style.display = isAnim ? 'none' : 'flex';
+      animSideEl.style.display = isAnim ? 'flex' : 'none';
+      footStaticEl.style.display = isAnim ? 'none' : 'flex';
+      footAnimEl.style.display = isAnim ? 'flex' : 'none';
+
+      if (isAnim) {
+        el.querySelectorAll('[data-anim-fmt]').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.animFmt === animState.fmt);
+        });
+        const fpsSel = el.querySelector('#mn-tikz-anim-fps');
+        const durSel = el.querySelector('#mn-tikz-anim-dur');
+        const preSel = el.querySelector('#mn-tikz-anim-preset');
+        const loopChk = el.querySelector('#mn-tikz-anim-loop');
+        if (fpsSel && [...fpsSel.options].some((o) => Number(o.value) === animState.fps)) fpsSel.value = String(animState.fps);
+        if (durSel && [...durSel.options].some((o) => Number(o.value) === animState.durationSec)) durSel.value = String(animState.durationSec);
+        if (preSel) preSel.value = animState.preset;
+        if (loopChk) loopChk.checked = animState.loop;
+      }
+
+      regenerate();
+    };
+
+    tabStaticBtn.addEventListener('click', () => applyModeUI('static'));
+    tabAnimBtn.addEventListener('click', () => applyModeUI('animated'));
+
     codeArea.addEventListener('input', () => {
-      renderValidation(validateTikz(codeArea.value));
+      if (currentMode === 'static') {
+        renderValidation(validateTikz(codeArea.value));
+      }
     });
 
     ['#mn-tikz-opt-strict', '#mn-tikz-opt-foreach', '#mn-tikz-opt-dots', '#mn-tikz-opt-hatch'].forEach((id) => {
-      el.querySelector(id).addEventListener('change', regenerate);
-    });
-    el.querySelector('#mn-tikz-regen').addEventListener('click', regenerate);
-    el.querySelector('#mn-tikz-open-betatikz').addEventListener('click', () => {
-      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
-        close();
-        window.MinNoteMotionBridge.openStudioModal('betatikz');
-      } else {
-        toast('Chưa nạp mô-đun MinNoteMotionBridge.');
-      }
-    });
-    el.querySelector('#mn-tikz-open-json').addEventListener('click', () => {
-      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
-        close();
-        window.MinNoteMotionBridge.openStudioModal('export_json');
-      } else {
-        toast('Chưa nạp mô-đun MinNoteMotionBridge.');
-      }
+      el.querySelector(id).addEventListener('change', () => {
+        if (currentMode === 'static') regenerateStatic();
+      });
     });
 
-    el.querySelector('#mn-tikz-copy').addEventListener('click', async () => {
-      const txt = codeArea.value.trim();
-      if (!txt) return;
-      try {
-        await navigator.clipboard.writeText(txt);
-        toast('📋 Đã sao chép mã TikZ chuẩn DoMinhMath!');
-      } catch (_) {
-        codeArea.select();
-        document.execCommand('copy');
-        toast('📋 Đã sao chép mã TikZ!');
-      }
-    });
-
-    el.querySelector('#mn-tikz-save').addEventListener('click', async () => {
-      const txt = codeArea.value.trim();
-      if (!txt) return;
-      const fileName = `minnote_figure_${Date.now().toString(36)}.tex`;
-      if (window.MinNoteMeaSync && window.MinNoteMeaSync.isDesktopBridge()) {
-        try {
-          const res = await window.MinNoteMeaSync.request('SAVE_MEDIA_FILE', {
-            fileName,
-            ext: '.tex',
-            textData: txt
-          });
-          if (res && !res.cancelled) toast('💾 Đã lưu tệp ' + (res.fileName || fileName));
-        } catch (err) {
-          toast('Lỗi lưu .tex: ' + (err.message || err));
+    el.querySelectorAll('[data-anim-fmt]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        animState.fmt = btn.dataset.animFmt === 'animate' ? 'animate' : 'out_tikz';
+        el.querySelectorAll('[data-anim-fmt]').forEach((b) => b.classList.toggle('active', b === btn));
+        if (animState.lastResult && animState.lastResult.outTikz) {
+          updateAnimBadge();
+          codeArea.value = animState.fmt === 'animate'
+            ? (animState.lastResult.animateInlineTex || animState.lastResult.outTikz)
+            : animState.lastResult.outTikz;
+          const st = animState.lastResult.stats || {};
+          const totalFrames = Math.round((st.fps || animState.fps) * (st.durationSec || animState.durationSec));
+          statsEl.textContent =
+            `Định dạng: ${animState.fmt === 'animate' ? 'LaTeX animateinline độc lập' : 'BetaTikz liên tục \\t ∈ [0,1]'} • ` +
+            `${st.points || 0} điểm • ${st.shapes || 0} nét • ${st.steps || 0} bước • ${totalFrames} frames`;
+        } else {
+          regenerateAnimated();
         }
-      } else {
-        const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = fileName;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      });
+    });
+
+    el.querySelector('#mn-tikz-anim-fps').addEventListener('change', (e) => {
+      animState.fps = parseInt(e.target.value, 10) || 24;
+      if (currentMode === 'animated') regenerateAnimated();
+    });
+    el.querySelector('#mn-tikz-anim-dur').addEventListener('change', (e) => {
+      animState.durationSec = parseFloat(e.target.value) || 8;
+      if (currentMode === 'animated') regenerateAnimated();
+    });
+    el.querySelector('#mn-tikz-anim-preset').addEventListener('change', (e) => {
+      animState.preset = e.target.value || '';
+      if (currentMode === 'animated') regenerateAnimated();
+    });
+    el.querySelector('#mn-tikz-anim-loop').addEventListener('change', (e) => {
+      animState.loop = !!e.target.checked;
+      if (currentMode === 'animated') regenerateAnimated();
+    });
+
+    el.querySelector('#mn-tikz-anim-load-demo').addEventListener('click', () => {
+      const bridge = window.MinNoteMotionBridge;
+      if (!bridge || typeof bridge.importMotionJson !== 'function' || !bridge.QUICK_SAMPLES || !bridge.QUICK_SAMPLES.pyramid3d) {
+        toast('Chưa nạp mô-đun mẫu hình học MinNoteMotionBridge.');
+        return;
       }
+      try {
+        bridge.importMotionJson(bridge.QUICK_SAMPLES.pyramid3d, { autoPlay: false });
+        regenerateAnimated();
+        toast('✨ Đã chèn mẫu Chóp S.ABCD lên bảng và tạo mã TikZ Chuyển Động!');
+      } catch (err) {
+        toast('Lỗi nạp hình mẫu: ' + (err.message || err));
+      }
+    });
+
+    el.querySelector('#mn-tikz-regen').addEventListener('click', regenerate);
+
+    // Static Footer Actions
+    el.querySelector('#mn-tikz-copy').addEventListener('click', () => {
+      copyEditorText(codeArea.value, codeArea, '📋 Đã sao chép mã TikZ chuẩn DoMinhMath!');
+    });
+
+    el.querySelector('#mn-tikz-save').addEventListener('click', () => {
+      const txt = codeArea.value.trim();
+      if (!txt) return;
+      saveMediaOrBlob(txt, `minnote_figure_${Date.now().toString(36)}.tex`, '.tex', 'text/plain;charset=utf-8');
     });
 
     el.querySelector('#mn-tikz-compile').addEventListener('click', async () => {
@@ -2168,18 +2483,89 @@
       }
     });
 
+    // Animated Footer Actions
+    el.querySelector('#mn-tikz-anim-copy').addEventListener('click', () => {
+      const txt = codeArea.value.trim();
+      if (!txt || !txt.includes('\\begin{tikzpicture}')) {
+        toast('Chưa có mã TikZ Động trên trang để sao chép.');
+        return;
+      }
+      const label = animState.fmt === 'animate'
+        ? '📋 Đã sao chép mã LaTeX animateinline!'
+        : '📋 Đã sao chép mã TikZ Động (out_tikz \\t ∈ [0,1])!';
+      copyEditorText(txt, codeArea, label);
+    });
+
+    el.querySelector('#mn-tikz-anim-save-tex').addEventListener('click', () => {
+      const txt = codeArea.value.trim();
+      if (!txt || !txt.includes('\\begin{tikzpicture}')) {
+        toast('Chưa có mã TikZ Động trên trang để lưu .tex.');
+        return;
+      }
+      const prefix = animState.fmt === 'animate' ? 'minnote_animate_' : 'minnote_betatikz_';
+      saveMediaOrBlob(txt, `${prefix}${Date.now().toString(36)}.tex`, '.tex', 'text/plain;charset=utf-8');
+    });
+
+    el.querySelector('#mn-tikz-anim-save-bt').addEventListener('click', () => {
+      if (!animState.lastResult || !animState.lastResult.betatikzProject) {
+        toast('Chưa có hình học trên trang để xuất gói .betatikz.json.');
+        return;
+      }
+      const jsonStr = JSON.stringify(animState.lastResult.betatikzProject, null, 2);
+      saveMediaOrBlob(jsonStr, `minnote_betatikz_${Date.now().toString(36)}.betatikz.json`, '.json', 'application/json;charset=utf-8');
+    });
+
+    el.querySelector('#mn-tikz-anim-video').addEventListener('click', () => {
+      if (window.MinNoteReplayExporter && typeof window.MinNoteReplayExporter.openModal === 'function') {
+        close();
+        window.MinNoteReplayExporter.openModal(null);
+      } else {
+        toast('Mô-đun xuất Video MP4 / GIF chưa sẵn sàng.');
+      }
+    });
+
     el._regenerate = regenerate;
+    el._applyModeUI = applyModeUI;
     return el;
   }
 
-  function openModal() {
+  function setMode(mode, opts) {
     const el = ensureModal();
+    if (typeof el._applyModeUI === 'function') {
+      el._applyModeUI(mode === 'animated' ? 'animated' : 'static', opts);
+    }
+  }
+
+  function openModal(opts) {
+    const el = ensureModal();
+    const requestedMode = (opts && (opts.mode === 'animated' || opts.mode === 'betatikz')) ? 'animated' : 'static';
+    if (typeof el._applyModeUI === 'function') {
+      el._applyModeUI(requestedMode, opts);
+    } else if (typeof el._regenerate === 'function') {
+      el._regenerate();
+    }
     el.classList.add('open');
-    if (typeof el._regenerate === 'function') el._regenerate();
+    return el;
+  }
+
+  function closeModal() {
+    if (modalBackdrop) modalBackdrop.classList.remove('open');
+  }
+
+  function isOpen() {
+    return !!(modalBackdrop && modalBackdrop.classList.contains('open'));
+  }
+
+  function getMode() {
+    return currentMode;
   }
 
   const api = {
     openModal,
+    closeModal,
+    setMode,
+    getMode,
+    isOpen,
     generateTikz,
     validateTikz,
     evalGeo
