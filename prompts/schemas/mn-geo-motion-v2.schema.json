@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://minnote.app/schemas/mn-geo-motion-v2.schema.json",
+  "title": "MinNote Parametric Geometry & Continuous Motion Schema (mn-geo-motion/2.0)",
+  "description": "Chuẩn JSON hai chiều kết nối các mô hình AI (ChatGPT, Claude, Gemini, DeepSeek, Grok, Local LLM), bảng dựng hình ràng buộc MinNote và trình xuất video chuyển động liên tục BetaTikz (tikzvid-project/1).",
+  "type": "object",
+  "required": ["schema"],
+  "anyOf": [
+    { "required": ["ops"] },
+    { "required": ["geometry"] }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "mn-geo-motion/2.0",
+      "description": "Định danh phiên bản chuẩn JSON của MinNote Motion Bridge."
+    },
+    "title": {
+      "type": "string",
+      "description": "Tiêu đề ngắn gọn của hình vẽ (tương thích ngược với trình biên dịch ops v1)."
+    },
+    "is3D": {
+      "type": "boolean",
+      "description": "Cờ đánh dấu hình học không gian 3D (bật kiểm tra bao lồi và nét đứt tự động)."
+    },
+    "meta": {
+      "$ref": "#/$defs/MetaInfo"
+    },
+    "checks": {
+      "$ref": "#/$defs/FiveGateChecks"
+    },
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Danh sách thao tác dựng hình tham số theo thứ tự tô-pô (DAG) từ đỉnh gốc đến kết luận.",
+      "items": {
+        "$ref": "#/$defs/GeoOp"
+      }
+    },
+    "geometry": {
+      "$ref": "#/$defs/CompiledGeometry"
+    },
+    "motion": {
+      "$ref": "#/$defs/MotionTimeline"
+    },
+    "exports": {
+      "$ref": "#/$defs/ExportPayloads"
+    }
+  },
+  "$defs": {
+    "MetaInfo": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["title", "is3D"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tên hình vẽ hoặc bài toán."
+        },
+        "problem": {
+          "type": "string",
+          "description": "Nguyên văn đề bài Toán (nếu có)."
+        },
+        "is3D": {
+          "type": "boolean",
+          "description": "True nếu là hình không gian 3D / khối tròn xoay; False nếu là hình phẳng 2D."
+        },
+        "spaceType": {
+          "type": "string",
+          "enum": ["plane_2d", "solid_3d", "revolution_3d", "analytic_oxy", "analytic_oxyz"],
+          "description": "Phân loại không gian hình học tại Cổng kiểm định 1."
+        },
+        "author": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "pageId": {
+          "type": "string"
+        }
+      }
+    },
+    "FiveGateChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Bảng tự kiểm định 5 cổng hình học bắt buộc trước khi sinh mảng ops (giúp khóa suy luận với Structured Outputs).",
+      "properties": {
+        "gate1_space": {
+          "type": "string",
+          "description": "Phân loại 2D/3D và hệ tọa độ gốc chống suy biến góc nhìn (+x sang phải, +y lên trên)."
+        },
+        "gate2_dag_anchors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Danh sách duy nhất các đỉnh gốc tự do được phép dùng point_free."
+        },
+        "gate3_coplanar_intersections": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Chứng nhận mặt phẳng đồng phẳng cho mọi phép giao intersection_ll và kiểm tra det != 0."
+        },
+        "gate4_dashed_edges": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Danh sách đầy đủ các cạnh khuất / đường xuyên khối phải đặt dashed: true."
+        },
+        "gate5_motion_story": {
+          "type": "string",
+          "description": "Nhịp điệu sư phạm của kịch bản chuyển động và điểm nhấn kết luận."
+        }
+      }
+    },
+    "EffectId": {
+      "type": "string",
+      "enum": [
+        "draw",
+        "chalk",
+        "chalk_dust",
+        "glow",
+        "pop",
+        "pulse",
+        "fade",
+        "wipe",
+        "stamp",
+        "spring",
+        "zoom",
+        "slide",
+        "laser_scan",
+        "center_out",
+        "draw_then_fill",
+        "arrow_slide",
+        "measure_brace",
+        "fourier_epicycles",
+        "morph_bezier",
+        "mirror_flip",
+        "extrude_rise",
+        "xray_hidden",
+        "typewriter",
+        "graph_trace",
+        "mention_glow",
+        "chalk_box",
+        "double_underline",
+        "target_reticle",
+        "water_ripple",
+        "starburst",
+        "checkmark_stamp",
+        "cross_strike",
+        "wiggle_alert"
+      ]
+    },
+    "EasingId": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "easeIn",
+        "easeOut",
+        "easeInOut",
+        "smoothstep",
+        "smootherstep",
+        "spring",
+        "bump",
+        "thereback"
+      ]
+    },
+    "PresetId": {
+      "type": "string",
+      "enum": [
+        "domiinh",
+        "manim",
+        "3d_standard",
+        "geo3d",
+        "custom"
+      ]
+    },
+    "TimeRange": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "description": "Khoảng thời gian chuẩn hóa [tStart, tEnd] thuộc [0, 1] cho engine BetaTikz."
+    },
+    "GeoOp": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "point_free",
+            "point_sum",
+            "midpoint",
+            "point_on_segment",
+            "ratio_point",
+            "point_on_line",
+            "foot_perp",
+            "intersection_ll",
+            "intersection_lc",
+            "intersection_cc",
+            "circle",
+            "point_on_circle",
+            "line_parallel",
+            "point_parallel",
+            "line_perp",
+            "point_perp",
+            "segment",
+            "line",
+            "ray",
+            "polygon_base",
+            "connect_polygon",
+            "section",
+            "polygon_fill",
+            "right_angle",
+            "angle_mark",
+            "tick_mark"
+          ]
+        },
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "x": { "type": "number", "description": "Hoành độ toán học (+x sang phải)." },
+        "y": { "type": "number", "description": "Tung độ toán học (+y hướng lên trên)." },
+        "a": { "type": "string" },
+        "b": { "type": "string" },
+        "c": { "type": "string" },
+        "p": { "type": "string" },
+        "v": { "type": "string" },
+        "vertex": { "type": "string" },
+        "through": { "type": "string" },
+        "o": { "type": "string" },
+        "center": { "type": "string" },
+        "rim": { "type": "string" },
+        "r": { "type": "string" },
+        "ratio": { "type": "number" },
+        "k": { "type": "number" },
+        "angleDeg": { "type": "number" },
+        "angle": { "type": "number" },
+        "l1": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "l2": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "line": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "circle": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "c1": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "c2": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "which": {
+          "type": "integer",
+          "enum": [0, 1]
+        },
+        "pts": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string" }
+        },
+        "dashedEdges": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dashed": { "type": "boolean" },
+        "extDashed": { "type": "boolean" },
+        "drawExtensions": { "type": "boolean" },
+        "drawDropSegment": { "type": "boolean" },
+        "drawSegment": { "type": "boolean" },
+        "markRightAngle": { "type": "boolean" },
+        "asLine": { "type": "boolean" },
+        "bothSides": { "type": "boolean" },
+        "keepDirection": { "type": "boolean" },
+        "noDot": { "type": "boolean" },
+        "show": { "type": "boolean" },
+        "aux": { "type": "boolean" },
+        "arrow": { "type": "boolean" },
+        "kind": {
+          "type": "string",
+          "enum": ["segment", "line", "ray"]
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "fill": { "type": "string" },
+        "color": { "type": "string" },
+        "extColor": { "type": "string" },
+        "width": { "type": "number", "minimum": 0 },
+        "explicitColor": { "type": "boolean" },
+        "explicitWidth": { "type": "boolean" },
+        "step": {
+          "type": "string",
+          "description": "Lời dẫn sư phạm ngắn gọn hiển thị trong bảng Kịch bản của MinNote."
+        },
+        "note": { "type": "string" },
+        "effect": { "$ref": "#/$defs/EffectId" },
+        "easing": { "$ref": "#/$defs/EasingId" },
+        "durationMul": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 5.0
+        },
+        "delayMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "pauseAfter": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "rev": { "type": "boolean" },
+        "tempHide": { "type": "boolean" },
+        "showGuides": { "type": "boolean" },
+        "tRange": { "$ref": "#/$defs/TimeRange" }
+      }
+    },
+    "PointDef": {
+      "type": "object",
+      "required": ["t"],
+      "additionalProperties": true,
+      "properties": {
+        "t": {
+          "type": "string",
+          "enum": ["free", "mid", "on", "foot", "sum", "inter", "vec", "path", "rot", "len", "polar", "bis", "ctan"]
+        },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "a": { "type": "string" },
+        "b": { "type": "string" },
+        "c": { "type": "string" },
+        "p": { "type": "string" },
+        "o": { "type": "string" },
+        "k": { "type": "number" },
+        "seg": { "type": "boolean" },
+        "perp": { "type": "boolean" },
+        "l1": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "l2": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "c1": { "type": "boolean" },
+        "c2": { "type": "boolean" },
+        "which": { "type": "integer", "enum": [0, 1] },
+        "kind": { "type": "string" },
+        "on": { "type": "string" },
+        "pts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "GeoPoint": {
+      "type": "object",
+      "required": ["id", "def"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "show": { "type": "boolean" },
+        "named": { "type": "boolean" },
+        "noDot": { "type": "boolean" },
+        "noName": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "nx": { "type": "number", "description": "Hoành độ chuẩn hóa trên lưới TikZ (+x sang phải)." },
+        "ny": { "type": "number", "description": "Tung độ chuẩn hóa trên lưới TikZ (+y lên trên)." },
+        "def": { "$ref": "#/$defs/PointDef" }
+      }
+    },
+    "GeoShape": {
+      "type": "object",
+      "required": ["id", "kind", "pts"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "segment",
+            "line",
+            "ray",
+            "extend",
+            "circle",
+            "arc",
+            "polygon",
+            "right",
+            "angle",
+            "tick",
+            "plane",
+            "cone",
+            "cylinder",
+            "sphere",
+            "ellipse",
+            "parabola",
+            "hyperbola",
+            "locus",
+            "solid"
+          ]
+        },
+        "pts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "color": { "type": "string" },
+        "width": { "type": "number", "minimum": 0 },
+        "dashed": { "type": "boolean" },
+        "aux": { "type": "boolean" },
+        "fill": { "type": "string" },
+        "arrow": { "type": "boolean" },
+        "plain": { "type": "boolean" },
+        "n": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "hidden": { "type": "boolean" },
+        "look3": { "type": "boolean" },
+        "group": { "type": "string" }
+      }
+    },
+    "CompiledGeometry": {
+      "type": "object",
+      "required": ["points", "shapes"],
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/GeoPoint" }
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/GeoPoint" }
+            }
+          ]
+        },
+        "shapes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GeoShape" }
+        },
+        "bbox": {
+          "type": "object",
+          "required": ["x0", "y0", "x1", "y1"],
+          "additionalProperties": true,
+          "properties": {
+            "x0": { "type": "number" },
+            "y0": { "type": "number" },
+            "x1": { "type": "number" },
+            "y1": { "type": "number" },
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+          }
+        }
+      }
+    },
+    "CameraKeyframe": {
+      "type": "object",
+      "required": ["t"],
+      "additionalProperties": false,
+      "properties": {
+        "t": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shiftX": { "type": "number" },
+        "shiftY": { "type": "number" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "rotation": { "type": "number" },
+        "easing": { "$ref": "#/$defs/EasingId" }
+      }
+    },
+    "StepSubItem": {
+      "type": "object",
+      "required": ["kind", "refId"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["point", "shape", "item", "stroke"]
+        },
+        "refId": { "type": "string" },
+        "rev": { "type": "boolean" }
+      }
+    },
+    "MotionStep": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["point", "shape", "group", "item", "stroke"]
+        },
+        "refId": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StepSubItem" }
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["construct", "cue"]
+        },
+        "customTitle": { "type": "string" },
+        "effect": { "$ref": "#/$defs/EffectId" },
+        "easing": { "$ref": "#/$defs/EasingId" },
+        "durationMul": { "type": "number", "minimum": 0.2, "maximum": 5.0 },
+        "delayMs": { "type": "number", "minimum": 0 },
+        "pauseAfter": { "type": "number", "minimum": 0, "maximum": 10 },
+        "rev": { "type": "boolean" },
+        "tempHide": { "type": "boolean" },
+        "showGuides": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "tRange": { "$ref": "#/$defs/TimeRange" }
+      }
+    },
+    "MotionTimeline": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "preset": { "$ref": "#/$defs/PresetId" },
+        "fps": { "type": "integer", "minimum": 12, "maximum": 120 },
+        "durationSec": { "type": "number", "minimum": 1, "maximum": 600 },
+        "holdEndSec": { "type": "number", "minimum": 0, "maximum": 30 },
+        "speed": { "type": "number", "minimum": 0.2, "maximum": 4.0 },
+        "loop": { "type": "boolean" },
+        "pauseBetween": { "type": "boolean" },
+        "handPen": { "type": "boolean" },
+        "followCamera": { "type": "boolean" },
+        "springCamera": { "type": "boolean" },
+        "orbit3d": { "type": "boolean" },
+        "cameraKeyframes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CameraKeyframe" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MotionStep" }
+        }
+      }
+    },
+    "BetaTikzProject": {
+      "type": "object",
+      "required": ["format", "state"],
+      "additionalProperties": true,
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "tikzvid-project/1"
+        },
+        "exported": { "type": "number" },
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer" },
+            "name": { "type": "string" },
+            "created": { "type": "number" },
+            "updated": { "type": "number" }
+          }
+        },
+        "state": {
+          "type": "object",
+          "required": ["out_tikz"],
+          "properties": {
+            "tikz": { "type": "string" },
+            "out_tikz": { "type": "string" },
+            "prompt": { "type": "string" },
+            "storyboard": { "type": "string" },
+            "edit_prompt": { "type": "string" },
+            "style": { "type": "string" },
+            "t": { "type": "string" }
+          }
+        },
+        "revisions": { "type": "array" },
+        "jobs": { "type": "array" }
+      }
+    },
+    "ExportPayloads": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "tikzStatic": { "type": "string" },
+        "tikzBetaAnimated": { "type": "string" },
+        "animateInlineTex": { "type": "string" },
+        "betatikzProject": { "$ref": "#/$defs/BetaTikzProject" }
+      }
+    }
+  }
+}

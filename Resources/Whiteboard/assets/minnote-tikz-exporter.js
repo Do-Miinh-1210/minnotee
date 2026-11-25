@@ -1737,7 +1737,11 @@
                 <span>Tô gạch chéo thiết diện</span>
               </label>
             </div>
-            <button type="button" class="mn-v80-btn sm" id="mn-tikz-regen">🔄 Tạo lại từ bảng vẽ</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="mn-v80-btn sm primary" id="mn-tikz-open-betatikz" title="Mở Studio TikZ Chuyển Động, xuất dự án BetaTikz (.betatikz.json) &amp; JSON (Ctrl+Alt+J)">🎬 TikZ Chuyển Động / BetaTikz &amp; JSON</button>
+              <button type="button" class="mn-v80-btn sm" id="mn-tikz-open-json" title="Xuất chuẩn JSON Đa Năng mn-geo-motion/2.0 cho các mô hình AI hoặc ứng dụng khác">📤 Xuất JSON</button>
+              <button type="button" class="mn-v80-btn sm" id="mn-tikz-regen">🔄 Tạo lại từ bảng vẽ</button>
+            </div>
           </div>
 
           <div class="mn-tikz-split">
@@ -1833,6 +1837,22 @@
       el.querySelector(id).addEventListener('change', regenerate);
     });
     el.querySelector('#mn-tikz-regen').addEventListener('click', regenerate);
+    el.querySelector('#mn-tikz-open-betatikz').addEventListener('click', () => {
+      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
+        close();
+        window.MinNoteMotionBridge.openStudioModal('betatikz');
+      } else {
+        toast('Chưa nạp mô-đun MinNoteMotionBridge.');
+      }
+    });
+    el.querySelector('#mn-tikz-open-json').addEventListener('click', () => {
+      if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
+        close();
+        window.MinNoteMotionBridge.openStudioModal('export_json');
+      } else {
+        toast('Chưa nạp mô-đun MinNoteMotionBridge.');
+      }
+    });
 
     el.querySelector('#mn-tikz-copy').addEventListener('click', async () => {
       const txt = codeArea.value.trim();

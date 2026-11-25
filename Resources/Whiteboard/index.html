@@ -741,6 +741,15 @@
         } else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'm' || e.key === 'M')) {
           e.preventDefault();
           if (typeof window.toggleMindMapStudio === 'function') window.toggleMindMapStudio();
+        } else if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && (e.key === 'j' || e.key === 'J')) {
+          e.preventDefault();
+          if (window.MinNoteMotionBridge && typeof window.MinNoteMotionBridge.openStudioModal === 'function') {
+            if (typeof window.MinNoteMotionBridge.isStudioOpen === 'function' && window.MinNoteMotionBridge.isStudioOpen()) {
+              window.MinNoteMotionBridge.closeStudioModal();
+            } else {
+              window.MinNoteMotionBridge.openStudioModal('betatikz');
+            }
+          }
         } else if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
           e.preventDefault();
           if (typeof window.openImagePickerToBoard === 'function') window.openImagePickerToBoard();
@@ -1230,5 +1239,7 @@
     <script src="./geo-gsp-tools.js" defer></script>
     <link rel="stylesheet" href="./assets/minnote-ai-geo.css" />
     <script src="./assets/minnote-ai-geo.js" defer></script>
+    <link rel="stylesheet" href="./assets/minnote-motion-bridge.css" />
+    <script src="./assets/minnote-motion-bridge.js" defer></script>
   </body>
 </html>
