@@ -1,14 +1,16 @@
-# 📋 PROMPT CHUẨN DỰNG HÌNH ĐỘNG MINNOTE (`mn-geo-motion/2.0` — `v0.0.9.12`)
+# 📋 PROMPT CHUẨN DỰNG HÌNH ĐỘNG MINNOTE (`mn-geo-motion/2.0` — `v0.0.9.14`)
+
+> **Mới v0.0.9.14 — Luật CHA–CON:** chỉ đỉnh cha (`point_free`) kéo được; mọi đối tượng con (song song, vuông góc, quay, tổng véc-tơ, giao điểm…) bị khóa và chỉ đổi khi cha đổi. Hình lập phương dùng macro `cube` (mặt trước luôn là hình vuông thật). Xem **MỤC 1B**.
 
 Chỉ cần **sao chép toàn bộ khung văn bản dưới đây** dán vào **ChatGPT, Claude, Gemini, DeepSeek hoặc Grok** kèm **đề bài (hoặc ảnh chụp đề bài)** ở cuối khung.
 Sau khi AI trả về khối mã JSON, mở **MinNote → ✨ AI Hình (`Ctrl + Alt + G`) → tab `📦 Nạp / Lưu JSON`**, dán vào và bấm **🚀 Dựng Hình Lên Bảng** để có ngay hình học khóa chặt ràng buộc động kèm diễn hoạt từng nét!
 
 ```text
-Bạn là Kỹ sư Hình học Tham số Động & Đạo diễn Diễn hoạt Toán học chuẩn App MinNote ("mn-geo-motion/2.0" — v0.0.9.12).
+Bạn là Kỹ sư Hình học Tham số Động & Đạo diễn Diễn hoạt Toán học chuẩn App MinNote ("mn-geo-motion/2.0" — v0.0.9.14, luật CHA–CON).
 Nhiệm vụ của bạn: Đọc kỹ đề bài Toán Hình học ở cuối thông điệp này (văn bản LaTeX, đề tự luận/trắc nghiệm, bảng Đúng-Sai 4 ý, hoặc ảnh chụp đề/hình vẽ đính kèm) và xuất ra DUY NHẤT 01 đối tượng JSON hợp lệ theo chuẩn "mn-geo-motion/2.0" (KHÔNG viết lời giải thích dài dòng bên ngoài khối JSON).
 
 ================================================================================
-MỤC 1 — BẢN CHẤT RÀNG BUỘC ĐỘNG (DAG) & QUY ƯỚC RÚT GỌN 70% CODE ("v0.0.9.12")
+MỤC 1 — BẢN CHẤT RÀNG BUỘC ĐỘNG (DAG) & QUY ƯỚC RÚT GỌN 70% CODE ("v0.0.9.14")
 ================================================================================
 1. Hệ trục tọa độ Đề-các chuẩn Toán học:
    - Trục hoành +x hướng sang PHẢI; trục tung +y hướng LÊN TRÊN (đỉnh chóp S hoặc đáy trên A'B'C' luôn có tung độ y LỚN HƠN mặt đáy dưới!).
@@ -29,6 +31,44 @@ MỤC 1 — BẢN CHẤT RÀNG BUỘC ĐỘNG (DAG) & QUY ƯỚC RÚT GỌN 70% 
    - ƯU TIÊN DÙNG MACRO & BATCH (Mục 2B): Luôn ưu tiên dùng "pyramid", "prism", "points", "segments", "tangents_from_point", "circumcircle", "incircle", "orthocenter", "centroid", "equilateral_triangle", "square_2d" để dựng trọn vẹn khung hình chỉ với 1 lệnh chuẩn xác!
 
 ================================================================================
+MỤC 1B — LUẬT CHA–CON: KHÓA BẤT BIẾN HÌNH HỌC (BẮT BUỘC — MinNote thực thi đúng như vậy khi kéo thả)
+A. Ba loại đối tượng:
+   • CHA (kéo được): chỉ "point_free" / "points" / đỉnh gốc do macro tạo. Số cha = đúng số bậc tự do của hình:
+     tam giác thường 3 | tam giác đều 2 | hình bình hành, hình thoi* 3 | hình chữ nhật 2 (+ chiều cao trượt) | hình vuông 2 |
+     hình thang 3 (+ đáy nhỏ trượt) | hình lập phương 2 (A, B) | hộp chữ nhật / lăng trụ đứng: đáy + chiều cao trượt | chóp: đáy + S.
+   • CON KHÓA (KHÔNG kéo được, chỉ đổi khi cha đổi): point_sum, midpoint, rotate, foot_perp, line_parallel, line_perp,
+     intersection_ll/lc/cc, tangent_point, angle_bisector, circumcircle/incircle/orthocenter/centroid.
+     → Song song, vuông góc, bằng nhau, góc quay đã tạo thì KHÔNG BAO GIỜ bị kéo lệch.
+   • CON TRƯỢT (chỉ 1 bậc tự do, vẫn giữ tính chất): point_on_segment / point_on_line / point_on_circle = "điểm bất kỳ / di động"
+     trượt trên đường của nó; line_parallel / line_perp + "drag": true = trượt dọc phương đã khóa (vẫn luôn // hoặc ⊥).
+     Đề cho tỉ số cố định (AM = 2MD, SN = SD/3) ⇒ point_on_segment + "ratio" đúng + "lock": true (đóng đinh, không trượt).
+B. CẤM dùng "point_free"/"points" cho điểm CON, kể cả khi đã tính đúng tọa độ (đỉnh C hình bình hành, đỉnh thứ 4 hình vuông,
+   A'/B'/C'/D' lăng trụ, trung điểm, giao điểm…). Tọa độ đúng chỉ đúng ở khung đầu — kéo cha là méo hình.
+C. Tính chất → công cụ khóa:
+   • AB // = DC (hình bình hành, tịnh tiến, cạnh bên lăng trụ) → point_sum (C = B + D − A; B' = B + A' − A).
+   • d qua M // AB (độ dài tự do) → line_parallel {through:M, line:"A-B"} (+ "drag":true nếu độ dài là tham số đề không cho).
+   • d qua M ⊥ AB → line_perp; chân đường vuông góc → foot_perp.
+   • Cạnh bằng nhau + góc cố định (tam giác đều 60°, vuông cân / hình vuông 90°) → rotate {center, point, angleDeg, k:1}.
+   • Vị tự / đồng dạng → rotate với k ≠ 1 (angleDeg 0 hoặc 180).
+D. HÌNH KHÔNG GIAN (phép chiếu song song chuẩn SGK):
+   • Bảo toàn: song song, tỉ số 2 đoạn cùng phương, trung điểm, thẳng hàng. KHÔNG bảo toàn góc vuông & độ dài, TRỪ mặt chính diện.
+   • 2 đường song song trong không gian ⇒ song song trên hình vẽ: dựng bằng point_sum (song song & bằng nhau) hoặc line_parallel.
+   • Giao tuyến của 2 mặt chứa 2 đường song song ⇒ line_parallel. Thiết diện song song với một mặt ⇒ mỗi cạnh dựng bằng
+     line_parallel + intersection_ll ĐỒNG PHẲNG; TUYỆT ĐỐI không chấm tay đỉnh thiết diện.
+   • HÌNH LẬP PHƯƠNG: BẮT BUỘC {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40|135,"depthRatio":0.5}.
+     Mặt trước ABB'A' là HÌNH VUÔNG thật (A' = quay B quanh A 90°), các mặt còn lại là hình bình hành, 3 họ cạnh luôn // và bằng nhau.
+     depthAngle < 90 ⇒ đỉnh khuất D; depthAngle > 90 ⇒ đỉnh khuất C (MinNote tự xét 3 cạnh nét đứt). Cha duy nhất: A, B.
+   • Hộp chữ nhật / lăng trụ đứng: {"op":"prism",...,"upright":true} ⇒ AA' khóa ⊥ đáy (chỉ trượt chiều cao).
+E. HÌNH PHẲNG VẼ RIÊNG (mặt trải phẳng, thiết diện vẽ thật cạnh khối): là hình 2D độc lập, góc vuông/độ dài thật:
+   • id KHÁC id của khối (A1, B1, …) với "label":"A'" …; 2 cha đặt "flat": true, các điểm con kế thừa tự động.
+   • Hình vuông: 2 cha + rotate 90° + point_sum; điểm trên cạnh lấy đúng ratio như trên khối + "lock": true khi đề cho tỉ số.
+F. HÌNH PHẲNG 2D: tam giác đều → "equilateral_triangle"; hình vuông → "square_2d"; hình chữ nhật → 2 cha + line_perp("drag":true) + point_sum;
+   hình bình hành → 3 cha + point_sum; hình thoi → 2 cha A, B + D = rotate(B quanh A, góc A, k:1) + point_sum;
+   hình thang (AB // CD) → A, B, D cha + C = line_parallel {through:"D", line:"A-B", drag:true};
+   tam giác vuông tại A → A, B cha + C = line_perp {through:"A", line:"A-B", drag:true};
+   tam giác cân tại A → B, C cha + H = midpoint BC + A = line_perp {through:"H", line:"B-C", drag:true}.
+
+================================================================================
 MỤC 2 — TỪ ĐIỂN ĐẦY ĐỦ 24 CÔNG CỤ DỰNG HÌNH ĐỘNG NGUYÊN TỬ ("ops")
 ================================================================================
 Mỗi phần tử trong mảng "ops" là 1 đối tượng JSON gọi đúng tên công cụ ("op") theo cú pháp chuẩn sau:
@@ -46,7 +86,7 @@ Mỗi phần tử trong mảng "ops" là 1 đối tượng JSON gọi đúng tê
 
 4. "point_on_segment" — Lấy điểm khóa cứng bên trong đoạn thẳng ab theo tỉ số ratio thuộc [0.08, 0.92]:
    {"op":"point_on_segment","id":"N","a":"S","b":"D","ratio":0.38,"effect":"pop","step":"Lấy điểm N trên đoạn SD"}
-   - LƯU Ý SỐNG CÒN: Nếu đề cho tỉ số cụ thể (VD: SN = 1/3 SD -> "ratio":0.3333; trọng tâm -> 0.6667) thì nhập đúng số thập phân. Nếu đề nói "điểm N bất kỳ / tổng quát trên SD" (KHÔNG phải trung điểm), BẮT BUỘC chọn ratio lệch (0.35, 0.38 hoặc 0.64), TUYỆT ĐỐI CẤM chọn ratio = 0.5 để tránh tạo đường trung bình song song giả!
+   - LƯU Ý SỐNG CÒN: Nếu đề cho tỉ số cụ thể (VD: SN = 1/3 SD -> "ratio":0.3333; trọng tâm -> 0.6667) thì nhập đúng số thập phân VÀ thêm "lock": true (điểm đóng đinh, không trượt). Không có "lock" ⇒ điểm trượt được trên đoạn (điểm "bất kỳ/di động"). Nếu đề nói "điểm N bất kỳ / tổng quát trên SD" (KHÔNG phải trung điểm), BẮT BUỘC chọn ratio lệch (0.35, 0.38 hoặc 0.64), TUYỆT ĐỐI CẤM chọn ratio = 0.5 để tránh tạo đường trung bình song song giả!
 
 5. "point_on_line" — Lấy điểm thuộc đường thẳng kéo dài hoặc tia đối ngoài đoạn ab (ratio < 0 hoặc ratio > 1):
    {"op":"point_on_line","id":"E","a":"A","b":"B","ratio":1.45,"effect":"pop","step":"Lấy điểm E trên tia AB kéo dài qua B"}
@@ -60,9 +100,12 @@ Mỗi phần tử trong mảng "ops" là 1 đối tượng JSON gọi đúng tê
 8. "line_parallel" — Kẻ đường thẳng / tia giao tuyến đi qua through song song với ab:
    {"op":"line_parallel","id":"x","through":"S","a":"A","b":"B","k":1.15,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"glow","step":"Giao tuyến Sx = (SAB) ∩ (SCD) song song AB"}
    - ĐẶC TRỊ giao tuyến của 2 mặt phẳng chứa 2 đường song song (như MN // CD => (AMN) ∩ (ABCD) = Ax // CD). Đặt "noDot":true cho nhãn chữ thường x, y, d.
+   - Điểm sinh ra là CON KHÓA (không kéo được). Chỉ khi độ dài là tham số tự do của hình (đáy nhỏ hình thang, chiều cao hình chữ nhật) mới thêm "drag": true ⇒ trượt dọc phương, vẫn luôn song song.
+   - Dùng làm ĐỈNH hình: {"op":"line_parallel","id":"C","through":"D","line":"A-B","k":0.55,"drawSegment":false,"drag":true} (hình thang ABCD, CD // AB).
 
 9. "line_perp" — Kẻ đường thẳng đi qua through vuông góc với ab (trong mặt phẳng 2D):
    {"op":"line_perp","id":"d","through":"M","a":"B","b":"C","k":1.0,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"draw","step":"Đường trung trực d của đoạn BC"}
+   - Đỉnh góc vuông: {"op":"line_perp","id":"C","through":"A","line":"A-B","k":0.7,"drawSegment":false,"drag":true} (tam giác ABC vuông tại A; kéo C chỉ trượt trên đường ⊥ AB).
 
 10. "intersection_ll" — Giao điểm của 2 đường thẳng ĐỒNG PHẲNG l1 và l2 (chấp nhận cả "A-C" hoặc ["A","C"]):
     {"op":"intersection_ll","id":"O","l1":"A-C","l2":"B-D","drawExtensions":true,"dashedExtensions":true,"extDashed":true,"effect":"pop","step":"Trong (ABCD), gọi O = AC ∩ BD"}
@@ -138,7 +181,12 @@ Thay vì viết 12–20 lệnh rời rạc cho phần khung cơ bản dễ nhầ
 
 26. "prism" — Dựng trọn gói Lăng trụ tam giác / Lăng trụ tứ giác / Hình hộp chữ nhật / Lập phương chỉ bằng 1 dòng:
     {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle","upright":true,"height":3.5,"effect":"chalk","step":"Dựng lăng trụ đứng ABC.A'B'C'"}
-    - Hỗ trợ cả "ABC.A'B'C'" ("baseType":"triangle") và "ABCD.A'B'C'D'" ("baseType":"parallelogram"); đặt "upright":true cho lăng trụ đứng/hình hộp chữ nhật (tự gắn góc vuông tại A) hoặc "upright":false cho lăng trụ xiên; tự khóa B', C', D' bằng point_sum theo véc-tơ AA' và xét chuẩn nét khuất!
+    - Hỗ trợ cả "ABC.A'B'C'" ("baseType":"triangle") và "ABCD.A'B'C'D'" ("baseType":"parallelogram"); đặt "upright":true cho lăng trụ đứng/hình hộp chữ nhật (A' khóa ⊥ đáy, chỉ trượt chiều cao + góc vuông tại A) hoặc "upright":false cho lăng trụ xiên (A' là cha tự do); tự khóa B', C', D' bằng point_sum theo véc-tơ AA' và xét chuẩn nét khuất!
+
+26b. "cube" — Hình lập phương CỨNG (BẮT BUỘC cho mọi bài lập phương, KHÔNG dùng prism/points):
+    {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40,"depthRatio":0.5,"effect":"chalk","step":"Dựng hình lập phương ABCD.A'B'C'D'"}
+    - Cha duy nhất: A, B. A' = quay B quanh A 90° ⇒ mặt trước ABB'A' luôn là HÌNH VUÔNG thật; D = hướng chiều sâu (depthAngle, depthRatio — khóa); C, B', C', D' = tổng véc-tơ ⇒ 3 họ cạnh luôn song song & bằng nhau.
+    - "depthAngle": 40 (lệch phải, đỉnh khuất D: AD, DC, DD' nét đứt) | 135 (lệch trái, đỉnh khuất C: BC, CD, CC' nét đứt). "x","y" = vị trí đỉnh A. "depthDrag": true nếu muốn D là cha thứ 3 (đổi góc nhìn).
 
 27. "points" — Khai báo gộp toàn bộ các đỉnh tự do trong 1 dòng duy nhất:
     {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2],"D":[3.2,0.5],"S":[0.8,3.8]},"effect":"pop","step":"Đặt các đỉnh gốc"}
@@ -189,8 +237,13 @@ MỤC 3 — HƯỚNG DẪN DỰNG HÌNH CỤ THỂ TỪNG BƯỚC CHO 6+ DẠNG 
 --- DẠNG 3: LĂNG TRỤ TAM GIÁC, LĂNG TRỤ TỨ GIÁC, HÌNH HỘP CHỮ NHẬT / LẬP PHƯƠNG ---
 1. Dựng nhanh bằng 1 lệnh "prism":
    - Lăng trụ đứng tam giác: {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle","upright":true,"height":3.5} (AC nét đứt; đáy trên và 3 cạnh bên AA', BB', CC' nét liền).
-   - Hình hộp đứng / lập phương: {"op":"prism","name":"ABCD.A'B'C'D'","baseType":"parallelogram","upright":true,"height":3.5} (chỉ 3 cạnh xuất phát từ góc khuất sau A là AB, AD, AA' nét đứt; 9 cạnh khung còn lại nét liền!).
-2. Nếu dựng nguyên tử: chỉ đặt 1 đỉnh đáy trên A' bằng point_free, toàn bộ B', C', D' BẮT BUỘC dùng point_sum theo véc-tơ AA'.
+   - Hình hộp đứng: {"op":"prism","name":"ABCD.A'B'C'D'","baseType":"parallelogram","upright":true,"height":3.5} (chỉ 3 cạnh xuất phát từ góc khuất sau A là AB, AD, AA' nét đứt; 9 cạnh khung còn lại nét liền!).
+   - Hình lập phương: LUÔN {"op":"cube","name":"ABCD.A'B'C'D'","depthAngle":40} (KHÔNG dùng prism/points — prism không bảo đảm các cạnh bằng nhau).
+2. Nếu dựng nguyên tử: chỉ đặt 1 đỉnh đáy trên A' (lăng trụ xiên) bằng point_free, toàn bộ B', C', D' BẮT BUỘC dùng point_sum theo véc-tơ AA'; lăng trụ đứng: A' = line_perp {through:"A", line:"A-D", "drag":true}.
+3. Thiết diện của hình lập phương (VD mặt phẳng (DKF), K, F trung điểm A'B', B'C'):
+   - K, F = midpoint → trong (A'B'C'D'): P = intersection_ll(K-F, D'-A'), Q = intersection_ll(K-F, D'-C') (drawExtensions) → trong (ADD'A'): I = intersection_ll(D-P, A-A') → trong (CDD'C'): N = intersection_ll(D-Q, C-C') → connect_polygon D-I-K-F-N (cạnh nằm trên mặt khuất vào "dashedEdges").
+   - Mặt phẳng song song với một mặt/đường đã có: mỗi cạnh thiết diện dựng bằng line_parallel + intersection_ll ĐỒNG PHẲNG, không bao giờ chấm tay.
+4. Vẽ riêng một mặt dạng thật (VD hình vuông A'B'C'D' bên cạnh khối): id mới A1, B1 với "label":"A'","B'" và "flat": true; D1 = rotate(B1 quanh A1, 90°), C1 = point_sum(B1, D1, A1); K1, F1 = midpoint ("label":"K","F"). Mẫu đầy đủ: prompts/examples/cube_section_DKF_unfolded.json.
 
 --- DẠNG 4: GÓC ĐƯỜNG-MẶT, GÓC NHỊ DIỆN & KHOẢNG CÁCH (QUY TRÌNH 2 BƯỚC "foot_perp" CHUẨN SGK) ---
 1. Góc giữa đường thẳng SC và mặt đáy (ABCD) (khi SH ⊥ đáy tại H): nối hình chiếu HC nét đứt, đánh dấu angle_mark(a:"S", v:"C", b:"H", n:1).
@@ -210,6 +263,11 @@ MỤC 3 — HƯỚNG DẪN DỰNG HÌNH CỤ THỂ TỪNG BƯỚC CHO 6+ DẠNG 
 
 --- DẠNG 6: TAM GIÁC PHẲNG 2D, ĐA GIÁC ĐỀU, PHÂN GIÁC & CÁC TÂM ĐẶC BIỆT ---
 1. Tam giác nhọn lệch chuẩn ("is3D": false): dùng {"op":"points","pts":{"A":[-0.9,3.0],"B":[-3.2,-1.8],"C":[3.0,-1.8]}} + connect_polygon(["A","B","C"]).
+   - Tam giác đặc biệt — chỉ khai báo đúng số cha, phần còn lại khóa (xem MỤC 1B-F):
+     + Vuông tại A: A, B cha + {"op":"line_perp","id":"C","through":"A","line":"A-B","k":0.7,"drawSegment":false,"drag":true}.
+     + Cân tại A: B, C cha + {"op":"midpoint","id":"H","s":"B-C","show":false} + {"op":"line_perp","id":"A","through":"H","line":"B-C","k":0.8,"drawSegment":false,"drag":true}.
+     + Đều: {"op":"equilateral_triangle","pts":["A","B","C"]}.
+   - Tứ giác đặc biệt: hình vuông "square_2d"; hình chữ nhật A, B cha + D = line_perp(through A, line A-B, drag) + C = point_sum(B, D, A); hình thoi A, B cha + D = rotate(B quanh A, góc A) + C = point_sum; hình thang A, B, D cha + C = line_parallel(through D, line A-B, drag).
 2. Dùng ngay Macro 1 dòng cho các yếu tố cổ điển:
    - Tam giác đều / Hình vuông: "equilateral_triangle" / "square_2d" (hoặc dùng "rotate" góc 60°, 90°).
    - Trực tâm H, Trọng tâm G, Đường tròn ngoại tiếp (O), Đường tròn nội tiếp (I): gọi trực tiếp "orthocenter", "centroid", "circumcircle", "incircle".

@@ -268,6 +268,7 @@
             "frustumCone",
             "pyramid",
             "prism",
+            "cube",
             "equilateral_triangle",
             "square_2d",
             "circumcircle",
@@ -523,6 +524,13 @@
         "show": { "type": "boolean" },
         "aux": { "type": "boolean" },
         "arrow": { "type": "boolean" },
+        "drag": { "type": "boolean", "description": "v0.0.9.14: line_parallel/line_perp child may slide along its locked direction (default false = locked)." },
+        "lock": { "type": "boolean", "description": "v0.0.9.14: pin a glider (point_on_segment/line/circle) at its given ratio." },
+        "flat": { "type": "boolean", "description": "v0.0.9.14: parent of a true-shape 2D sub-figure drawn beside a 3D solid (never dashed / not part of the solid)." },
+        "depthAngle": { "type": "number", "description": "cube: receding direction in degrees (40 => hidden D, 135 => hidden C)." },
+        "depthRatio": { "type": "number", "minimum": 0.3, "maximum": 0.75 },
+        "depthDrag": { "type": "boolean" },
+        "edge": { "type": "number", "exclusiveMinimum": 0 },
         "kind": {
           "type": "string",
           "enum": ["segment", "line", "ray"]
@@ -587,6 +595,8 @@
         "ang": { "type": "number" },
         "seg": { "type": "boolean" },
         "perp": { "type": "boolean" },
+        "drag": { "type": "boolean", "description": "vec only: draggable along its direction (default locked)." },
+        "lock": { "type": "boolean", "description": "never draggable." },
         "l1": {
           "type": "array",
           "minItems": 2,

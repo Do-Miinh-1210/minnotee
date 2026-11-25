@@ -153,6 +153,14 @@
     if (!w) return null;
     return w.__minnoteBoard || (w.__meaBoardRef && w.__meaBoardRef.current) || null;
   };
+  const getRigidity = () => {
+    if (root && root.MinNoteGeoRigidity) return root.MinNoteGeoRigidity;
+    try {
+      return typeof require === 'function' ? require('./minnote-geo-rigidity.js') : null;
+    } catch (err) {
+      return null;
+    }
+  };
   const getKernel = () => {
     const w = typeof window !== 'undefined' ? window : globalThis;
     return (w && w.__mnGeoKernel) || fallbackKernel;
@@ -173,6 +181,44 @@
     }
   ];
 
+  // Shared "cha–con" rigidity rules (v0.0.9.14) — injected into every prompt sent to external AIs.
+  const RIGIDITY_RULES_PROMPT = `LUẬT CHA–CON: KHÓA BẤT BIẾN HÌNH HỌC (BẮT BUỘC — MinNote thực thi đúng như vậy khi kéo thả)
+A. Ba loại đối tượng:
+   • CHA (kéo được): chỉ "point_free" / "points" / đỉnh gốc do macro tạo. Số cha = đúng số bậc tự do của hình:
+     tam giác thường 3 | tam giác đều 2 | hình bình hành, hình thoi* 3 | hình chữ nhật 2 (+ chiều cao trượt) | hình vuông 2 |
+     hình thang 3 (+ đáy nhỏ trượt) | hình lập phương 2 (A, B) | hộp chữ nhật / lăng trụ đứng: đáy + chiều cao trượt | chóp: đáy + S.
+   • CON KHÓA (KHÔNG kéo được, chỉ đổi khi cha đổi): point_sum, midpoint, rotate, foot_perp, line_parallel, line_perp,
+     intersection_ll/lc/cc, tangent_point, angle_bisector, circumcircle/incircle/orthocenter/centroid.
+     → Song song, vuông góc, bằng nhau, góc quay đã tạo thì KHÔNG BAO GIỜ bị kéo lệch.
+   • CON TRƯỢT (chỉ 1 bậc tự do, vẫn giữ tính chất): point_on_segment / point_on_line / point_on_circle = "điểm bất kỳ / di động"
+     trượt trên đường của nó; line_parallel / line_perp + "drag": true = trượt dọc phương đã khóa (vẫn luôn // hoặc ⊥).
+     Đề cho tỉ số cố định (AM = 2MD, SN = SD/3) ⇒ point_on_segment + "ratio" đúng + "lock": true (đóng đinh, không trượt).
+B. CẤM dùng "point_free"/"points" cho điểm CON, kể cả khi đã tính đúng tọa độ (đỉnh C hình bình hành, đỉnh thứ 4 hình vuông,
+   A'/B'/C'/D' lăng trụ, trung điểm, giao điểm…). Tọa độ đúng chỉ đúng ở khung đầu — kéo cha là méo hình.
+C. Tính chất → công cụ khóa:
+   • AB // = DC (hình bình hành, tịnh tiến, cạnh bên lăng trụ) → point_sum (C = B + D − A; B' = B + A' − A).
+   • d qua M // AB (độ dài tự do) → line_parallel {through:M, line:"A-B"} (+ "drag":true nếu độ dài là tham số đề không cho).
+   • d qua M ⊥ AB → line_perp; chân đường vuông góc → foot_perp.
+   • Cạnh bằng nhau + góc cố định (tam giác đều 60°, vuông cân / hình vuông 90°) → rotate {center, point, angleDeg, k:1}.
+   • Vị tự / đồng dạng → rotate với k ≠ 1 (angleDeg 0 hoặc 180).
+D. HÌNH KHÔNG GIAN (phép chiếu song song chuẩn SGK):
+   • Bảo toàn: song song, tỉ số 2 đoạn cùng phương, trung điểm, thẳng hàng. KHÔNG bảo toàn góc vuông & độ dài, TRỪ mặt chính diện.
+   • 2 đường song song trong không gian ⇒ song song trên hình vẽ: dựng bằng point_sum (song song & bằng nhau) hoặc line_parallel.
+   • Giao tuyến của 2 mặt chứa 2 đường song song ⇒ line_parallel. Thiết diện song song với một mặt ⇒ mỗi cạnh dựng bằng
+     line_parallel + intersection_ll ĐỒNG PHẲNG; TUYỆT ĐỐI không chấm tay đỉnh thiết diện.
+   • HÌNH LẬP PHƯƠNG: BẮT BUỘC {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40|135,"depthRatio":0.5}.
+     Mặt trước ABB'A' là HÌNH VUÔNG thật (A' = quay B quanh A 90°), các mặt còn lại là hình bình hành, 3 họ cạnh luôn // và bằng nhau.
+     depthAngle < 90 ⇒ đỉnh khuất D; depthAngle > 90 ⇒ đỉnh khuất C (MinNote tự xét 3 cạnh nét đứt). Cha duy nhất: A, B.
+   • Hộp chữ nhật / lăng trụ đứng: {"op":"prism",...,"upright":true} ⇒ AA' khóa ⊥ đáy (chỉ trượt chiều cao).
+E. HÌNH PHẲNG VẼ RIÊNG (mặt trải phẳng, thiết diện vẽ thật cạnh khối): là hình 2D độc lập, góc vuông/độ dài thật:
+   • id KHÁC id của khối (A1, B1, …) với "label":"A'" …; 2 cha đặt "flat": true, các điểm con kế thừa tự động.
+   • Hình vuông: 2 cha + rotate 90° + point_sum; điểm trên cạnh lấy đúng ratio như trên khối + "lock": true khi đề cho tỉ số.
+F. HÌNH PHẲNG 2D: tam giác đều → "equilateral_triangle"; hình vuông → "square_2d"; hình chữ nhật → 2 cha + line_perp("drag":true) + point_sum;
+   hình bình hành → 3 cha + point_sum; hình thoi → 2 cha A, B + D = rotate(B quanh A, góc A, k:1) + point_sum;
+   hình thang (AB // CD) → A, B, D cha + C = line_parallel {through:"D", line:"A-B", drag:true};
+   tam giác vuông tại A → A, B cha + C = line_perp {through:"A", line:"A-B", drag:true};
+   tam giác cân tại A → B, C cha + H = midpoint BC + A = line_perp {through:"H", line:"B-C", drag:true}.`;
+
   const AI_GEO_SYSTEM_PROMPT = `Bạn là chuyên gia Toán Hình học & Kỹ sư Dựng hình Tham số của MinNote.
 Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/trắc nghiệm, bảng Đúng-Sai 4 ý, hoặc ảnh hình vẽ SGK/vẽ tay) -> tự kiểm chứng hình học ngầm theo 5 cổng -> xuất DUY NHẤT 1 đối tượng JSON dựng hình TỪNG NÉT SIÊU GỌN chuẩn xác.
 
@@ -181,7 +227,8 @@ Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/tr�
 - VIẾT GỌN CẶP & BỘ BA ĐIỂM BẰNG CHUỖI: dùng "A-C" thay cho ["A","C"] (vd l1:"A-C", l2:"B-D"), "S-A-B" cho right_angle/angle_mark/angle_bisector, và bán kính số trực tiếp "r": 2.2 cho circle.
 - DÙNG 1 LỆNH MACRO CHO KHỐI 3D & ĐƯỜNG TRÒN / TAM GIÁC ĐẶC BIỆT (thay vì viết rời 12–15 lệnh):
   + Chóp 3D: {"op":"pyramid","name":"S.ABCD","baseType":"quad"|"parallelogram"|"rect"|"square"|"rhombus"|"trapezoid"|"triangle","altitude":"free"|"SA"|"SB"|"face_SAB"|"center","height":3.8,"diagonals":true} (tự dựng chuẩn đỉnh, tự khóa hình bình hành/hình thang, tự phân loại nét liền/khuất và tự gắn góc vuông đường cao!).
-  + Lăng trụ / Hình hộp: {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5} (hoặc "ABCD.A'B'C'D'").
+  + Lăng trụ / Hình hộp: {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5} (hoặc "ABCD.A'B'C'D'"; upright:true ⇒ AA' khóa ⊥ đáy).
+  + Hình lập phương (BẮT BUỘC): {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40,"depthRatio":0.5} (cha A, B; mặt trước là hình vuông thật).
   + Gộp nhiều điểm tự do: {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2]}}
   + Nối gộp hàng loạt đoạn thẳng: {"op":"segments","solid":["B-M","M-N","M-I"],"dashed":["A-C","B-D","S-O"],"aux":true}
   + Macro hình phẳng 2D khóa động 100%:
@@ -190,9 +237,11 @@ Nhiệm vụ: Đọc đề bài (văn bản hoặc ảnh: đề tự luận/tr�
     • Trực tâm / Trọng tâm: {"op":"orthocenter","id":"H","pts":["A","B","C"],"drawAltitudes":true} | {"op":"centroid","id":"G","pts":["A","B","C"],"drawMedians":true}
     • Tam giác đều / Hình vuông động: {"op":"equilateral_triangle","pts":["A","B","C"]} | {"op":"square_2d","pts":["A","B","C","D"]}
 
+${RIGIDITY_RULES_PROMPT}
+
 5 CỔNG TỰ KIỂM CHỨNG HÌNH HỌC BẮT BUỘC TRƯỚC KHI XUẤT JSON:
 1. ĐỒ THỊ PHỤ THUỘC ĐIỂM (DAG - cấm điểm rời rạc & cấm bẫy giả trung điểm):
-   - Chỉ ĐỈNH GỐC tự do mới dùng "point_free" / "points". Mọi điểm sinh ra từ tính chất hình học BẮT BUỘC khóa bằng công cụ động ("midpoint", "point_on_segment", "foot_perp", "rotate", "angle_bisector", "intersection_ll", "intersection_lc", "intersection_cc", "tangent_point", "line_parallel", "line_perp", "point_sum").
+   - Chỉ ĐỈNH CHA mới dùng "point_free" / "points" (xem LUẬT CHA–CON). Mọi điểm sinh ra từ tính chất hình học BẮT BUỘC khóa bằng công cụ động ("midpoint", "point_on_segment", "foot_perp", "rotate", "angle_bisector", "intersection_ll", "intersection_lc", "intersection_cc", "tangent_point", "line_parallel", "line_perp", "point_sum").
    - Điểm thuộc đoạn tổng quát (KHÔNG phải trung điểm): dùng "point_on_segment" với ratio thuộc [0.08..0.92] và BẮT BUỘC ratio != 0.5 (chọn 0.36 hoặc 0.64 để tránh sinh đường song song giả do định lý Thales!).
    - Điểm được định nghĩa TRƯỚC khi bất kỳ lệnh nào khác tham chiếu tới id của nó.
 2. HỆ TRỤC (+x sang phải, +y HƯỚNG LÊN) & CHỐNG TỨ GIÁC ĐÁY TỰ CẮT:
@@ -258,7 +307,7 @@ TÓM TẮT SCHEMA "ops" (trong {"schema":"mn-geo-motion/2.0","title":"...","is3D
     const orbit3dVal = motionOpts.orbit3d !== undefined ? !!motionOpts.orbit3d : (preset === '3d_standard');
     const prob = String(problemText || '').trim() || '[DÁN ĐỀ BÀI TOÁN HÌNH HỌC 2D/3D HOẶC ĐÍNH KÈM ẢNH ĐỀ BÀI VÀO ĐÂY]';
 
-    return `Bạn là Kỹ sư Dựng hình Tham số Động chuẩn MinNote (schema "mn-geo-motion/2.0").
+    return `Bạn là Kỹ sư Dựng hình Tham số Động chuẩn MinNote (schema "mn-geo-motion/2.0" — v0.0.9.14, luật CHA–CON).
 Nhiệm vụ của bạn: Đọc kỹ đề bài Toán Hình học (2D hoặc 3D, văn bản hoặc ảnh đề bài) ở cuối tài liệu này và xuất DUY NHẤT 1 khối mã JSON hợp lệ, gọn sạch để nạp trực tiếp vào bảng vẽ tương tác MinNote.
 
 ================================================================================
@@ -272,6 +321,9 @@ PHẦN 1 — NGUYÊN LÝ HẠT NHÂN HÌNH HỌC THAM SỐ ĐỘNG MINNOTE ("mn-
    - CHỈ các đỉnh tự do ban đầu mới dùng "point_free" / "points" (hoặc sinh tự động qua macro "pyramid", "prism").
    - MỌI điểm sinh ra từ giả thiết hình học (đỉnh thứ 4 hình bình hành, trung điểm, điểm chia tỉ lệ, chân đường cao, điểm quay, chân phân giác, giao điểm, tiếp điểm, tâm ngoại/nội tiếp) BẮT BUỘC dùng đúng công cụ ràng buộc động để khi kéo thả đỉnh tự do trên bảng MinNote, hình biến đổi mượt mà KHÔNG BAO GIỜ vỡ tính chất vuông góc, song song, phân giác hay tiếp xúc!
    - Thứ tự khai báo (DAG): Điểm gốc phải được khai báo TRƯỚC khi lệnh khác tham chiếu tới "id" của điểm đó. Không để điểm sinh ra bị trơ trọi.
+
+================================================================================
+PHẦN 1B — ${RIGIDITY_RULES_PROMPT}
 
 ================================================================================
 PHẦN 2 — TỪ ĐIỂN ĐẦY ĐỦ CÔNG CỤ DỰNG HÌNH ĐỘNG TRONG APP MINNOTE ("ops")
@@ -289,6 +341,7 @@ Mỗi phần tử trong mảng "ops" là 1 lệnh dựng hình chuẩn:
 
 4. point_on_segment — Điểm chia tỉ lệ khóa chặt trong đoạn thẳng AB (ratio ∈ [0.08, 0.92]):
    {"op":"point_on_segment","id":"N","s":"S-D","ratio":0.38,"effect":"pop","step":"Lấy điểm N thuộc đoạn SD"}
+   (Đề cho tỉ số cố định ⇒ ratio đúng + "lock": true; không có lock ⇒ điểm trượt được trên đoạn.)
    (LƯU Ý SỐNG CÒN: Nếu đề chỉ nói "lấy điểm M thuộc đoạn..." mà KHÔNG nói trung điểm, BẮT BUỘC chọn ratio lệch như 0.36, 0.38 hoặc 0.64; CẤM lấy ratio = 0.5 để tránh bẫy sinh đường song song giả!).
 
 5. point_on_line — Điểm nằm trên đường thẳng kéo dài ngoài đoạn AB (ratio < 0 hoặc ratio > 1):
@@ -310,6 +363,7 @@ Mỗi phần tử trong mảng "ops" là 1 lệnh dựng hình chuẩn:
 10. line_parallel & line_perp — Dựng đường thẳng qua điểm through song song hoặc vuông góc với đường thẳng ab:
     {"op":"line_parallel","id":"x","through":"S","line":"A-B","k":1.2,"asLine":true,"bothSides":true,"noDot":true,"aux":true,"effect":"glow","step":"Giao tuyến Sx // AB"}
     {"op":"line_perp","id":"d","through":"A","line":"O-A","k":1.2,"asLine":true,"noDot":true,"aux":true,"step":"Đường thẳng d ⊥ OA tại A"}
+    (Mặc định điểm sinh ra bị KHÓA. Đỉnh hình có độ dài tự do — đáy nhỏ hình thang, cạnh góc vuông — thêm "drag": true để trượt dọc phương, vẫn luôn // hoặc ⊥.)
 
 11. intersection_ll — Giao điểm của 2 đường thẳng ĐỒNG PHẲNG và không song song:
     {"op":"intersection_ll","id":"O","l1":"A-C","l2":"B-D","drawExtensions":true,"effect":"pop","step":"Gọi O = AC ∩ BD"}
@@ -363,7 +417,11 @@ Hãy ưu tiên dùng các lệnh Macro gộp và quy ước rút gọn sau để
 
 • 2. prism — Dựng trọn gói Lăng trụ đứng / Lăng trụ xiên / Hình hộp trong 1 dòng:
   {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5,"step":"Dựng lăng trụ đứng ABC.A'B'C'"}
-  (Hỗ trợ cả "ABC.A'B'C'" và "ABCD.A'B'C'D'"; tự khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA' và phân loại nét khuất tự động).
+  (Hỗ trợ cả "ABC.A'B'C'" và "ABCD.A'B'C'D'"; tự khóa các đỉnh đáy trên bằng point_sum theo véc-tơ AA'; upright:true ⇒ AA' ⊥ đáy, chỉ trượt chiều cao).
+
+• 2b. cube — Hình lập phương CỨNG (BẮT BUỘC cho mọi bài lập phương):
+  {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40,"depthRatio":0.5,"step":"Dựng hình lập phương"}
+  (Cha: A, B. A' = quay B quanh A 90° ⇒ ABB'A' luôn là hình vuông; D theo hướng chiều sâu depthAngle (40 = lệch phải, khuất D; 135 = lệch trái, khuất C); C, B', C', D' = tổng véc-tơ ⇒ 12 cạnh luôn đúng 3 họ song song bằng nhau, kéo A/B chỉ xoay-co giãn cả khối.)
 
 • 3. points & segments — Khai báo gộp nhiều điểm gốc & nối gộp hàng loạt nét liền/nét đứt:
   {"op":"points","pts":{"A":[-2.8,0.2],"B":[-1.7,-1.8],"C":[1.7,-2.2]}}
@@ -392,6 +450,13 @@ PHẦN 3 — QUY TẮC VÀNG CHO CÁC DẠNG HÌNH HỌC PHỔ BIẾN
 
 • Đường tròn (O; R), Tiếp tuyến, Nội tiếp / Ngoại tiếp 2D ("is3D": false):
   - Dùng {"op":"circle","center":"O","r":2.2} (tự đặt tâm O(0,0) nếu chưa khai báo) kết hợp "tangents_from_point", "point_on_circle" (chọn các góc lệch nhau như 112, 210, 330 để tam giác nhọn tổng quát), "circumcircle", "incircle", "orthocenter".
+
+• Hình lập phương / hộp & thiết diện (vd mặt phẳng (DKF) với K, F là trung điểm A'B', B'C'):
+  - {"op":"cube","name":"ABCD.A'B'C'D'","depthAngle":135} → K, F = midpoint → trong mặt (A'B'C'D'): P = KF ∩ D'A', Q = KF ∩ D'C' (intersection_ll, drawExtensions)
+    → trong (ADD'A'): I = DP ∩ AA'; trong (CDD'C'): N = DQ ∩ CC' → connect_polygon ["D","I","K","F","N"] (cạnh nằm trên mặt khuất vào "dashedEdges").
+  - Vẽ thêm mặt A'B'C'D' dạng thật bên cạnh: id A1, B1 ("label":"A'","B'", "flat":true) + rotate 90° + point_sum + midpoint K1, F1 ("label":"K","F").
+
+• Hình phẳng 2D có tính chất (vuông, chữ nhật, thoi, thang, tam giác vuông/cân/đều): chỉ khai báo đúng số CHA ở mục F của LUẬT CHA–CON, mọi đỉnh còn lại dựng bằng rotate / point_sum / line_parallel / line_perp. Kéo thử trong đầu: dời 1 cha bất kỳ, tính chất phải còn nguyên.
 
 ================================================================================
 PHẦN 4 — HIỆU ỨNG DIỄN HOẠT TỪNG NÉT TRONG MINNOTE
@@ -1501,6 +1566,16 @@ ${prob}`;
       return out;
     }
 
+    if (head === 'cube' || head === 'lap_phuong') {
+      if (isPlainOptsObj(arr[1])) return { op: 'cube', ...arr[1] };
+      const out = { op: 'cube', name: String(arr[1] || "ABCD.A'B'C'D'").trim() };
+      for (let i = 2; i < arr.length; i++) {
+        if (isPlainOptsObj(arr[i])) Object.assign(out, arr[i]);
+        else if (typeof arr[i] === 'number') out.edge = arr[i];
+      }
+      return out;
+    }
+
     if (head === 'prism' || head === 'lang_tru') {
       if (isPlainOptsObj(arr[1])) return { op: 'prism', ...arr[1] };
       const out = { op: 'prism', name: String(arr[1] || "ABC.A'B'C'").trim() };
@@ -2171,7 +2246,7 @@ ${prob}`;
               emitPointIfMissing(b1, 3.0, 0.3);
               emitPointIfMissing(b3, -1.5, -1.8);
               if (!declaredPts.has(b2)) {
-                emitOp({ op: 'line_parallel', id: b2, through: b3, a: b0, b: b1, k: 0.52, drawSegment: false, step: `Đỉnh ${b2} sao cho ${b2}${b3} // ${b0}${b1}` });
+                emitOp({ op: 'line_parallel', id: b2, through: b3, a: b0, b: b1, k: 0.52, drawSegment: false, drag: true, step: `Đỉnh ${b2} sao cho ${b2}${b3} // ${b0}${b1}` });
               }
               emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b1}`], ...fxProp, step: `Dựng đáy hình thang ${b0}${b1}${b2}${b3}` });
             } else {
@@ -2179,7 +2254,7 @@ ${prob}`;
               emitPointIfMissing(b1, -1.6, -1.8);
               emitPointIfMissing(b3, 3.0, 0.3);
               if (!declaredPts.has(b2)) {
-                emitOp({ op: 'line_parallel', id: b2, through: b1, a: b0, b: b3, k: 0.52, drawSegment: false, step: `Đỉnh ${b2} sao cho ${b1}${b2} // ${b0}${b3}` });
+                emitOp({ op: 'line_parallel', id: b2, through: b1, a: b0, b: b3, k: 0.52, drawSegment: false, drag: true, step: `Đỉnh ${b2} sao cho ${b1}${b2} // ${b0}${b3}` });
               }
               emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b3}`], ...fxProp, step: `Dựng đáy hình thang ${b0}${b1}${b2}${b3}` });
             }
@@ -2251,6 +2326,29 @@ ${prob}`;
         continue;
       }
 
+      // 3b. Rigid cube macro (cha = A, B; A' quay 90°, C/B'/C'/D' tổng véc-tơ ⇒ không thể kéo méo)
+      const cubeBaseRaw = String(op.baseType || op.base_type || '').trim().toLowerCase();
+      if (op.op === 'cube' || op.op === 'lap_phuong' || (op.op === 'prism' && (cubeBaseRaw === 'cube' || cubeBaseRaw === 'lap_phuong'))) {
+        const RG = getRigidity();
+        if (RG) {
+          expandedMacroCount++;
+          if (plan.is3D === undefined) plan.is3D = true;
+          for (const subOp of RG.buildCubeOps(op)) {
+            const sid = subOp.id;
+            if (sid && declaredPts.has(sid)) {
+              if (subOp.op === 'point_free') continue; // keep AI-placed parent vertices
+              const prev = declaredPts.get(sid);
+              const pIdx = outOps.indexOf(prev);
+              if (pIdx >= 0) outOps.splice(pIdx, 1);
+              declaredPts.delete(sid);
+              fixes.push(`Đã thay khai báo rời của "${sid}" bằng ràng buộc hình lập phương (con, không kéo được).`);
+            }
+            emitOp(subOp);
+          }
+          continue;
+        }
+      }
+
       // 4. High-Level 3D `prism` Macro
       if (op.op === 'prism') {
         expandedMacroCount++;
@@ -2278,6 +2376,16 @@ ${prob}`;
         const dx = upright ? 0 : (op.dx !== undefined ? parseMathNumber(op.dx, 0.75) : 0.75);
         const mainFx = op.effect || undefined;
         const fxProp = mainFx ? { effect: mainFx } : {};
+        // Lăng trụ đứng: cạnh bên AA' khóa ⊥ cạnh đáy trước (chỉ trượt theo chiều cao, drag:true).
+        // Lăng trụ xiên: A' là cha tự do (hướng cạnh bên là tham số thật của hình).
+        const emitPrismApex = (t0Id, baseId, frontId, bx, by, frontLen) => {
+          if (declaredPts.has(t0Id)) return;
+          if (!upright) {
+            emitPointIfMissing(t0Id, Number((bx + dx).toFixed(4)), Number((by + h).toFixed(4)));
+            return;
+          }
+          emitOp({ op: 'line_perp', id: t0Id, through: baseId, a: baseId, b: frontId, k: Number((h / frontLen).toFixed(4)), drawSegment: false, drag: true, step: `Cạnh bên ${baseId}${t0Id} ⊥ đáy (lăng trụ đứng)` });
+        };
 
         if (botPts.length === 3) {
           const [b0, b1, b2] = botPts;
@@ -2286,7 +2394,7 @@ ${prob}`;
           emitPointIfMissing(b1, -0.6, -2.6);
           emitPointIfMissing(b2, 2.4, -1.2);
           emitOp({ op: 'connect_polygon', pts: [b0, b1, b2], dashedEdges: [`${b0}-${b2}`], ...fxProp, step: `Dựng đáy dưới ${b0}${b1}${b2}` });
-          emitPointIfMissing(t0, Number((-2.6 + dx).toFixed(4)), Number((-1.2 + h).toFixed(4)));
+          emitPrismApex(t0, b0, b2, -2.6, -1.2, 5.0);
           if (!declaredPts.has(t1)) emitOp({ op: 'point_sum', id: t1, a: b1, b: t0, c: b0 });
           if (!declaredPts.has(t2)) emitOp({ op: 'point_sum', id: t2, a: b2, b: t0, c: b0 });
           emitOp({ op: 'connect_polygon', pts: [t0, t1, t2], dashedEdges: [], ...fxProp, step: `Dựng đáy trên ${t0}${t1}${t2}` });
@@ -2302,7 +2410,7 @@ ${prob}`;
           emitPointIfMissing(b3, 2.4, -1.0);
           if (!declaredPts.has(b2)) emitOp({ op: 'point_sum', id: b2, a: b1, b: b3, c: b0 });
           emitOp({ op: 'connect_polygon', pts: [b0, b1, b2, b3], dashedEdges: [`${b0}-${b1}`, `${b0}-${b3}`], ...fxProp, step: `Dựng đáy dưới ${b0}${b1}${b2}${b3}` });
-          emitPointIfMissing(t0, Number((-2.2 + dx).toFixed(4)), Number((-1.0 + h).toFixed(4)));
+          emitPrismApex(t0, b0, b3, -2.2, -1.0, 4.6);
           if (!declaredPts.has(t1)) emitOp({ op: 'point_sum', id: t1, a: b1, b: t0, c: b0 });
           if (!declaredPts.has(t2)) emitOp({ op: 'point_sum', id: t2, a: b2, b: t0, c: b0 });
           if (!declaredPts.has(t3)) emitOp({ op: 'point_sum', id: t3, a: b3, b: t0, c: b0 });
@@ -3268,11 +3376,11 @@ ${prob}`;
       } else if (d.t === 'mid') {
         out.push({ op: 'midpoint', id: sym, label: p.label || sym, a: symOf(d.a), b: symOf(d.b), show: p.show !== false });
       } else if (d.t === 'on') {
-        out.push({ op: d.seg ? 'point_on_segment' : 'point_on_line', id: sym, label: p.label || sym, a: symOf(d.a), b: symOf(d.b), ratio: Number(d.k ?? 0.38), show: p.show !== false });
+        out.push({ op: d.seg ? 'point_on_segment' : 'point_on_line', id: sym, label: p.label || sym, a: symOf(d.a), b: symOf(d.b), ratio: Number(d.k ?? 0.38), show: p.show !== false, ...(d.lock ? { lock: true } : {}) });
       } else if (d.t === 'foot') {
         out.push({ op: 'foot_perp', id: sym, label: p.label || sym, p: symOf(d.p), a: symOf(d.a), b: symOf(d.b), drawDropSegment: false, markRightAngle: false, show: p.show !== false });
       } else if (d.t === 'vec') {
-        out.push({ op: d.perp ? 'line_perp' : 'line_parallel', id: sym, label: p.label || sym, through: symOf(d.o), a: symOf(d.a), b: symOf(d.b), k: Number(d.k ?? 1), drawSegment: false, show: p.show !== false, noDot: !!p.noDot });
+        out.push({ op: d.perp ? 'line_perp' : 'line_parallel', id: sym, label: p.label || sym, through: symOf(d.o), a: symOf(d.a), b: symOf(d.b), k: Number(d.k ?? 1), drawSegment: false, show: p.show !== false, noDot: !!p.noDot, ...(d.drag ? { drag: true } : {}) });
       } else if (d.t === 'inter' && Array.isArray(d.l1) && Array.isArray(d.l2)) {
         if (d.c1 && d.c2) {
           out.push({ op: 'intersection_cc', id: sym, label: p.label || sym, c1: [symOf(d.l1[0]), symOf(d.l1[1])], c2: [symOf(d.l2[0]), symOf(d.l2[1])], which: Number(d.which) || 0, show: p.show !== false });
@@ -3286,7 +3394,7 @@ ${prob}`;
       } else if (d.t === 'path' && Array.isArray(d.pts) && d.pts.length >= 2) {
         const rawDeg = (((-Number(d.k || 0) * 360) % 360) + 360) % 360;
         const deg = Number(rawDeg.toFixed(4));
-        out.push({ op: 'point_on_circle', id: sym, label: p.label !== undefined ? p.label : sym, center: symOf(d.pts[0]), rim: symOf(d.pts[1]), angleDeg: deg, show: p.show !== false });
+        out.push({ op: 'point_on_circle', id: sym, label: p.label !== undefined ? p.label : sym, center: symOf(d.pts[0]), rim: symOf(d.pts[1]), angleDeg: deg, show: p.show !== false, ...(d.lock ? { lock: true } : {}) });
       } else if (d.t === 'rot') {
         const isMathDef = geoBlock.defCoordSpace === 'math_y_up';
         const deg = Number(((isMathDef ? 1 : -1) * (Number(d.ang) || 0)).toFixed(4));
@@ -3593,6 +3701,22 @@ ${prob}`;
       if (bKey) {
         if (!usedRatiosByAnchor.has(bKey)) usedRatiosByAnchor.set(bKey, new Set());
         usedRatiosByAnchor.get(bKey).add(op.ratio);
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // PASS 3R: Rigidity healer — point_free whose coordinates already satisfy a property
+    // (prism translation, parallelogram, square, rectangle, trapezoid, cube) ⇒ constraint child.
+    // ------------------------------------------------------------------------
+    {
+      const RG = getRigidity();
+      if (RG) {
+        const rigIs3D = typeof plan.is3D === 'boolean'
+          ? plan.is3D
+          : /hình\s*chóp|tứ\s*diện|lăng\s*trụ|hình\s*hộp|lập\s*phương|thiết\s*diện|giao\s*tuyến|S\.[A-Z]{3,4}|[A-Z]{3,4}\.[A-Z]'/i.test(allContextText);
+        const rig = RG.rigidifyFreeVertices(ops, allContextText, rigIs3D);
+        ops = rig.ops;
+        rig.fixes.forEach(f => fixes.push(f));
       }
     }
 
@@ -4838,6 +4962,8 @@ ${prob}`;
 
     const defaultFx = plan.motion && plan.motion.defaultEffect ? plan.motion.defaultEffect : undefined;
 
+    const flatPtIds = new Set();
+    let curOpFlat = false;
     const registerPoint = (sym, def, label, show = true, extra = {}) => {
       const id = genId();
       const lbl = label !== undefined ? String(label) : String(sym || '');
@@ -4851,10 +4977,23 @@ ${prob}`;
         ...(isNoDot ? { noDot: true } : {}),
         ...(hasName ? { named: true } : { noName: true })
       };
+      // Flat sub-figure (e.g. a cube face redrawn in true shape beside the solid): op.flat === true,
+      // or every parent is flat. Flat points never join the 3D skeleton / hidden-line classifier.
+      const defRefs = ['a', 'b', 'c', 'p', 'o'].map(k => def && def[k]).filter(v => typeof v === 'string')
+        .concat(...['l1', 'l2', 'pts'].map(k => (def && Array.isArray(def[k]) ? def[k] : [])));
+      const parentsFlat = defRefs.length > 0 && defRefs.every(rid => flatPtIds.has(rid));
+      if (curOpFlat || parentsFlat) {
+        flatPtIds.add(id);
+        Object.defineProperty(pt, '_flat', { value: true, enumerable: false, configurable: true });
+      }
       pts.push(pt);
       if (sym) symToPt.set(String(sym).trim(), pt);
       return pt;
     };
+    const isFlatSeg = (uId, vId) => flatPtIds.has(uId) && flatPtIds.has(vId);
+    // 3D skeleton vertex: free / sum, plus named vertices locked by rotate / parallel-perpendicular (cube A', D; prism A').
+    const isSkeletonVertex = (p) => !!(p && p.show && !p._flat && p.def &&
+      (p.def.t === 'free' || p.def.t === 'sum' || ((p.def.t === 'rot' || p.def.t === 'vec') && !p.noDot)));
 
     const resolvePt = (sym, fallbackPt) => {
       if (!sym) return null;
@@ -4947,7 +5086,7 @@ ${prob}`;
 
     const computeSkeletonHullIds = (coordsMap) => {
       const cands = pts
-        .filter(p => p.show && p.def && (p.def.t === 'free' || p.def.t === 'sum'))
+        .filter(isSkeletonVertex)
         .map(p => ({ id: p.id, c: coordsMap.get(p.id) }))
         .filter(x => x.c && Number.isFinite(x.c.x) && Number.isFinite(x.c.y));
       if (cands.length < 3) return [];
@@ -5011,7 +5150,7 @@ ${prob}`;
     const build3DFaceVisibilityModel = (coordsMap) => {
       if (!planIs3D) return { valid: false };
       const skelPts = pts.filter(p =>
-        p && p.show && !p.noDot && p.def && (p.def.t === 'free' || p.def.t === 'sum') && coordsMap.get(p.id)
+        isSkeletonVertex(p) && !p.noDot && coordsMap.get(p.id)
       );
       if (skelPts.length < 4) return { valid: false };
 
@@ -5202,7 +5341,7 @@ ${prob}`;
     };
 
     const classify3DSegmentDashed = (uId, vId, coordsMap, visModelArg) => {
-      if (!planIs3D) return false;
+      if (!planIs3D || isFlatSeg(uId, vId)) return false;
       const cu = coordsMap.get(uId), cv = coordsMap.get(vId);
       if (!cu || !cv) return false;
       const hullIds = computeSkeletonHullIds(coordsMap);
@@ -5342,6 +5481,7 @@ ${prob}`;
 
     for (const op of ops) {
       if (!op || !op.op) continue;
+      curOpFlat = op.flat === true || op.sub2d === true;
       const stepLabel = op.step || op.note || '';
       const mMeta = extractMotionMetaFromOp(op, defaultFx);
       const hasExplicitOpMotion = !!(op.effect || op.easing || op.durationMul !== undefined || op.delayMs !== undefined || op.tRange);
@@ -5390,7 +5530,7 @@ ${prob}`;
             let k = Number(op.ratio ?? op.k ?? 0.38);
             if (!Number.isFinite(k)) k = 0.38;
             k = Math.min(0.92, Math.max(0.08, k));
-            const pt = registerPoint(op.id || op.label, { t: 'on', a: a.id, b: b.id, k, seg: true }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'on', a: a.id, b: b.id, k, seg: true, ...(op.lock === true ? { lock: true } : {}) }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Điểm ${pt.label} trên đoạn ${a.label}${b.label}`, mMeta);
               rawSteps.push(st);
@@ -5405,7 +5545,7 @@ ${prob}`;
             let k = Number(op.ratio ?? op.k ?? 1.3);
             if (!Number.isFinite(k)) k = 1.3;
             const seg = k >= 0 && k <= 1;
-            const pt = registerPoint(op.id || op.label, { t: 'on', a: a.id, b: b.id, k, seg }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'on', a: a.id, b: b.id, k, seg, ...(op.lock === true ? { lock: true } : {}) }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Điểm ${pt.label} trên đường ${a.label}${b.label}`, mMeta);
               rawSteps.push(st);
@@ -5498,7 +5638,7 @@ ${prob}`;
               }
             }
 
-            const pt = registerPoint(op.id || op.label, { t: 'vec', o: through.id, a: a.id, b: b.id, k, perp: isPerp }, lblStr, op.show !== false, isLineStyle ? { noDot: true } : { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'vec', o: through.id, a: a.id, b: b.id, k, perp: isPerp, ...(op.drag === true ? { drag: true } : {}) }, lblStr, op.show !== false, isLineStyle ? { noDot: true } : { noDot: op.noDot });
             const lineStyleOpts = { color: op.color, width: op.width, explicitColor: !!op.explicitColor, explicitWidth: !!op.explicitWidth, aux: op.aux !== undefined ? !!op.aux : isLineStyle };
             if (oppK !== null && op.drawSegment !== false) {
               const pOpp = registerPoint('', { t: 'vec', o: through.id, a: a.id, b: b.id, k: oppK, perp: isPerp }, '', false);
@@ -5540,7 +5680,7 @@ ${prob}`;
           if (o && r) {
             const deg = Number(op.angleDeg ?? op.angle ?? 60);
             const norm = (((-deg / 360) % 1) + 1) % 1;
-            const pt = registerPoint(op.id || op.label, { t: 'path', kind: 'circle', on: 'circle', pts: [o.id, r.id], k: norm }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
+            const pt = registerPoint(op.id || op.label, { t: 'path', kind: 'circle', on: 'circle', pts: [o.id, r.id], k: norm, ...(op.lock === true ? { lock: true } : {}) }, op.label ?? op.id, op.show !== false, { noDot: op.noDot });
             if (op.show !== false) {
               const st = makeStepForPt(pt.id, stepLabel || `Lấy điểm ${pt.label} trên đường tròn (${o.label})`, mMeta);
               rawSteps.push(st);
@@ -6038,7 +6178,7 @@ ${prob}`;
         const [u, v] = sh.pts;
         const eKey = u < v ? `${u}|${v}` : `${v}|${u}`;
         const cu = healCoords.get(u), cv = healCoords.get(v);
-        if (!cu || !cv) continue;
+        if (!cu || !cv || isFlatSeg(u, v)) continue;
         if (isSegmentOnHullBoundary(cu, cv, healHullCoords)) {
           sh.dashed = false;
           continue;
@@ -7786,6 +7926,8 @@ ${prob}`;
     simulatePlanCoords,
     convertGeometryBlockToOps,
     validateAndHealAiGeoPlan,
+    buildDetailedExternalPrompt,
+    getSystemPrompt: () => AI_GEO_SYSTEM_PROMPT,
     refineTikzConstraints,
     compileAiGeoPlan,
     buildOrderedStepsForTikz

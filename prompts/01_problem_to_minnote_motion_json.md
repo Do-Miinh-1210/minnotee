@@ -23,7 +23,8 @@ PHẦN A — KHÓA SUY LUẬN 5 CỔNG GHI VÀO TRƯỜNG "checks" TRƯỚC MẢ
 - Phân loại spaceType: "plane_2d" | "solid_3d" | "revolution_3d" | "analytic_oxy" | "analytic_oxyz" và đặt is3D: true (3D) hoặc false (2D).
 
 [CỔNG 2 — ĐỒ THỊ RÀNG BUỘC ĐỘNG DAG & QUY ƯỚC RÚT GỌN v0.0.9.12]
-- CHỈ các đỉnh tự do xuất phát ban đầu (khai báo qua Macro "pyramid"/"prism", lệnh gộp "points", hoặc "point_free") mới mang tọa độ tự do.
+- CHỈ các đỉnh tự do xuất phát ban đầu (khai báo qua Macro "pyramid"/"prism"/"cube", lệnh gộp "points", hoặc "point_free") mới mang tọa độ tự do.
+- LUẬT CHA–CON (v0.0.9.14): chỉ CHA (point_free) kéo được; mọi CON (point_sum, midpoint, rotate, foot_perp, line_parallel, line_perp, giao điểm, tiếp điểm…) bị KHÓA, chỉ đổi khi cha đổi. CON TRƯỢT: point_on_* (điểm bất kỳ) và line_parallel/line_perp + "drag": true. Đề cho tỉ số cố định ⇒ point_on_segment + "lock": true. CẤM point_free cho điểm con dù tọa độ đúng. Hình phẳng vẽ riêng cạnh khối 3D: id mới + "flat": true. Chi tiết: PROMPT_CHUAN_DUNG_HINH_MINNOTE.md — MỤC 1B.
 - MỌI điểm sinh ra từ giả thiết (đỉnh thứ 4 hình bình hành, đỉnh tam giác đều/hình vuông, đỉnh đáy trên lăng trụ, trung điểm, điểm tỉ lệ, phân giác, chân vuông góc, tiếp điểm, tâm ngoại tiếp/nội tiếp/trực tâm/trọng tâm, giao điểm) BẮT BUỘC dùng đúng công cụ phụ thuộc hoặc Macro ở Phần B & B2 để kéo thả không gãy tính chất toán học!
 - Mọi điểm cha phải khai báo TRƯỚC khi điểm con hoặc cạnh tham chiếu tới "id" của nó.
 - Quy ước rút gọn tự động:
@@ -75,8 +76,10 @@ PHẦN B2 — BỘ MACRO & BATCH RÚT GỌN 70% CODE (ƯU TIÊN DÙNG MẶC Đ�
 ======================================================================
 - "pyramid" (1 dòng thay 12–15 dòng, tự khóa đáy + đường cao + nét đứt + góc vuông):
   {"op":"pyramid","name":"S.ABCD","baseType":"quad"|"parallelogram"|"rect"|"square"|"rhombus"|"trapezoid"|"triangle","altitude":"free"|"SA"|"face_SAB"|"center","height":3.8,"effect":"chalk","step":"Dựng hình chóp S.ABCD"}
-- "prism" (lăng trụ đứng/xiên tam giác hoặc tứ giác/hình hộp):
+- "prism" (lăng trụ đứng/xiên tam giác hoặc tứ giác/hình hộp; upright:true ⇒ AA' khóa ⊥ đáy):
   {"op":"prism","name":"ABC.A'B'C'","baseType":"triangle"|"parallelogram","upright":true,"height":3.5,"effect":"chalk","step":"Dựng lăng trụ đứng ABC.A'B'C'"}
+- "cube" (hình lập phương CỨNG — BẮT BUỘC cho mọi bài lập phương; cha A, B; mặt trước là hình vuông thật):
+  {"op":"cube","name":"ABCD.A'B'C'D'","edge":3.2,"depthAngle":40,"depthRatio":0.5,"effect":"chalk","step":"Dựng hình lập phương"}
 - "points" (khai báo gộp nhiều điểm gốc):
   {"op":"points","pts":{"A":[-0.9,3.0],"B":[-3.2,-1.8],"C":[3.0,-1.8]},"effect":"pop","step":"Đặt 3 đỉnh tam giác"}
 - "segments" (nối gộp hàng loạt đoạn nét liền & nét đứt trong 1 dòng):
