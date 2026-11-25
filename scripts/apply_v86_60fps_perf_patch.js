@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 // Idempotent patch script: v0.0.8.6 Locked 60fps Performance Engine
 // Eliminates ALL frame-drop bottlenecks during 360° Auto-Orbit, Replay, Spring Camera, 3D Turn & Point Motion:
 //  1. Zero-miss static pageCanvas separation (_isLiveGeoOverlay + _liveStaticPageCache + replayHiddenPage cache fix):
@@ -289,3 +306,4 @@ src = replaceOnce(
 
 fs.writeFileSync(targetPath, src, 'utf8');
 console.log('[v86-perf] Successfully patched index-CTbULhps.js!');
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

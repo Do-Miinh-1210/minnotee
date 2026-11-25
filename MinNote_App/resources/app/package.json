@@ -1,6 +1,10 @@
 {
-    "name":  "minnote",
-    "version":  "1.0.7",
-    "description":  "MinNote • Bảng Viết \u0026 Vẽ Hình Toán Học",
-    "main":  "main.js"
+  "name": "minnote",
+  "version": "1.0.7",
+  "description": "MinNote • Bảng Viết & Vẽ Hình Toán Học",
+  "author": "Đỗ Miinh Math",
+  "license": "UNLICENSED",
+  "private": true,
+  "copyright": "Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved. Proprietary — TDM-Reservation: 1 (DM-COPYRIGHT-OWNER: DoMiinhMath).",
+  "main": "main.js"
 }

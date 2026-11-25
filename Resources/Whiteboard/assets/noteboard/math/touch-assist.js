@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Bút viết, ngón tay điều hướng và chọn.
    Sau khi ngón tay chạm chọn một đối tượng (ứng dụng chuyển sang chế độ Chọn để hiện khung và thanh nút):
    - Đặt bút xuống ngoài vùng chọn: bỏ chọn, quay lại công cụ trước đó và viết ngay.
@@ -34,3 +51,4 @@ const after=e=>{if(e.pointerType!=='touch'||!from)return;if(mode==='sel'&&select
 ink.addEventListener('pointerup',after);
 window.NBTouchAssist={get fingerSelection(){return fingerSel;}};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 // Idempotent patch script: v0.0.8.4 Popover Safe-Top Viewport Clamp
 // Fixes function si() in index-CTbULhps.js so tall dropdown popovers (MINNOTE HÌNH HỌC,
 // MINNOTE HÌNH MẪU, etc.) NEVER shift upward over the top toolbar regardless of whether
@@ -25,3 +42,4 @@ if (src.indexOf(oldSi, idx + oldSi.length) !== -1) throw new Error('[v84-popover
 src = src.slice(0, idx) + newSi + src.slice(idx + oldSi.length);
 fs.writeFileSync(targetPath, src, 'utf8');
 console.log('[v84-popover] Successfully patched function si() in index-CTbULhps.js!');
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

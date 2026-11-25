@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 // Idempotent patch script: v0.0.7.3 Dynamic Locus V2 & Locus Intersection Engine
 // - Upgrades v72 locus engine in index-CTbULhps.js to v73
 // - Adds full intersection support for Locus (Locus ∩ Line/Segment/Ray/Polygon, Locus ∩ Circle/Arc, Locus ∩ Locus)
@@ -656,3 +673,4 @@ if (src.includes(oldHintVi)) {
 
 fs.writeFileSync(targetPath, src, "utf8");
 console.log("[v73] Successfully patched index-CTbULhps.js with Dynamic Locus V2 & Locus Intersection Engine!");
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

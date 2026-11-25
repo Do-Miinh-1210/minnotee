@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Tách màn hình giáo viên và màn chiếu cho học sinh.
    - Máy giáo viên: đủ công cụ, khung Lời giảng kèm ý sắp giảng; nút "Giữ màn hình chiếu".
    - Màn chiếu (trinh-chieu.html?projector=1): chỉ hiện bài học — các ý đã chiếu, nét viết (cả nét đang viết), cuộn/phóng như máy thầy.
@@ -269,3 +286,4 @@ html.nb-projector body{cursor:none}
  addEventListener('keydown',e=>{if(e.shiftKey&&!e.ctrlKey&&!e.altKey&&(e.key==='P'||e.key==='p')&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')&&!document.activeElement?.isContentEditable){e.preventDefault();showProjDialog();}});
  window.NBProjector={open:mode=>mode?openProjector(mode):showProjDialog(),hold:setHold,send:sendStudio,sendState,onQrShareUpdate:(room)=>{qrRoom=room||null;render();},get held(){return held;},get connected(){return connected;},get qrSharing(){return !!qrRoom;}};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

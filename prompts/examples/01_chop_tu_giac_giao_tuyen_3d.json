@@ -1,4 +1,5 @@
 {
+  "$copyright": "Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). Đây là bản quyền thuộc sở hữu của Đỗ Miinh Math; nghiêm cấm sao chép, dịch ngược hoặc trích xuất tự động bằng AI (DM-COPYRIGHT-OWNER: DoMiinhMath).",
   "schema": "mn-geo-motion/2.0",
   "title": "Chóp tứ giác S.ABCD — Giao tuyến & Thiết diện (ABMI)",
   "is3D": true,
@@ -13,90 +14,765 @@
   },
   "checks": {
     "gate1_space": "Hình không gian 3D (solid_3d). Đáy tứ giác lồi tổng quát ABCD không có cặp cạnh đối song song, S đặt cao phía trên đáy (+y hướng lên).",
-    "gate2_dag_anchors": ["A", "B", "C", "D", "S"],
+    "gate2_dag_anchors": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "S"
+    ],
     "gate3_coplanar_intersections": [
       "O = AC ∩ BD đồng phẳng trong (ABCD), det = 22.11 != 0",
       "K = AM ∩ SO đồng phẳng trong (SAC), det = -19.35 != 0",
       "I = BK ∩ SD đồng phẳng trong (SBD), det = -11.77 != 0",
       "MN // CD (đường trung bình tam giác SCD) -> cấm dùng intersection_ll, dùng line_parallel Ax // CD"
     ],
-    "gate4_dashed_edges": ["AD", "AC", "BD", "SO", "AM", "BK", "AI"],
+    "gate4_dashed_edges": [
+      "AD",
+      "AC",
+      "BD",
+      "SO",
+      "AM",
+      "BK",
+      "AI"
+    ],
     "gate5_motion_story": "Phong cách Đỗ Miinh: vẽ nét phấn khung đáy và cạnh bên -> nảy giao điểm O, K, I -> phát sáng giao tuyến SO và Ax -> hiện dần miền tô thiết diện ABMI -> nhịp nhấn kết luận và lặp mượt."
   },
   "ops": [
-    { "op": "point_free", "id": "A", "label": "A", "x": -2.8, "y": 0.2, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc A" },
-    { "op": "point_free", "id": "B", "label": "B", "x": -1.7, "y": -1.8, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc B" },
-    { "op": "point_free", "id": "C", "label": "C", "x": 1.7, "y": -2.2, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc C" },
-    { "op": "point_free", "id": "D", "label": "D", "x": 3.2, "y": 0.5, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh gốc D" },
-    { "op": "segment", "a": "A", "b": "B", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy trước AB" },
-    { "op": "segment", "a": "B", "b": "C", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy trước BC" },
-    { "op": "segment", "a": "C", "b": "D", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Vẽ cạnh đáy phải CD" },
-    { "op": "segment", "a": "A", "b": "D", "dashed": true, "effect": "draw", "easing": "easeInOut", "step": "Vẽ cạnh đáy khuất AD (nét đứt)" },
-    { "op": "point_free", "id": "S", "label": "S", "x": 0.8, "y": 3.8, "effect": "pop", "easing": "spring", "step": "Đặt đỉnh chóp S phía trên đáy" },
-    { "op": "segment", "a": "S", "b": "A", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SA" },
-    { "op": "segment", "a": "S", "b": "B", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SB" },
-    { "op": "segment", "a": "S", "b": "C", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SC" },
-    { "op": "segment", "a": "S", "b": "D", "dashed": false, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh bên SD" },
-    { "op": "segment", "a": "A", "b": "C", "dashed": true, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Kẻ đường chéo khuất AC" },
-    { "op": "segment", "a": "B", "b": "D", "dashed": true, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Kẻ đường chéo khuất BD" },
-    { "op": "intersection_ll", "id": "O", "label": "O", "l1": ["A", "C"], "l2": ["B", "D"], "effect": "pop", "easing": "spring", "step": "Xác định O = AC ∩ BD trong (ABCD)" },
-    { "op": "segment", "a": "S", "b": "O", "dashed": true, "aux": true, "effect": "glow", "easing": "smoothstep", "durationMul": 1.3, "step": "Câu a) Giao tuyến SO = (SAC) ∩ (SBD)" },
-    { "op": "midpoint", "id": "M", "label": "M", "a": "S", "b": "C", "effect": "pop", "easing": "spring", "step": "Lấy trung điểm M của SC" },
-    { "op": "midpoint", "id": "N", "label": "N", "a": "S", "b": "D", "effect": "pop", "easing": "spring", "step": "Lấy trung điểm N của SD" },
-    { "op": "segment", "a": "A", "b": "M", "dashed": true, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Trong (SAC), nối đoạn AM cắt SO" },
-    { "op": "intersection_ll", "id": "K", "label": "K", "l1": ["A", "M"], "l2": ["S", "O"], "effect": "pop", "easing": "spring", "step": "Giao điểm phụ K = AM ∩ SO trong (SAC)" },
-    { "op": "intersection_ll", "id": "I", "label": "I", "l1": ["B", "K"], "l2": ["S", "D"], "drawExtensions": false, "effect": "pulse", "easing": "spring", "durationMul": 1.3, "step": "Câu b) Trong (SBD), kéo dài BK cắt SD tại I" },
-    { "op": "segment", "a": "B", "b": "I", "dashed": true, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Nối tia BK kéo dài tới I trên SD" },
-    { "op": "segment", "a": "B", "b": "M", "dashed": false, "aux": true, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh thiết diện thấy BM trên (SBC)" },
-    { "op": "segment", "a": "M", "b": "I", "dashed": false, "aux": true, "effect": "chalk", "easing": "smootherstep", "step": "Nối cạnh thiết diện thấy MI trên (SCD)" },
-    { "op": "segment", "a": "A", "b": "I", "dashed": true, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Nối cạnh thiết diện khuất AI trên (SAD)" },
-    { "op": "polygon_fill", "pts": ["A", "B", "M", "I"], "fill": "rgba(240, 124, 0, 0.12)", "explicitColor": true, "aux": true, "effect": "fade", "easing": "smoothstep", "durationMul": 1.2, "step": "Tô miền thiết diện tứ giác ABMI" },
-    { "op": "segment", "a": "M", "b": "N", "dashed": false, "aux": true, "effect": "draw", "easing": "easeInOut", "step": "Nối đường trung bình MN // CD" },
-    { "op": "line_parallel", "id": "x", "label": "x", "through": "A", "a": "C", "b": "D", "k": 0.95, "asLine": true, "bothSides": false, "noDot": true, "dashed": false, "aux": true, "effect": "glow", "easing": "smootherstep", "durationMul": 1.4, "step": "Câu c) Giao tuyến Ax = (AMN) ∩ (ABCD) song song CD" }
+    {
+      "op": "point_free",
+      "id": "A",
+      "label": "A",
+      "x": -2.8,
+      "y": 0.2,
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Đặt đỉnh gốc A"
+    },
+    {
+      "op": "point_free",
+      "id": "B",
+      "label": "B",
+      "x": -1.7,
+      "y": -1.8,
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Đặt đỉnh gốc B"
+    },
+    {
+      "op": "point_free",
+      "id": "C",
+      "label": "C",
+      "x": 1.7,
+      "y": -2.2,
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Đặt đỉnh gốc C"
+    },
+    {
+      "op": "point_free",
+      "id": "D",
+      "label": "D",
+      "x": 3.2,
+      "y": 0.5,
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Đặt đỉnh gốc D"
+    },
+    {
+      "op": "segment",
+      "a": "A",
+      "b": "B",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Vẽ cạnh đáy trước AB"
+    },
+    {
+      "op": "segment",
+      "a": "B",
+      "b": "C",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Vẽ cạnh đáy trước BC"
+    },
+    {
+      "op": "segment",
+      "a": "C",
+      "b": "D",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Vẽ cạnh đáy phải CD"
+    },
+    {
+      "op": "segment",
+      "a": "A",
+      "b": "D",
+      "dashed": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Vẽ cạnh đáy khuất AD (nét đứt)"
+    },
+    {
+      "op": "point_free",
+      "id": "S",
+      "label": "S",
+      "x": 0.8,
+      "y": 3.8,
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Đặt đỉnh chóp S phía trên đáy"
+    },
+    {
+      "op": "segment",
+      "a": "S",
+      "b": "A",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh bên SA"
+    },
+    {
+      "op": "segment",
+      "a": "S",
+      "b": "B",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh bên SB"
+    },
+    {
+      "op": "segment",
+      "a": "S",
+      "b": "C",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh bên SC"
+    },
+    {
+      "op": "segment",
+      "a": "S",
+      "b": "D",
+      "dashed": false,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh bên SD"
+    },
+    {
+      "op": "segment",
+      "a": "A",
+      "b": "C",
+      "dashed": true,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Kẻ đường chéo khuất AC"
+    },
+    {
+      "op": "segment",
+      "a": "B",
+      "b": "D",
+      "dashed": true,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Kẻ đường chéo khuất BD"
+    },
+    {
+      "op": "intersection_ll",
+      "id": "O",
+      "label": "O",
+      "l1": [
+        "A",
+        "C"
+      ],
+      "l2": [
+        "B",
+        "D"
+      ],
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Xác định O = AC ∩ BD trong (ABCD)"
+    },
+    {
+      "op": "segment",
+      "a": "S",
+      "b": "O",
+      "dashed": true,
+      "aux": true,
+      "effect": "glow",
+      "easing": "smoothstep",
+      "durationMul": 1.3,
+      "step": "Câu a) Giao tuyến SO = (SAC) ∩ (SBD)"
+    },
+    {
+      "op": "midpoint",
+      "id": "M",
+      "label": "M",
+      "a": "S",
+      "b": "C",
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Lấy trung điểm M của SC"
+    },
+    {
+      "op": "midpoint",
+      "id": "N",
+      "label": "N",
+      "a": "S",
+      "b": "D",
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Lấy trung điểm N của SD"
+    },
+    {
+      "op": "segment",
+      "a": "A",
+      "b": "M",
+      "dashed": true,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Trong (SAC), nối đoạn AM cắt SO"
+    },
+    {
+      "op": "intersection_ll",
+      "id": "K",
+      "label": "K",
+      "l1": [
+        "A",
+        "M"
+      ],
+      "l2": [
+        "S",
+        "O"
+      ],
+      "effect": "pop",
+      "easing": "spring",
+      "step": "Giao điểm phụ K = AM ∩ SO trong (SAC)"
+    },
+    {
+      "op": "intersection_ll",
+      "id": "I",
+      "label": "I",
+      "l1": [
+        "B",
+        "K"
+      ],
+      "l2": [
+        "S",
+        "D"
+      ],
+      "drawExtensions": false,
+      "effect": "pulse",
+      "easing": "spring",
+      "durationMul": 1.3,
+      "step": "Câu b) Trong (SBD), kéo dài BK cắt SD tại I"
+    },
+    {
+      "op": "segment",
+      "a": "B",
+      "b": "I",
+      "dashed": true,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Nối tia BK kéo dài tới I trên SD"
+    },
+    {
+      "op": "segment",
+      "a": "B",
+      "b": "M",
+      "dashed": false,
+      "aux": true,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh thiết diện thấy BM trên (SBC)"
+    },
+    {
+      "op": "segment",
+      "a": "M",
+      "b": "I",
+      "dashed": false,
+      "aux": true,
+      "effect": "chalk",
+      "easing": "smootherstep",
+      "step": "Nối cạnh thiết diện thấy MI trên (SCD)"
+    },
+    {
+      "op": "segment",
+      "a": "A",
+      "b": "I",
+      "dashed": true,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Nối cạnh thiết diện khuất AI trên (SAD)"
+    },
+    {
+      "op": "polygon_fill",
+      "pts": [
+        "A",
+        "B",
+        "M",
+        "I"
+      ],
+      "fill": "rgba(240, 124, 0, 0.12)",
+      "explicitColor": true,
+      "aux": true,
+      "effect": "fade",
+      "easing": "smoothstep",
+      "durationMul": 1.2,
+      "step": "Tô miền thiết diện tứ giác ABMI"
+    },
+    {
+      "op": "segment",
+      "a": "M",
+      "b": "N",
+      "dashed": false,
+      "aux": true,
+      "effect": "draw",
+      "easing": "easeInOut",
+      "step": "Nối đường trung bình MN // CD"
+    },
+    {
+      "op": "line_parallel",
+      "id": "x",
+      "label": "x",
+      "through": "A",
+      "a": "C",
+      "b": "D",
+      "k": 0.95,
+      "asLine": true,
+      "bothSides": false,
+      "noDot": true,
+      "dashed": false,
+      "aux": true,
+      "effect": "glow",
+      "easing": "smootherstep",
+      "durationMul": 1.4,
+      "step": "Câu c) Giao tuyến Ax = (AMN) ∩ (ABCD) song song CD"
+    }
   ],
   "geometry": {
     "points": [
-      { "id": "pt_A", "label": "A", "show": true, "named": true, "nx": -2.8, "ny": 0.2, "def": { "t": "free", "x": 280, "y": 350 } },
-      { "id": "pt_B", "label": "B", "show": true, "named": true, "nx": -1.7, "ny": -1.8, "def": { "t": "free", "x": 335, "y": 450 } },
-      { "id": "pt_C", "label": "C", "show": true, "named": true, "nx": 1.7, "ny": -2.2, "def": { "t": "free", "x": 505, "y": 470 } },
-      { "id": "pt_D", "label": "D", "show": true, "named": true, "nx": 3.2, "ny": 0.5, "def": { "t": "free", "x": 580, "y": 335 } },
-      { "id": "pt_S", "label": "S", "show": true, "named": true, "nx": 0.8, "ny": 3.8, "def": { "t": "free", "x": 460, "y": 170 } },
-      { "id": "pt_O", "label": "O", "show": true, "named": true, "nx": -0.2905, "ny": -1.1384, "def": { "t": "inter", "l1": ["pt_A", "pt_C"], "c1": false, "l2": ["pt_B", "pt_D"], "c2": false, "which": 0 } },
-      { "id": "pt_M", "label": "M", "show": true, "named": true, "nx": 1.25, "ny": 0.8, "def": { "t": "mid", "a": "pt_S", "b": "pt_C" } },
-      { "id": "pt_N", "label": "N", "show": true, "named": true, "nx": 2.0, "ny": 2.15, "def": { "t": "mid", "a": "pt_S", "b": "pt_D" } },
-      { "id": "pt_K", "label": "K", "show": true, "named": true, "nx": 0.0999, "ny": 0.6296, "def": { "t": "inter", "l1": ["pt_A", "pt_M"], "c1": false, "l2": ["pt_S", "pt_O"], "c2": false, "which": 0 } },
-      { "id": "pt_I", "label": "I", "show": true, "named": true, "nx": 1.6167, "ny": 2.677, "def": { "t": "inter", "l1": ["pt_B", "pt_K"], "c1": false, "l2": ["pt_S", "pt_D"], "c2": false, "which": 0 } },
-      { "id": "pt_x", "label": "x", "show": true, "named": true, "noDot": true, "nx": -4.225, "ny": -2.365, "def": { "t": "vec", "o": "pt_A", "a": "pt_D", "b": "pt_C", "k": 0.95, "perp": false } }
+      {
+        "id": "pt_A",
+        "label": "A",
+        "show": true,
+        "named": true,
+        "nx": -2.8,
+        "ny": 0.2,
+        "def": {
+          "t": "free",
+          "x": 280,
+          "y": 350
+        }
+      },
+      {
+        "id": "pt_B",
+        "label": "B",
+        "show": true,
+        "named": true,
+        "nx": -1.7,
+        "ny": -1.8,
+        "def": {
+          "t": "free",
+          "x": 335,
+          "y": 450
+        }
+      },
+      {
+        "id": "pt_C",
+        "label": "C",
+        "show": true,
+        "named": true,
+        "nx": 1.7,
+        "ny": -2.2,
+        "def": {
+          "t": "free",
+          "x": 505,
+          "y": 470
+        }
+      },
+      {
+        "id": "pt_D",
+        "label": "D",
+        "show": true,
+        "named": true,
+        "nx": 3.2,
+        "ny": 0.5,
+        "def": {
+          "t": "free",
+          "x": 580,
+          "y": 335
+        }
+      },
+      {
+        "id": "pt_S",
+        "label": "S",
+        "show": true,
+        "named": true,
+        "nx": 0.8,
+        "ny": 3.8,
+        "def": {
+          "t": "free",
+          "x": 460,
+          "y": 170
+        }
+      },
+      {
+        "id": "pt_O",
+        "label": "O",
+        "show": true,
+        "named": true,
+        "nx": -0.2905,
+        "ny": -1.1384,
+        "def": {
+          "t": "inter",
+          "l1": [
+            "pt_A",
+            "pt_C"
+          ],
+          "c1": false,
+          "l2": [
+            "pt_B",
+            "pt_D"
+          ],
+          "c2": false,
+          "which": 0
+        }
+      },
+      {
+        "id": "pt_M",
+        "label": "M",
+        "show": true,
+        "named": true,
+        "nx": 1.25,
+        "ny": 0.8,
+        "def": {
+          "t": "mid",
+          "a": "pt_S",
+          "b": "pt_C"
+        }
+      },
+      {
+        "id": "pt_N",
+        "label": "N",
+        "show": true,
+        "named": true,
+        "nx": 2,
+        "ny": 2.15,
+        "def": {
+          "t": "mid",
+          "a": "pt_S",
+          "b": "pt_D"
+        }
+      },
+      {
+        "id": "pt_K",
+        "label": "K",
+        "show": true,
+        "named": true,
+        "nx": 0.0999,
+        "ny": 0.6296,
+        "def": {
+          "t": "inter",
+          "l1": [
+            "pt_A",
+            "pt_M"
+          ],
+          "c1": false,
+          "l2": [
+            "pt_S",
+            "pt_O"
+          ],
+          "c2": false,
+          "which": 0
+        }
+      },
+      {
+        "id": "pt_I",
+        "label": "I",
+        "show": true,
+        "named": true,
+        "nx": 1.6167,
+        "ny": 2.677,
+        "def": {
+          "t": "inter",
+          "l1": [
+            "pt_B",
+            "pt_K"
+          ],
+          "c1": false,
+          "l2": [
+            "pt_S",
+            "pt_D"
+          ],
+          "c2": false,
+          "which": 0
+        }
+      },
+      {
+        "id": "pt_x",
+        "label": "x",
+        "show": true,
+        "named": true,
+        "noDot": true,
+        "nx": -4.225,
+        "ny": -2.365,
+        "def": {
+          "t": "vec",
+          "o": "pt_A",
+          "a": "pt_D",
+          "b": "pt_C",
+          "k": 0.95,
+          "perp": false
+        }
+      }
     ],
     "shapes": [
-      { "id": "sh_AB", "kind": "segment", "pts": ["pt_A", "pt_B"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_BC", "kind": "segment", "pts": ["pt_B", "pt_C"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_CD", "kind": "segment", "pts": ["pt_C", "pt_D"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_AD", "kind": "segment", "pts": ["pt_A", "pt_D"], "color": "#1a1a1a", "width": 2.5, "dashed": true },
-      { "id": "sh_SA", "kind": "segment", "pts": ["pt_S", "pt_A"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_SB", "kind": "segment", "pts": ["pt_S", "pt_B"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_SC", "kind": "segment", "pts": ["pt_S", "pt_C"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_SD", "kind": "segment", "pts": ["pt_S", "pt_D"], "color": "#1a1a1a", "width": 2.5, "dashed": false },
-      { "id": "sh_AC", "kind": "segment", "pts": ["pt_A", "pt_C"], "color": "#1a1a1a", "width": 2.2, "dashed": true, "aux": true },
-      { "id": "sh_BD", "kind": "segment", "pts": ["pt_B", "pt_D"], "color": "#1a1a1a", "width": 2.2, "dashed": true, "aux": true },
-      { "id": "sh_SO", "kind": "segment", "pts": ["pt_S", "pt_O"], "color": "#0fa39a", "width": 2.6, "dashed": true, "aux": true },
-      { "id": "sh_AM", "kind": "segment", "pts": ["pt_A", "pt_M"], "color": "#1a1a1a", "width": 2.2, "dashed": true, "aux": true },
-      { "id": "sh_BI", "kind": "segment", "pts": ["pt_B", "pt_I"], "color": "#1a1a1a", "width": 2.2, "dashed": true, "aux": true },
-      { "id": "sh_BM", "kind": "segment", "pts": ["pt_B", "pt_M"], "color": "#f07c00", "width": 2.6, "dashed": false, "aux": true },
-      { "id": "sh_MI", "kind": "segment", "pts": ["pt_M", "pt_I"], "color": "#f07c00", "width": 2.6, "dashed": false, "aux": true },
-      { "id": "sh_AI", "kind": "segment", "pts": ["pt_A", "pt_I"], "color": "#f07c00", "width": 2.4, "dashed": true, "aux": true },
-      { "id": "sh_sec_ABMI", "kind": "polygon", "pts": ["pt_A", "pt_B", "pt_M", "pt_I"], "color": "#f07c00", "width": 0, "fill": "rgba(240, 124, 0, 0.12)", "aux": true },
-      { "id": "sh_MN", "kind": "segment", "pts": ["pt_M", "pt_N"], "color": "#1a1a1a", "width": 2.2, "dashed": false, "aux": true },
-      { "id": "sh_Ax", "kind": "segment", "pts": ["pt_A", "pt_x"], "color": "#7c3aed", "width": 2.6, "dashed": false, "aux": true }
+      {
+        "id": "sh_AB",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_B"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_BC",
+        "kind": "segment",
+        "pts": [
+          "pt_B",
+          "pt_C"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_CD",
+        "kind": "segment",
+        "pts": [
+          "pt_C",
+          "pt_D"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_AD",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_D"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": true
+      },
+      {
+        "id": "sh_SA",
+        "kind": "segment",
+        "pts": [
+          "pt_S",
+          "pt_A"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_SB",
+        "kind": "segment",
+        "pts": [
+          "pt_S",
+          "pt_B"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_SC",
+        "kind": "segment",
+        "pts": [
+          "pt_S",
+          "pt_C"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_SD",
+        "kind": "segment",
+        "pts": [
+          "pt_S",
+          "pt_D"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.5,
+        "dashed": false
+      },
+      {
+        "id": "sh_AC",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_C"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.2,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_BD",
+        "kind": "segment",
+        "pts": [
+          "pt_B",
+          "pt_D"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.2,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_SO",
+        "kind": "segment",
+        "pts": [
+          "pt_S",
+          "pt_O"
+        ],
+        "color": "#0fa39a",
+        "width": 2.6,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_AM",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_M"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.2,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_BI",
+        "kind": "segment",
+        "pts": [
+          "pt_B",
+          "pt_I"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.2,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_BM",
+        "kind": "segment",
+        "pts": [
+          "pt_B",
+          "pt_M"
+        ],
+        "color": "#f07c00",
+        "width": 2.6,
+        "dashed": false,
+        "aux": true
+      },
+      {
+        "id": "sh_MI",
+        "kind": "segment",
+        "pts": [
+          "pt_M",
+          "pt_I"
+        ],
+        "color": "#f07c00",
+        "width": 2.6,
+        "dashed": false,
+        "aux": true
+      },
+      {
+        "id": "sh_AI",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_I"
+        ],
+        "color": "#f07c00",
+        "width": 2.4,
+        "dashed": true,
+        "aux": true
+      },
+      {
+        "id": "sh_sec_ABMI",
+        "kind": "polygon",
+        "pts": [
+          "pt_A",
+          "pt_B",
+          "pt_M",
+          "pt_I"
+        ],
+        "color": "#f07c00",
+        "width": 0,
+        "fill": "rgba(240, 124, 0, 0.12)",
+        "aux": true
+      },
+      {
+        "id": "sh_MN",
+        "kind": "segment",
+        "pts": [
+          "pt_M",
+          "pt_N"
+        ],
+        "color": "#1a1a1a",
+        "width": 2.2,
+        "dashed": false,
+        "aux": true
+      },
+      {
+        "id": "sh_Ax",
+        "kind": "segment",
+        "pts": [
+          "pt_A",
+          "pt_x"
+        ],
+        "color": "#7c3aed",
+        "width": 2.6,
+        "dashed": false,
+        "aux": true
+      }
     ],
-    "bbox": { "x0": 195, "y0": 150, "x1": 605, "y1": 495, "width": 410, "height": 345 }
+    "bbox": {
+      "x0": 195,
+      "y0": 150,
+      "x1": 605,
+      "y1": 495,
+      "width": 410,
+      "height": 345
+    }
   },
   "motion": {
     "preset": "domiinh",
     "fps": 24,
-    "durationSec": 10.0,
+    "durationSec": 10,
     "holdEndSec": 1.5,
-    "speed": 1.0,
+    "speed": 1,
     "loop": true,
     "pauseBetween": false,
     "handPen": true,
@@ -104,9 +780,30 @@
     "springCamera": true,
     "orbit3d": false,
     "cameraKeyframes": [
-      { "t": 0.0, "shiftX": 0.0, "shiftY": 0.0, "scale": 1.0, "rotation": 0.0, "easing": "smootherstep" },
-      { "t": 0.55, "shiftX": -0.25, "shiftY": -0.35, "scale": 1.12, "rotation": 0.0, "easing": "smootherstep" },
-      { "t": 0.9, "shiftX": 0.0, "shiftY": 0.0, "scale": 1.0, "rotation": 0.0, "easing": "smootherstep" }
+      {
+        "t": 0,
+        "shiftX": 0,
+        "shiftY": 0,
+        "scale": 1,
+        "rotation": 0,
+        "easing": "smootherstep"
+      },
+      {
+        "t": 0.55,
+        "shiftX": -0.25,
+        "shiftY": -0.35,
+        "scale": 1.12,
+        "rotation": 0,
+        "easing": "smootherstep"
+      },
+      {
+        "t": 0.9,
+        "shiftX": 0,
+        "shiftY": 0,
+        "scale": 1,
+        "rotation": 0,
+        "easing": "smootherstep"
+      }
     ],
     "steps": [
       {
@@ -114,43 +811,403 @@
         "kind": "group",
         "customTitle": "Đặt các đỉnh đáy A, B, C, D",
         "items": [
-          { "kind": "point", "refId": "pt_A", "rev": false },
-          { "kind": "point", "refId": "pt_B", "rev": false },
-          { "kind": "point", "refId": "pt_C", "rev": false },
-          { "kind": "point", "refId": "pt_D", "rev": false }
+          {
+            "kind": "point",
+            "refId": "pt_A",
+            "rev": false
+          },
+          {
+            "kind": "point",
+            "refId": "pt_B",
+            "rev": false
+          },
+          {
+            "kind": "point",
+            "refId": "pt_C",
+            "rev": false
+          },
+          {
+            "kind": "point",
+            "refId": "pt_D",
+            "rev": false
+          }
         ],
         "effect": "pop",
         "easing": "spring",
         "durationMul": 0.9,
         "enabled": true,
-        "tRange": [0.00, 0.05]
+        "tRange": [
+          0,
+          0.05
+        ]
       },
-      { "id": "st_AB", "kind": "shape", "refId": "sh_AB", "customTitle": "Cạnh đáy trước AB", "effect": "chalk", "easing": "smootherstep", "durationMul": 1.0, "enabled": true, "tRange": [0.05, 0.09] },
-      { "id": "st_BC", "kind": "shape", "refId": "sh_BC", "customTitle": "Cạnh đáy trước BC", "effect": "chalk", "easing": "smootherstep", "durationMul": 1.0, "enabled": true, "tRange": [0.09, 0.13] },
-      { "id": "st_CD", "kind": "shape", "refId": "sh_CD", "customTitle": "Cạnh đáy phải CD", "effect": "chalk", "easing": "smootherstep", "durationMul": 1.0, "enabled": true, "tRange": [0.13, 0.17] },
-      { "id": "st_AD", "kind": "shape", "refId": "sh_AD", "customTitle": "Cạnh khuất AD (nét đứt)", "effect": "draw", "easing": "easeInOut", "durationMul": 1.0, "enabled": true, "tRange": [0.17, 0.21] },
-      { "id": "st_S", "kind": "point", "refId": "pt_S", "customTitle": "Đỉnh chóp S", "effect": "pop", "easing": "spring", "durationMul": 0.8, "enabled": true, "tRange": [0.21, 0.24] },
-      { "id": "st_SA", "kind": "shape", "refId": "sh_SA", "customTitle": "Cạnh bên SA", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.24, 0.28] },
-      { "id": "st_SB", "kind": "shape", "refId": "sh_SB", "customTitle": "Cạnh bên SB", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.28, 0.32] },
-      { "id": "st_SC", "kind": "shape", "refId": "sh_SC", "customTitle": "Cạnh bên SC", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.32, 0.36] },
-      { "id": "st_SD", "kind": "shape", "refId": "sh_SD", "customTitle": "Cạnh bên SD", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.36, 0.40] },
-      { "id": "st_AC", "kind": "shape", "refId": "sh_AC", "customTitle": "Đường chéo đáy AC", "effect": "draw", "easing": "easeInOut", "durationMul": 0.9, "enabled": true, "tRange": [0.40, 0.44] },
-      { "id": "st_BD", "kind": "shape", "refId": "sh_BD", "customTitle": "Đường chéo đáy BD", "effect": "draw", "easing": "easeInOut", "durationMul": 0.9, "enabled": true, "tRange": [0.44, 0.48] },
-      { "id": "st_O", "kind": "point", "refId": "pt_O", "customTitle": "Giao điểm O = AC ∩ BD", "effect": "pop", "easing": "spring", "showGuides": true, "durationMul": 1.0, "enabled": true, "tRange": [0.48, 0.51] },
-      { "id": "st_SO", "kind": "shape", "refId": "sh_SO", "customTitle": "Câu a) Giao tuyến SO = (SAC) ∩ (SBD)", "effect": "glow", "easing": "smoothstep", "durationMul": 1.3, "enabled": true, "tRange": [0.51, 0.57] },
-      { "id": "st_M", "kind": "point", "refId": "pt_M", "customTitle": "Trung điểm M của SC", "effect": "pop", "easing": "spring", "durationMul": 0.8, "enabled": true, "tRange": [0.57, 0.59] },
-      { "id": "st_N", "kind": "point", "refId": "pt_N", "customTitle": "Trung điểm N của SD", "effect": "pop", "easing": "spring", "durationMul": 0.8, "enabled": true, "tRange": [0.59, 0.61] },
-      { "id": "st_AM", "kind": "shape", "refId": "sh_AM", "customTitle": "Nối AM trong (SAC)", "effect": "draw", "easing": "easeInOut", "durationMul": 1.0, "enabled": true, "tRange": [0.61, 0.65] },
-      { "id": "st_K", "kind": "point", "refId": "pt_K", "customTitle": "Giao điểm K = AM ∩ SO", "effect": "pop", "easing": "spring", "showGuides": true, "durationMul": 1.0, "enabled": true, "tRange": [0.65, 0.68] },
-      { "id": "st_BI", "kind": "shape", "refId": "sh_BI", "customTitle": "Trong (SBD), kéo dài BK cắt SD", "effect": "draw", "easing": "easeInOut", "durationMul": 1.1, "enabled": true, "tRange": [0.68, 0.72] },
-      { "id": "st_I", "kind": "point", "refId": "pt_I", "customTitle": "Câu b) Giao điểm I = SD ∩ (ABM)", "effect": "pulse", "easing": "spring", "showGuides": true, "durationMul": 1.3, "enabled": true, "tRange": [0.72, 0.76] },
-      { "id": "st_BM", "kind": "shape", "refId": "sh_BM", "customTitle": "Cạnh thiết diện BM", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.76, 0.79] },
-      { "id": "st_MI", "kind": "shape", "refId": "sh_MI", "customTitle": "Cạnh thiết diện MI", "effect": "chalk", "easing": "smootherstep", "durationMul": 0.9, "enabled": true, "tRange": [0.79, 0.82] },
-      { "id": "st_AI", "kind": "shape", "refId": "sh_AI", "customTitle": "Cạnh thiết diện khuất AI", "effect": "draw", "easing": "easeInOut", "durationMul": 0.9, "enabled": true, "tRange": [0.82, 0.85] },
-      { "id": "st_sec_fill", "kind": "shape", "refId": "sh_sec_ABMI", "customTitle": "Tô miền thiết diện ABMI", "effect": "fade", "easing": "smoothstep", "durationMul": 1.2, "enabled": true, "tRange": [0.85, 0.88] },
-      { "id": "st_MN", "kind": "shape", "refId": "sh_MN", "customTitle": "Đường trung bình MN // CD", "effect": "draw", "easing": "easeInOut", "durationMul": 0.8, "enabled": true, "tRange": [0.88, 0.90] },
-      { "id": "st_Ax", "kind": "shape", "refId": "sh_Ax", "customTitle": "Câu c) Giao tuyến Ax // CD", "effect": "glow", "easing": "smootherstep", "durationMul": 1.3, "enabled": true, "tRange": [0.90, 0.94] },
-      { "id": "st_x_lbl", "kind": "point", "refId": "pt_x", "customTitle": "Nhấn mạnh kết luận giao tuyến Ax", "effect": "pulse", "easing": "bump", "durationMul": 1.2, "enabled": true, "tRange": [0.94, 0.97] }
+      {
+        "id": "st_AB",
+        "kind": "shape",
+        "refId": "sh_AB",
+        "customTitle": "Cạnh đáy trước AB",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.05,
+          0.09
+        ]
+      },
+      {
+        "id": "st_BC",
+        "kind": "shape",
+        "refId": "sh_BC",
+        "customTitle": "Cạnh đáy trước BC",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.09,
+          0.13
+        ]
+      },
+      {
+        "id": "st_CD",
+        "kind": "shape",
+        "refId": "sh_CD",
+        "customTitle": "Cạnh đáy phải CD",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.13,
+          0.17
+        ]
+      },
+      {
+        "id": "st_AD",
+        "kind": "shape",
+        "refId": "sh_AD",
+        "customTitle": "Cạnh khuất AD (nét đứt)",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.17,
+          0.21
+        ]
+      },
+      {
+        "id": "st_S",
+        "kind": "point",
+        "refId": "pt_S",
+        "customTitle": "Đỉnh chóp S",
+        "effect": "pop",
+        "easing": "spring",
+        "durationMul": 0.8,
+        "enabled": true,
+        "tRange": [
+          0.21,
+          0.24
+        ]
+      },
+      {
+        "id": "st_SA",
+        "kind": "shape",
+        "refId": "sh_SA",
+        "customTitle": "Cạnh bên SA",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.24,
+          0.28
+        ]
+      },
+      {
+        "id": "st_SB",
+        "kind": "shape",
+        "refId": "sh_SB",
+        "customTitle": "Cạnh bên SB",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.28,
+          0.32
+        ]
+      },
+      {
+        "id": "st_SC",
+        "kind": "shape",
+        "refId": "sh_SC",
+        "customTitle": "Cạnh bên SC",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.32,
+          0.36
+        ]
+      },
+      {
+        "id": "st_SD",
+        "kind": "shape",
+        "refId": "sh_SD",
+        "customTitle": "Cạnh bên SD",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.36,
+          0.4
+        ]
+      },
+      {
+        "id": "st_AC",
+        "kind": "shape",
+        "refId": "sh_AC",
+        "customTitle": "Đường chéo đáy AC",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.4,
+          0.44
+        ]
+      },
+      {
+        "id": "st_BD",
+        "kind": "shape",
+        "refId": "sh_BD",
+        "customTitle": "Đường chéo đáy BD",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.44,
+          0.48
+        ]
+      },
+      {
+        "id": "st_O",
+        "kind": "point",
+        "refId": "pt_O",
+        "customTitle": "Giao điểm O = AC ∩ BD",
+        "effect": "pop",
+        "easing": "spring",
+        "showGuides": true,
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.48,
+          0.51
+        ]
+      },
+      {
+        "id": "st_SO",
+        "kind": "shape",
+        "refId": "sh_SO",
+        "customTitle": "Câu a) Giao tuyến SO = (SAC) ∩ (SBD)",
+        "effect": "glow",
+        "easing": "smoothstep",
+        "durationMul": 1.3,
+        "enabled": true,
+        "tRange": [
+          0.51,
+          0.57
+        ]
+      },
+      {
+        "id": "st_M",
+        "kind": "point",
+        "refId": "pt_M",
+        "customTitle": "Trung điểm M của SC",
+        "effect": "pop",
+        "easing": "spring",
+        "durationMul": 0.8,
+        "enabled": true,
+        "tRange": [
+          0.57,
+          0.59
+        ]
+      },
+      {
+        "id": "st_N",
+        "kind": "point",
+        "refId": "pt_N",
+        "customTitle": "Trung điểm N của SD",
+        "effect": "pop",
+        "easing": "spring",
+        "durationMul": 0.8,
+        "enabled": true,
+        "tRange": [
+          0.59,
+          0.61
+        ]
+      },
+      {
+        "id": "st_AM",
+        "kind": "shape",
+        "refId": "sh_AM",
+        "customTitle": "Nối AM trong (SAC)",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.61,
+          0.65
+        ]
+      },
+      {
+        "id": "st_K",
+        "kind": "point",
+        "refId": "pt_K",
+        "customTitle": "Giao điểm K = AM ∩ SO",
+        "effect": "pop",
+        "easing": "spring",
+        "showGuides": true,
+        "durationMul": 1,
+        "enabled": true,
+        "tRange": [
+          0.65,
+          0.68
+        ]
+      },
+      {
+        "id": "st_BI",
+        "kind": "shape",
+        "refId": "sh_BI",
+        "customTitle": "Trong (SBD), kéo dài BK cắt SD",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 1.1,
+        "enabled": true,
+        "tRange": [
+          0.68,
+          0.72
+        ]
+      },
+      {
+        "id": "st_I",
+        "kind": "point",
+        "refId": "pt_I",
+        "customTitle": "Câu b) Giao điểm I = SD ∩ (ABM)",
+        "effect": "pulse",
+        "easing": "spring",
+        "showGuides": true,
+        "durationMul": 1.3,
+        "enabled": true,
+        "tRange": [
+          0.72,
+          0.76
+        ]
+      },
+      {
+        "id": "st_BM",
+        "kind": "shape",
+        "refId": "sh_BM",
+        "customTitle": "Cạnh thiết diện BM",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.76,
+          0.79
+        ]
+      },
+      {
+        "id": "st_MI",
+        "kind": "shape",
+        "refId": "sh_MI",
+        "customTitle": "Cạnh thiết diện MI",
+        "effect": "chalk",
+        "easing": "smootherstep",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.79,
+          0.82
+        ]
+      },
+      {
+        "id": "st_AI",
+        "kind": "shape",
+        "refId": "sh_AI",
+        "customTitle": "Cạnh thiết diện khuất AI",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 0.9,
+        "enabled": true,
+        "tRange": [
+          0.82,
+          0.85
+        ]
+      },
+      {
+        "id": "st_sec_fill",
+        "kind": "shape",
+        "refId": "sh_sec_ABMI",
+        "customTitle": "Tô miền thiết diện ABMI",
+        "effect": "fade",
+        "easing": "smoothstep",
+        "durationMul": 1.2,
+        "enabled": true,
+        "tRange": [
+          0.85,
+          0.88
+        ]
+      },
+      {
+        "id": "st_MN",
+        "kind": "shape",
+        "refId": "sh_MN",
+        "customTitle": "Đường trung bình MN // CD",
+        "effect": "draw",
+        "easing": "easeInOut",
+        "durationMul": 0.8,
+        "enabled": true,
+        "tRange": [
+          0.88,
+          0.9
+        ]
+      },
+      {
+        "id": "st_Ax",
+        "kind": "shape",
+        "refId": "sh_Ax",
+        "customTitle": "Câu c) Giao tuyến Ax // CD",
+        "effect": "glow",
+        "easing": "smootherstep",
+        "durationMul": 1.3,
+        "enabled": true,
+        "tRange": [
+          0.9,
+          0.94
+        ]
+      },
+      {
+        "id": "st_x_lbl",
+        "kind": "point",
+        "refId": "pt_x",
+        "customTitle": "Nhấn mạnh kết luận giao tuyến Ax",
+        "effect": "pulse",
+        "easing": "bump",
+        "durationMul": 1.2,
+        "enabled": true,
+        "tRange": [
+          0.94,
+          0.97
+        ]
+      }
     ]
   },
   "exports": {

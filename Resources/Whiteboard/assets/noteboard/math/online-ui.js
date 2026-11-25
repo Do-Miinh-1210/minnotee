@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Opt-in Web resources. Links never execute on lesson load; remote pages run
  * in sandboxed frames, separate from the board's DOM and account APIs. */
 (()=>{'use strict';
@@ -94,3 +111,4 @@ document.addEventListener('dblclick',e=>{const t=texts.find(t=>(t.pic?.link||(t.
 {const rail=$('#rail');if(rail){const r=node('button');r.type='button';r.id='onlineRail';r.className='rail-btn';r.title='Học liệu trực tuyến: mô phỏng PhET Toán, Lí, Hóa, Sinh; chèn liên kết, YouTube';r.innerHTML='<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.8 2.6 15.2 0 18M12 3c-2.6 2.8-2.6 15.2 0 18"/></svg><span>Học liệu</span>';r.onclick=()=>openLibrary('phet');const after=$('#recRail')||$('#smartInkRail');if(after&&after.parentNode===rail)after.after(r);else rail.prepend(r);}}
 window.NBOnline={openLibrary,insert,embed,open,openLink,capture,snap,full:setFull,cropImage,close:closeViewer,placeholder,get active(){return active;}};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

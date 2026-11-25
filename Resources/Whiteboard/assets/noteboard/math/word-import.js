@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* DOCX objects stay vector where possible; original DOCX/OLE bytes are retained
  * verbatim in the lesson. No macro, embedded program or external relationship runs. */
 (()=>{'use strict';
@@ -200,3 +217,4 @@ async function read(file,H){
 addEventListener('DOMContentLoaded',()=>{const menu=document.querySelector('#insertMenu');if(!menu)return;button=document.createElement('button');button.type='button';button.role='menuitem';button.textContent='Tải lại file Word gốc';button.hidden=!original;button.onclick=()=>download().catch(e=>toast(e.message));menu.append(button);});
 window.NBWordImport={read,clean,set,data:()=>original?{...original}:null,download};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

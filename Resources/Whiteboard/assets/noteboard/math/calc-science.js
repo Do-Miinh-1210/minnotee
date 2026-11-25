@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* NoteBoard Calc: independent numerical routines, no eval, network or Casio firmware. */
 (function(root){'use strict';
 const fail=m=>{throw Error(m);},finite=x=>{if(!Number.isFinite(x))fail('Kết quả không xác định hoặc quá lớn');return Object.is(x,-0)?0:x;};
@@ -211,3 +228,4 @@ function convert(x,group,from,to){finite(x);const g=units[group];if(!g||!Object.
 const api={C,M,V,expression,binary,determinant,inverse,identity,baseN,statistics,distribution,inequality,ratio,verify,dms,toDMS,factors,units,convert};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.NBCalcScience=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

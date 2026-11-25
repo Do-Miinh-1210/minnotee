@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Tự chỉnh hình trên bảng: bật trong Bút → "Tự chỉnh hình", hoặc lúc nào cũng được: vẽ xong giữ bút yên ~0,55 giây.
    Vectơ: vẽ đoạn thẳng, rồi vẽ chữ V nhỏ ở đầu cần mũi tên. Hoàn tác (Ctrl+Z) trả lại nét vẽ tay. */
 (()=>{
@@ -54,3 +71,4 @@ function convert(s,held){
 }
 window.NBShapeAssistUI={get enabled(){return auto;},set enabled(v){auto=!!v;const cb=document.getElementById('shapeAssistEnabled');if(cb)cb.checked=auto;},convert};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

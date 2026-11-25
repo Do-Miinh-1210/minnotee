@@ -1,4 +1,21 @@
 #!/usr/bin/env node
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /**
  * Apply v0.0.7.7 Crash-Safe Persistence, Multi-Sheet Update Preservation,
  * & Real Google Drive Bridge Patch to Resources/Whiteboard/assets/index-CTbULhps.js
@@ -77,3 +94,4 @@ replaceUnique(
 src += '\n/* __MINNOTE_V77_PERSISTENCE_PATCH__ */\n';
 fs.writeFileSync(TARGET, src, 'utf8');
 console.log('[v77 patch] Successfully patched Resources/Whiteboard/assets/index-CTbULhps.js');
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

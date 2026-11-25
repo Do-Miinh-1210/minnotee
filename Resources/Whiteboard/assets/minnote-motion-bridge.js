@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /**
  * MinNote Motion Bridge v2.0 — Universal JSON Motion Schema (`mn-geo-motion/2.0`),
  * Continuous `\t` in `[0,1]` Animated TikZ Generator, & Bidirectional BetaTikz (`tikzvid-project/1`) Bridge.
@@ -9,6 +26,7 @@
 
   const SCHEMA_VERSION = 'mn-geo-motion/2.0';
   const BETATIKZ_FORMAT = 'tikzvid-project/1';
+  const MINNOTE_EXPORT_COPYRIGHT = 'Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1).';
 
   const CANONICAL_EFFECTS = new Set([
     'draw', 'chalk', 'glow', 'pop', 'pulse', 'fade', 'wipe', 'stamp'
@@ -2334,6 +2352,7 @@
     });
 
     const betatikzProject = {
+      $copyright: MINNOTE_EXPORT_COPYRIGHT,
       format: BETATIKZ_FORMAT,
       exported: nowSec,
       project: {
@@ -2454,6 +2473,7 @@
 
     if (mode === 'compact_llm') {
       return {
+        $copyright: MINNOTE_EXPORT_COPYRIGHT,
         schema: SCHEMA_VERSION,
         meta: {
           title: model.title,
@@ -2522,10 +2542,14 @@
     }
 
     const outObj = {
+      $copyright: MINNOTE_EXPORT_COPYRIGHT,
       schema: SCHEMA_VERSION,
       meta: {
         title: model.title,
         is3D: model.is3D,
+        author: 'Đỗ Miinh Math',
+        copyright: MINNOTE_EXPORT_COPYRIGHT,
+        tdmReservation: 1,
         createdAt: new Date().toISOString(),
         generator: 'MinNote Motion Bridge v2.0',
         coordSystem: 'cartesian-y-up',
@@ -4906,3 +4930,4 @@
     module.exports = api;
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

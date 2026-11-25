@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Additional calculator modes; all selectors and styles are scoped to NoteBoard Calc. */
 window.NBCalcAdvanced={create(api){'use strict';
  const K=window.NBCalcScience,doc=document,el=(tag,text,cls)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -140,3 +157,4 @@ window.NBCalcAdvanced={create(api){'use strict';
  panel.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();calculate();}if(e.key==='Escape')api.hide();});
  return {modes,names,supports,show,calculate,command,text,insert,get activeInput(){return activeInput;},get result(){return last;},graph(){if(!last&&!calculate())return null;return last.graph;},refresh:showResult};
 }};
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

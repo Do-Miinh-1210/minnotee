@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Phát lại quá trình viết: vẽ lại lần lượt từng nét theo thời điểm đã ghi (at, dur lưu cùng nét trong .nbink).
    Giữ nhịp viết thật nhưng rút gọn khoảng nghỉ dài (tối đa 1,5 giây); nét cũ chưa có thời điểm thì theo thứ tự vẽ.
    Vẽ trên một lớp riêng phủ lên bảng, không đổi nội dung bài; đóng lại là bảng trở về như cũ. */
@@ -112,3 +129,4 @@
  if(lesson){const b=document.createElement('button');b.type='button';b.className='setting-btn';b.id='inkReplayBtn';b.textContent='▶ Phát lại quá trình viết';b.title='Xem lại bài giảng được viết dần từng nét (lưu trong file .nbink)';b.onclick=open;lesson.append(b);}
  window.NBInkReplay={open,close,get playing(){return playing;},get total(){return total;}};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Curated outbound references, not redistributed PhET simulation files.
  * Curriculum mappings are teaching suggestions, not Ministry endorsement. */
 (()=>{'use strict';
@@ -135,3 +152,4 @@ function parse(raw){
 function clean(value){try{if(!value||typeof value.url!=='string')return null;const p=parse(value.url);return {url:p.url,title:String(value.title||p.type==='youtube'&&'Video YouTube'||p.type==='gslides'&&'Google Trình bày'||p.type==='notebooklm'&&'NotebookLM · Sổ tay AI'||new URL(p.url).hostname).slice(0,160)};}catch{return null;}}
 const api=Object.freeze({catalog,parse,clean});if(typeof window!=='undefined')window.NBLinks=api;if(typeof module!=='undefined')module.exports=api;
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

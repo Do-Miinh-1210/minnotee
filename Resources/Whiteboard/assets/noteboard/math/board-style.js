@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Giấy, màu nền bảng và giao diện sáng/tối.
    - Kiểu giấy thêm: ô nhỏ, ô lớn, giấy kẻ ô toán (đường đậm mỗi 5 ô), giấy ô li (vở học sinh).
    - Độ đậm đường kẻ Nhạt/Vừa/Đậm: màu đường kẻ trộn từ màu chữ và màu nền nên rõ trên mọi nền.
@@ -88,3 +105,4 @@ try{const s=JSON.parse(localStorage.getItem('noteboard.boardStyle')||'null');if(
 applyUi();
 window.NBBoardStyle={state,apply(s){s=s||{};setGridline(s.gridline||'',true);setPaperColor(s.paperColor||'',true);},setPaperColor,setGridline,setUi,get ui(){return uiPref;}};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

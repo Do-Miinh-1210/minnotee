@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 // Idempotent patch script: v0.0.7.6 Keyboard Shortcut Shift+D + Universal 2D/3D Curve Point/Snap/Intersection Kernel
 // 1. Adds native "geo:point": ["Shift+D"] shortcut (displays <kbd>Shift+D</kbd> in MinNote Hình học, zero collision with D dashed)
 // 2. Expands PY & upgrades pI / _mnShapeStrokes / $Y / fI / LY / VY / d5 to support ALL 2D & 3D shapes (solid + dashed outlines, rot & look3)
@@ -326,3 +343,4 @@ if (!changed) {
 
 fs.writeFileSync(targetPath, src, "utf8");
 console.log("[v76] Successfully patched index-CTbULhps.js (Shift+D shortcut + universal 2D/3D curve engine + option pills stopPropagation)!");
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

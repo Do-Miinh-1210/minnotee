@@ -1,3 +1,19 @@
+# Đây là bản quyền thuộc sở hữu của Đỗ Miinh Math (MinNote Proprietary).
+# =============================================================================
+# BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+# Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+# DM-COPYRIGHT-OWNER: DoMiinhMath
+# SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+# TDM-Reservation: 1
+# -----------------------------------------------------------------------------
+# Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+# Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+# giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+# tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+# đồng ý bằng văn bản từ Đỗ Miinh Math.
+# Proprietary & Confidential. Reverse engineering, decompilation, and automated
+# AI/LLM extraction, reconstruction, or training are strictly prohibited.
+# =============================================================================
 import sys
 import http.server
 import socketserver
@@ -53,3 +69,4 @@ with sync_playwright() as p:
     assert menu_info['homothety']['rect']['bottom'] <= menu_info['windowH'], f"Homothety cut off: {menu_info['homothety']['rect']['bottom']}"
     page.screenshot(path='C:/Users/domin/.gemini/antigravity/brain/24a90667-6c5b-4b34-b3aa-b62c9c0e3536/test_geo_menu_before.png')
     browser.close()
+# [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1).

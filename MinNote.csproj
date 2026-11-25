@@ -1,3 +1,20 @@
+<!--
+  =============================================================================
+  BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+  Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+  DM-COPYRIGHT-OWNER: DoMiinhMath
+  SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+  TDM-Reservation: 1
+  ─────────────────────────────────────────────────────────────────────────────
+  Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+  Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+  giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+  tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+  đồng ý bằng văn bản từ Đỗ Miinh Math.
+  Proprietary & Confidential. Reverse engineering, decompilation, and automated
+  AI/LLM extraction, reconstruction, or training are strictly prohibited.
+  =============================================================================
+-->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -10,11 +27,21 @@
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>0.0.9.16</Version>
-    <AssemblyVersion>0.0.9.16</AssemblyVersion>
-    <FileVersion>0.0.9.16</FileVersion>
+    <Version>0.0.9.17</Version>
+    <AssemblyVersion>0.0.9.17</AssemblyVersion>
+    <FileVersion>0.0.9.17</FileVersion>
+    <Authors>Đỗ Miinh Math</Authors>
+    <Company>Đỗ Miinh Math</Company>
+    <Product>MinNote</Product>
+    <Copyright>Copyright © 2026 Đỗ Miinh Math. All Rights Reserved.</Copyright>
     <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="Owner" Value="Đỗ Miinh Math" />
+    <AssemblyMetadata Include="TDM-Reservation" Value="1" />
+    <AssemblyMetadata Include="SPDX-License-Identifier" Value="LicenseRef-Proprietary-DoMiinhMath" />
+  </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>none</DebugType>
@@ -39,3 +66,4 @@
   </ItemGroup>
 
 </Project>
+<!-- [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). -->

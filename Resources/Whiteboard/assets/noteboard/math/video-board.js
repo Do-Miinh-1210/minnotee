@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Video từ máy đặt thẳng lên bảng (Chèn → "Video từ máy…" hoặc kéo thả tệp video vào bảng).
    - Phát trực tiếp từ tệp trên máy qua blob: URL (trình duyệt đọc dần từ ổ đĩa, không nạp cả tệp vào bộ nhớ).
    - KHÔNG tải video lên máy chủ, KHÔNG lưu video trong bài .nbink: bài chỉ giữ một trang giữ chỗ nhỏ (tên, cỡ tệp).
@@ -155,3 +172,4 @@
  addEventListener('pagehide',e=>{if(e.persisted)return;for(const u of made)URL.revokeObjectURL(u);made.clear();});
  window.NBVideoBoard={insert,snap,isVideo};
 })();
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

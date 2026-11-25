@@ -1,3 +1,20 @@
+/*
+ * =============================================================================
+ * BẢN QUYỀN SỞ HỮU TRÍ TUỆ — ĐỖ MIINH MATH (MINNOTE PROPRIETARY)
+ * Copyright (c) 2026 Đỗ Miinh Math. All Rights Reserved.
+ * DM-COPYRIGHT-OWNER: DoMiinhMath
+ * SPDX-License-Identifier: LicenseRef-Proprietary-DoMiinhMath
+ * TDM-Reservation: 1
+ * -----------------------------------------------------------------------------
+ * Đây là bản quyền thuộc sở hữu độc quyền của Đỗ Miinh Math (MinNote).
+ * Nghiêm cấm sao chép, phân phối lại, dịch ngược (reverse engineering),
+ * giải biên dịch (decompilation), tách thuật toán hoặc sử dụng công cụ AI/LLM
+ * tự động trích xuất, tái tạo, huấn luyện trên mã nguồn này khi chưa có sự
+ * đồng ý bằng văn bản từ Đỗ Miinh Math.
+ * Proprietary & Confidential. Reverse engineering, decompilation, and automated
+ * AI/LLM extraction, reconstruction, or training are strictly prohibited.
+ * =============================================================================
+ */
 /* Hóa học và đơn vị đo cho Khoanh thông minh. Chạy hoàn toàn trên máy, không mạng.
    - Cân bằng phương trình phản ứng (đại số tuyến tính, hệ số nguyên nhỏ nhất), khối lượng mol theo nguyên tử khối SGK.
    - Đổi đơn vị về SI và kiểm tra hai vế công thức Vật lí cùng đơn vị. */
@@ -163,3 +180,4 @@ function looksLikeSentence(text){const t=String(text||'').trim();const words=t.s
  return words.length>=2&&words.length===t.split(/\s+/).length&&!/[=+^\/]/.test(t)&&t.replace(/[^A-Za-z]/g,'').length>=5;}
 return {MASS,chemText,parseFormula,molarMass,balance,pretty,looksLikeFormula,looksLikeEquation,parseUnit,convert,checkDimensions,latexToText,looksLikeSentence,siName};
 });
+/* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */
