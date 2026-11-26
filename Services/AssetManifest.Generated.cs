@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T16:39:24.183Z";
+        public const string GeneratedUtc = "2026-11-26T16:47:21.411Z";
         public const int FileCount = 147;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -76,7 +76,7 @@ namespace MinNote.Services
                 ["assets/minnote-tikz-exporter.js"] = "dbaba9e31bd0ac6a68f24e4459d99ec77b1453b26842545bb1c28394262bc1b2",
                 ["assets/minnote-v80-studios.css"] = "089b155145bda1fcd42d785588a1e7665e2ff5bb9c1ef5a617edc4fb1426476c",
                 ["assets/minnote-video-embed.js"] = "22882d60261f8d4bc22daae0e1367d56bbc4fff3c4ccdb5a50baf59b63e5907a",
-                ["assets/minnote-video-encoder.js"] = "9733cdf4ab210698b10e3e25088f7405d2827ff4a074bc06e464112bc04b737a",
+                ["assets/minnote-video-encoder.js"] = "f0bf8b7e77ef1d866c43800f35318de0450420e70bde63db8891f838fa08a11d",
                 ["assets/noteboard/icons/favicon-snippet.html"] = "ab0d1e12236893f81325d30d150269a0829048ec49bc45cac02ab27169311122",
                 ["assets/noteboard/math/board-style.js"] = "4e96edf70e41f167c8b3b10b16ea05376402ddb520b4160271a4ddb9ea01fd51",
                 ["assets/noteboard/math/calc-science-ui.js"] = "e04a26382bbdc0d074bd1188ddd06ac7b59b24f83e383f0a6a4c16fc2c9bd005",
