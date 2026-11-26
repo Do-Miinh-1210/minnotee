@@ -5576,6 +5576,17 @@ _paintReplayGeo(ctx,geo,actives,extraOpts={}){
   for(const r of actives){
     if(!r.scopePoints)anyWholePage=!0;else for(const pid of r.scopePoints)scopedPts.add(pid);
     const activeSteps=r.steps.filter(s=>s.enabled!==!1);
+    const allStepById=new Map(r.steps.map(s=>[s.id,s]));
+    const _stepRefs=s=>!s?[]:(s.items&&s.items.length?s.items:[{kind:s.kind,refId:s.refId,rev:!!s.rev}]);
+    const _refKey=it=>(it.kind==="shape"?"s:":it.kind==="point"?"p:":it.kind==="item"?"i:":"k:")+it.refId;
+    const replacedRefs=new Set();
+    for(let j=0;j<activeSteps.length&&j<=r.stepIdx;j++){
+      const ms=activeSteps[j];
+      if(ms.mode==="cue"||ms.effect!=="morph_bezier"||ms.morphReplace===!1)continue;
+      if(j===r.stepIdx&&r.stepProgress<=0)continue;
+      if(ms.morphFromStepId){const srcSt=allStepById.get(ms.morphFromStepId);if(srcSt&&srcSt!==ms)for(const sr of _stepRefs(srcSt))replacedRefs.add(_refKey(sr));}
+      else if(ms.morphFromId)replacedRefs.add("s:"+ms.morphFromId);
+    }
     for(let i=0;i<activeSteps.length;i++){
       if(i>r.stepIdx)break;
       const st=activeSteps[i];
@@ -5587,8 +5598,22 @@ _paintReplayGeo(ctx,geo,actives,extraOpts={}){
       const isCue=st.mode==="cue";
       const ovEnd=isOvEndFn(fx);
       const morphFromShape=st.morphFromId?shMap.get(st.morphFromId):null;
-      const items=st.items&&st.items.length?st.items:[{kind:st.kind,refId:st.refId,rev:!!st.rev}];
+      const items=_stepRefs(st);
+      if(!isCue&&isCurStep&&fx==="morph_bezier"&&(st.morphFromStepId||st.morphFromId)&&rawP>0&&rawP<.999&&!st.tempHide&&mfx&&typeof mfx.paintMorphBetween==="function"){
+        const _mkB=refs=>{const shapes=[],strokes=[],itemsB=[];for(const rf of refs){if(rf.kind==="shape"){const s0=shMap.get(rf.refId);if(s0)shapes.push(s0);}else if(rf.kind==="stroke"){const k0=strokeMap.get(rf.refId);if(k0)strokes.push(k0);}else if(rf.kind==="item"){const i0=itemMap.get(rf.refId);if(i0)itemsB.push(i0);}}return{shapes,strokes,items:itemsB};};
+        const srcRefs=st.morphFromStepId?_stepRefs(allStepById.get(st.morphFromStepId)):[{kind:"shape",refId:st.morphFromId}];
+        const srcB=_mkB(srcRefs),dstB=_mkB(items);
+        if((srcB.shapes.length||srcB.strokes.length||srcB.items.length)&&(dstB.shapes.length||dstB.strokes.length||dstB.items.length)){
+          const tp=mfx.paintMorphBetween(ctx,srcB,dstB,prog,rawP,coords,{tee,_mnShapeBBox,_mnShapeStrokes,_mnLocusStrokes,z7,D7,$S,Qh,SR,eL,paintItem:pb,bboxItem:z2,paintStroke:(c2,s2)=>z5(c2,[s2])},{rev:!!st.rev});
+          for(const sh of dstB.shapes){drawnRefs.add("s:"+sh.id);if(rawP>.72)markPts(sh,Math.min(1,(rawP-.72)/.28),"fade");}
+          for(const obj of dstB.items)drawnRefs.add("i:"+obj.id);
+          for(const sk of dstB.strokes)drawnRefs.add("k:"+sk.id);
+          if(tp&&rawP<.995)activeTip={pageIdx,x:tp.x,y:tp.y,dx:tp.dx??1,dy:tp.dy??0,active:!0,drawing:!!r.playing&&!(r._pauseTimer>0)};
+          continue;
+        }
+      }
       for(const it of items){
+        if(!isCue&&replacedRefs.has(_refKey(it)))continue;
         if(isCue){
           if(!isCurStep||rawP<=0||rawP>=.998)continue;
           let bb=null,center=null;

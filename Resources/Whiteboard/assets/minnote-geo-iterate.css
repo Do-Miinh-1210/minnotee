@@ -16,7 +16,13 @@
  * =============================================================================
  */
 
-/* ---------------- On-Canvas Live KaTeX Iteration Parameter Layer ---------------- */
+#mn-iter-canvas-layer *,
+#mn-iter-stage-bar *,
+#mn-iter-dialog * {
+  box-sizing: border-box;
+}
+
+/* ---------------- On-Canvas KaTeX Iteration Badge (Quiet Idle → Active Edit) ---------------- */
 #mn-iter-canvas-layer {
   position: fixed;
   pointer-events: none;
@@ -24,29 +30,30 @@
   overflow: hidden;
 }
 
+/* Quiet Idle state: calm, clean math label (NOT bright until clicked!) */
 .mn-iter-badge {
   position: absolute;
   transform-origin: 0 0;
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 7px;
+  gap: 5px;
+  padding: 3px 8px;
   border-radius: 7px;
-  background: linear-gradient(180deg, #fdf2f8 0%, #fce7f3 100%);
-  border: 1.5px solid #ec4899;
-  box-shadow: 0 3px 10px rgba(236, 72, 153, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08);
-  color: #111827;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  color: #0f172a;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   user-select: none;
-  cursor: grab;
-  transition: box-shadow 0.14s ease, border-color 0.14s ease;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, padding 0.14s ease;
 }
 
-.mn-iter-badge:hover,
-.mn-iter-badge.active {
-  border-color: #db2777;
-  box-shadow: 0 5px 16px rgba(219, 39, 119, 0.28), 0 0 0 2px rgba(236, 72, 153, 0.18);
+.mn-iter-badge:hover:not(.selected) {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(100, 116, 139, 0.65);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
 }
 
 .mn-iter-badge.dragging {
@@ -54,22 +61,54 @@
   opacity: 0.94;
 }
 
-.mn-iter-badge[data-theme="blue"] {
+/* Active Selected state: lights up & reveals direct numeric controls */
+.mn-iter-badge.selected {
+  padding: 4px 7px;
+  gap: 6px;
+  cursor: grab;
+  background: linear-gradient(180deg, #fdf2f8 0%, #fce7f3 100%);
+  border: 1.5px solid #ec4899;
+  box-shadow: 0 5px 16px rgba(219, 39, 119, 0.24), 0 0 0 2px rgba(236, 72, 153, 0.15);
+}
+
+.mn-iter-badge.selected[data-theme="blue"] {
   background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
   border-color: #2563eb;
-  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.24), 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
-.mn-iter-badge[data-theme="violet"] {
+.mn-iter-badge.selected[data-theme="violet"] {
   background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
   border-color: #7c3aed;
-  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 5px 16px rgba(124, 58, 237, 0.24), 0 0 0 2px rgba(124, 58, 237, 0.15);
 }
 
-.mn-iter-badge[data-theme="emerald"] {
+.mn-iter-badge.selected[data-theme="emerald"] {
   background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
   border-color: #059669;
-  box-shadow: 0 3px 10px rgba(5, 150, 105, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 5px 16px rgba(5, 150, 105, 0.24), 0 0 0 2px rgba(5, 150, 105, 0.15);
+}
+
+.mn-iter-idle-math {
+  font-size: 15px;
+  line-height: 1.15;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mn-iter-idle-math .katex {
+  font-size: 1.04em;
+}
+
+.mn-iter-anim-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .mn-iter-chip-group {
@@ -81,12 +120,12 @@
 .mn-iter-chip-sep {
   width: 1px;
   height: 18px;
-  background: rgba(15, 23, 42, 0.18);
-  margin: 0 2px;
+  background: rgba(15, 23, 42, 0.16);
+  margin: 0 1px;
 }
 
 .mn-iter-katex-lbl {
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.1;
   color: #0f172a;
   display: inline-flex;
@@ -94,7 +133,7 @@
 }
 
 .mn-iter-katex-lbl .katex {
-  font-size: 1.05em;
+  font-size: 1.04em;
 }
 
 .mn-iter-val-box {
@@ -102,33 +141,33 @@
   align-items: center;
   background: #ffffff;
   border: 1.25px solid #475569;
-  border-radius: 4px;
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
   overflow: hidden;
 }
 
 .mn-iter-val-box:focus-within {
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.20);
 }
 
 .mn-iter-val-input {
-  width: 44px;
+  width: 40px;
   height: 24px;
   border: none;
   outline: none;
   background: transparent;
   text-align: center;
   font-family: "KaTeX_Main", "Cambria Math", Georgia, serif;
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 600;
   color: #0f172a;
-  padding: 0 3px;
+  padding: 0 2px;
   cursor: text;
 }
 
 .mn-iter-val-input.wide {
-  width: 54px;
+  width: 48px;
 }
 
 .mn-iter-step-btn {
@@ -145,7 +184,6 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .mn-iter-step-btn:hover {
@@ -155,7 +193,7 @@
 
 .mn-iter-unit {
   font-family: "KaTeX_Main", Georgia, serif;
-  font-size: 13px;
+  font-size: 12.5px;
   color: #334155;
   padding-right: 4px;
 }
@@ -164,7 +202,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 .mn-iter-act-btn {
@@ -172,7 +210,7 @@
   height: 22px;
   border: none;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.78);
   color: #334155;
   font-size: 12px;
   cursor: pointer;
@@ -180,7 +218,6 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .mn-iter-act-btn:hover {
@@ -188,39 +225,20 @@
   color: #1d4ed8;
 }
 
-.mn-iter-act-btn.del:hover {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
 .mn-iter-act-btn.play.on {
   background: #2563eb;
   color: #ffffff;
 }
 
-.mn-idlg-param-sel {
-  height: 28px;
-  max-width: 146px;
-  border-radius: 7px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 0 6px;
-  cursor: pointer;
+.mn-iter-act-btn.del:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
-html.dark .mn-idlg-param-sel {
-  background: #0f172a;
-  border-color: #475569;
-  color: #e2e8f0;
-}
-
-/* ---------------- 2-Stage Floating Top Bar ---------------- */
+/* ---------------- Compact Top Stage Pill (Only shown in Step 1!) ---------------- */
 #mn-iter-stage-bar {
   position: fixed;
-  top: 66px;
+  top: 64px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 95;
@@ -228,72 +246,34 @@ html.dark .mn-idlg-param-sel {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
   border: 1px solid #cbd5e1;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.13);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 12.5px;
   color: #1e293b;
   max-width: calc(100vw - 24px);
-  flex-wrap: wrap;
 }
 
 #mn-iter-stage-bar.open {
   display: inline-flex;
 }
 
-.mn-isb-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 9px;
-  border: 1px solid transparent;
-  background: #f1f5f9;
-  color: #475569;
+.mn-isb-hint {
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.14s ease;
+  color: #1e293b;
+  white-space: nowrap;
 }
 
-.mn-isb-step.active {
-  background: #eff6ff;
-  border-color: #3b82f6;
-  color: #1d4ed8;
-}
-
-.mn-isb-step.done {
-  background: #ecfdf5;
-  border-color: #10b981;
-  color: #047857;
-}
-
-.mn-isb-num {
-  width: 18px;
-  height: 18px;
+.mn-isb-cnt {
+  padding: 2px 7px;
   border-radius: 999px;
-  background: currentColor;
-  color: #fff;
-  font-size: 11px;
+  background: #ede9fe;
+  color: #6d28d9;
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mn-isb-step.active .mn-isb-num {
-  background: #2563eb;
-}
-
-.mn-isb-step.done .mn-isb-num {
-  background: #059669;
-}
-
-.mn-isb-sep {
-  color: #94a3b8;
-  font-weight: 700;
+  font-size: 11.5px;
 }
 
 .mn-isb-btn {
@@ -307,8 +287,8 @@ html.dark .mn-idlg-param-sel {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  transition: all 0.14s ease;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .mn-isb-btn:hover:not(:disabled) {
@@ -331,22 +311,22 @@ html.dark .mn-idlg-param-sel {
   cursor: not-allowed;
 }
 
-/* ---------------- Floating Draggable KaTeX Iteration Dialog ---------------- */
+/* ---------------- Compact, Zero-Overflow KaTeX Iteration Dialog ---------------- */
 #mn-iter-dialog {
   position: fixed;
-  top: 120px;
-  right: 26px;
-  width: 392px;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 140px);
+  top: 108px;
+  right: 22px;
+  width: 326px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 130px);
   z-index: 120;
   display: none;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(14px);
   border: 1px solid #cbd5e1;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.20);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   color: #0f172a;
   overflow: hidden;
@@ -360,32 +340,49 @@ html.dark .mn-idlg-param-sel {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 14px;
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 9px 12px;
+  background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   cursor: move;
   user-select: none;
 }
 
 .mn-idlg-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mn-idlg-scope-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  cursor: pointer;
+  border: none;
+}
+
+.mn-idlg-scope-pill:hover {
+  background: #ddd6fe;
 }
 
 .mn-idlg-close {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   border: none;
   background: transparent;
   color: #64748b;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .mn-idlg-close:hover {
@@ -394,126 +391,88 @@ html.dark .mn-idlg-param-sel {
 }
 
 .mn-idlg-body {
-  padding: 13px 14px;
+  padding: 11px 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 10px;
 }
 
-.mn-idlg-katex-preview {
-  padding: 10px 12px;
-  border-radius: 11px;
-  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
-  border: 1px solid #bfdbfe;
-  text-align: center;
-  min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.mn-idlg-katex-preview .katex {
-  font-size: 1.12em;
-  color: #0f172a;
-}
-
-.mn-idlg-katex-sub {
-  font-size: 11.5px;
-  color: #475569;
-}
-
-.mn-idlg-sec-lbl {
-  font-size: 11.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  margin-bottom: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
+/* 4 concise 1-line method tabs */
 .mn-idlg-methods {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f1f5f9;
 }
 
 .mn-idlg-mbtn {
-  padding: 8px 9px;
-  border-radius: 10px;
-  border: 1.5px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
-  text-align: left;
+  padding: 6px 4px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  transition: all 0.14s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.12s ease;
 }
 
 .mn-idlg-mbtn:hover {
-  border-color: #93c5fd;
-  background: #f8fafc;
+  color: #0f172a;
 }
 
 .mn-idlg-mbtn.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10);
 }
 
-.mn-idlg-mbtn strong {
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.mn-idlg-mbtn span {
-  font-size: 11px;
-  color: #64748b;
-}
-
+/* Crisp compact pick status */
 .mn-idlg-pick-box {
-  padding: 9px 11px;
-  border-radius: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
   background: #f8fafc;
   border: 1px dashed #94a3b8;
   font-size: 12px;
-  color: #334155;
+  color: #475569;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .mn-idlg-pick-box.ready {
-  background: #ecfdf5;
-  border-color: #34d399;
+  background: #f0fdf4;
+  border-color: #4ade80;
   border-style: solid;
+  color: #166534;
 }
 
 .mn-idlg-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 
 .mn-idlg-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 7px;
+  padding: 2px 7px;
+  border-radius: 6px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: #0f172a;
+  max-width: 100%;
 }
 
 .mn-idlg-chip button {
@@ -533,8 +492,9 @@ html.dark .mn-idlg-param-sel {
 .mn-idlg-row {
   display: flex;
   align-items: center;
-  gap: 8px;
   justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
 
 .mn-idlg-row label {
@@ -544,21 +504,24 @@ html.dark .mn-idlg-param-sel {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mn-idlg-num-ctrl {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .mn-idlg-num-ctrl input[type="number"],
 .mn-idlg-num-ctrl input[type="text"] {
-  width: 72px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1.5px solid #cbd5e1;
-  padding: 0 7px;
+  width: 62px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1.25px solid #cbd5e1;
+  padding: 0 6px;
   text-align: center;
   font-family: "KaTeX_Main", Georgia, serif;
   font-size: 14px;
@@ -575,7 +538,8 @@ html.dark .mn-idlg-param-sel {
 
 .mn-idlg-mini-btn {
   height: 26px;
-  padding: 0 8px;
+  min-width: 26px;
+  padding: 0 7px;
   border-radius: 7px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
@@ -601,28 +565,83 @@ html.dark .mn-idlg-param-sel {
   width: 100%;
   accent-color: #2563eb;
   cursor: pointer;
+  margin: -2px 0 0;
 }
 
-.mn-idlg-checks {
+/* Collapsible Advanced section (closed by default!) */
+.mn-idlg-adv-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mn-idlg-adv-toggle:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.mn-idlg-adv-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 2px;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.mn-idlg-katex-preview {
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.mn-idlg-katex-preview .katex {
+  font-size: 1.0em;
+  color: #0f172a;
+}
+
+.mn-idlg-param-sel {
+  width: 100%;
+  max-width: 168px;
+  min-width: 0;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 0 6px;
+  cursor: pointer;
 }
 
 .mn-idlg-check {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12.5px;
+  font-size: 12px;
   color: #334155;
   cursor: pointer;
 }
 
 .mn-idlg-check input {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   accent-color: #2563eb;
+  flex-shrink: 0;
 }
 
 .mn-idlg-themes {
@@ -632,20 +651,20 @@ html.dark .mn-idlg-param-sel {
 }
 
 .mn-idlg-swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   border: 2px solid transparent;
   cursor: pointer;
   padding: 0;
 }
 
 .mn-idlg-swatch.on {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #2563eb;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #2563eb;
 }
 
 .mn-idlg-ftr {
-  padding: 10px 14px;
+  padding: 9px 12px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   display: flex;
@@ -655,11 +674,22 @@ html.dark .mn-idlg-param-sel {
 }
 
 .mn-idlg-ftr .mn-isb-btn {
-  padding: 7px 13px;
-  font-size: 13px;
+  padding: 6px 12px;
+  font-size: 12.5px;
 }
 
 /* Dark mode polish */
+html.dark .mn-iter-badge:not(.selected) {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #f1f5f9;
+}
+
+html.dark .mn-iter-idle-math,
+html.dark .mn-iter-idle-math .katex {
+  color: #f1f5f9;
+}
+
 html.dark #mn-iter-stage-bar,
 html.dark #mn-iter-dialog {
   background: rgba(15, 23, 42, 0.96);
@@ -668,9 +698,25 @@ html.dark #mn-iter-dialog {
 }
 
 html.dark .mn-idlg-hdr,
-html.dark .mn-idlg-ftr {
+html.dark .mn-idlg-ftr,
+html.dark .mn-idlg-adv-toggle,
+html.dark .mn-idlg-adv-body {
   background: #1e293b;
   border-color: #334155;
+  color: #e2e8f0;
+}
+
+html.dark .mn-idlg-methods {
+  background: #0f172a;
+}
+
+html.dark .mn-idlg-mbtn {
+  color: #94a3b8;
+}
+
+html.dark .mn-idlg-mbtn.active {
+  background: #1e293b;
+  color: #60a5fa;
 }
 
 html.dark .mn-idlg-title,
@@ -679,34 +725,19 @@ html.dark .mn-idlg-check {
   color: #f1f5f9;
 }
 
-html.dark .mn-idlg-katex-preview {
-  background: #1e293b;
-  border-color: #334155;
-}
-
-html.dark .mn-idlg-katex-preview .katex {
-  color: #f8fafc;
-}
-
-html.dark .mn-idlg-mbtn,
+html.dark .mn-idlg-katex-preview,
 html.dark .mn-idlg-pick-box,
 html.dark .mn-idlg-mini-btn,
-html.dark .mn-isb-btn:not(.primary) {
-  background: #1e293b;
-  border-color: #475569;
-  color: #e2e8f0;
-}
-
-html.dark .mn-idlg-mbtn.active {
-  background: rgba(37, 99, 235, 0.25);
-  border-color: #60a5fa;
-  color: #bfdbfe;
-}
-
+html.dark .mn-isb-btn:not(.primary),
+html.dark .mn-idlg-param-sel,
 html.dark .mn-idlg-num-ctrl input[type="number"],
 html.dark .mn-idlg-num-ctrl input[type="text"] {
   background: #0f172a;
   border-color: #475569;
+  color: #f8fafc;
+}
+
+html.dark .mn-idlg-katex-preview .katex {
   color: #f8fafc;
 }
 

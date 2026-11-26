@@ -47,6 +47,8 @@
     pageIdx: 0,
     editingIterId: null,  // non-null when editing an existing live iteration badge
     dialogOpen: false,
+    advancedOpen: false,  // collapsible Advanced options (closed by default for ultra-clean UI!)
+    selectedBadgeKey: null, // ONLY the clicked badge lights up & shows controls; others stay quiet!
     highlightedIterId: null,
     marquee: null,        // { page, x0, y0, x1, y1 } during Stage-1 box drag
     cfg: {
@@ -1163,35 +1165,20 @@
 
   function renderStageBar() {
     const bar = ensureStageBar();
-    if (!STATE.active) {
+    // Show top floating pill ONLY in Stage 1 (when dialog is hidden so canvas is unobstructed!).
+    // In Stage 2, the compact dialog itself holds all controls — no duplicate double UI!
+    if (!STATE.active || STATE.stage !== 1) {
       bar.classList.remove('open');
       return;
     }
     bar.classList.add('open');
     const scCount = (STATE.cfg.scopeShapeIds || []).length;
-    const isS1 = STATE.stage === 1;
-    const isS2 = STATE.stage === 2;
-    const ready = canConfirm();
-
-    const scopeLabel = scCount > 0 ? `Chọn đối tượng (${scCount})` : 'Chọn đối tượng (kéo khung / bấm)';
-    const methodNames = { map: 'Ánh xạ điểm', rotate: 'Lặp Quay', dilate: 'Vị tự / Xoắn ốc', translate: 'Tịnh tiến' };
-    const mName = methodNames[STATE.cfg.method] || 'Phương thức';
 
     bar.innerHTML = `
-      <button type="button" class="mn-isb-step ${isS1 ? 'active' : 'done'}" data-act="stage1">
-        <span class="mn-isb-num">1</span> ${escapeHtml(scopeLabel)}
-      </button>
-      <span class="mn-isb-sep">→</span>
-      <button type="button" class="mn-isb-step ${isS2 ? 'active' : ''}" data-act="stage2">
-        <span class="mn-isb-num">2</span> ${escapeHtml(mName)}
-      </button>
-      ${isS1 ? `
-        ${scCount > 0 ? '<button type="button" class="mn-isb-btn" data-act="clearScope">Bỏ chọn</button>' : ''}
-        <button type="button" class="mn-isb-btn primary" data-act="stage2">Tiếp tục →</button>
-      ` : `
-        <button type="button" class="mn-isb-btn" data-act="toggleDlg">${STATE.dialogOpen ? 'Ẩn hộp thoại' : 'Hộp thoại KaTeX'}</button>
-        <button type="button" class="mn-isb-btn primary" data-act="confirm" ${ready ? '' : 'disabled'}>✓ Dựng lặp (${STATE.cfg.depth})</button>
-      `}
+      <span class="mn-isb-hint">Bước 1: Bấm hoặc kéo khung chọn hình cần lặp</span>
+      <span class="mn-isb-cnt">${scCount} hình</span>
+      ${scCount > 0 ? '<button type="button" class="mn-isb-btn" data-act="clearScope">Bỏ chọn</button>' : ''}
+      <button type="button" class="mn-isb-btn primary" data-act="stage2">${scCount > 0 ? 'Tiếp tục →' : 'Bỏ qua (Tự động) →'}</button>
       <button type="button" class="mn-isb-btn" data-act="close" title="Đóng (Esc)">✕</button>
     `;
 
@@ -1199,13 +1186,7 @@
       btn.onclick = () => {
         const act = btn.dataset.act;
         const board = getBoard();
-        if (act === 'stage1') {
-          STATE.stage = 1;
-          STATE.dialogOpen = false;
-          renderStageBar();
-          renderDialog();
-          board && board.redraw();
-        } else if (act === 'stage2') {
+        if (act === 'stage2') {
           STATE.stage = 2;
           STATE.dialogOpen = true;
           renderStageBar();
@@ -1214,14 +1195,7 @@
         } else if (act === 'clearScope') {
           STATE.cfg.scopeShapeIds = [];
           renderStageBar();
-          if (STATE.dialogOpen) renderDialog();
           board && board.redraw();
-        } else if (act === 'toggleDlg') {
-          STATE.dialogOpen = !STATE.dialogOpen;
-          renderStageBar();
-          renderDialog();
-        } else if (act === 'confirm') {
-          confirmFromDialog();
         } else if (act === 'close') {
           closeWorkflow(true);
         }
@@ -1296,93 +1270,120 @@
         </div>`;
     }
 
-    // Method-specific numeric controls + optional binding to geo.params
+    // Method-specific essential numeric controls (NO cluttered dropdowns here — those live cleanly in Advanced!)
     const allParams = Array.isArray(geo.params) ? geo.params : [];
     const paramOpts = (selectedId, defaultLbl, unitFilter) => {
       const filtered = allParams.filter(p => p && (!unitFilter || p.unit === unitFilter || p.unit === 'none'));
       return `<option value="">${escapeHtml(defaultLbl)}</option>` +
-        filtered.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedId ? 'selected' : ''}>🔗 ${escapeHtml(p.name)} = ${escapeHtml(fmtViNum(evalLinkedParam(getKernel(), geo, p.id, p.value), 2))}</option>`).join('');
+        filtered.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)} = ${escapeHtml(fmtViNum(evalLinkedParam(getKernel(), geo, p.id, p.value), 2))}</option>`).join('');
     };
 
     let extraControls = '';
-    if (c.method === 'rotate' || c.method === 'dilate') {
+    if (c.method === 'rotate') {
       extraControls += `
         <div class="mn-idlg-row">
           <label><span class="mn-idlg-katex-inline" data-tex="\\alpha"></span> Góc quay (°)</label>
           <div class="mn-idlg-num-ctrl">
-            <input type="text" id="mn-iter-angle-in" value="${escapeHtml(fmtViNum(c.angle, 2))}" />
-            <select class="mn-idlg-param-sel" id="mn-iter-ang-param" title="Gắn góc quay với 1 tham số trong bảng Tham số">${paramOpts(c.angleParamId, 'Nhập tay', 'angle')}</select>
+            <input type="text" id="mn-iter-angle-in" value="${escapeHtml(fmtViNum(c.angle, 1))}" />
           </div>
         </div>
         <div class="mn-idlg-presets">
-          ${[30, 45, 60, 90, 120, 180].map(a => `<button type="button" class="mn-idlg-mini-btn" data-set-ang="${a}">${a}°</button>`).join('')}
-          <button type="button" class="mn-idlg-mini-btn" data-set-ang="auto360" title="Chia đều 360° theo (n+1) phần">360°/(n+1)</button>
+          ${[45, 60, 90, 120].map(a => `<button type="button" class="mn-idlg-mini-btn" data-set-ang="${a}">${a}°</button>`).join('')}
+          <button type="button" class="mn-idlg-mini-btn" data-set-ang="auto360" title="Chia đều 360°">360°/(n+1)</button>
         </div>
       `;
-    }
-    if (c.method === 'dilate' || c.method === 'translate') {
-      const lbl = c.method === 'dilate' ? 'Tỉ số vị tự' : 'Hệ số bước';
-      const presets = c.method === 'dilate' ? [0.5, 0.618, 0.7, 0.8, 1.25] : [0.5, 1, 1.5, 2];
+    } else if (c.method === 'dilate') {
       extraControls += `
         <div class="mn-idlg-row">
-          <label><span class="mn-idlg-katex-inline" data-tex="k"></span> ${lbl}</label>
+          <label><span class="mn-idlg-katex-inline" data-tex="k"></span> Tỉ số vị tự</label>
           <div class="mn-idlg-num-ctrl">
-            <input type="text" id="mn-iter-ratio-in" value="${escapeHtml(fmtViNum(c.ratio, 3))}" />
-            <select class="mn-idlg-param-sel" id="mn-iter-rat-param" title="Gắn tỉ số với 1 tham số trong bảng Tham số">${paramOpts(c.ratioParamId, 'Nhập tay', 'none')}</select>
+            <input type="text" id="mn-iter-ratio-in" value="${escapeHtml(fmtViNum(c.ratio, 2))}" />
           </div>
         </div>
         <div class="mn-idlg-presets">
-          ${presets.map(r => `<button type="button" class="mn-idlg-mini-btn" data-set-ratio="${r}">${fmtViNum(r, 3)}</button>`).join('')}
+          ${[0.5, 0.7, 0.8, 1.25].map(r => `<button type="button" class="mn-idlg-mini-btn" data-set-ratio="${r}">${fmtViNum(r, 2)}</button>`).join('')}
         </div>
       `;
     }
 
-    const scopeNote = scCount > 0
-      ? `Đang khóa phạm vi đúng <strong>${scCount} đối tượng</strong> đã chọn (không loang sang phần khác).`
-      : `Chế độ <strong>Tự động</strong> theo đối tượng liên quan. Khuyên chọn ở Bước 1 để giới hạn khung hình.`;
+    const advBodyHtml = STATE.advancedOpen ? `
+      <div class="mn-idlg-adv-body">
+        <div class="mn-idlg-katex-preview"><div id="mn-idlg-formula"></div></div>
+        ${c.method === 'dilate' ? `
+          <div class="mn-idlg-row">
+            <label><span class="mn-idlg-katex-inline" data-tex="\\alpha"></span> Góc xoắn (°)</label>
+            <div class="mn-idlg-num-ctrl">
+              <input type="text" id="mn-iter-angle-in" value="${escapeHtml(fmtViNum(c.angle, 1))}" />
+            </div>
+          </div>
+        ` : ''}
+        ${c.method === 'translate' ? `
+          <div class="mn-idlg-row">
+            <label><span class="mn-idlg-katex-inline" data-tex="k"></span> Hệ số bước</label>
+            <div class="mn-idlg-num-ctrl">
+              <input type="text" id="mn-iter-ratio-in" value="${escapeHtml(fmtViNum(c.ratio, 2))}" />
+            </div>
+          </div>
+        ` : ''}
+        <div class="mn-idlg-row">
+          <label>Tên biến & màu</label>
+          <div class="mn-idlg-num-ctrl">
+            <input type="text" id="mn-iter-var-in" value="${escapeHtml(c.varName)}" style="width:54px" />
+            <div class="mn-idlg-themes">
+              <button type="button" class="mn-idlg-swatch ${c.theme === 'pink' ? 'on' : ''}" data-theme="pink" style="background:#f472b6"></button>
+              <button type="button" class="mn-idlg-swatch ${c.theme === 'blue' ? 'on' : ''}" data-theme="blue" style="background:#3b82f6"></button>
+              <button type="button" class="mn-idlg-swatch ${c.theme === 'violet' ? 'on' : ''}" data-theme="violet" style="background:#8b5cf6"></button>
+              <button type="button" class="mn-idlg-swatch ${c.theme === 'emerald' ? 'on' : ''}" data-theme="emerald" style="background:#10b981"></button>
+            </div>
+          </div>
+        </div>
+        <div class="mn-idlg-row">
+          <label>Gắn số lần lặp</label>
+          <select class="mn-idlg-param-sel" id="mn-iter-depth-param">${paramOpts(c.depthParamId, 'Tự tạo (' + (c.varName || 't_1') + ')', 'none')}</select>
+        </div>
+        ${(c.method === 'rotate' || c.method === 'dilate') ? `
+          <div class="mn-idlg-row">
+            <label>Gắn góc α</label>
+            <select class="mn-idlg-param-sel" id="mn-iter-ang-param">${paramOpts(c.angleParamId, 'Nhập tay', 'angle')}</select>
+          </div>
+        ` : ''}
+        ${(c.method === 'dilate' || c.method === 'translate') ? `
+          <div class="mn-idlg-row">
+            <label>Gắn tỉ số k</label>
+            <select class="mn-idlg-param-sel" id="mn-iter-rat-param">${paramOpts(c.ratioParamId, 'Nhập tay', 'none')}</select>
+          </div>
+        ` : ''}
+        <label class="mn-idlg-check">
+          <input type="checkbox" id="mn-iter-hide-dots" ${c.hideIterDots ? 'checked' : ''} />
+          <span>Ẩn chấm đỏ ở các tầng lặp</span>
+        </label>
+        <label class="mn-idlg-check">
+          <input type="checkbox" id="mn-iter-show-badge" ${c.showBadge ? 'checked' : ''} />
+          <span>Hiện thẻ KaTeX trên bảng vẽ</span>
+        </label>
+      </div>
+    ` : '';
 
     dlg.innerHTML = `
       <div class="mn-idlg-hdr" id="mn-idlg-drag">
         <div class="mn-idlg-title">
-          <span>${STATE.editingIterId ? 'Chỉnh sửa Phép lặp (KaTeX)' : 'Phép lặp Hình học (KaTeX)'}</span>
+          <span>${STATE.editingIterId ? 'Sửa Phép lặp' : 'Phép lặp'}</span>
+          <button type="button" class="mn-idlg-scope-pill" data-act="backScope" title="Quay lại Bước 1 để chọn lại đối tượng lặp">${scCount > 0 ? `${scCount} hình` : 'Tự động'}</button>
         </div>
         <button type="button" class="mn-idlg-close" data-act="close" title="Đóng">×</button>
       </div>
       <div class="mn-idlg-body">
-        <div class="mn-idlg-katex-preview">
-          <div id="mn-idlg-formula"></div>
-          <div class="mn-idlg-katex-sub">${scopeNote}</div>
-        </div>
-
-        <div>
-          <div class="mn-idlg-sec-lbl">
-            <span>Phương thức lặp</span>
-            <button type="button" class="mn-idlg-mini-btn" data-act="backScope">① Sửa đối tượng (${scCount || 'Tự động'})</button>
-          </div>
-          <div class="mn-idlg-methods">
-            <button type="button" class="mn-idlg-mbtn ${c.method === 'map' ? 'active' : ''}" data-method="map">
-              <strong>Ánh xạ điểm</strong>
-              <span>P → P' (lồng nhau, fractal)</span>
-            </button>
-            <button type="button" class="mn-idlg-mbtn ${c.method === 'rotate' ? 'active' : ''}" data-method="rotate">
-              <strong>Lặp Quay quanh tâm</strong>
-              <span>Quay góc α (lục giác, hoa văn)</span>
-            </button>
-            <button type="button" class="mn-idlg-mbtn ${c.method === 'dilate' ? 'active' : ''}" data-method="dilate">
-              <strong>Vị tự / Xoắn ốc</strong>
-              <span>Co giãn tỉ số k + xoay góc α</span>
-            </button>
-            <button type="button" class="mn-idlg-mbtn ${c.method === 'translate' ? 'active' : ''}" data-method="translate">
-              <strong>Lặp Tịnh tiến</strong>
-              <span>Dãy hình theo vectơ AB</span>
-            </button>
-          </div>
+        <div class="mn-idlg-methods">
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'map' ? 'active' : ''}" data-method="map">Ánh xạ</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'rotate' ? 'active' : ''}" data-method="rotate">Quay</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'dilate' ? 'active' : ''}" data-method="dilate">Vị tự</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'translate' ? 'active' : ''}" data-method="translate">Tịnh tiến</button>
         </div>
 
         ${pickHtml}
 
         <div class="mn-idlg-row">
-          <label><span class="mn-idlg-katex-inline" data-tex="${escapeHtml(texForVar(c.varName))}"></span> Số lần lặp (0–20)</label>
+          <label><span class="mn-idlg-katex-inline" data-tex="${escapeHtml(texForVar(c.varName))}"></span> Số lần lặp</label>
           <div class="mn-idlg-num-ctrl">
             <button type="button" class="mn-idlg-mini-btn" data-step-depth="-1">−</button>
             <input type="number" id="mn-iter-depth-in" min="0" max="20" step="1" value="${c.depth}" />
@@ -1390,50 +1391,28 @@
           </div>
         </div>
         <input type="range" class="mn-idlg-slider" id="mn-iter-depth-rng" min="0" max="20" step="1" value="${c.depth}" />
-        <div class="mn-idlg-row">
-          <label>Đồng bộ bảng Tham số</label>
-          <select class="mn-idlg-param-sel" id="mn-iter-depth-param" style="max-width:190px" title="Gắn số lần lặp với hệ thống Tham số (để kéo trượt, biểu thức & chạy hoạt ảnh ▶)">
-            ${paramOpts(c.depthParamId, '✦ Tự tạo tham số mới (' + (c.varName || 't_1') + ')', 'none')}
-          </select>
-        </div>
 
         ${extraControls}
 
-        <div class="mn-idlg-row">
-          <label>Tên biến KaTeX & Màu thẻ</label>
-          <div class="mn-idlg-num-ctrl">
-            <input type="text" id="mn-iter-var-in" value="${escapeHtml(c.varName)}" title="Ví dụ: t_1, n_1, k_1" style="width:68px" />
-            <div class="mn-idlg-themes">
-              <button type="button" class="mn-idlg-swatch ${c.theme === 'pink' ? 'on' : ''}" data-theme="pink" style="background:#f472b6" title="Hồng toán học"></button>
-              <button type="button" class="mn-idlg-swatch ${c.theme === 'blue' ? 'on' : ''}" data-theme="blue" style="background:#3b82f6" title="Xanh dương"></button>
-              <button type="button" class="mn-idlg-swatch ${c.theme === 'violet' ? 'on' : ''}" data-theme="violet" style="background:#8b5cf6" title="Tím"></button>
-              <button type="button" class="mn-idlg-swatch ${c.theme === 'emerald' ? 'on' : ''}" data-theme="emerald" style="background:#10b981" title="Xanh ngọc"></button>
-            </div>
-          </div>
-        </div>
-
-        <div class="mn-idlg-checks">
-          <label class="mn-idlg-check">
-            <input type="checkbox" id="mn-iter-hide-dots" ${c.hideIterDots ? 'checked' : ''} />
-            <span>Ẩn chấm đỏ ở các tầng lặp (giữ hình sạch, dễ tô màu)</span>
-          </label>
-          <label class="mn-idlg-check">
-            <input type="checkbox" id="mn-iter-show-badge" ${c.showBadge ? 'checked' : ''} />
-            <span>Xuất thẻ tham số KaTeX sống trên bảng vẽ để chỉnh trực tiếp</span>
-          </label>
-        </div>
+        <button type="button" class="mn-idlg-adv-toggle" data-act="toggleAdv">
+          <span>${STATE.advancedOpen ? '▾' : '▸'} Tùy chọn nâng cao (Tham số, KaTeX)</span>
+        </button>
+        ${advBodyHtml}
       </div>
       <div class="mn-idlg-ftr">
-        <button type="button" class="mn-isb-btn" data-act="backScope">← Bước 1</button>
+        <button type="button" class="mn-isb-btn" data-act="backScope">← Chọn hình</button>
         <button type="button" class="mn-isb-btn primary" data-act="confirm" ${ready ? '' : 'disabled'}>
-          ${STATE.editingIterId ? '✓ Cập nhật phép lặp' : '✓ Xác nhận dựng lặp'}
+          ${STATE.editingIterId ? '✓ Cập nhật' : '✓ Dựng lặp'}
         </button>
       </div>
     `;
 
     // Render KaTeX formulas inside dialog
-    renderKatex(dlg.querySelector('#mn-idlg-formula'), formulaLatexForCfg(geo, c));
+    const fEl = dlg.querySelector('#mn-idlg-formula');
+    if (fEl) renderKatex(fEl, formulaLatexForCfg(geo, c));
     dlg.querySelectorAll('.mn-idlg-katex-inline').forEach(sp => renderKatex(sp, sp.dataset.tex));
+    const advBtn = dlg.querySelector('[data-act="toggleAdv"]');
+    if (advBtn) advBtn.onclick = () => { STATE.advancedOpen = !STATE.advancedOpen; renderDialog(); };
 
     // Bind drag on header
     const hdr = dlg.querySelector('#mn-idlg-drag');
@@ -1663,9 +1642,10 @@
           ? pg.geo.params.find(p => p && p.id === it.depthParamId)
           : null;
         const isAnim = !!(linkedParam && linkedParam.animating);
+        const isSel = STATE.selectedBadgeKey === key || STATE.editingIterId === it.id;
         const showAng = it.method === 'rotate' || (it.method === 'dilate' && Math.abs(Number(it.angle) || 0) > 1e-4);
         const showRatio = it.method === 'dilate' || (it.method === 'translate' && Math.abs((Number(it.ratio) || 1) - 1) > 1e-4);
-        const structSig = `${it.varName}|${it.method}|${showAng ? 1 : 0}|${showRatio ? 1 : 0}|${it.depthParamId || ''}`;
+        const structSig = `${isSel ? 'S' : 'I'}|${it.varName}|${it.method}|${showAng ? 1 : 0}|${showRatio ? 1 : 0}|${it.depthParamId || ''}`;
         if (!badge) {
           badge = document.createElement('div');
           badge.className = 'mn-iter-badge';
@@ -1673,13 +1653,15 @@
           badge.dataset.page = String(pIdx);
           badge.dataset.iterId = it.id;
           badge.addEventListener('pointerdown', e => e.stopPropagation());
-          attachBadgeDrag(badge, pIdx, it.id);
+          attachBadgeDrag(badge, pIdx, it.id, key);
           badge.addEventListener('mouseenter', () => {
-            STATE.highlightedIterId = it.id;
-            ed.redraw();
+            if (STATE.selectedBadgeKey === key) {
+              STATE.highlightedIterId = it.id;
+              ed.redraw();
+            }
           });
           badge.addEventListener('mouseleave', () => {
-            if (STATE.highlightedIterId === it.id) {
+            if (STATE.highlightedIterId === it.id && STATE.selectedBadgeKey !== key) {
               STATE.highlightedIterId = null;
               ed.redraw();
             }
@@ -1688,17 +1670,19 @@
         }
 
         badge.dataset.theme = it.theme || 'pink';
-        badge.classList.toggle('active', STATE.highlightedIterId === it.id || STATE.editingIterId === it.id);
+        badge.classList.toggle('selected', isSel);
         badge.style.left = `${Math.round(pos.sx - sr.left)}px`;
         badge.style.top = `${Math.round(pos.sy - sr.top)}px`;
         badge.style.transform = `scale(${Math.max(0.72, Math.min(1.35, pos.zoom))})`;
 
-        // Rebuild DOM structure ONLY when structural signature changes; update values in-place at 60fps!
+        // Rebuild DOM structure ONLY when switching Idle <-> Selected or structural change; update values in-place at 60fps!
         if (badge.dataset.structSig !== structSig) {
           badge.dataset.structSig = structSig;
-          populateBadgeContent(badge, pIdx, it, isAnim);
+          if (isSel) populateBadgeContent(badge, pIdx, it, isAnim);
+          else populateBadgeIdle(badge, it, isAnim);
         } else {
-          updateBadgeValuesInPlace(badge, it, isAnim);
+          if (isSel) updateBadgeValuesInPlace(badge, it, isAnim);
+          else updateBadgeIdleInPlace(badge, it, isAnim);
         }
       });
     });
@@ -1706,6 +1690,38 @@
     layer.querySelectorAll('.mn-iter-badge').forEach(el => {
       if (!keepKeys.has(el.dataset.key)) el.remove();
     });
+  }
+
+  function idleTexForIter(it) {
+    const varTex = texForVar(it.varName || 'n_1');
+    const parts = [`${varTex} = ${it.depth}`];
+    if (it.method === 'rotate' || (it.method === 'dilate' && Math.abs(Number(it.angle) || 0) > 1e-4)) {
+      parts.push(`\\alpha = ${fmtViNum(it.angle, 1).replace(',', '{,}')}^\\circ`);
+    }
+    if (it.method === 'dilate' || (it.method === 'translate' && Math.abs((Number(it.ratio) || 1) - 1) > 1e-4)) {
+      parts.push(`k = ${fmtViNum(it.ratio, 2).replace(',', '{,}')}`);
+    }
+    return parts.join(',\\; ');
+  }
+
+  function populateBadgeIdle(badge, it, isAnim) {
+    badge.title = 'Bấm vào để chỉnh số liệu phép lặp • Kéo để di chuyển';
+    badge.innerHTML = `${isAnim ? '<span class="mn-iter-anim-dot"></span>' : ''}<span class="mn-iter-idle-math"></span>`;
+    const sp = badge.querySelector('.mn-iter-idle-math');
+    renderKatex(sp, idleTexForIter(it), `${it.varName || 't_1'} = ${it.depth}`);
+  }
+
+  function updateBadgeIdleInPlace(badge, it, isAnim) {
+    const sp = badge.querySelector('.mn-iter-idle-math');
+    if (sp) renderKatex(sp, idleTexForIter(it), `${it.varName || 't_1'} = ${it.depth}`);
+    const dot = badge.querySelector('.mn-iter-anim-dot');
+    if (isAnim && !dot) {
+      const d = document.createElement('span');
+      d.className = 'mn-iter-anim-dot';
+      badge.insertBefore(d, badge.firstChild);
+    } else if (!isAnim && dot) {
+      dot.remove();
+    }
   }
 
   function updateBadgeValuesInPlace(badge, it, isAnim) {
@@ -1842,7 +1858,7 @@
     if (delBtn) delBtn.onclick = (e) => { e.stopPropagation(); deleteIteration(pageIdx, it.id); };
   }
 
-  function attachBadgeDrag(badge, pageIdx, iterId) {
+  function attachBadgeDrag(badge, pageIdx, iterId, key) {
     badge.addEventListener('pointerdown', (e) => {
       if (e.target.closest('input, button')) return;
       e.preventDefault();
@@ -1861,7 +1877,7 @@
       const mv = (me) => {
         const dx = (me.clientX - startX) / z;
         const dy = (me.clientY - startY) / z;
-        if (Math.hypot(dx, dy) > 2) moved = true;
+        if (Math.hypot(dx, dy) > 3) moved = true;
         if (!moved) return;
         const pos = pageToScreen(pageIdx, origX + dx, origY + dy);
         if (pos) {
@@ -1877,6 +1893,14 @@
           const dx = (ue.clientX - startX) / z;
           const dy = (ue.clientY - startY) / z;
           updateBadgePos(pageIdx, iterId, Math.round(origX + dx), Math.round(origY + dy));
+        } else {
+          // Single click selects badge -> lights up & opens direct numeric controls!
+          if (STATE.selectedBadgeKey !== key) {
+            STATE.selectedBadgeKey = key;
+            STATE.highlightedIterId = iterId;
+            syncBadgesNow();
+            ed.redraw();
+          }
         }
       };
       root.addEventListener('pointermove', mv, true);
@@ -2014,7 +2038,24 @@
 
   root.addEventListener('minnote:aux-update', scheduleSyncBadges);
   root.addEventListener('resize', scheduleSyncBadges);
+  // Click anywhere outside a selected KaTeX badge -> collapse it cleanly back to quiet idle state!
+  root.addEventListener('pointerdown', (e) => {
+    if (!STATE.selectedBadgeKey) return;
+    if (e.target && e.target.closest && e.target.closest('.mn-iter-badge, #mn-iter-dialog')) return;
+    STATE.selectedBadgeKey = null;
+    STATE.highlightedIterId = null;
+    syncBadgesNow();
+    const ed = getBoard();
+    if (ed) ed.redraw();
+  }, true);
   root.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && STATE.selectedBadgeKey) {
+      STATE.selectedBadgeKey = null;
+      STATE.highlightedIterId = null;
+      syncBadgesNow();
+      const ed = getBoard();
+      if (ed) ed.redraw();
+    }
     if (!STATE.active) return;
     if (e.key === 'Escape') {
       closeWorkflow(true);

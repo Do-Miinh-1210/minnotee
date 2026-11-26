@@ -431,9 +431,17 @@
     const curDur = Math.max(0.5, Math.min(3.0, Number(st.durationMul) || 1));
     const curPause = Math.max(0, Math.min(3.0, Number(st.pauseAfter) || 0));
 
-    const morphShapes = (isShape && curFx === 'morph_bezier')
-      ? pg.geo.shapes.filter(s => s.id !== first.refId && s.kind !== 'solid' && s.kind !== 'flatLink' && !s.hidden && (!r.scopeShapes || r.scopeShapes.has(s.id)))
+    const morphStepCandidates = (curFx === 'morph_bezier' && !isCueOnly)
+      ? r.steps
+          .map((s2, idx2) => ({ step: s2, idx: idx2 }))
+          .filter(x => x.step && x.step.id !== st.id && x.step.mode !== 'cue')
       : [];
+    const curMorphVal = st.morphFromStepId
+      ? ('step:' + st.morphFromStepId)
+      : (st.morphFromId ? ('shape:' + st.morphFromId) : '');
+    const legacyMorphShape = (st.morphFromId && !st.morphFromStepId)
+      ? pg.geo.shapes.find(s2 => s2.id === st.morphFromId)
+      : null;
 
     const activeIdx = (() => {
       let k = 0;
@@ -464,13 +472,24 @@
         <div class="mn-fx-grid">
           ${fxList.map(ef => `<button type="button" class="mn-fx-pill${curFx === ef.id ? ' on' : ''}" data-fx-effect="${ef.id}" title="${escapeHtml(ef.label)}"><span>${ef.icon}</span><span>${escapeHtml(ef.label)}</span></button>`).join('')}
         </div>
-        ${(isShape && curFx === 'morph_bezier' && !isCueOnly) ? `
-        <div class="mn-fx-morph-row">
-          <span>Biến hình từ:</span>
-          <select class="mn-fx-select" data-fx-morph-from>
-            <option value="">Vòng tròn tâm (tự động)</option>
-            ${morphShapes.map(s2 => `<option value="${escapeHtml(s2.id)}"${st.morphFromId === s2.id ? ' selected' : ''}>${escapeHtml(describeShape(pg.geo, s2, false, false))}</option>`).join('')}
-          </select>
+        ${(curFx === 'morph_bezier' && !isCueOnly) ? `
+        <div class="mn-fx-morph-box">
+          <div class="mn-fx-morph-row">
+            <span>Biến hình từ (A):</span>
+            <select class="mn-fx-select" data-fx-morph-from>
+              <option value="">Vòng tròn tâm (tự động)</option>
+              ${morphStepCandidates.map(c => {
+                const v = 'step:' + c.step.id;
+                const tag = c.idx < rawIdx ? `Bước ${c.idx + 1}` : `Bước ${c.idx + 1} (sau)`;
+                return `<option value="${escapeHtml(v)}"${curMorphVal === v ? ' selected' : ''}>${escapeHtml(tag + ' · ' + stepDisplayLabel(pg.geo, c.step, pg))}</option>`;
+              }).join('')}
+              ${legacyMorphShape ? `<option value="${escapeHtml('shape:' + legacyMorphShape.id)}" selected>${escapeHtml(describeShape(pg.geo, legacyMorphShape, false, false))}</option>` : ''}
+            </select>
+          </div>
+          ${(st.morphFromStepId || st.morphFromId) ? `
+          <div class="mn-fx-morph-opts">
+            <button type="button" class="mn-fx-chip${st.morphReplace !== false ? ' on' : ''}" data-fx-toggle="morphReplace" title="Bật: Nguồn A hóa thân trực tiếp thành B (không để lại bản cũ). Tắt: Giữ nguyên A và tách bản sao biến thành B.">🔄 Thay thế nguồn A</button>
+          </div>` : ''}
         </div>` : ''}
       </div>
       <div class="mn-fx-sec">
@@ -587,6 +606,16 @@
         const nextFx = btn.dataset.fxEffect;
         const needRefresh = (curFx === 'morph_bezier') !== (nextFx === 'morph_bezier');
         st.effect = nextFx;
+        if (nextFx === 'morph_bezier' && !st.morphFromStepId && !st.morphFromId) {
+          for (let k = rawIdx - 1; k >= 0; k--) {
+            const prevSt = r.steps[k];
+            if (prevSt && prevSt.enabled !== false && prevSt.mode !== 'cue') {
+              st.morphFromStepId = prevSt.id;
+              if (st.morphReplace === undefined) st.morphReplace = true;
+              break;
+            }
+          }
+        }
         pop.querySelectorAll('[data-fx-effect]').forEach(x => x.classList.toggle('on', x === btn));
         b._replayHiddenCache = null;
         persistScript(b, false, r);
@@ -599,9 +628,22 @@
     const morphSel = pop.querySelector('[data-fx-morph-from]');
     if (morphSel) {
       morphSel.addEventListener('change', () => {
-        st.morphFromId = morphSel.value || undefined;
+        const val = morphSel.value || '';
+        if (val.startsWith('step:')) {
+          st.morphFromStepId = val.slice(5);
+          delete st.morphFromId;
+          if (st.morphReplace === undefined) st.morphReplace = true;
+        } else if (val.startsWith('shape:')) {
+          st.morphFromId = val.slice(6);
+          delete st.morphFromStepId;
+          if (st.morphReplace === undefined) st.morphReplace = true;
+        } else {
+          delete st.morphFromStepId;
+          delete st.morphFromId;
+        }
         persistScript(b, false, r);
         renderReplayUI();
+        openEffectPopover(rawIdx, clientX, clientY, true);
         if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
       });
     }
@@ -642,6 +684,7 @@
         if (key === 'rev') st.rev = !st.rev;
         else if (key === 'tempHide') st.tempHide = !st.tempHide;
         else if (key === 'showGuides') st.showGuides = st.showGuides === false;
+        else if (key === 'morphReplace') st.morphReplace = st.morphReplace === false;
         else if (key === 'cue') {
           st.mode = st.mode === 'cue' ? undefined : 'cue';
           if (st.mode === 'cue' && !(mfx && mfx.OVERLAY_END_EFFECTS && mfx.OVERLAY_END_EFFECTS.has(st.effect))) {
@@ -654,7 +697,7 @@
           if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
           return;
         }
-        btn.classList.toggle('on', key === 'showGuides' ? st.showGuides !== false : !!st[key]);
+        btn.classList.toggle('on', (key === 'showGuides' || key === 'morphReplace') ? st[key] !== false : !!st[key]);
         persistScript(b, false, r);
         renderReplayUI();
         if (activeIdx >= 0) window.MinNoteGeoReplay.playSingleStep(activeIdx);
@@ -2080,7 +2123,7 @@
 
     // Zero-thrash fast path: if step structure/config is unchanged, ONLY toggle .current/.done classes (0 DOM rebuilds during 60fps playback!)
     const stepSig = r.id + '|' + r.page + '|' + r.steps.map(s =>
-      `${s.id}:${s.enabled !== false ? 1 : 0}:${s.effect || ''}:${s.easing || ''}:${s.durationMul || 1}:${s.pauseAfter || 0}:${s.rev ? 1 : 0}:${s.tempHide ? 1 : 0}:${s.showGuides !== false ? 1 : 0}:${s.mode || ''}:${s.customTitle || ''}:${s.items ? s.items.length : 0}`
+      `${s.id}:${s.enabled !== false ? 1 : 0}:${s.effect || ''}:${s.easing || ''}:${s.durationMul || 1}:${s.pauseAfter || 0}:${s.rev ? 1 : 0}:${s.tempHide ? 1 : 0}:${s.showGuides !== false ? 1 : 0}:${s.mode || ''}:${s.customTitle || ''}:${s.items ? s.items.length : 0}:${s.morphFromStepId || s.morphFromId || ''}:${s.morphReplace === false ? 0 : 1}`
     ).join(',');
     if (lastRenderedStepSig === stepSig && listEl.children.length === r.steps.length) {
       let ap = 0;
@@ -2130,7 +2173,25 @@
       const hasCustomFx = isCue || fxId !== 'draw' || (st.easing && st.easing !== 'easeInOut') || (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) || (Number(st.pauseAfter) > 0);
       const fxMeta = getEffectMeta(fxId);
       const fxTagBits = [];
-      if (fxId !== 'draw' || isCue) fxTagBits.push(`${fxMeta.icon} ${fxMeta.label}`);
+      let prevNonCueStep = null;
+      for (let k = rawIdx - 1; k >= 0; k--) {
+        const cand = r.steps[k];
+        if (cand && cand.enabled !== false && cand.mode !== 'cue') { prevNonCueStep = cand; break; }
+      }
+      const isMorphLinked = !isCue && fxId === 'morph_bezier' && !!(st.morphFromStepId || st.morphFromId);
+      if (fxId === 'morph_bezier' && !isCue) {
+        let srcHint = '';
+        if (st.morphFromStepId) {
+          const srcIdx = r.steps.findIndex(x => x && x.id === st.morphFromStepId);
+          srcHint = srcIdx >= 0 ? ` ← B${srcIdx + 1}` : '';
+        } else if (st.morphFromId) {
+          const s0 = geo.shapes.find(x => x.id === st.morphFromId);
+          srcHint = s0 ? ` ← ${describeShape(geo, s0, false, false)}` : '';
+        }
+        fxTagBits.push(`⟳ Morph${srcHint}${st.morphReplace === false ? ' (giữ A)' : ''}`);
+      } else if (fxId !== 'draw' || isCue) {
+        fxTagBits.push(`${fxMeta.icon} ${fxMeta.label}`);
+      }
       if (Number(st.durationMul) && Math.abs(Number(st.durationMul) - 1) > 0.04) fxTagBits.push(`${Number(st.durationMul).toFixed(1)}×`);
       if (Number(st.pauseAfter) > 0) fxTagBits.push(`+${Number(st.pauseAfter).toFixed(1)}s`);
       const cueBadgeHtml = isCue ? '<span class="mn-step-cue-badge">NHẤN MẠNH</span>' : '';
@@ -2145,6 +2206,7 @@
         </div>
         <div class="mn-step-actions">
           <button class="mn-mini-btn ${hasCustomFx ? 'on' : ''}" data-act="fx" title="Tùy chỉnh hiệu ứng bước (hoặc nhấp chuột phải)">✨</button>
+          ${(!isCue && prevNonCueStep) ? `<button class="mn-mini-btn ${isMorphLinked ? 'on' : ''}" data-act="morphprev" title="${isMorphLinked ? 'Đang Morph từ đối tượng trước (bấm để tắt)' : 'Morph (biến hình) từ bước ngay trên sang bước này'}">⟳</button>` : ''}
           ${(!isCue && isEnabled) ? `<button class="mn-mini-btn" data-act="addcue" title="Chèn bước nhấn mạnh sau bước này">✦</button>` : ''}
           ${(isInterPt && !isCue) ? `<button class="mn-mini-btn ${st.showGuides !== false ? 'on' : ''}" data-act="guides" title="Vẽ 2 đường giao nhau rồi ẩn">✛</button>` : ''}
           ${(isShape && !isCue) ? `<button class="mn-mini-btn ${st.tempHide ? 'on' : ''}" data-act="temphide" title="Vẽ tạm rồi tự ẩn">👻</button>` : ''}
@@ -2175,6 +2237,22 @@
         if (act === 'fx') {
           const br = btn.getBoundingClientRect();
           openEffectPopover(rawIdx, br.left, br.top + br.height / 2);
+        } else if (act === 'morphprev' && prevNonCueStep) {
+          if (st.effect === 'morph_bezier' && (st.morphFromStepId || st.morphFromId)) {
+            st.effect = 'draw';
+            delete st.morphFromStepId;
+            delete st.morphFromId;
+          } else {
+            st.effect = 'morph_bezier';
+            st.morphFromStepId = prevNonCueStep.id;
+            delete st.morphFromId;
+            if (st.morphReplace === undefined) st.morphReplace = true;
+          }
+          b._replayHiddenCache = null;
+          persistScript(b, false, r);
+          b.redraw();
+          renderReplayUI();
+          if (isEnabled && st.effect === 'morph_bezier') window.MinNoteGeoReplay.playSingleStep(myActiveIdx);
         } else if (act === 'addcue') {
           const cueStep = {
             id: 'st_cue_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 4),

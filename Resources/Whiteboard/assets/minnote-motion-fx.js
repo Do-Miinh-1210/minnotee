@@ -440,7 +440,7 @@
 
     // --- Transform ---
     { id: 'fourier_epicycles', icon: '🌀', label: 'Vòng Fourier', cat: 'transform', targets: ['circle', 'poly', 'curve', 'stroke'], isOverlayEnd: false, defaultDurMul: 1.6 },
-    { id: 'morph_bezier',      icon: '⟳',  label: 'Biến hình',    cat: 'transform', targets: ['poly', 'circle', 'curve', 'segment', 'line'], isOverlayEnd: false, defaultDurMul: 1.3 },
+    { id: 'morph_bezier',      icon: '⟳',  label: 'Morph A → B',  cat: 'transform', targets: ['all'], isOverlayEnd: false, defaultDurMul: 1.35 },
     { id: 'spring',            icon: '🪀', label: 'Bật nảy',      cat: 'transform', targets: ['all'], isOverlayEnd: false, defaultDurMul: 1 },
     { id: 'fade',              icon: '🌫', label: 'Hiện dần',     cat: 'transform', targets: ['all'], isOverlayEnd: false, defaultDurMul: 1 },
     { id: 'zoom',              icon: '🔍', label: 'Phóng to',     cat: 'transform', targets: ['all'], isOverlayEnd: false, defaultDurMul: 1 },
@@ -490,8 +490,8 @@
       if (sk === 'segment' || sk === 'tick' || sk === 'angle' || sk === 'right') tags.add('segment');
       else if (sk === 'line' || sk === 'ray' || sk === 'extend') tags.add('line');
       else if (sk === 'circle') tags.add('circle');
-      else if (sk === 'polygon' || sk === 'plane' || sk === 'annulus') tags.add('poly');
-      else if (sk === 'locus' || sk === 'ellipse' || sk === 'hyperbola' || sk === 'parabola') tags.add('curve');
+      else if (sk === 'polygon' || sk === 'plane' || sk === 'annulus' || sk === 'region') tags.add('poly');
+      else if (sk === 'locus' || sk === 'ellipse' || sk === 'hyperbola' || sk === 'parabola' || sk === 'arc' || sk === 'sector') tags.add('curve');
       else if (sk === 'cone' || sk === 'cylinder' || sk === 'sphere') { tags.add('3d'); tags.add('circle'); }
       if (meta.isDashed) tags.add('dashed');
       if (meta.is3D) tags.add('3d');
@@ -507,19 +507,19 @@
   // Priority ranking for 'fit' tab per target type so teachers immediately see top choices without scrolling
   const FIT_ORDER = {
     point: ['mention_glow', 'target_reticle', 'water_ripple', 'spring', 'starburst', 'glow', 'chalk_dust', 'draw'],
-    dashed: ['xray_hidden', 'laser_scan', 'draw', 'chalk_dust', 'center_out', 'mention_glow', 'fade'],
-    '3d': ['extrude_rise', 'xray_hidden', 'laser_scan', 'draw', 'glow', 'mention_glow', 'fourier_epicycles'],
-    circle: ['draw', 'fourier_epicycles', 'morph_bezier', 'center_out', 'draw_then_fill', 'laser_scan', 'water_ripple', 'glow'],
+    dashed: ['xray_hidden', 'laser_scan', 'draw', 'morph_bezier', 'chalk_dust', 'center_out', 'mention_glow', 'fade'],
+    '3d': ['extrude_rise', 'xray_hidden', 'morph_bezier', 'laser_scan', 'draw', 'glow', 'mention_glow', 'fourier_epicycles'],
+    circle: ['draw', 'morph_bezier', 'fourier_epicycles', 'center_out', 'draw_then_fill', 'laser_scan', 'water_ripple', 'glow'],
     poly: ['draw_then_fill', 'morph_bezier', 'laser_scan', 'chalk_dust', 'fourier_epicycles', 'extrude_rise', 'chalk_box', 'draw'],
-    curve: ['fourier_epicycles', 'graph_trace', 'laser_scan', 'draw', 'glow', 'arrow_slide', 'chalk_dust', 'mention_glow'],
-    text: ['typewriter', 'chalk_box', 'double_underline', 'fade', 'wipe', 'slide', 'mention_glow', 'checkmark_stamp'],
-    problem: ['typewriter', 'chalk_box', 'fade', 'slide', 'zoom', 'mention_glow', 'checkmark_stamp'],
-    graph: ['graph_trace', 'wipe', 'draw_then_fill', 'laser_scan', 'chalk_box', 'zoom', 'fade'],
-    table: ['wipe', 'draw_then_fill', 'typewriter', 'chalk_box', 'fade', 'slide'],
-    image: ['zoom', 'fade', 'wipe', 'mirror_flip', 'chalk_box', 'spring'],
-    stroke: ['draw', 'laser_scan', 'chalk_dust', 'fourier_epicycles', 'glow', 'arrow_slide', 'mention_glow'],
+    curve: ['fourier_epicycles', 'morph_bezier', 'graph_trace', 'laser_scan', 'draw', 'glow', 'arrow_slide', 'chalk_dust'],
+    text: ['typewriter', 'morph_bezier', 'chalk_box', 'double_underline', 'fade', 'wipe', 'slide', 'mention_glow'],
+    problem: ['typewriter', 'morph_bezier', 'chalk_box', 'fade', 'slide', 'zoom', 'mention_glow', 'checkmark_stamp'],
+    graph: ['graph_trace', 'morph_bezier', 'wipe', 'draw_then_fill', 'laser_scan', 'chalk_box', 'zoom', 'fade'],
+    table: ['wipe', 'morph_bezier', 'draw_then_fill', 'typewriter', 'chalk_box', 'fade', 'slide'],
+    image: ['zoom', 'morph_bezier', 'fade', 'wipe', 'mirror_flip', 'chalk_box', 'spring'],
+    stroke: ['draw', 'morph_bezier', 'laser_scan', 'chalk_dust', 'fourier_epicycles', 'glow', 'arrow_slide', 'mention_glow'],
     cue: ['mention_glow', 'target_reticle', 'chalk_box', 'water_ripple', 'starburst', 'double_underline', 'checkmark_stamp', 'cross_strike', 'wiggle_alert', 'pulse'],
-    default: ['draw', 'laser_scan', 'chalk_dust', 'glow', 'center_out', 'arrow_slide', 'mention_glow', 'spring']
+    default: ['draw', 'morph_bezier', 'laser_scan', 'chalk_dust', 'glow', 'center_out', 'arrow_slide', 'mention_glow']
   };
 
   function getEffectsForStep(meta = {}, category = 'fit') {
@@ -752,6 +752,53 @@
   function extractShapePolylines(sh, coords, helpers, opts = {}) {
     if (!sh || !coords || sh.kind === 'solid' || sh.kind === 'flatLink') return [];
     const maxExt = opts.maxExt || 1200;
+    if (sh.kind === 'region') {
+      const sampleLoop = (lp) => {
+        if (!lp) return [];
+        if (lp.t === 'circle') {
+          const O = coords.get(lp.c), R = coords.get(lp.r);
+          return (O && R) ? _sampleCircle(O, R, false, 72) : [];
+        }
+        const pts = (lp.pts || []).map(id => coords.get(id)).filter(Boolean);
+        return pts.length >= 3 ? pts : [];
+      };
+      if (sh.mode === 'diff' && sh.outer) {
+        const pts = sampleLoop(sh.outer);
+        return pts.length >= 2 ? [{ pts, closed: true, dashed: !!sh.dashed }] : [];
+      }
+      if (Array.isArray(sh.edges) && sh.edges.length) {
+        const pts = [];
+        for (const ed of sh.edges) {
+          if (ed.t === 'circle') {
+            const O = coords.get(ed.c), R = coords.get(ed.r);
+            if (O && R) return [{ pts: _sampleCircle(O, R, false, 72), closed: true, dashed: !!sh.dashed }];
+          } else if (ed.t === 'arc') {
+            const O = coords.get(ed.c), R = coords.get(ed.r), A = coords.get(ed.a), B = coords.get(ed.b);
+            if (O && R && A && B) {
+              const rad = Math.hypot(R.x - O.x, R.y - O.y);
+              if (rad > 1e-4) {
+                const a0 = Math.atan2(A.y - O.y, A.x - O.x);
+                const a1 = Math.atan2(B.y - O.y, B.x - O.x);
+                let sweep = ed.ccw ? (a0 - a1) : (a1 - a0);
+                while (sweep <= 1e-6) sweep += Math.PI * 2;
+                while (sweep > Math.PI * 2 + 1e-6) sweep -= Math.PI * 2;
+                const steps = Math.max(6, Math.ceil((sweep / (Math.PI * 2)) * 64));
+                const dir = ed.ccw ? -1 : 1;
+                for (let k = 0; k < steps; k++) {
+                  const ang = a0 + dir * sweep * (k / steps);
+                  pts.push({ x: O.x + rad * Math.cos(ang), y: O.y + rad * Math.sin(ang) });
+                }
+              }
+            }
+          } else {
+            const A = coords.get(ed.a);
+            if (A) pts.push({ x: A.x, y: A.y });
+          }
+        }
+        return pts.length >= 2 ? [{ pts, closed: true, dashed: !!sh.dashed }] : [];
+      }
+      return [];
+    }
     if (sh.kind === 'locus') {
       const ls = helpers && typeof helpers._mnLocusStrokes === 'function'
         ? helpers._mnLocusStrokes(coords._geo, sh, coords)
@@ -2140,6 +2187,340 @@
   }
 
   // ============================================================================
+  // 15. UNIVERSAL MORPH A → B (GEOMETRY, MULTI-SEGMENT GROUPS, REGIONS, STROKES, ITEMS)
+  // ============================================================================
+  function _parseCssRgba(str) {
+    if (!str || typeof str !== 'string') return null;
+    const s = str.trim();
+    if (!s || s === 'none' || s === 'transparent') return [0, 0, 0, 0];
+    if (s[0] === '#') {
+      const hex = s.slice(1);
+      if (hex.length === 3 || hex.length === 4) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        const a = hex.length === 4 ? parseInt(hex[3] + hex[3], 16) / 255 : 1;
+        if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r, g, b, Number.isFinite(a) ? a : 1];
+      } else if (hex.length === 6 || hex.length === 8) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+        if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r, g, b, Number.isFinite(a) ? a : 1];
+      }
+      return null;
+    }
+    const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(s);
+    if (m) {
+      return [
+        Math.max(0, Math.min(255, Number(m[1]) || 0)),
+        Math.max(0, Math.min(255, Number(m[2]) || 0)),
+        Math.max(0, Math.min(255, Number(m[3]) || 0)),
+        m[4] !== undefined ? clamp01(Number(m[4])) : 1
+      ];
+    }
+    return null;
+  }
+
+  function _lerpCssRgba(colA, colB, t, fallback = '#1e293b') {
+    const u = clamp01(t);
+    const a = _parseCssRgba(colA);
+    const b = _parseCssRgba(colB);
+    if (!a && !b) return fallback;
+    if (!a && b) return `rgba(${Math.round(b[0])}, ${Math.round(b[1])}, ${Math.round(b[2])}, ${(b[3] * u).toFixed(3)})`;
+    if (a && !b) return `rgba(${Math.round(a[0])}, ${Math.round(a[1])}, ${Math.round(a[2])}, ${(a[3] * (1 - u)).toFixed(3)})`;
+    const r = Math.round(lerp(a[0], b[0], u));
+    const g = Math.round(lerp(a[1], b[1], u));
+    const bl = Math.round(lerp(a[2], b[2], u));
+    const al = lerp(a[3], b[3], u);
+    return `rgba(${r}, ${g}, ${bl}, ${clamp01(al).toFixed(3)})`;
+  }
+
+  function _stitchOpenContours(contours) {
+    const closedList = [];
+    const openList = [];
+    for (const c of contours) {
+      if (!c || !Array.isArray(c.pts) || c.pts.length < 2) continue;
+      if (c.closed) closedList.push(c);
+      else openList.push({ ...c, pts: c.pts.slice() });
+    }
+    const EPS = 2.8;
+    const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) <= EPS;
+    const used = new Array(openList.length).fill(false);
+    const stitched = [];
+    for (let i = 0; i < openList.length; i++) {
+      if (used[i]) continue;
+      used[i] = true;
+      const base = { ...openList[i], pts: openList[i].pts.slice() };
+      let extended = true;
+      while (extended) {
+        extended = false;
+        const head = base.pts[0];
+        const tail = base.pts[base.pts.length - 1];
+        for (let j = 0; j < openList.length; j++) {
+          if (used[j]) continue;
+          const cand = openList[j];
+          if (cand.strokeColor !== base.strokeColor || !!cand.dashed !== !!base.dashed) continue;
+          const cHead = cand.pts[0];
+          const cTail = cand.pts[cand.pts.length - 1];
+          if (near(tail, cHead)) {
+            base.pts.push(...cand.pts.slice(1));
+            used[j] = true; extended = true; break;
+          } else if (near(tail, cTail)) {
+            base.pts.push(...cand.pts.slice(0, -1).reverse());
+            used[j] = true; extended = true; break;
+          } else if (near(head, cTail)) {
+            base.pts = [...cand.pts.slice(0, -1), ...base.pts];
+            used[j] = true; extended = true; break;
+          } else if (near(head, cHead)) {
+            base.pts = [...cand.pts.slice(1).reverse(), ...base.pts];
+            used[j] = true; extended = true; break;
+          }
+        }
+      }
+      if (base.pts.length >= 4 && near(base.pts[0], base.pts[base.pts.length - 1])) {
+        base.pts.pop();
+        base.closed = true;
+      }
+      stitched.push(base);
+    }
+    return [...closedList, ...stitched];
+  }
+
+  function _contourCentroid(pts) {
+    if (!pts || !pts.length) return { x: 0, y: 0 };
+    let sx = 0, sy = 0;
+    for (const p of pts) { sx += p.x; sy += p.y; }
+    return { x: sx / pts.length, y: sy / pts.length };
+  }
+
+  function _extractBundleContours(bundle, coords, helpers) {
+    const raw = [];
+    for (const sh of (bundle.shapes || [])) {
+      const pls = extractShapePolylines(sh, coords, helpers);
+      const fillCol = sh.fill || (sh.kind === 'plane' ? _lerpCssRgba(null, sh.color || '#2563eb', 0.10) : (sh.kind === 'annulus' ? _lerpCssRgba(null, sh.color || '#2563eb', 0.18) : null));
+      const strokeW = (sh.kind === 'region' && !(sh.width > 0)) ? 0 : (sh.width ?? 2);
+      for (const pl of pls) {
+        if (!pl.pts || pl.pts.length < 2) continue;
+        raw.push({
+          pts: pl.pts,
+          closed: !!pl.closed,
+          dashed: !!(pl.dashed || sh.dashed),
+          strokeColor: sh.color || '#1e293b',
+          lineWidth: strokeW,
+          fillColor: pl.closed ? fillCol : null
+        });
+      }
+    }
+    for (const sk of (bundle.strokes || [])) {
+      if (!sk || !Array.isArray(sk.pts) || sk.pts.length < 6) continue;
+      const pts = [];
+      for (let i = 0; i < sk.pts.length; i += 3) {
+        const x = sk.pts[i], y = sk.pts[i + 1];
+        if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+      }
+      if (pts.length >= 2) {
+        const closed = pts.length >= 6 && Math.hypot(pts[0].x - pts[pts.length - 1].x, pts[0].y - pts[pts.length - 1].y) < 12;
+        raw.push({
+          pts: closed ? pts.slice(0, -1) : pts,
+          closed,
+          dashed: false,
+          strokeColor: sk.color || '#1e293b',
+          lineWidth: sk.width || 3,
+          fillColor: null
+        });
+      }
+    }
+    return _stitchOpenContours(raw);
+  }
+
+  function _bundleBBox(bundle, contours, helpers) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const grow = (b) => {
+      if (!b) return;
+      if (Number.isFinite(b.x0) && b.x0 < x0) x0 = b.x0;
+      if (Number.isFinite(b.y0) && b.y0 < y0) y0 = b.y0;
+      if (Number.isFinite(b.x1) && b.x1 > x1) x1 = b.x1;
+      if (Number.isFinite(b.y1) && b.y1 > y1) y1 = b.y1;
+    };
+    grow(_bboxFromPolylines(contours));
+    for (const it of (bundle.items || [])) grow(_bboxFromItem(it, helpers && helpers.bboxItem));
+    for (const sk of (bundle.strokes || [])) grow(_bboxFromStroke(sk));
+    if (!Number.isFinite(x0)) return null;
+    return {
+      x0, y0, x1, y1,
+      cx: (x0 + x1) * 0.5, cy: (y0 + y1) * 0.5,
+      w: Math.max(6, x1 - x0), h: Math.max(6, y1 - y0)
+    };
+  }
+
+  function _pairContours(srcList, dstList) {
+    if (!srcList.length || !dstList.length) return [];
+    const pairs = [];
+    const nA = srcList.length, nB = dstList.length;
+    if (nA === nB) {
+      const usedB = new Array(nB).fill(false);
+      for (let i = 0; i < nA; i++) {
+        const cA = _contourCentroid(srcList[i].pts);
+        let bestJ = -1, bestD = Infinity;
+        for (let j = 0; j < nB; j++) {
+          if (usedB[j]) continue;
+          const cB = _contourCentroid(dstList[j].pts);
+          const d = (cA.x - cB.x) ** 2 + (cA.y - cB.y) ** 2;
+          if (d < bestD) { bestD = d; bestJ = j; }
+        }
+        usedB[bestJ] = true;
+        pairs.push([srcList[i], dstList[bestJ]]);
+      }
+      return pairs;
+    }
+    const maxN = Math.max(nA, nB);
+    for (let i = 0; i < maxN; i++) {
+      const a = srcList[Math.min(nA - 1, Math.floor((i * nA) / maxN))];
+      const b = dstList[Math.min(nB - 1, Math.floor((i * nB) / maxN))];
+      pairs.push([a, b]);
+    }
+    return pairs;
+  }
+
+  function _paintBundleRaw(ctx, bundle, coords, helpers) {
+    for (const sh of (bundle.shapes || [])) {
+      if (helpers && typeof helpers.tee === 'function') helpers.tee(ctx, sh, coords);
+    }
+    for (const sk of (bundle.strokes || [])) {
+      if (helpers && typeof helpers.paintStroke === 'function') helpers.paintStroke(ctx, sk);
+    }
+    for (const it of (bundle.items || [])) {
+      if (helpers && typeof helpers.paintItem === 'function') helpers.paintItem(ctx, it);
+    }
+  }
+
+  function paintMorphBetween(ctx, srcBundle, dstBundle, prog, rawP, coords, helpers, opts = {}) {
+    if (!ctx || !srcBundle || !dstBundle) return null;
+    const u = clamp01(prog);
+    const pRaw = clamp01(rawP);
+    const hasItems = (srcBundle.items && srcBundle.items.length > 0) || (dstBundle.items && dstBundle.items.length > 0);
+    const srcContours = hasItems ? [] : _extractBundleContours(srcBundle, coords, helpers);
+    const dstContours = hasItems ? [] : _extractBundleContours(dstBundle, coords, helpers);
+    const bbA = _bundleBBox(srcBundle, srcContours, helpers);
+    const bbB = _bundleBBox(dstBundle, dstContours, helpers);
+    if (!bbA && !bbB) return null;
+
+    const cxA = bbA ? bbA.cx : bbB.cx;
+    const cyA = bbA ? bbA.cy : bbB.cy;
+    const cxB = bbB ? bbB.cx : bbA.cx;
+    const cyB = bbB ? bbB.cy : bbA.cy;
+    const dx = cxB - cxA;
+    const dy = cyB - cyA;
+    const dLen = Math.hypot(dx, dy) || 1;
+    const tip = {
+      x: lerp(cxA, cxB, u),
+      y: lerp(cyA, cyB, u),
+      dx: dx / dLen,
+      dy: dy / dLen
+    };
+    const glow = evalEase(pRaw, 'bump');
+
+    // Mode 1: Pure Vector Contour Morph (Geometry shapes, multi-segment groups, regions, pen strokes)
+    if (!hasItems && srcContours.length && dstContours.length) {
+      const pairs = _pairContours(srcContours, dstContours);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (const [cA, cB] of pairs) {
+        const bothClosed = !!(cA.closed && cB.closed);
+        let ptsA = cA.pts;
+        let ptsB = cB.pts;
+        if (!bothClosed) {
+          if (cA.closed && ptsA.length >= 2) ptsA = [...ptsA, ptsA[0]];
+          if (cB.closed && ptsB.length >= 2) ptsB = [...ptsB, ptsB[0]];
+        }
+        if (opts.rev) ptsB = [...ptsB].reverse();
+        const morphed = interpolatePolygons(ptsA, ptsB, u, bothClosed);
+        if (morphed.length < 2) continue;
+
+        ctx.beginPath();
+        morphed.forEach((p, idx) => (idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+        if (bothClosed) ctx.closePath();
+
+        // Smooth RGBA fill cross-interpolation
+        if (cA.fillColor || cB.fillColor) {
+          const fillStr = _lerpCssRgba(cA.fillColor, cB.fillColor, u, null);
+          if (fillStr) {
+            ctx.save();
+            ctx.fillStyle = fillStr;
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        const lw = lerp(cA.lineWidth ?? 2, cB.lineWidth ?? 2, u);
+        if (lw > 0.08) {
+          const strokeStr = _lerpCssRgba(cA.strokeColor, cB.strokeColor, u, cB.strokeColor || '#1e293b');
+          const dashed = u < 0.5 ? cA.dashed : cB.dashed;
+          ctx.setLineDash(dashed ? [9, 7] : []);
+          if (glow > 0.03) {
+            ctx.save();
+            ctx.strokeStyle = `rgba(99, 102, 241, ${(0.22 * glow).toFixed(3)})`;
+            ctx.lineWidth = lw + 5.5;
+            ctx.stroke();
+            ctx.restore();
+          }
+          ctx.strokeStyle = strokeStr;
+          ctx.lineWidth = lw;
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      return tip;
+    }
+
+    // Mode 2: Magic Move Morph for Items (KaTeX formulas, text, images, graphs, tables) & Cross-type pairs
+    const boxA = bbA || bbB;
+    const boxB = bbB || bbA;
+    const mW = Math.max(6, lerp(boxA.w, boxB.w, u));
+    const mH = Math.max(6, lerp(boxA.h, boxB.h, u));
+    const mCx = lerp(boxA.cx, boxB.cx, u);
+    const mCy = lerp(boxA.cy, boxB.cy, u);
+    const alphaB = clamp01(smootherstep(u));
+    const alphaA = clamp01(1 - alphaB);
+
+    ctx.save();
+    if (glow > 0.04) {
+      ctx.save();
+      _drawRoundedRect(ctx, mCx - mW * 0.5 - 6, mCy - mH * 0.5 - 6, mW + 12, mH + 12, 10);
+      ctx.strokeStyle = `rgba(99, 102, 241, ${(0.28 * glow).toFixed(3)})`;
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (alphaA > 0.015) {
+      const sxA = Math.max(0.18, Math.min(4.5, mW / Math.max(6, boxA.w)));
+      const syA = Math.max(0.18, Math.min(4.5, mH / Math.max(6, boxA.h)));
+      ctx.save();
+      ctx.globalAlpha *= alphaA;
+      ctx.translate(mCx, mCy);
+      ctx.scale(sxA, syA);
+      ctx.translate(-boxA.cx, -boxA.cy);
+      _paintBundleRaw(ctx, srcBundle, coords, helpers);
+      ctx.restore();
+    }
+    if (alphaB > 0.015) {
+      const sxB = Math.max(0.18, Math.min(4.5, mW / Math.max(6, boxB.w)));
+      const syB = Math.max(0.18, Math.min(4.5, mH / Math.max(6, boxB.h)));
+      ctx.save();
+      ctx.globalAlpha *= alphaB;
+      ctx.translate(mCx, mCy);
+      ctx.scale(sxB, syB);
+      ctx.translate(-boxB.cx, -boxB.cy);
+      _paintBundleRaw(ctx, dstBundle, coords, helpers);
+      ctx.restore();
+    }
+    ctx.restore();
+    return tip;
+  }
+
+  // ============================================================================
   // EXPORT PUBLIC API (Browser global + Node CommonJS for unit tests)
   // ============================================================================
   const api = {
@@ -2172,7 +2553,8 @@
     paintPointFX,
     paintItemFX,
     paintStrokeFX,
-    paintCueOnlyFX
+    paintCueOnlyFX,
+    paintMorphBetween
   };
 
   if (root && typeof root === 'object') {

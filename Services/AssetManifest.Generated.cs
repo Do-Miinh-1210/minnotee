@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T06:37:06.137Z";
+        public const string GeneratedUtc = "2026-11-26T09:30:38.028Z";
         public const int FileCount = 145;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -49,7 +49,7 @@ namespace MinNote.Services
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
                 ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
                 ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
-                ["assets/index-CTbULhps.js"] = "bd59a82abbedddd1252bf880338539fe55150ecfe76305384f92dcd65629009a",
+                ["assets/index-CTbULhps.js"] = "574dac4021435958bb6233bb2fecb62b0e4a5d3dda120599a95b156b093599e0",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
@@ -59,15 +59,15 @@ namespace MinNote.Services
                 ["assets/minnote-ai-geo.js"] = "5b353d757febc4a899307deb899f8af5f54a854290d1ba0a1e86655c6c942c8a",
                 ["assets/minnote-dialog.css"] = "4c7f1f210b84198809532249e42fcdd6fb10b05ff62b7168eb2eb7714692cb6e",
                 ["assets/minnote-dialog.js"] = "f33258d7e7dc53e431ce440e3990bfba658b4165db58af47bbfc23cc509fb39b",
-                ["assets/minnote-geo-iterate.css"] = "a0bf812bfc6b96d49f76276fe65410e47d42d6919792c0d799dfb29341854765",
-                ["assets/minnote-geo-iterate.js"] = "11d866701d2a88ca9966ca4ffa99ff846bdff0dd1f487b1fb52f413c62646079",
+                ["assets/minnote-geo-iterate.css"] = "36c9d1facee4c61723b8927d80883441b1e74537b6b210c8fbad3a04c92cbcec",
+                ["assets/minnote-geo-iterate.js"] = "a873e02f46cb16326ff901ae9449cd45a8fc54064548a8666e93dd0a783620b3",
                 ["assets/minnote-geo-lock-ui.js"] = "77a1fce04b0592ae106f79a4583c48cf0447e513a7295569f732881aa7887372",
                 ["assets/minnote-geo-rigidity.js"] = "eb3e09ce5599d6969623870fa37b043ca004c2272405754092982165eeb9069a",
                 ["assets/minnote-hand-cursor.js"] = "6bfa26a5d9ff4b624d6155a32175c95d649384f77b445ec5bfb8416f5253f9d9",
                 ["assets/minnote-mea-sync.js"] = "c33d3956a497b60f6b8ab9f9fa885260146afdb428dc18c7b60dac1f22022877",
                 ["assets/minnote-motion-bridge.css"] = "7589308ea8aa260f7c813efe8cc7a147212a80f37a8a451d482f135cb7ada76f",
                 ["assets/minnote-motion-bridge.js"] = "c8cbf02fc9918dc0db727efe29430b12037614afd81cea521b3cef6789cef8e2",
-                ["assets/minnote-motion-fx.js"] = "bb4382a8ba4d183494f8ade2670ffa9332b1124012ee506eeeb039286d195dba",
+                ["assets/minnote-motion-fx.js"] = "458fd718c873b43968eb7aa473b657db3c305d8031a1d38fb08abe74023a84b5",
                 ["assets/minnote-noteboard-bridge.js"] = "204900e8e5dfae35cfccc2e9a9e4157683ccc9ec6d79f15075301047ddb94f81",
                 ["assets/minnote-persistence.css"] = "c8d31527246af769ed996fa5367a68ded51132d8499ea0ef958d68aa236a689a",
                 ["assets/minnote-persistence.js"] = "cf5a73aa0b65241a91d84e9e115fe68b9c5ce2d99bb2ac3d237ee4caae11c251",
@@ -168,8 +168,8 @@ namespace MinNote.Services
                 ["assets/web-n_Fc06V0.js"] = "329a952e1bc76e67f4aa395a8a11720f17004bed3f9632dac46b2457089cba72",
                 ["geo-gsp-tools.css"] = "ad0ab1487e16edbbcf128f229820791080780d1e43630288e281b4367079ed2a",
                 ["geo-gsp-tools.js"] = "f41c66583d9b80a507377613fe726d97096893f5eecbc765bc52827da50f31fb",
-                ["geo-motion-replay.css"] = "b38568fc25ba41aaccfcf40ae92f6c675fae2a34de183e9bfe131eed9f61bffe",
-                ["geo-motion-replay.js"] = "4fac0752f6f95093f15d5ba24bad8f958275735c18d9f4a5dfc2fd1952d6e477",
+                ["geo-motion-replay.css"] = "69fa0024a86be8d21a39e79b0d46b31936798479338c0e256a5b166ed409718b",
+                ["geo-motion-replay.js"] = "fabfd845fb3707629543102e5996be4bd809e60bae66159bdb15a72157d559c3",
                 ["geo-params-studio.css"] = "0aa9991d8f8153660f3c03d65a82c1847b34686a8f0464d071aeda2168fc0bfe",
                 ["geo-params-studio.js"] = "ea733d53abbcaad4737aa275dc2b3fba6541b273cc25779a971dbfc67043be55",
                 ["index.html"] = "6b93136f8742aa8127ba5b2147cff99391779349b0a1494f9a8d0312fe82ee1e",
