@@ -1182,11 +1182,85 @@
     return any ? any.id : null;
   }
 
+  // ---- Hình đi theo đầu nét khi xuất: 'hand' (tay bút) | 'stick' (người que) | 'none' ----
+  const STICK_EXPORT_HEIGHT = 150; // cỡ người que gốc (đơn vị bảng) — người que tự lớn theo khung bao hình
+  const STICK_MARGIN = 18;         // chừa đầu, viên phấn, nét vẽ quanh khung xương
+
+  function exportFigureOf(opts) {
+    const f = opts && opts.figure;
+    if (f === 'hand' || f === 'stick' || f === 'none') return f;
+    return opts && opts.showHand ? 'hand' : 'none';
+  }
+
+  /** Mặc định khi mở hộp thoại: theo lựa chọn đang dùng lúc dựng lại trên bảng. */
+  function defaultExportFigure() {
+    const H = window.MinNoteHandCursor;
+    if (!H || typeof H.isReplay !== 'function') return 'hand';
+    if (!H.isReplay()) return 'none';
+    return typeof H.getReplayFigure === 'function' && H.getReplayFigure() === 'stick' ? 'stick' : 'hand';
+  }
+
+  /**
+   * Người que đứng cạnh hình và thường cao hơn hình → khung cắt chỉ ôm hình học sẽ cắt mất người.
+   * Chạy thử người que một lượt theo đúng lịch khung xuất (cùng bộ điều khiển, cùng dtMs → cùng tư thế)
+   * rồi nới khung cắt cho chứa trọn mọi khớp suốt clip.
+   */
+  function computeFigureBBox(bbox, context, schedule, frameMs) {
+    const S = window.MinNoteStickFigure;
+    const board = context && context.board;
+    if (!S || typeof S.createFollower !== 'function' || !board || typeof board.renderReplayExportFrame !== 'function') return bbox;
+    let scratch = null;
+    if (typeof document !== 'undefined') {
+      const cv = document.createElement('canvas');
+      cv.width = 2; cv.height = 2;
+      scratch = cv.getContext('2d');
+    }
+    const follower = S.createFollower({ targetHeight: STICK_EXPORT_HEIGHT });
+    const box = { minX: bbox.minX, minY: bbox.minY, maxX: bbox.maxX, maxY: bbox.maxY };
+    let last = null;
+    for (const fs of schedule) {
+      if (!fs || fs.kind !== 'step') continue;
+      const res = board.renderReplayExportFrame(scratch, context.replay, fs.stepIdx, fs.progress, { bgMode: 'white', showHand: false, showHandCursor: false });
+      const t = res && res.tip && res.tip.active !== false && !fs.lifted ? res.tip : null;
+      if (t) last = t;
+      const tip = t ? Object.assign({}, t, { active: true, drawing: true }) : (last ? Object.assign({}, last, { active: true, drawing: false }) : null);
+      if (!tip) continue;
+      const fr = follower.step(tip, frameMs, { bounds: tip.bounds });
+      for (const p of Object.values(fr.joints)) {
+        const x = p.x * fr.scale;
+        const y = p.y * fr.scale;
+        const m = STICK_MARGIN * fr.scale;
+        if (x - m < box.minX) box.minX = x - m;
+        if (x + m > box.maxX) box.maxX = x + m;
+        if (y - m < box.minY) box.minY = y - m;
+        if (y + m > box.maxY) box.maxY = y + m;
+      }
+    }
+    return { minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.maxY, w: box.maxX - box.minX, h: box.maxY - box.minY };
+  }
+
+  /**
+   * Người que cần ~0.9 s sau nét cuối để dừng bút, thu tay, hạ tay → kéo phần giữ cuối clip lên ≥ STICK_OUTRO_S
+   * (chèn trước các khung xoay 360°). Trả về lịch mới, không sửa lịch gốc.
+   */
+  const STICK_OUTRO_S = 1.0;
+  function withStickOutro(schedule, fps) {
+    const firstOrbit = schedule.findIndex((s) => s.kind === 'orbit');
+    const end = firstOrbit < 0 ? schedule.length : firstOrbit;
+    let tail = 0;
+    for (let i = end - 1; i >= 0 && schedule[i].kind === 'step' && schedule[i].lifted; i -= 1) tail += 1;
+    const need = Math.ceil(STICK_OUTRO_S * fps) - tail;
+    if (need <= 0 || end === 0) return schedule.slice();
+    const last = schedule[end - 1];
+    const extra = Array.from({ length: need }, () => ({ kind: 'step', stepIdx: last.stepIdx, progress: 1, lifted: true }));
+    return schedule.slice(0, end).concat(extra, schedule.slice(end));
+  }
+
   function drawSingleExportFrame(canvas, ctx, context, frameSpec, dims, opts) {
     const { board, geo, replay } = context;
     const { outW, outH, scale, offsetX, offsetY } = dims;
     const bgMode = opts.background || 'white';
-    const showHand = !!opts.showHand;
+    const figure = exportFigureOf(opts);
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1198,6 +1272,7 @@
     ctx.translate(offsetX, offsetY);
 
     let tip = null;
+    let stepTip = null; // tip của chính khung xuất này (không lấy tip trực tiếp của bảng)
     if (board && typeof board.renderReplayExportFrame === 'function') {
       const res = board.renderReplayExportFrame(ctx, replay, frameSpec.stepIdx, frameSpec.progress, {
         bgMode,
@@ -1206,14 +1281,24 @@
         showHand: false,
         showHandCursor: false // Prevent double-hand draw; calibrated HiDPI hand is painted below
       });
-      if (res && res.tip) tip = res.tip;
+      if (res && res.tip) { tip = res.tip; stepTip = res.tip; }
       else if (board._replayTip && board._replayTip.active) tip = Object.assign({}, board._replayTip);
     } else {
       const coords = evalGeoCoords(geo, board);
       tip = renderFallbackReplayFrame(ctx, geo, coords, replay, frameSpec.stepIdx, frameSpec.progress, bgMode);
+      stepTip = tip;
     }
 
-    if (showHand && tip && frameSpec.kind === 'step' && window.MinNoteHandCursor && typeof window.MinNoteHandCursor.paintReplayTip === 'function') {
+    const H = window.MinNoteHandCursor;
+    if (figure === 'stick' && frameSpec.kind === 'step' && H && typeof H.paintReplayTip === 'function') {
+      // Người que: đi theo đầu nét; khung nghỉ / giữ cuối clip → dừng bút, thu tay, hạ tay theo nhịp khung xuất.
+      const stickOpts = { forceShow: true, figure: 'stick', dtMs: opts.frameMs || 1000 / 30, targetHeight: STICK_EXPORT_HEIGHT, isDark: bgMode === 'dark' };
+      if (stepTip && stepTip.active !== false && !frameSpec.lifted) {
+        H.paintReplayTip(ctx, Object.assign({}, stepTip, { active: true, drawing: true }), null, Object.assign({ bounds: stepTip.bounds }, stickOpts));
+      } else if (typeof H.paintReplayIdle === 'function') {
+        H.paintReplayIdle(ctx, null, null, stickOpts);
+      }
+    } else if (figure === 'hand' && tip && frameSpec.kind === 'step' && H && typeof H.paintReplayTip === 'function') {
       const tipCopy = Object.assign({}, tip, {
         active: true,
         drawing: !frameSpec.lifted && tip.drawing !== false
@@ -1282,6 +1367,9 @@
     }, opts || {}, { fmt: 'gif' });
     // GIF89a centisecond delay ceiling = 50 FPS (2cs per frame)
     const gifFps = Math.max(4, Math.min(50, o.fps || 30));
+    o.figure = exportFigureOf(o);
+    o.showHand = o.figure !== 'none';
+    o.frameMs = 1000 / gifFps;
 
     const ctxObj = resolveExportContext(replayArg);
     if (!ctxObj) throw new Error('Không tìm thấy hình học hoặc kịch bản dựng hình để xuất GIF.');
@@ -1297,9 +1385,11 @@
     const hasSolid = !!solidId;
     o.orbitSolidId = solidId;
     const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+    const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+    const baseSchedule = buildFrameSchedule(ctxObj.replay, gifFps, o.orbit360 && hasSolid);
+    const schedule = o.figure === 'stick' ? withStickOutro(baseSchedule, gifFps) : baseSchedule;
+    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs) : geoBox;
     const dims = computeCanvasDims(bbox, o);
-    const schedule = buildFrameSchedule(ctxObj.replay, gifFps, o.orbit360 && hasSolid);
 
     const canvas = document.createElement('canvas');
     canvas.width = dims.outW;
@@ -1349,6 +1439,9 @@
       orbit360: false
     }, opts || {}, { fmt: 'video' });
     const vidFps = Math.max(12, Math.min(60, o.fps || 30));
+    o.figure = exportFigureOf(o);
+    o.showHand = o.figure !== 'none';
+    o.frameMs = 1000 / vidFps;
 
     if (typeof MediaRecorder === 'undefined') {
       throw new Error('Trình duyệt không hỗ trợ MediaRecorder — hãy chọn xuất GIF động.');
@@ -1368,9 +1461,11 @@
     const hasSolid = !!solidId;
     o.orbitSolidId = solidId;
     const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-    const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+    const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+    const baseSchedule = buildFrameSchedule(ctxObj.replay, vidFps, o.orbit360 && hasSolid);
+    const schedule = o.figure === 'stick' ? withStickOutro(baseSchedule, vidFps) : baseSchedule;
+    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs) : geoBox;
     const dims = computeCanvasDims(bbox, o);
-    const schedule = buildFrameSchedule(ctxObj.replay, vidFps, o.orbit360 && hasSolid);
 
     const canvas = document.createElement('canvas');
     canvas.width = dims.outW;
@@ -1574,9 +1669,13 @@
           </div>
 
           <div class="mn-v80-card" style="display:flex;flex-direction:column;gap:8px;">
-            <label class="mn-v80-toggle">
-              <input type="checkbox" id="mn-rpexp-hand" checked />
-              <span>✍ Hiện tay cầm bút đang viết dọc theo từng nét dựng</span>
+            <label class="mn-v80-toggle" style="gap:10px;">
+              <span style="flex:1;">Hình đi theo từng nét dựng</span>
+              <select id="mn-rpexp-figure" class="mn-v80-select" style="width:auto;min-width:170px;" title="Hình cầm bút đi theo đầu nét trong clip">
+                <option value="hand">✍ Tay cầm bút</option>
+                <option value="stick">🧍 Người que</option>
+                <option value="none">Không hiện</option>
+              </select>
             </label>
             <label class="mn-v80-toggle">
               <input type="checkbox" id="mn-rpexp-orbit" />
@@ -1615,10 +1714,11 @@
       const quality = el.querySelector('#mn-rpexp-qual .mn-v80-pill.active')?.dataset.val || '1080p';
       const fps = parseInt(el.querySelector('#mn-rpexp-fps').value, 10) || 30;
       const padding = parseInt(el.querySelector('#mn-rpexp-pad').value, 10) || 36;
-      const showHand = !!el.querySelector('#mn-rpexp-hand').checked;
+      const figure = exportFigureOf({ figure: el.querySelector('#mn-rpexp-figure').value });
+      const showHand = figure !== 'none';
       const orbit360 = !!el.querySelector('#mn-rpexp-orbit').checked;
       const loop = !!el.querySelector('#mn-rpexp-loop').checked;
-      return { fmt, background, quality, fps, padding, showHand, orbit360, loop };
+      return { fmt, background, quality, fps, padding, showHand, figure, orbit360, loop };
     };
 
     const refreshPreview = () => {
@@ -1633,7 +1733,12 @@
       const o = readOpts();
       const hasSolid = !!findPrimarySolidId(ctxObj.geo, ctxObj.replay);
       const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
-      const bbox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+      const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
+      // Người que: khung xuất nới ra để chứa trọn người → kích thước đầu ra hiển thị đúng như khi xuất.
+      const effFpsBox = o.fmt === 'gif' ? Math.min(50, o.fps) : o.fps;
+      const bbox = o.figure === 'stick'
+        ? computeFigureBBox(geoBox, ctxObj, withStickOutro(buildFrameSchedule(ctxObj.replay, effFpsBox, false), effFpsBox), 1000 / effFpsBox)
+        : geoBox;
       const dims = computeCanvasDims(bbox, o);
       // Render crisp preview at capped display resolution so modal opens instantaneously even at 4K!
       const prevMax = 960;
@@ -1648,7 +1753,7 @@
       c.height = prevDims.outH;
       const c2 = c.getContext('2d');
       const activeSteps = (ctxObj.replay.steps || []).filter((s) => s.enabled !== false);
-      drawSingleExportFrame(c, c2, ctxObj, { kind: 'step', stepIdx: Math.max(0, activeSteps.length - 1), progress: 1, lifted: false }, prevDims, Object.assign({}, o, { showHand: false }));
+      drawSingleExportFrame(c, c2, ctxObj, { kind: 'step', stepIdx: Math.max(0, activeSteps.length - 1), progress: 1, lifted: false }, prevDims, Object.assign({}, o, { showHand: false, figure: 'none' }));
       box.innerHTML = '';
       box.appendChild(c);
       const effFps = o.fmt === 'gif' ? Math.min(50, o.fps) : o.fps;
@@ -1671,6 +1776,8 @@
     el.querySelector('#mn-rpexp-fps').addEventListener('change', refreshPreview);
     el.querySelector('#mn-rpexp-pad').addEventListener('change', refreshPreview);
     el.querySelector('#mn-rpexp-orbit').addEventListener('change', refreshPreview);
+    el.querySelector('#mn-rpexp-figure').value = defaultExportFigure();
+    el.querySelector('#mn-rpexp-figure').addEventListener('change', refreshPreview);
 
     const close = () => {
       if (activeCancel) activeCancel.cancelled = true;
@@ -1751,7 +1858,9 @@
     computeCanvasDims,
     computeVideoBitrate,
     QUALITY_PRESETS,
-    computeTightBBox
+    computeTightBBox,
+    computeFigureBBox,
+    withStickOutro
   };
 })();
 /* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

@@ -19,6 +19,11 @@
   'use strict';
 
   const getBoard = () => window.__minnoteBoard || null;
+  // Về đầu / tua / đóng dựng lại: xoá trạng thái người que (không đứng lại ở chỗ & tư thế của lần trước).
+  const resetReplayFigure = () => {
+    const H = window.MinNoteHandCursor;
+    if (H && typeof H.resetReplaySmoothing === 'function') { try { H.resetReplaySmoothing(); } catch {} }
+  };
 
   function makeDraggable(panel, handle, opts = {}) {
     let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false;
@@ -1514,6 +1519,7 @@
           <div class="mn-rp-tools-bar">
             <button type="button" class="mn-rp-tool-btn active" id="mn-rp-follow" title="Camera lò xo giảm chấn tự động theo dõi nét vẽ">🎥 <span>Camera lò xo</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-hand" title="Bật / Tắt tay cầm bút khi dựng lại">✍ <span>Tay bút</span></button>
+            <button type="button" class="mn-rp-tool-btn" id="mn-rp-figure" title="Người que cầm bút đi theo đầu nét khi dựng lại (bấm lại để về Tay bút)">🧍 <span>Người que</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-now" title="Xoay tròn đều 360° khối 3D">↻ <span>360°</span></button>
             <button type="button" class="mn-rp-tool-btn" id="mn-rp-orbit-after" title="Tự xoay 360° sau khi dựng xong hình 3D">⟳ <span>Tự xoay</span></button>
             <button type="button" class="mn-rp-tool-btn primary-soft" id="mn-rp-export" title="Xuất GIF động hoặc Video (cắt gọn quanh hình)">🎬 <span>Xuất</span></button>
@@ -1609,10 +1615,22 @@
       el.querySelector('#mn-rp-follow').addEventListener('click', () => {
         window.MinNoteGeoReplay.toggleFollowCamera();
       });
+      // Tay bút / Người que: chọn một trong hai hình đính kèm đầu nét. Bấm Tay bút khi đang bật → tắt hẳn.
+      const replayFigure = () => {
+        const H = window.MinNoteHandCursor;
+        if (!H || typeof H.isReplay !== 'function' || !H.isReplay()) return 'off';
+        return typeof H.getReplayFigure === 'function' ? H.getReplayFigure() : 'hand';
+      };
       el.querySelector('#mn-rp-hand').addEventListener('click', () => {
-        if (window.MinNoteHandCursor && typeof window.MinNoteHandCursor.toggleReplay === 'function') {
-          window.MinNoteHandCursor.toggleReplay();
-        }
+        const H = window.MinNoteHandCursor;
+        if (H && replayFigure() === 'hand' && typeof H.setReplay === 'function') H.setReplay(false);
+        else if (H && typeof H.setReplayFigure === 'function') H.setReplayFigure('hand');
+        else if (H && typeof H.toggleReplay === 'function') H.toggleReplay();
+        renderReplayUI();
+      });
+      el.querySelector('#mn-rp-figure').addEventListener('click', () => {
+        const H = window.MinNoteHandCursor;
+        if (H && typeof H.setReplayFigure === 'function') H.setReplayFigure(replayFigure() === 'stick' ? 'hand' : 'stick');
         renderReplayUI();
       });
       el.querySelector('#mn-rp-orbit-now').addEventListener('click', () => {
@@ -2067,8 +2085,13 @@
     if (followBtn) followBtn.classList.toggle('active', r.followCamera !== false);
     const handBtn = replayPanel.querySelector('#mn-rp-hand');
     if (handBtn) {
-      const handOn = !!(window.MinNoteHandCursor && typeof window.MinNoteHandCursor.isReplay === 'function' && window.MinNoteHandCursor.isReplay());
+      const H = window.MinNoteHandCursor;
+      const replayOn = !!(H && typeof H.isReplay === 'function' && H.isReplay());
+      const fig = H && typeof H.getReplayFigure === 'function' ? H.getReplayFigure() : 'hand';
+      const handOn = replayOn && fig === 'hand';
       handBtn.classList.toggle('active', handOn);
+      const figBtn = replayPanel.querySelector('#mn-rp-figure');
+      if (figBtn) figBtn.classList.toggle('active', replayOn && fig === 'stick');
     }
     const has3D = !!(typeof b.findOrbitSolid === 'function' && b.findOrbitSolid(r.page, r.scopeShapes));
     const orbitNowBtn = replayPanel.querySelector('#mn-rp-orbit-now');
@@ -2688,11 +2711,13 @@
       const b = getBoard();
       if (!b) return;
       if (typeof b.stopReplay === 'function') b.stopReplay(id);
+      resetReplayFigure();
       renderReplayUI();
     },
 
     close() {
       closeEffectPopover();
+      resetReplayFigure();
       const b = getBoard();
       if (b) {
         if (typeof b.stopAutoOrbit === 'function') b.stopAutoOrbit(true);
@@ -2790,6 +2815,7 @@
       r.playing = false;
       r.stepIdx = 0;
       r.stepProgress = 0;
+      resetReplayFigure();
       commitReplayChange(b, r, true);
     },
 
@@ -2802,6 +2828,7 @@
         r.stepIdx = 0;
         r.stepProgress = 0;
       }
+      resetReplayFigure();
       if (typeof b.setReplays === 'function') b.setReplays(actives, b.activeReplayId);
       else b.setReplay(actives[0]);
     },
@@ -2897,6 +2924,7 @@
       const n = Math.max(0, Math.min(activeSteps.length, completedCount));
       r.playing = false;
       r._editPreview = false;
+      resetReplayFigure(); // tua → người que xuất hiện lại ở đúng chỗ nét mới, không đứng lại chỗ cũ
       if (n === 0) {
         r.stepIdx = 0; r.stepProgress = 0;
       } else if (instant) {

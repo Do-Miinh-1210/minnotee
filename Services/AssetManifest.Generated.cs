@@ -26,8 +26,8 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T09:30:38.028Z";
-        public const int FileCount = 145;
+        public const string GeneratedUtc = "2026-11-26T15:58:41.409Z";
+        public const int FileCount = 146;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -49,7 +49,7 @@ namespace MinNote.Services
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
                 ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
                 ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
-                ["assets/index-CTbULhps.js"] = "574dac4021435958bb6233bb2fecb62b0e4a5d3dda120599a95b156b093599e0",
+                ["assets/index-CTbULhps.js"] = "6f92b1ebc33aad5500f91746191090075595e43bf3a2bc41e0f0f85a62e7c83f",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
@@ -59,11 +59,11 @@ namespace MinNote.Services
                 ["assets/minnote-ai-geo.js"] = "5b353d757febc4a899307deb899f8af5f54a854290d1ba0a1e86655c6c942c8a",
                 ["assets/minnote-dialog.css"] = "4c7f1f210b84198809532249e42fcdd6fb10b05ff62b7168eb2eb7714692cb6e",
                 ["assets/minnote-dialog.js"] = "f33258d7e7dc53e431ce440e3990bfba658b4165db58af47bbfc23cc509fb39b",
-                ["assets/minnote-geo-iterate.css"] = "36c9d1facee4c61723b8927d80883441b1e74537b6b210c8fbad3a04c92cbcec",
-                ["assets/minnote-geo-iterate.js"] = "a873e02f46cb16326ff901ae9449cd45a8fc54064548a8666e93dd0a783620b3",
+                ["assets/minnote-geo-iterate.css"] = "808fcd1117464e6c328b0db3c71ef957106bdd1f59a088d4c850c5acb1676598",
+                ["assets/minnote-geo-iterate.js"] = "3993bece65c82ce7d963e85690aa71ce291ee65c796fafd59bfe63b9e8ac66bf",
                 ["assets/minnote-geo-lock-ui.js"] = "77a1fce04b0592ae106f79a4583c48cf0447e513a7295569f732881aa7887372",
                 ["assets/minnote-geo-rigidity.js"] = "eb3e09ce5599d6969623870fa37b043ca004c2272405754092982165eeb9069a",
-                ["assets/minnote-hand-cursor.js"] = "6bfa26a5d9ff4b624d6155a32175c95d649384f77b445ec5bfb8416f5253f9d9",
+                ["assets/minnote-hand-cursor.js"] = "1b9c78e7ed397b79ce1a1525a1ee5b390e7565d7888dbf8c5c1f5aec7d0cace7",
                 ["assets/minnote-mea-sync.js"] = "c33d3956a497b60f6b8ab9f9fa885260146afdb428dc18c7b60dac1f22022877",
                 ["assets/minnote-motion-bridge.css"] = "7589308ea8aa260f7c813efe8cc7a147212a80f37a8a451d482f135cb7ada76f",
                 ["assets/minnote-motion-bridge.js"] = "c8cbf02fc9918dc0db727efe29430b12037614afd81cea521b3cef6789cef8e2",
@@ -71,7 +71,8 @@ namespace MinNote.Services
                 ["assets/minnote-noteboard-bridge.js"] = "204900e8e5dfae35cfccc2e9a9e4157683ccc9ec6d79f15075301047ddb94f81",
                 ["assets/minnote-persistence.css"] = "c8d31527246af769ed996fa5367a68ded51132d8499ea0ef958d68aa236a689a",
                 ["assets/minnote-persistence.js"] = "cf5a73aa0b65241a91d84e9e115fe68b9c5ce2d99bb2ac3d237ee4caae11c251",
-                ["assets/minnote-replay-exporter.js"] = "57ac70e65e18885211ded2f9690ef8e1453d332fb3c185d469cc132ba18df041",
+                ["assets/minnote-replay-exporter.js"] = "d51f2c6f99f450f3c8c79f82173ee25e6227ddb8c371bdebf8cc960717dba7c5",
+                ["assets/minnote-stick-figure.js"] = "d17105d9822e2d160051305907604f7f849f66d3fcaefac28571df6cfc2fa534",
                 ["assets/minnote-tikz-exporter.js"] = "dbaba9e31bd0ac6a68f24e4459d99ec77b1453b26842545bb1c28394262bc1b2",
                 ["assets/minnote-v80-studios.css"] = "089b155145bda1fcd42d785588a1e7665e2ff5bb9c1ef5a617edc4fb1426476c",
                 ["assets/minnote-video-embed.js"] = "22882d60261f8d4bc22daae0e1367d56bbc4fff3c4ccdb5a50baf59b63e5907a",
@@ -169,10 +170,10 @@ namespace MinNote.Services
                 ["geo-gsp-tools.css"] = "ad0ab1487e16edbbcf128f229820791080780d1e43630288e281b4367079ed2a",
                 ["geo-gsp-tools.js"] = "f41c66583d9b80a507377613fe726d97096893f5eecbc765bc52827da50f31fb",
                 ["geo-motion-replay.css"] = "69fa0024a86be8d21a39e79b0d46b31936798479338c0e256a5b166ed409718b",
-                ["geo-motion-replay.js"] = "fabfd845fb3707629543102e5996be4bd809e60bae66159bdb15a72157d559c3",
+                ["geo-motion-replay.js"] = "4f310e5462aa9b1f1ff505599f775bb5e0e4df680c81fc44b21b8ee308d67208",
                 ["geo-params-studio.css"] = "0aa9991d8f8153660f3c03d65a82c1847b34686a8f0464d071aeda2168fc0bfe",
                 ["geo-params-studio.js"] = "ea733d53abbcaad4737aa275dc2b3fba6541b273cc25779a971dbfc67043be55",
-                ["index.html"] = "6b93136f8742aa8127ba5b2147cff99391779349b0a1494f9a8d0312fe82ee1e",
+                ["index.html"] = "c58a97029843e3e10f3fdd2188c2809bff60680c782f928d606556371b0c5a55",
                 ["katex.min.css"] = "4597f0d14fe81bdcf985a0a667e2cc16d4cae413f6f1f66b5bcd6f4f32bceb96",
                 ["katex.min.js"] = "e6bfe5deebd4c7ccd272055bab63bd3ab2c73b907b6e6a22d352740a81381fd4",
                 ["mathjax/tex-svg.js"] = "d4295dc33744836935c1399feece5159577b34c5c8ffb9f1c6324cd82e03a882",

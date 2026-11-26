@@ -50,6 +50,9 @@
     advancedOpen: false,  // collapsible Advanced options (closed by default for ultra-clean UI!)
     selectedBadgeKey: null, // ONLY the clicked badge lights up & shows controls; others stay quiet!
     highlightedIterId: null,
+    hoverShapeId: null,   // live Stage-1 hover highlight so picking objects is effortless!
+    pickingBound: false,  // Stage-2 interactive boundary picker (point, segment, or polygon/circle)
+    clipUserTouched: false,
     marquee: null,        // { page, x0, y0, x1, y1 } during Stage-1 box drag
     cfg: {
       method: 'map',      // 'map' | 'rotate' | 'dilate' | 'translate'
@@ -62,6 +65,9 @@
       centerId: null,     // for 'rotate' | 'dilate'
       vecA: null,         // for 'translate'
       vecB: null,         // for 'translate'
+      clipEnabled: false, // live boundary stop (never spills outside segment/rectangle/circle!)
+      clipSeg: null,      // [boundA, boundB]
+      clipShapeId: null,  // optional polygon/circle/region boundary id
       hideIterDots: true,
       showBadge: true,
       varName: '',
@@ -218,7 +224,7 @@
   function buildScopedIteration(geo, cfg, idGen) {
     const K = getKernel();
     if (!geo || !cfg || !K) return { points: [], shapes: [] };
-    const depth = Math.max(0, Math.min(20, Math.round(Number(cfg.depth) || 0)));
+    const depth = Math.max(0, Math.min(40, Math.round(Number(cfg.depth) || 0)));
     if (depth <= 0) return { points: [], shapes: [] };
 
     const iterId = cfg.id || ('iter_' + idGen());
@@ -230,16 +236,17 @@
     const scopeSet = new Set(scopeIds);
     const scopedShapes = scopeSet.size ? allShapes.filter(sh => scopeSet.has(sh.id)) : [];
 
-    const tagPt = (pt) => ({
+    const tagPt = (pt, step) => ({
       ...pt,
       _iterId: iterId,
+      _iterStep: step,
       show: hideDots ? false : !!pt.show,
       label: '',
       noName: true,
       group: undefined,
       named: undefined
     });
-    const tagSh = (sh) => ({ ...sh, _iterId: iterId, group: undefined });
+    const tagSh = (sh, step) => ({ ...sh, _iterId: iterId, _iterStep: step, group: undefined });
 
     const outPts = [];
     const outShs = [];
@@ -277,10 +284,10 @@
             ...orig,
             id: nid,
             def: { t: 'rot', c: cId, p: pid, ang: stepAng, k: stepK }
-          }));
+          }, step));
         }
         for (const sh of targetShapes) {
-          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, idGen(), false)));
+          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, idGen(), false), step));
         }
       }
       return { points: outPts, shapes: outShs };
@@ -315,10 +322,10 @@
             ...orig,
             id: nid,
             def: { t: 'vec', o: pid, a: aId, b: bId, k: kStep, perp: false }
-          }));
+          }, step));
         }
         for (const sh of targetShapes) {
-          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, idGen(), false)));
+          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, idGen(), false), step));
         }
       }
       return { points: outPts, shapes: outShs };
@@ -430,7 +437,7 @@
             ...orig,
             id: nid,
             def: K._mnRemapDef(orig.def, mp, ms)
-          }));
+          }, step));
         }
 
         const nextImg = curImg.slice();
@@ -444,7 +451,7 @@
               ...orig,
               id: nid,
               def: { t: 'sum', a: curImg[k], b: tid, c: srcIds[k] }
-            }));
+            }, step));
             mp.set(tid, nid);
             nextImg[k] = nid;
           }
@@ -452,7 +459,7 @@
 
         for (const sh of targetShapes) {
           const nid = ms.get(sh.id) || idGen();
-          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, nid, false)));
+          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, nid, false), step));
         }
         curImg = nextImg;
       }
@@ -498,20 +505,20 @@
               outPts.push(tagPt({
                 id: rotId,
                 def: { t: 'rot', c: curA1, p: prevId, ang: dAngDeg, k: kSim }
-              }));
+              }, step));
               outPts.push(tagPt({
                 id: outId,
                 def: { t: 'sum', a: rotId, b: curB1, c: curA1 }
-              }));
+              }, step));
               nextMap.set(pid, outId);
             }
             for (const sh of targetShapes) {
-              outShs.push(tagSh(remapShape(K, sh, pid => nextMap.get(pid) || pid, idGen(), false)));
+              outShs.push(tagSh(remapShape(K, sh, pid => nextMap.get(pid) || pid, idGen(), false), step));
             }
             // Advance anchor A1->B1 for next step
             const nextRotB = idGen(), nextB1 = idGen();
-            outPts.push(tagPt({ id: nextRotB, def: { t: 'rot', c: curA1, p: curB1, ang: dAngDeg, k: kSim } }));
-            outPts.push(tagPt({ id: nextB1, def: { t: 'sum', a: nextRotB, b: curB1, c: curA1 } }));
+            outPts.push(tagPt({ id: nextRotB, def: { t: 'rot', c: curA1, p: curB1, ang: dAngDeg, k: kSim } }, step));
+            outPts.push(tagPt({ id: nextB1, def: { t: 'sum', a: nextRotB, b: curB1, c: curA1 } }, step));
             curA1 = curB1;
             curB1 = nextB1;
             prevMap = nextMap;
@@ -531,10 +538,10 @@
           ...(geo.points[pid] || {}),
           id: nid,
           def: { t: 'vec', o: pid, a: s0, b: t0, k: step, perp: false }
-        }));
+        }, step));
       }
       for (const sh of targetShapes) {
-        outShs.push(tagSh(remapShape(K, sh, pid => mp.get(pid) || pid, idGen(), false)));
+        outShs.push(tagSh(remapShape(K, sh, pid => mp.get(pid) || pid, idGen(), false), step));
       }
     }
     return { points: outPts, shapes: outShs };
@@ -585,7 +592,7 @@
       if (it.depthParamId) {
         const dp = params.find(x => x && x.id === it.depthParamId);
         if (dp) {
-          const newDepth = Math.max(0, Math.min(20, Math.round(evalLinkedParam(K, curGeo, it.depthParamId, it.depth))));
+          const newDepth = Math.max(0, Math.min(40, Math.round(evalLinkedParam(K, curGeo, it.depthParamId, it.depth))));
           if (newDepth !== it.depth) { nextIt = { ...nextIt, depth: newDepth }; needRebuild = true; }
           if (dp.name && dp.name !== nextIt.varName) nextIt = { ...nextIt, varName: dp.name };
         }
@@ -674,7 +681,7 @@
         if (p._iterBadgeOwner === finalDef.id && finalDef.varName) up.name = finalDef.varName;
         if (!p.expr) {
           up.value = finalDef.depth;
-          if (finalDef.depth > (up.max ?? 12)) up.max = Math.min(20, finalDef.depth);
+          if (finalDef.depth > (up.max ?? 12)) up.max = Math.min(40, finalDef.depth);
         }
         return up;
       });
@@ -691,7 +698,7 @@
       // Re-evaluate if any linked param is formula-driven (e.g. alpha = 360 / (t_1 + 1))
       if (finalDef.depthParamId) {
         const dp = params.find(p => p && p.id === finalDef.depthParamId);
-        if (dp && dp.expr) finalDef.depth = Math.max(0, Math.min(20, Math.round(evalLinkedParam(K, cleanGeo, finalDef.depthParamId, finalDef.depth))));
+        if (dp && dp.expr) finalDef.depth = Math.max(0, Math.min(40, Math.round(evalLinkedParam(K, cleanGeo, finalDef.depthParamId, finalDef.depth))));
         if (dp && dp.name) finalDef.varName = dp.name;
       }
       if (finalDef.angleParamId) {
@@ -737,7 +744,7 @@
     const cur = list.find(x => x && x.id === iterId);
     if (!cur) return false;
     const nextDef = { ...cur, ...patch };
-    nextDef.depth = Math.max(0, Math.min(20, Math.round(Number(nextDef.depth) || 0)));
+    nextDef.depth = Math.max(0, Math.min(40, Math.round(Number(nextDef.depth) || 0)));
     return applyIterationToPage(pageIdx, nextDef);
   }
 
@@ -830,6 +837,23 @@
     return { x: 64, y: 80 + existing * 44 };
   }
 
+  function segIntersectsRect(a, b, rx0, ry0, rx1, ry1) {
+    if (!a || !b) return false;
+    const inR = (p) => p.x >= rx0 - 3 && p.x <= rx1 + 3 && p.y >= ry0 - 3 && p.y <= ry1 + 3;
+    if (inR(a) || inR(b)) return true;
+    // Liang-Barsky line-segment / AABB intersection
+    const dx = b.x - a.x, dy = b.y - a.y;
+    let t0 = 0, t1 = 1;
+    const clip = (p, q) => {
+      if (Math.abs(p) < 1e-9) return q >= 0;
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+      else { if (r < t0) return false; if (r < t1) t1 = r; }
+      return true;
+    };
+    return clip(-dx, a.x - rx0) && clip(dx, rx1 - a.x) && clip(-dy, a.y - ry0) && clip(dy, ry1 - a.y) && t0 <= t1;
+  }
+
   function shapesInRect(geo, coords, x0, y0, x1, y1) {
     const rx0 = Math.min(x0, x1), rx1 = Math.max(x0, x1);
     const ry0 = Math.min(y0, y1), ry1 = Math.max(y0, y1);
@@ -840,18 +864,111 @@
       const ptIds = [...collectShapePointIds(sh)];
       const pts = ptIds.map(id => coords.get(id)).filter(Boolean);
       if (!pts.length) continue;
-      // Include if ALL vertices lie inside rect OR centroid lies inside rect (for circles, check center + rim or center inside!)
       let inside = false;
       if (sh.kind === 'circle' && pts.length >= 2) {
         const c = pts[0], r = Math.hypot(pts[1].x - c.x, pts[1].y - c.y);
-        inside = (c.x - r >= rx0 - 8 && c.x + r <= rx1 + 8 && c.y - r >= ry0 - 8 && c.y + r <= ry1 + 8) ||
-          (c.x >= rx0 && c.x <= rx1 && c.y >= ry0 && c.y <= ry1 && r * 2 <= Math.max(rx1 - rx0, ry1 - ry0) * 1.15);
+        const cx = Math.max(rx0, Math.min(c.x, rx1));
+        const cy = Math.max(ry0, Math.min(c.y, ry1));
+        const dNear = Math.hypot(cx - c.x, cy - c.y);
+        const dFar = Math.max(
+          Math.hypot(rx0 - c.x, ry0 - c.y), Math.hypot(rx1 - c.x, ry0 - c.y),
+          Math.hypot(rx0 - c.x, ry1 - c.y), Math.hypot(rx1 - c.x, ry1 - c.y)
+        );
+        // Crossing or enclosing the circle boundary
+        inside = (dNear <= r + 4 && dFar >= r - 4) || (c.x >= rx0 && c.x <= rx1 && c.y >= ry0 && c.y <= ry1);
+      } else if (sh.kind === 'segment' && pts.length >= 2) {
+        inside = segIntersectsRect(pts[0], pts[1], rx0, ry0, rx1, ry1);
+      } else if (sh.kind === 'polygon' && pts.length >= 3) {
+        for (let k = 0; k < pts.length; k++) {
+          if (segIntersectsRect(pts[k], pts[(k + 1) % pts.length], rx0, ry0, rx1, ry1)) { inside = true; break; }
+        }
       } else {
-        inside = pts.every(p => p.x >= rx0 - 4 && p.x <= rx1 + 4 && p.y >= ry0 - 4 && p.y <= ry1 + 4);
+        // Crossing-select: any vertex inside OR any consecutive edge crossing rect
+        inside = pts.some(p => p.x >= rx0 - 4 && p.x <= rx1 + 4 && p.y >= ry0 - 4 && p.y <= ry1 + 4);
+        if (!inside && pts.length >= 2) {
+          for (let k = 0; k + 1 < pts.length; k++) {
+            if (segIntersectsRect(pts[k], pts[k + 1], rx0, ry0, rx1, ry1)) { inside = true; break; }
+          }
+        }
       }
       if (inside) hit.push(sh.id);
     }
     return hit;
+  }
+
+  /**
+   * Auto-detect if a translation vector A->P1 or mapping pair A->P1 runs along an existing
+   * segment [u, v] (e.g. P1 placed on top edge of a rectangle at distance a = 1.5 cm).
+   * Returning [startId, endId] automatically stops/hides iterations that step outside the segment!
+   */
+  function detectClipSegment(geo, cfg) {
+    const K = getKernel();
+    if (!geo || !cfg || !K) return null;
+    let p0 = null, p1 = null;
+    if (cfg.method === 'translate' && cfg.vecA && cfg.vecB && cfg.vecA !== cfg.vecB) {
+      p0 = cfg.vecA; p1 = cfg.vecB;
+    } else if (cfg.method === 'map' && Array.isArray(cfg.pairs) && cfg.pairs.length === 1) {
+      p0 = cfg.pairs[0][0]; p1 = cfg.pairs[0][1];
+    }
+    if (!p0 || !p1 || p0 === p1) return null;
+    const coords = K.Tt(geo);
+    const c0 = coords.get(p0), c1 = coords.get(p1);
+    if (!c0 || !c1 || Math.hypot(c1.x - c0.x, c1.y - c0.y) < 1e-3) return null;
+
+    const pt1 = geo.points && geo.points[p1];
+    // 1. Direct parametric constraint: p1 placed on segment (def.t === 'on' && def.seg)
+    if (pt1 && pt1.def && pt1.def.t === 'on' && pt1.def.seg && pt1.def.a && pt1.def.b) {
+      return [pt1.def.a, pt1.def.b];
+    }
+    // 2. Direct vector-distance constraint along a segment (e.g. a = 1.5 cm along AB)
+    if (pt1 && pt1.def && pt1.def.t === 'vec' && !pt1.def.perp && pt1.def.a && pt1.def.b && pt1.def.a !== pt1.def.b) {
+      const hasSeg = (geo.shapes || []).some(sh => sh && !sh.hidden && !sh._iterId && (
+        (sh.kind === 'segment' && ((sh.pts[0] === pt1.def.a && sh.pts[1] === pt1.def.b) || (sh.pts[0] === pt1.def.b && sh.pts[1] === pt1.def.a))) ||
+        (sh.kind === 'polygon' && sh.pts.includes(pt1.def.a) && sh.pts.includes(pt1.def.b))
+      ));
+      if (hasSeg) return [pt1.def.a, pt1.def.b];
+    }
+    // 3. Geometric collinearity scan over all visible segments & polygon edges
+    const edges = [];
+    for (const sh of (geo.shapes || [])) {
+      if (!sh || sh.hidden || sh._iterId) continue;
+      if (sh.kind === 'segment' && sh.pts && sh.pts.length >= 2) {
+        edges.push([sh.pts[0], sh.pts[1]]);
+      } else if (sh.kind === 'polygon' && Array.isArray(sh.pts) && sh.pts.length >= 3) {
+        for (let k = 0; k < sh.pts.length; k++) edges.push([sh.pts[k], sh.pts[(k + 1) % sh.pts.length]]);
+      }
+    }
+    let best = null, bestLen = 0;
+    for (const [u, v] of edges) {
+      if (u === p0 && v === p1 || u === p1 && v === p0) continue; // ignore the step segment itself
+      const A = coords.get(u), B = coords.get(v);
+      if (!A || !B) continue;
+      const vx = B.x - A.x, vy = B.y - A.y, L = Math.hypot(vx, vy);
+      if (L < 8) continue;
+      const proj = (p) => ((p.x - A.x) * vx + (p.y - A.y) * vy) / (L * L);
+      const perp = (p) => Math.abs((p.x - A.x) * vy - (p.y - A.y) * vx) / L;
+      const t0 = proj(c0), t1 = proj(c1);
+      if (perp(c0) <= 2.5 && perp(c1) <= 2.5 && t0 >= -0.02 && t0 <= 1.02 && t1 > 0.005 && t1 < 0.995 && Math.abs(t1 - t0) > 1e-3) {
+        if (L > bestLen) {
+          bestLen = L;
+          best = t1 > t0 ? [u, v] : [v, u];
+        }
+      }
+    }
+    return best;
+  }
+
+  function autoUpdateClipBound(geo) {
+    if (STATE.clipUserTouched) return;
+    const det = detectClipSegment(geo, STATE.cfg);
+    if (det) {
+      STATE.cfg.clipSeg = det;
+      STATE.cfg.clipShapeId = null;
+      STATE.cfg.clipEnabled = true;
+    } else if (!STATE.cfg.clipShapeId) {
+      STATE.cfg.clipSeg = null;
+      STATE.cfg.clipEnabled = false;
+    }
   }
 
   /* ========================== Interactive Canvas Pointer Handler ========================== */
@@ -864,13 +981,14 @@
 
     const pg = board.doc.pages[pageIdx];
     const coords = K.Tt(pg.geo);
-    const tol = Math.max(10 / (board.zoom || 1), typeof board.tol === 'function' ? board.tol() : 10);
+    const tol = Math.max(14 / (board.zoom || 1), typeof board.tol === 'function' ? board.tol() : 12);
 
-    // STAGE 1: Pick target shapes to iterate (single click toggle OR drag marquee box!)
+    // STAGE 1: Pick target shapes to iterate (single click toggle OR drag crossing marquee box!)
     if (STATE.stage === 1) {
+      const availShapes = pg.geo.shapes.filter(s => s && !s.hidden && (!STATE.editingIterId || s._iterId !== STATE.editingIterId));
       const hitSh =
-        (typeof K.$0 === 'function' ? K.$0(pg.geo.shapes.filter(s => !STATE.editingIterId || s._iterId !== STATE.editingIterId), coords, pt, tol, board.revealHidden()) : null) ||
-        (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(pg.geo.shapes.filter(s => !STATE.editingIterId || s._iterId !== STATE.editingIterId), coords, pt, board.revealHidden()) : null);
+        (typeof K.$0 === 'function' ? K.$0(availShapes, coords, pt, tol, false) : null) ||
+        (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(availShapes, coords, pt, false) : null);
 
       const startClient = ev ? { x: ev.clientX, y: ev.clientY } : null;
       let dragged = false;
@@ -925,8 +1043,53 @@
       return true;
     }
 
-    // STAGE 2: Pick points according to chosen iteration method
-    const nearPt = typeof board.pointNear === 'function' ? board.pointNear(pg, coords, pt, true) : null;
+    // STAGE 2A: Interactive boundary pick mode (click end point, segment, or polygon/circle!)
+    if (STATE.pickingBound) {
+      const availShapes = pg.geo.shapes.filter(s => s && !s.hidden && !s._iterId);
+      const nearPt = typeof board.pointNear === 'function' ? board.pointNear(pg, coords, pt, false) : null;
+      const hitSh =
+        (typeof K.$0 === 'function' ? K.$0(availShapes, coords, pt, tol, false) : null) ||
+        (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(availShapes, coords, pt, false) : null);
+
+      const anchorA = STATE.cfg.method === 'translate'
+        ? STATE.cfg.vecA
+        : (STATE.cfg.pairs && STATE.cfg.pairs[0] ? STATE.cfg.pairs[0][0] : null);
+
+      if (nearPt && anchorA && nearPt !== anchorA) {
+        STATE.cfg.clipSeg = [anchorA, nearPt];
+        STATE.cfg.clipShapeId = null;
+        STATE.cfg.clipEnabled = true;
+        STATE.clipUserTouched = true;
+        STATE.pickingBound = false;
+      } else if (hitSh) {
+        if (hitSh.kind === 'segment' && hitSh.pts && hitSh.pts.length >= 2) {
+          STATE.cfg.clipSeg = [hitSh.pts[0], hitSh.pts[1]];
+          STATE.cfg.clipShapeId = null;
+          STATE.cfg.clipEnabled = true;
+          STATE.clipUserTouched = true;
+          STATE.pickingBound = false;
+        } else if (hitSh.kind === 'polygon' || hitSh.kind === 'circle' || hitSh.kind === 'region') {
+          STATE.cfg.clipShapeId = hitSh.id;
+          STATE.cfg.clipSeg = null;
+          STATE.cfg.clipEnabled = true;
+          STATE.clipUserTouched = true;
+          STATE.pickingBound = false;
+        }
+      }
+      board.redraw();
+      renderDialog();
+      if (STATE.editingIterId && !STATE.pickingBound) {
+        rebuildIteration(STATE.pageIdx, STATE.editingIterId, {
+          clipEnabled: STATE.cfg.clipEnabled,
+          clipSeg: STATE.cfg.clipSeg,
+          clipShapeId: STATE.cfg.clipShapeId
+        });
+      }
+      return true;
+    }
+
+    // STAGE 2B: Pick points according to chosen iteration method
+    const nearPt = typeof board.pointNear === 'function' ? board.pointNear(pg, coords, pt, false) : null;
     if (!nearPt) return true;
 
     if (STATE.cfg.method === 'rotate' || STATE.cfg.method === 'dilate') {
@@ -937,6 +1100,7 @@
         STATE.cfg.vecB = null;
       } else if (nearPt !== STATE.cfg.vecA) {
         STATE.cfg.vecB = nearPt;
+        autoUpdateClipBound(pg.geo);
       }
     } else {
       // method === 'map': pairs of Source -> Image
@@ -947,6 +1111,7 @@
         filtered.push([STATE.cfg.pendingSrc, nearPt]);
         STATE.cfg.pairs = filtered;
         STATE.cfg.pendingSrc = null;
+        autoUpdateClipBound(pg.geo);
       } else {
         STATE.cfg.pendingSrc = null;
       }
@@ -989,7 +1154,21 @@
 
     if (!STATE.active || STATE.pageIdx !== pageIdx) return;
 
-    // 2. Highlight Stage-1 selected scope shapes
+    // 2. Highlight Stage-1 hovered & selected scope shapes
+    if (STATE.stage === 1 && STATE.hoverShapeId && !(STATE.cfg.scopeShapeIds || []).includes(STATE.hoverShapeId)) {
+      const hsh = pg.geo.shapes.find(sh => sh && !sh.hidden && sh.id === STATE.hoverShapeId);
+      if (hsh) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        const col = '#0ea5e9';
+        const isF = isFillOnly(K, hsh);
+        K.gd(ctx, {
+          points: pg.geo.points,
+          shapes: [isF ? { ...hsh, color: col, fill: col + '22', gaps: undefined, hiddenSides: undefined, width: 2.2 + 2 / s } : { ...hsh, color: col, width: (hsh.width || 2) + 3.2 / s }]
+        }, coords, { hidePoints: true });
+        ctx.restore();
+      }
+    }
     if (STATE.cfg.scopeShapeIds && STATE.cfg.scopeShapeIds.length) {
       const scopeSet = new Set(STATE.cfg.scopeShapeIds);
       const picked = pg.geo.shapes.filter(sh => sh && !sh.hidden && scopeSet.has(sh.id));
@@ -1086,6 +1265,32 @@
           drawArrow(coords.get(STATE.cfg.vecA), coords.get(STATE.cfg.vecB), '#059669', 'v');
         }
       }
+
+      // Draw active clip boundary preview (emerald dashed stop-wall!)
+      if (STATE.cfg.clipEnabled && Array.isArray(STATE.cfg.clipSeg) && STATE.cfg.clipSeg.length === 2) {
+        const bA = coords.get(STATE.cfg.clipSeg[0]), bB = coords.get(STATE.cfg.clipSeg[1]);
+        if (bA && bB) {
+          ctx.save();
+          ctx.strokeStyle = '#059669';
+          ctx.lineWidth = 3 / s;
+          ctx.globalAlpha = 0.65;
+          ctx.setLineDash([7 / s, 5 / s]);
+          ctx.beginPath();
+          ctx.moveTo(bA.x, bA.y);
+          ctx.lineTo(bB.x, bB.y);
+          ctx.stroke();
+          ctx.restore();
+          drawDotRing(STATE.cfg.clipSeg[1], '#059669', 'Biên');
+        }
+      } else if (STATE.cfg.clipEnabled && STATE.cfg.clipShapeId) {
+        const bsh = pg.geo.shapes.find(sh => sh && sh.id === STATE.cfg.clipShapeId);
+        if (bsh) {
+          ctx.save();
+          ctx.globalAlpha = 0.55;
+          K.gd(ctx, { points: pg.geo.points, shapes: [{ ...bsh, color: '#059669', fill: undefined, width: (bsh.width || 2) + 2.4 / s, dashed: true }] }, coords, { hidePoints: true });
+          ctx.restore();
+        }
+      }
     }
   }
 
@@ -1119,7 +1324,7 @@
       id,
       varName,
       method: STATE.cfg.method,
-      depth: Math.max(0, Math.min(20, Math.round(Number(STATE.cfg.depth) || 0))),
+      depth: Math.max(0, Math.min(40, Math.round(Number(STATE.cfg.depth) || 0))),
       angle: Number(STATE.cfg.angle) || 0,
       ratio: Number.isFinite(Number(STATE.cfg.ratio)) ? Number(STATE.cfg.ratio) : (STATE.cfg.method === 'translate' ? 1 : 0.5),
       scopeShapeIds: (STATE.cfg.scopeShapeIds || []).slice(),
@@ -1127,6 +1332,9 @@
       centerId: STATE.cfg.centerId || null,
       vecA: STATE.cfg.vecA || null,
       vecB: STATE.cfg.vecB || null,
+      clipEnabled: !!STATE.cfg.clipEnabled && !!(STATE.cfg.clipSeg || STATE.cfg.clipShapeId),
+      clipSeg: Array.isArray(STATE.cfg.clipSeg) && STATE.cfg.clipSeg.length === 2 ? STATE.cfg.clipSeg.slice() : null,
+      clipShapeId: STATE.cfg.clipShapeId || null,
       hideIterDots: STATE.cfg.hideIterDots !== false,
       showBadge: STATE.cfg.showBadge !== false,
       theme: STATE.cfg.theme || 'pink',
@@ -1141,6 +1349,8 @@
     STATE.editingIterId = null;
     STATE.dialogOpen = false;
     STATE.active = false;
+    STATE.pickingBound = false;
+    STATE.hoverShapeId = null;
     STATE.marquee = null;
     STATE.cfg.pendingSrc = null;
     renderStageBar();
@@ -1386,13 +1596,30 @@
           <label><span class="mn-idlg-katex-inline" data-tex="${escapeHtml(texForVar(c.varName))}"></span> Số lần lặp</label>
           <div class="mn-idlg-num-ctrl">
             <button type="button" class="mn-idlg-mini-btn" data-step-depth="-1">−</button>
-            <input type="number" id="mn-iter-depth-in" min="0" max="20" step="1" value="${c.depth}" />
+            <input type="number" id="mn-iter-depth-in" min="0" max="40" step="1" value="${c.depth}" />
             <button type="button" class="mn-idlg-mini-btn" data-step-depth="1">+</button>
           </div>
         </div>
-        <input type="range" class="mn-idlg-slider" id="mn-iter-depth-rng" min="0" max="20" step="1" value="${c.depth}" />
+        <input type="range" class="mn-idlg-slider" id="mn-iter-depth-rng" min="0" max="40" step="1" value="${c.depth}" />
 
         ${extraControls}
+
+        ${(() => {
+          const hasBound = !!(c.clipSeg || c.clipShapeId);
+          const bLbl = Array.isArray(c.clipSeg) && c.clipSeg.length === 2
+            ? `${ptLabel(geo, c.clipSeg[0])}${ptLabel(geo, c.clipSeg[1])}`
+            : (c.clipShapeId ? 'Khung' : '');
+          return `
+            <div class="mn-idlg-bound-row ${c.clipEnabled && hasBound ? 'active' : ''}">
+              <label class="mn-idlg-check" title="Tự ẩn các bước lặp vượt ra ngoài đoạn thẳng hoặc khung giới hạn khi thay đổi kích thước">
+                <input type="checkbox" id="mn-iter-clip-on" ${c.clipEnabled && hasBound ? 'checked' : ''} ${hasBound ? '' : 'disabled'} />
+                <span>Dừng trong biên</span>
+              </label>
+              ${hasBound ? `<span class="mn-idlg-bound-tag">${escapeHtml(bLbl)}</span>` : ''}
+              <button type="button" class="mn-idlg-bound-btn ${STATE.pickingBound ? 'picking' : ''}" data-act="pickBound" title="Bấm chọn điểm đích, đoạn thẳng, hoặc đa giác/đường tròn làm biên giới hạn trên bảng vẽ">${STATE.pickingBound ? 'Bấm trên bảng…' : (hasBound ? 'Đổi' : 'Chọn biên')}</button>
+            </div>
+          `;
+        })()}
 
         <button type="button" class="mn-idlg-adv-toggle" data-act="toggleAdv">
           <span>${STATE.advancedOpen ? '▾' : '▸'} Tùy chọn nâng cao (Tham số, KaTeX)</span>
@@ -1469,7 +1696,7 @@
     if (clrV) clrV.onclick = () => { c.vecA = null; c.vecB = null; renderStageBar(); renderDialog(); board && board.redraw(); };
 
     const updateDepth = (v) => {
-      c.depth = Math.max(0, Math.min(20, Math.round(Number(v) || 0)));
+      c.depth = Math.max(0, Math.min(40, Math.round(Number(v) || 0)));
       const numIn = dlg.querySelector('#mn-iter-depth-in');
       const rngIn = dlg.querySelector('#mn-iter-depth-rng');
       if (numIn && document.activeElement !== numIn) numIn.value = String(c.depth);
@@ -1543,7 +1770,7 @@
       };
     };
     bindParamSel('#mn-iter-depth-param', 'depthParamId', (p) => {
-      c.depth = Math.max(0, Math.min(20, Math.round(evalLinkedParam(getKernel(), geo, p.id, p.value))));
+      c.depth = Math.max(0, Math.min(40, Math.round(evalLinkedParam(getKernel(), geo, p.id, p.value))));
       if (p.name) c.varName = p.name;
     });
     bindParamSel('#mn-iter-ang-param', 'angleParamId', (p) => {
@@ -1559,6 +1786,25 @@
         renderDialog();
       };
     });
+
+    const clipChk = dlg.querySelector('#mn-iter-clip-on');
+    if (clipChk) {
+      clipChk.onchange = () => {
+        c.clipEnabled = !!clipChk.checked;
+        STATE.clipUserTouched = true;
+        renderDialog();
+        if (STATE.editingIterId) rebuildIteration(STATE.pageIdx, STATE.editingIterId, { clipEnabled: c.clipEnabled, clipSeg: c.clipSeg, clipShapeId: c.clipShapeId });
+        board && board.redraw();
+      };
+    }
+    const pickBBtn = dlg.querySelector('[data-act="pickBound"]');
+    if (pickBBtn) {
+      pickBBtn.onclick = () => {
+        STATE.pickingBound = !STATE.pickingBound;
+        renderDialog();
+        board && board.redraw();
+      };
+    }
 
     const hideChk = dlg.querySelector('#mn-iter-hide-dots');
     if (hideChk) hideChk.onchange = () => { c.hideIterDots = !!hideChk.checked; };
@@ -1599,6 +1845,26 @@
     if (ed && ed.scroller && scrollerBound !== ed.scroller) {
       scrollerBound = ed.scroller;
       scrollerBound.addEventListener('scroll', scheduleSyncBadges, { passive: true });
+      // Live Stage-1 hover highlight so users immediately see which object will be selected!
+      scrollerBound.addEventListener('pointermove', (me) => {
+        if (!STATE.active || STATE.stage !== 1 || STATE.marquee) return;
+        const b = getBoard(), K = getKernel();
+        if (!b || !K || !b.doc || !b.doc.pages[STATE.pageIdx]) return;
+        const ep = b.eventPoint(me);
+        const dp = b.toDoc(ep.sx, ep.sy);
+        const pt = b.toPage(dp, STATE.pageIdx);
+        const pg = b.doc.pages[STATE.pageIdx];
+        const coords = K.Tt(pg.geo);
+        const tol = Math.max(14 / (b.zoom || 1), typeof b.tol === 'function' ? b.tol() : 12);
+        const avail = pg.geo.shapes.filter(s => s && !s.hidden && (!STATE.editingIterId || s._iterId !== STATE.editingIterId));
+        const hit = (typeof K.$0 === 'function' ? K.$0(avail, coords, pt, tol, false) : null) ||
+          (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(avail, coords, pt, false) : null);
+        const nextId = hit ? hit.id : null;
+        if (nextId !== STATE.hoverShapeId) {
+          STATE.hoverShapeId = nextId;
+          b.redraw();
+        }
+      }, { passive: true });
     }
   }
 
@@ -1924,6 +2190,9 @@
     STATE.active = true;
     STATE.pageIdx = pIdx;
     STATE.editingIterId = null;
+    STATE.pickingBound = false;
+    STATE.clipUserTouched = false;
+    STATE.hoverShapeId = null;
     STATE.marquee = null;
     STATE.cfg = {
       method: 'map',
@@ -1936,6 +2205,9 @@
       centerId: null,
       vecA: null,
       vecB: null,
+      clipEnabled: false,
+      clipSeg: null,
+      clipShapeId: null,
       hideIterDots: true,
       showBadge: true,
       varName: nextVarName(pg && pg.geo, 'map'),
@@ -1974,6 +2246,9 @@
     STATE.editingIterId = iterId;
     STATE.stage = 2;
     STATE.dialogOpen = true;
+    STATE.pickingBound = false;
+    STATE.clipUserTouched = true;
+    STATE.hoverShapeId = null;
     STATE.marquee = null;
     STATE.cfg = {
       method: it.method || 'map',
@@ -1986,6 +2261,9 @@
       centerId: it.centerId || null,
       vecA: it.vecA || null,
       vecB: it.vecB || null,
+      clipEnabled: !!it.clipEnabled,
+      clipSeg: Array.isArray(it.clipSeg) && it.clipSeg.length === 2 ? it.clipSeg.slice() : null,
+      clipShapeId: it.clipShapeId || null,
       hideIterDots: it.hideIterDots !== false,
       showBadge: it.showBadge !== false,
       varName: it.varName || 'n_1',
@@ -2003,6 +2281,8 @@
     STATE.active = false;
     STATE.dialogOpen = false;
     STATE.editingIterId = null;
+    STATE.pickingBound = false;
+    STATE.hoverShapeId = null;
     STATE.marquee = null;
     STATE.cfg.pendingSrc = null;
     renderStageBar();

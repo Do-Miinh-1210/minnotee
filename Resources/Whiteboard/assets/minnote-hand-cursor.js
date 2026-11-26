@@ -31,6 +31,9 @@
   const STORAGE_REPLAY_KEY = 'minnote_hand_cursor_replay';
   const STORAGE_PREV_CURSOR_KEY = 'minnote_hand_prev_cursor';
   const STORAGE_DEFAULT_V87_KEY = 'minnote_hand_default_v87';
+  // Kiểu hình đính kèm đầu nét khi dựng lại: 'hand' (tay cầm bút, mặc định) | 'stick' (người que — minnote-stick-figure.js).
+  const STORAGE_REPLAY_FIGURE_KEY = 'minnote_replay_figure';
+  const STICK_IDLE_MS = 1300; // hết nét: người que còn ~1.3 s để dừng bút, thu tay, hạ tay
   const PNG_SRC = './assets/hand-pen-cursor.png';
 
   // Exact calibrated metal nib coordinates on hand-pen-cursor.png (290x330)
@@ -248,6 +251,18 @@
 
   let replayEnabled = readBool(STORAGE_REPLAY_KEY, true);
 
+  function readFigure() {
+    try { return localStorage.getItem(STORAGE_REPLAY_FIGURE_KEY) === 'stick' ? 'stick' : 'hand'; } catch (_) { return 'hand'; }
+  }
+  let replayFigure = readFigure();
+  let lastStickTip = null;   // tip người que vừa vẽ (để còn hiện khi hết nét)
+  let stickIdleSince = null;
+
+  function stickApi() {
+    const S = typeof window !== 'undefined' ? window.MinNoteStickFigure : null;
+    return S && typeof S.paintReplayTip === 'function' ? S : null;
+  }
+
   // Replay canvas painter smoothing state
   let replaySmoothTilt = 0;
   let lastTipX = null;
@@ -272,10 +287,17 @@
       btn.classList.toggle('on', active);
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
+    const handOn = replayEnabled && replayFigure === 'hand';
+    const stickOn = replayEnabled && replayFigure === 'stick';
     document.querySelectorAll('[data-mn-hand-replay], #mn-rp-hand, #mn-rp-hand-btn').forEach((btn) => {
-      btn.classList.toggle('active', replayEnabled);
-      btn.classList.toggle('on', replayEnabled);
-      btn.setAttribute('aria-pressed', replayEnabled ? 'true' : 'false');
+      btn.classList.toggle('active', handOn);
+      btn.classList.toggle('on', handOn);
+      btn.setAttribute('aria-pressed', handOn ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-mn-stick-replay], #mn-rp-figure').forEach((btn) => {
+      btn.classList.toggle('active', stickOn);
+      btn.classList.toggle('on', stickOn);
+      btn.setAttribute('aria-pressed', stickOn ? 'true' : 'false');
     });
   }
 
@@ -336,6 +358,8 @@
   function setReplay(enabled) {
     replayEnabled = !!enabled;
     writeBool(STORAGE_REPLAY_KEY, replayEnabled);
+    lastStickTip = null; // bắt đầu / tắt dựng lại: người que không đứng lại ở chỗ của lần trước
+    stickIdleSince = null;
     updateToolbarButtons();
     const b = window.__minnoteBoard || window.__noteRendererEditor || (window.__meaBoardRef && window.__meaBoardRef.current);
     if (b && typeof b.redraw === 'function') b.redraw();
@@ -348,6 +372,18 @@
 
   function isReplay() {
     return replayEnabled;
+  }
+
+  /** Chọn hình đính kèm khi dựng lại ('hand' | 'stick') và bật hiển thị. */
+  function setReplayFigure(style) {
+    replayFigure = style === 'stick' ? 'stick' : 'hand';
+    try { localStorage.setItem(STORAGE_REPLAY_FIGURE_KEY, replayFigure); } catch (_) {}
+    resetReplaySmoothing();
+    return setReplay(true) && replayFigure;
+  }
+
+  function getReplayFigure() {
+    return replayFigure;
   }
 
   function getNativeTipMetrics(scale) {
@@ -387,6 +423,16 @@
     if (!Number.isFinite(tip.x) || !Number.isFinite(tip.y)) return;
     const forceShow = !!(opts && opts.forceShow);
     if (!forceShow && !replayEnabled) return;
+
+    // Người que: dựng lại trên bảng theo lựa chọn; khi xuất (forceShow) chỉ khi gọi rõ opts.figure = 'stick'.
+    const wantStick = (opts && opts.figure) ? opts.figure === 'stick' : (!forceShow && replayFigure === 'stick');
+    const S = wantStick ? stickApi() : null;
+    if (S) {
+      lastStickTip = Object.assign({}, tip);
+      stickIdleSince = null;
+      S.paintReplayTip(ctx, tip, board, Object.assign({}, opts, { bounds: (opts && opts.bounds) || tip.bounds }));
+      return;
+    }
 
     const img = getDrawableImage();
     if (!img || (!img.complete && !imgReady) || !img.naturalWidth) return;
@@ -448,10 +494,46 @@
     ctx.restore();
   }
 
+  /**
+   * Gọi mỗi khung dựng lại khi KHÔNG có nét đang vẽ (giữa các bước / đã vẽ xong).
+   * Người que vẫn đứng đó, dừng bút một nhịp rồi hạ tay; trả về true khi còn đang chuyển động
+   * (khi đó tự xin vẽ lại khung sau để động tác hạ tay chạy hết).
+   */
+  function paintReplayIdle(ctx, tip, board, opts) {
+    const o = opts || {};
+    // Xuất GIF/Video gọi rõ opts.figure = 'stick' (+ dtMs theo FPS) — không phụ thuộc trạng thái trên bảng.
+    const exporting = o.figure === 'stick';
+    if (!ctx || !lastStickTip) return false;
+    if (!exporting && (!replayEnabled || replayFigure !== 'stick')) return false;
+    const S = stickApi();
+    if (!S) return false;
+    if (tip && Number.isFinite(tip.pageIdx) && Number.isFinite(lastStickTip.pageIdx) && tip.pageIdx !== lastStickTip.pageIdx) return false;
+    let idleMs;
+    if (Number.isFinite(o.dtMs)) {
+      stickIdleSince = (stickIdleSince === null ? 0 : stickIdleSince) + o.dtMs; // đếm theo nhịp khung xuất
+      idleMs = stickIdleSince;
+    } else {
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (stickIdleSince === null) stickIdleSince = now;
+      idleMs = now - stickIdleSince;
+    }
+    S.paintReplayTip(ctx, Object.assign({}, lastStickTip, { active: true, drawing: false }), board,
+      Object.assign({}, o, { bounds: lastStickTip.bounds }));
+    const moving = idleMs < STICK_IDLE_MS;
+    if (moving && !exporting && board && typeof board.redraw === 'function' && typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => { try { board.redraw(); } catch (_) {} });
+    }
+    return moving;
+  }
+
   function resetReplaySmoothing() {
     replaySmoothTilt = 0;
     lastTipX = null;
     lastTipY = null;
+    lastStickTip = null;
+    stickIdleSince = null;
+    const S = stickApi();
+    if (S && typeof S.resetReplaySmoothing === 'function') S.resetReplaySmoothing();
   }
 
   function applyDefaultHandMigration() {
@@ -518,6 +600,9 @@
     toggleReplay,
     setReplay,
     isReplay,
+    setReplayFigure,
+    getReplayFigure,
+    paintReplayIdle,
     getNativeCursorCss,
     getNativeTipMetrics,
     getTabletCursorInfo,
