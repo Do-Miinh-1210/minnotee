@@ -29,7 +29,7 @@ namespace MinNote.Services;
 /// Kết quả RPC get_license. Reachable=false (lỗi mạng, hàm chưa tạo trên DB) → caller fallback đường cũ.
 /// RowJson là object JSON của đúng máy này (rỗng khi chưa đăng ký).
 /// </summary>
-public record LicenseRpcResult(bool Reachable, bool Found, string RowJson, string SignedPayload, string Signature);
+public record LicenseRpcResult(bool Reachable, bool Found, string RowJson, string SignedPayload, string Signature, DateTime? ServerUtc = null);
 
 /// <summary>
 /// SEC-18 (không server): license được ký trên máy admin (admin/license_signing.py) và lưu trong bảng licenses.
@@ -86,17 +86,19 @@ public class LicenseRpcClient
             using var resp = await PostRpcAsync("get_license", machineId, ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode) return NotReachable();
 
+            DateTime? serverUtc = resp.Headers.Date?.UtcDateTime;
             string json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return new LicenseRpcResult(true, false, "", "", "");
+            if (root.ValueKind != JsonValueKind.Object) return new LicenseRpcResult(true, false, "", "", "", serverUtc);
 
             return new LicenseRpcResult(
                 Reachable: true,
                 Found: true,
                 RowJson: root.GetRawText(),
                 SignedPayload: Str(root, "signed_payload"),
-                Signature: Str(root, "signature"));
+                Signature: Str(root, "signature"),
+                ServerUtc: serverUtc);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -129,7 +131,7 @@ public class LicenseRpcClient
         return _httpClient.SendAsync(req, ct);
     }
 
-    private static LicenseRpcResult NotReachable() => new(false, false, "", "", "");
+    private static LicenseRpcResult NotReachable() => new(false, false, "", "", "", null);
 
     private static string Str(JsonElement root, string name) =>
         root.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() ?? "" : "";

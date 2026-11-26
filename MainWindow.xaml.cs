@@ -87,6 +87,9 @@ namespace MinNote
         private string? _lastBatchDownloadDir;
         private DateTime _lastBatchDownloadUtc = DateTime.MinValue;
         private readonly System.Windows.Threading.DispatcherTimer _licenseTimer = new() { Interval = TimeSpan.FromMinutes(10) };
+        private readonly System.Windows.Threading.DispatcherTimer _trialTickTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+        private bool _trialWelcomeShown;
+        private bool _pendingTrialWelcomeToast;
         private WindowState _previousWindowState = WindowState.Normal;
         private WindowStyle _previousWindowStyle = WindowStyle.SingleBorderWindow;
         private RecorderOverlayController? _recOverlay;
@@ -168,11 +171,19 @@ namespace MinNote
             _ = SyncLicenseAsync();
             _licenseTimer.Tick += async (s, e) => await SyncLicenseAsync();
             _licenseTimer.Start();
+            _trialTickTimer.Tick += (s, e) =>
+            {
+                var cur = SupabaseLicenseService.Instance.RefreshLocalTrialState();
+                if (cur.IsLocalTrial) OnLicense(cur);
+            };
+            _trialTickTimer.Start();
 
             Closing += MainWindow_Closing;
             Closed += (s, e) =>
             {
                 Log("Window Closed");
+                try { _licenseTimer.Stop(); } catch { }
+                try { _trialTickTimer.Stop(); } catch { }
                 try { MatrixExamSyncService.Instance.SyncChanged -= OnMeaSyncChanged; } catch { }
                 try { MatrixExamSyncService.Instance.Dispose(); } catch { }
                 try { WvWhiteboard?.Dispose(); } catch { }
@@ -773,6 +784,12 @@ namespace MinNote
                         if (!e.IsSuccess)
                         {
                             ShowErrorState($"Lỗi tải trang Bảng viết: {e.WebErrorStatus}");
+                        }
+                        else if (_pendingTrialWelcomeToast && !_trialWelcomeShown)
+                        {
+                            _pendingTrialWelcomeToast = false;
+                            _trialWelcomeShown = true;
+                            _ = ShowWebToastAsync("Chào mừng bạn đến với MinNote! Máy mới được tặng 1 ngày dùng thử miễn phí toàn bộ tính năng.", "success");
                         }
                     };
                 }
@@ -3333,6 +3350,28 @@ namespace MinNote
             string owner = string.IsNullOrWhiteSpace(info.Name) ? "MinNote" : info.Name;
             if (owner.Length > 16) owner = owner[..14] + "...";
 
+            if (info.IsLocalTrial)
+            {
+                if (info.IsActive)
+                {
+                    string rem = info.FormatTrialRemaining();
+                    BtnLicenseTop.Content = $"Dùng thử: còn {rem}";
+                    BtnLicenseTop.ToolTip = $"Bản dùng thử miễn phí 1 ngày (máy mới cài đặt)\nHết hạn: {info.Expiry} (còn {rem})\nMã máy: {info.MachineId}\n(Bấm để kích hoạt bản quyền chính thức)";
+                }
+                else
+                {
+                    BtnLicenseTop.Content = "Hết hạn dùng thử";
+                    BtnLicenseTop.ToolTip = $"Đã hết hạn dùng thử 1 ngày ({info.Expiry})\nMã máy: {info.MachineId}\n(Bấm để kích hoạt bản quyền)";
+                }
+                try
+                {
+                    BtnLicenseTop.Foreground = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(info.BadgeColor));
+                }
+                catch { }
+                return;
+            }
+
             if (info.IsActive)
             {
                 BtnLicenseTop.Content = $"Bản quyền: {info.DisplayTier}";
@@ -3725,14 +3764,29 @@ namespace MinNote
         {
             UpdateTopBarLicense(info);
             var (state, reason) = LicenseGate.Evaluate(info, LicenseGate.Whiteboard, _onlineCheckDone);
-            Log($"License gate: {state} (status={info.Status}, tier={info.Tier}, signed={info.IsServerSigned}, offline={info.Offline})");
+            Log($"License gate: {state} (status={info.Status}, tier={info.Tier}, signed={info.IsServerSigned}, localTrial={info.IsLocalTrial}, offline={info.Offline})");
             bool allowed = state == GateState.Allowed;
             WvWhiteboard.Visibility = allowed ? Visibility.Visible : Visibility.Hidden;
             PanelLocked.Visibility = allowed ? Visibility.Collapsed : Visibility.Visible;
             BtnRecheckLicense.IsEnabled = state != GateState.Checking;
-            TxtLockedTitle.Text = state == GateState.Checking ? "Đang kiểm tra bản quyền…" : "MinNote đang bị khóa";
+            TxtLockedTitle.Text = state == GateState.Checking
+                ? "Đang kiểm tra bản quyền…"
+                : (info.IsLocalTrial && !info.IsActive ? "Đã hết hạn dùng thử 1 ngày" : "MinNote đang bị khóa");
             IconLocked.Symbol = state == GateState.Checking ? SymbolRegular.ShieldCheckmark24 : SymbolRegular.LockClosed24;
             TxtLockedReason.Text = state == GateState.Checking ? "Đang kết nối máy chủ bản quyền, vui lòng chờ." : reason;
+
+            if (allowed && info.IsLocalTrial && info.TrialJustStarted && !_trialWelcomeShown)
+            {
+                if (_isInitialized && WvWhiteboard?.CoreWebView2 != null)
+                {
+                    _trialWelcomeShown = true;
+                    _ = ShowWebToastAsync("Chào mừng bạn đến với MinNote! Máy mới được tặng 1 ngày dùng thử miễn phí toàn bộ tính năng.", "success");
+                }
+                else
+                {
+                    _pendingTrialWelcomeToast = true;
+                }
+            }
         }
 
         private async void BtnRecheckLicense_Click(object sender, RoutedEventArgs e)

@@ -38,6 +38,20 @@ public static class LicenseGate
         if (info != null && info.IsAdminMachine)
             return (GateState.Allowed, string.Empty);
 
+        // Dùng thử miễn phí 1 ngày cho máy mới cài đặt (chỉ gán trong bộ nhớ sau khi xác minh LocalTrialService)
+        if (info != null && info.IsLocalTrial)
+        {
+            if (info.IsTrialTampered)
+                return (GateState.Locked, "Phát hiện đồng hồ hệ thống bị chỉnh lùi hoặc dữ liệu dùng thử không hợp lệ. Vui lòng đồng bộ lại giờ hệ thống và gửi Mã máy bên dưới cho Quản trị viên để kích hoạt.");
+
+            if (!info.IsActive)
+                return (GateState.Locked, $"Thời gian dùng thử 1 ngày cho máy này đã kết thúc ({info.Expiry}). Gửi Mã máy bên dưới cho Quản trị viên để kích hoạt bản quyền.");
+
+            return IsGranted(info, featureId)
+                ? (GateState.Allowed, string.Empty)
+                : (GateState.Locked, "Gói dùng thử hiện tại không gồm tính năng này. Liên hệ Quản trị viên để nâng cấp.");
+        }
+
         if (info == null || !info.IsServerSigned)
         {
             if (!onlineCheckDone) return (GateState.Checking, "Đang kiểm tra bản quyền…");

@@ -15,7 +15,7 @@
 ; =============================================================================
 ; Inno Setup Script — MinNote Digital Whiteboard (.NET 10 WPF + Whiteboard Canvas)
 #define MyAppName "MinNote"
-#define MyAppVersion "0.0.9.22"
+#define MyAppVersion "0.0.9.23"
 #define MyAppPublisher "Do Minh Math"
 #define MyAppURL "https://github.com/Do-Miinh-1210/minnotee"
 #define MyAppExeName "MinNote.exe"
@@ -56,7 +56,7 @@ vietnamese.ButtonInstall=Cài đặt
 vietnamese.ButtonCancel=Hủy bỏ
 vietnamese.ButtonFinish=Hoàn tất
 vietnamese.WelcomeLabel1=Chào mừng bạn đến với MinNote!
-vietnamese.WelcomeLabel2=Trình cài đặt sẽ cài đặt MinNote v{#MyAppVersion} (Bảng viết kỹ thuật số & Sơ đồ tư duy) chính thức vào ổ C hệ thống máy tính.%n%nNhấn "Tiếp tục" để bắt đầu cài đặt.
+vietnamese.WelcomeLabel2=Trình cài đặt sẽ cài đặt MinNote v{#MyAppVersion} (Bảng viết kỹ thuật số & Sơ đồ tư duy) chính thức vào ổ C hệ thống máy tính.%n%nMáy mới cài đặt được tặng 1 ngày dùng thử miễn phí toàn bộ tính năng.%n%nNhấn "Tiếp tục" để bắt đầu cài đặt.
 vietnamese.FinishedHeadingLabel=Hoàn tất cài đặt MinNote!
 vietnamese.FinishedLabel=Cài đặt MinNote v{#MyAppVersion} vào ổ C thành công!%n%nBiểu tượng đã được tạo trên Màn hình chính (Desktop) và Start Menu.
 

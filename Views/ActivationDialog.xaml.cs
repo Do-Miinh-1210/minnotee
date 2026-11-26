@@ -72,7 +72,16 @@ public partial class ActivationDialog : FluentWindow
         string expiry = string.IsNullOrWhiteSpace(info.Expiry) ? "Chưa xác định" : info.Expiry;
         string tier = info.DisplayTier;
 
-        TxtLicenseDetail.Text = $"Chủ sở hữu: {owner} • Gói: {tier} • Hạn dùng: {expiry}";
+        if (info.IsLocalTrial)
+        {
+            TxtLicenseDetail.Text = info.IsActive
+                ? $"Dùng thử 1 ngày (máy mới cài đặt) • Còn lại: {info.FormatTrialRemaining()} • {expiry}"
+                : $"Đã hết hạn dùng thử 1 ngày ({expiry}) • Gửi Mã máy cho Admin để kích hoạt bản quyền chính thức";
+        }
+        else
+        {
+            TxtLicenseDetail.Text = $"Chủ sở hữu: {owner} • Gói: {tier} • Hạn dùng: {expiry}";
+        }
     }
 
     private async void UpdateVietQrImage()
@@ -115,9 +124,17 @@ public partial class ActivationDialog : FluentWindow
             var updated = await _licenseService.CheckLicenseAsync(forceOnline: true);
             UpdateLicenseDisplay(updated);
 
-            if (updated.IsActive)
+            if (updated.IsActive && !updated.IsLocalTrial)
             {
                 ShowNotify("Đồng bộ bản quyền thành công! MinNote đã được kích hoạt.", InfoBarSeverity.Success);
+            }
+            else if (updated.IsLocalTrial && updated.IsActive)
+            {
+                ShowNotify($"Máy đang dùng thử miễn phí 1 ngày (còn {updated.FormatTrialRemaining()}). Gửi Mã máy cho Admin khi cần kích hoạt bản quyền chính thức.", InfoBarSeverity.Informational);
+            }
+            else if (updated.IsLocalTrial)
+            {
+                ShowNotify($"Đã hết hạn dùng thử 1 ngày ({updated.Expiry}). Vui lòng gửi Mã máy cho Admin để kích hoạt bản quyền.", InfoBarSeverity.Warning);
             }
             else
             {

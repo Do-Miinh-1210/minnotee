@@ -56,11 +56,39 @@ public class LicenseInfo
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsAdminMachine { get; set; }
 
+    // Dùng thử 1 ngày cục bộ (chỉ được gán trong bộ nhớ bởi LocalTrialService sau khi xác minh DPAPI + HMAC + đa neo)
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLocalTrial { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsTrialTampered { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool TrialJustStarted { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public DateTime? TrialExpiresUtc { get; set; }
+
     public bool IsActive => (string.Equals(Status, "active", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(Status, "trial", StringComparison.OrdinalIgnoreCase)) && !IsExpired;
 
-    // SEC-21: hết hạn tính theo cuối ngày Expiry (UTC)
-    public bool IsExpired => ParseExpiryUtc(Expiry) is DateTime exp && DateTime.UtcNow.Date > exp.Date;
+    // SEC-21: bản quyền thường hết hạn theo cuối ngày Expiry (UTC); dùng thử 1 ngày hết hạn chính xác theo mốc 24 giờ UTC
+    public bool IsExpired =>
+        IsTrialTampered
+        || (TrialExpiresUtc is DateTime trialExp
+            ? DateTime.UtcNow >= trialExp
+            : ParseExpiryUtc(Expiry) is DateTime exp && DateTime.UtcNow.Date > exp.Date);
+
+    public string FormatTrialRemaining()
+    {
+        if (TrialExpiresUtc is not DateTime exp) return string.Empty;
+        var rem = exp - DateTime.UtcNow;
+        if (rem <= TimeSpan.Zero) return "Hết hạn";
+        int totalMinutes = Math.Max(1, (int)Math.Ceiling(rem.TotalMinutes));
+        int hours = totalMinutes / 60;
+        int mins = totalMinutes % 60;
+        return hours > 0 ? $"{hours}g {mins:D2}p" : $"{mins} phút";
+    }
 
     private static readonly string[] ExpiryFormats = ["yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy", "yyyy/MM/dd"];
 
@@ -93,21 +121,24 @@ public class LicenseInfo
                 "PREMIUM" => "PREMIUM",
                 "PRO" => "PRO",
                 "BASIC" => "BASIC",
+                "TRIAL" => "DÙNG THỬ 1 NGÀY",
                 "CUSTOM" or "CUST" => "TÙY CHỌN LẺ",
                 _ => t
             };
         }
     }
 
-    public string BadgeText => IsActive
-        ? (string.Equals(Status, "trial", StringComparison.OrdinalIgnoreCase) ? $"DÙNG THỬ {DisplayTier}" : $"ĐÃ KÍCH HOẠT {DisplayTier}")
-        : (string.Equals(Status, "revoked", StringComparison.OrdinalIgnoreCase) ? "ĐÃ KHÓA / THU HỒI"
-            : IsExpired ? "ĐÃ HẾT HẠN" : "CHƯA KÍCH HOẠT");
+    public string BadgeText => IsLocalTrial
+        ? (IsActive ? "DÙNG THỬ 1 NGÀY" : "HẾT HẠN DÙNG THỬ")
+        : (IsActive
+            ? (string.Equals(Status, "trial", StringComparison.OrdinalIgnoreCase) ? $"DÙNG THỬ {DisplayTier}" : $"ĐÃ KÍCH HOẠT {DisplayTier}")
+            : (string.Equals(Status, "revoked", StringComparison.OrdinalIgnoreCase) ? "ĐÃ KHÓA / THU HỒI"
+                : IsExpired ? "ĐÃ HẾT HẠN" : "CHƯA KÍCH HOẠT"));
 
     public string BadgeColor => IsExpired && !string.Equals(Status, "revoked", StringComparison.OrdinalIgnoreCase) ? "#F59E0B" : Status?.ToLowerInvariant() switch
     {
         "active" => "#10B981",
-        "trial" => "#0284C7",
+        "trial" => "#38BDF8",
         "expired" => "#F59E0B",
         "revoked" => "#EF4444",
         _ => "#6B7280"
@@ -140,6 +171,7 @@ public class SupabaseLicenseService
     public static string SupabaseUrl => Deobfuscate(ObfuscatedUrl);
     public static string SupabaseAnonKey => Deobfuscate(ObfuscatedKey);
     private static string SecretSalt => Deobfuscate(ObfuscatedSalt);
+    internal static string SecretSaltInternal => SecretSalt;
 
     private static string Deobfuscate(byte[] data, byte mask = 0x5A)
     {
@@ -161,6 +193,7 @@ public class SupabaseLicenseService
     private string _machineId;
     private LicenseInfo? _currentLicense;
     private readonly bool _isCustomCache;
+    private readonly LocalTrialService _localTrialService;
     private LicenseRpcClient? _licenseRpcClient;
     private bool _adminChecked;
     private LicenseInfo? _adminLicense;
@@ -170,7 +203,7 @@ public class SupabaseLicenseService
 
     public event EventHandler<LicenseInfo>? LicenseChanged;
 
-    public SupabaseLicenseService(HttpClient? httpClient = null, string? customCachePath = null, string? customMachineId = null)
+    public SupabaseLicenseService(HttpClient? httpClient = null, string? customCachePath = null, string? customMachineId = null, LocalTrialService? localTrialService = null)
     {
         _httpClient = httpClient ?? new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(8);
@@ -187,6 +220,9 @@ public class SupabaseLicenseService
         {
             _cacheFilePath = customCachePath;
             _isCustomCache = true;
+            _localTrialService = localTrialService ?? new LocalTrialService(
+                customFileAnchors: [Path.Combine(Path.GetDirectoryName(customCachePath) ?? Path.GetTempPath(), ".trial_test.dat")],
+                useRegistry: false);
         }
         else
         {
@@ -194,6 +230,7 @@ public class SupabaseLicenseService
             string localApp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MatrixExamAI");
             Directory.CreateDirectory(localApp);
             _cacheFilePath = Path.Combine(localApp, "license_cache.json");
+            _localTrialService = localTrialService ?? new LocalTrialService();
         }
     }
 
@@ -237,8 +274,41 @@ public class SupabaseLicenseService
     {
         if (TryGetAdminMachineLicense() is { } admin) return _currentLicense = admin;
         if (_currentLicense != null) return _currentLicense;
-        _currentLicense = LoadCache() ?? CreateDefaultFallback(_machineId);
+
+        var cached = LoadCache();
+        if (cached != null && cached.IsServerSigned)
+        {
+            return _currentLicense = cached;
+        }
+
+        // Nếu máy đã có gói dùng thử 1 ngày đang hoạt động từ lần chạy trước, mở khóa ngay không cần chờ mạng
+        var (hwm, hwmCorrupted) = ReadHighWaterMarkUtc();
+        var existingTrial = _localTrialService.EvaluateOrStart(_machineId, allowStartNew: false, serverUtc: null, clockHwmUtc: hwm, clockHwmCorrupted: hwmCorrupted);
+        if (existingTrial.Exists && existingTrial.IsActive)
+        {
+            return _currentLicense = LocalTrialService.BuildTrialLicense(_machineId, existingTrial);
+        }
+
+        _currentLicense = cached ?? CreateDefaultFallback(_machineId);
         return _currentLicense;
+    }
+
+    /// <summary>Cập nhật nhanh trạng thái dùng thử 1 ngày (kiểm tra hết hạn 24 giờ & chống lùi giờ) mà không cần gọi mạng.</summary>
+    public LicenseInfo RefreshLocalTrialState()
+    {
+        if (TryGetAdminMachineLicense() is { } admin) return _currentLicense = admin;
+        if (_currentLicense is { IsLocalTrial: true })
+        {
+            var (hwm, hwmCorrupted) = ReadHighWaterMarkUtc();
+            var st = _localTrialService.EvaluateOrStart(_machineId, allowStartNew: false, serverUtc: null, clockHwmUtc: hwm, clockHwmCorrupted: hwmCorrupted);
+            if (st.Exists)
+            {
+                var updated = LocalTrialService.BuildTrialLicense(_machineId, st);
+                _currentLicense = updated;
+                return updated;
+            }
+        }
+        return GetCurrentLicense();
     }
 
     public async Task<LicenseInfo> CheckLicenseAsync(bool forceOnline = false, CancellationToken ct = default)
@@ -255,7 +325,7 @@ public class SupabaseLicenseService
         if (!forceOnline)
         {
             var cached = LoadCache();
-            if (cached != null && string.Equals(cached.MachineId, mid, StringComparison.OrdinalIgnoreCase))
+            if (cached != null && cached.IsServerSigned && string.Equals(cached.MachineId, mid, StringComparison.OrdinalIgnoreCase))
             {
                 cached.FromCache = true;
                 _currentLicense = cached;
@@ -273,8 +343,24 @@ public class SupabaseLicenseService
         var rpc = await _licenseRpc.GetLicenseAsync(mid, ct);
         if (rpc.Reachable)
         {
-            UpdateHighWaterMarkUtc(DateTime.UtcNow, forceOverwriteIfCorrupt: true);
-            if (!rpc.Found) return Commit(CreateUnregistered(mid));
+            DateTime effectiveUtc = rpc.ServerUtc ?? DateTime.UtcNow;
+            UpdateHighWaterMarkUtc(effectiveUtc, forceOverwriteIfCorrupt: true);
+
+            if (!rpc.Found)
+            {
+                // Máy mới cài đặt chưa đăng ký trên Cloud → tự động cấp (hoặc tiếp tục kiểm tra) gói dùng thử 1 ngày
+                var (hwm, hwmCorrupted) = ReadHighWaterMarkUtc();
+                var trialState = _localTrialService.EvaluateOrStart(mid, allowStartNew: true, serverUtc: rpc.ServerUtc, clockHwmUtc: hwm, clockHwmCorrupted: hwmCorrupted);
+                if (trialState.Exists)
+                {
+                    var trialInfo = LocalTrialService.BuildTrialLicense(mid, trialState);
+                    _currentLicense = trialInfo;
+                    LicenseChanged?.Invoke(this, trialInfo);
+                    return trialInfo;
+                }
+                return Commit(CreateUnregistered(mid));
+            }
+
             using var rowDoc = JsonDocument.Parse(rpc.RowJson);
             string adminApiKey = Prop(rowDoc.RootElement, "admin_api_key");
             var info = BuildFromSigned(rpc.SignedPayload, rpc.Signature, adminApiKey, mid) ?? CreateUnsigned(mid, rpc.Signature);
@@ -282,8 +368,28 @@ public class SupabaseLicenseService
             return Commit(info);
         }
 
-        // Offline/lỗi mạng: chỉ dùng cache có chữ ký admin, không có thì về chế độ dùng thử
-        var fallback = LoadCache() ?? CreateDefaultFallback(mid);
+        // Offline/lỗi mạng: ưu tiên cache đã ký admin hoặc trạng thái chưa ký từ server; chỉ máy mới chưa đăng ký mới được dùng thử 1 ngày
+        var cachedOffline = LoadCache();
+        if (cachedOffline != null && (cachedOffline.IsServerSigned || string.Equals(cachedOffline.Status, "unsigned", StringComparison.OrdinalIgnoreCase)))
+        {
+            cachedOffline.Offline = true;
+            _currentLicense = cachedOffline;
+            LicenseChanged?.Invoke(this, cachedOffline);
+            return cachedOffline;
+        }
+
+        var (offHwm, offHwmCorrupted) = ReadHighWaterMarkUtc();
+        var offlineTrial = _localTrialService.EvaluateOrStart(mid, allowStartNew: true, serverUtc: null, clockHwmUtc: offHwm, clockHwmCorrupted: offHwmCorrupted);
+        if (offlineTrial.Exists)
+        {
+            var trialInfo = LocalTrialService.BuildTrialLicense(mid, offlineTrial);
+            trialInfo.Offline = true;
+            _currentLicense = trialInfo;
+            LicenseChanged?.Invoke(this, trialInfo);
+            return trialInfo;
+        }
+
+        var fallback = cachedOffline ?? CreateDefaultFallback(mid);
         fallback.Offline = true;
         _currentLicense = fallback;
         LicenseChanged?.Invoke(this, fallback);
@@ -605,14 +711,25 @@ public class SupabaseLicenseService
     private static byte[] ComputeDpapiEntropy(string machineId) =>
         SHA256.HashData(Encoding.UTF8.GetBytes("MinNote_LicCache_v2|" + machineId));
 
+    internal static byte[]? TryProtectDpapiInternal(byte[] plainBytes, string entropySeed, string dataDescr) =>
+        TryProtectDpapiRaw(plainBytes, SHA256.HashData(Encoding.UTF8.GetBytes(entropySeed)), dataDescr);
+
+    internal static byte[]? TryUnprotectDpapiInternal(byte[] protectedBytes, string entropySeed) =>
+        TryUnprotectDpapiRaw(protectedBytes, SHA256.HashData(Encoding.UTF8.GetBytes(entropySeed)));
+
+    internal static void WriteBytesAtomicInternal(string targetPath, byte[] bytes) =>
+        WriteBytesAtomic(targetPath, bytes);
+
     private static bool HasDpapiMagic(byte[] data) =>
         data.Length > DpapiMagic.Length && data.AsSpan(0, DpapiMagic.Length).SequenceEqual(DpapiMagic);
 
-    private static byte[]? TryProtectDpapi(byte[] plainBytes, string machineId, string dataDescr)
+    private static byte[]? TryProtectDpapi(byte[] plainBytes, string machineId, string dataDescr) =>
+        TryProtectDpapiRaw(plainBytes, ComputeDpapiEntropy(machineId), dataDescr);
+
+    private static byte[]? TryProtectDpapiRaw(byte[] plainBytes, byte[] entropy, string dataDescr)
     {
         if (!OperatingSystem.IsWindows() || plainBytes.Length == 0) return null;
 
-        byte[] entropy = ComputeDpapiEntropy(machineId);
         var inBlob = new DATA_BLOB();
         var entropyBlob = new DATA_BLOB();
         var outBlob = new DATA_BLOB();
@@ -647,11 +764,13 @@ public class SupabaseLicenseService
         }
     }
 
-    private static byte[]? TryUnprotectDpapi(byte[] protectedBytes, string machineId)
+    private static byte[]? TryUnprotectDpapi(byte[] protectedBytes, string machineId) =>
+        TryUnprotectDpapiRaw(protectedBytes, ComputeDpapiEntropy(machineId));
+
+    private static byte[]? TryUnprotectDpapiRaw(byte[] protectedBytes, byte[] entropy)
     {
         if (!OperatingSystem.IsWindows() || protectedBytes.Length == 0) return null;
 
-        byte[] entropy = ComputeDpapiEntropy(machineId);
         var inBlob = new DATA_BLOB();
         var entropyBlob = new DATA_BLOB();
         var outBlob = new DATA_BLOB();

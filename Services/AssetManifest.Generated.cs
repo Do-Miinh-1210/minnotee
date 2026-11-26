@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T16:47:21.411Z";
+        public const string GeneratedUtc = "2026-11-26T17:13:13.434Z";
         public const int FileCount = 147;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
