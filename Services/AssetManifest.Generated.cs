@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T17:13:13.434Z";
+        public const string GeneratedUtc = "2026-11-26T23:42:42.288Z";
         public const int FileCount = 147;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -60,7 +60,7 @@ namespace MinNote.Services
                 ["assets/minnote-dialog.css"] = "4c7f1f210b84198809532249e42fcdd6fb10b05ff62b7168eb2eb7714692cb6e",
                 ["assets/minnote-dialog.js"] = "f33258d7e7dc53e431ce440e3990bfba658b4165db58af47bbfc23cc509fb39b",
                 ["assets/minnote-geo-iterate.css"] = "8b8833bd9cee4f0cc55c8cd6c0d0d13654d058967a8f212f162526e21ffc1a3a",
-                ["assets/minnote-geo-iterate.js"] = "65728d0dde449461152dcf4fd0aa2f66edc16d064327661ba9d4dce4cbe49c4f",
+                ["assets/minnote-geo-iterate.js"] = "35201b0028bc12647b080335fd8b3f22f75fc3aab530b514defb4a26185b81c5",
                 ["assets/minnote-geo-lock-ui.js"] = "77a1fce04b0592ae106f79a4583c48cf0447e513a7295569f732881aa7887372",
                 ["assets/minnote-geo-rigidity.js"] = "eb3e09ce5599d6969623870fa37b043ca004c2272405754092982165eeb9069a",
                 ["assets/minnote-hand-cursor.js"] = "17ccf0ea48768a562f9deaea233783df6ce7ef5985fb0d2d0230b491b398589e",

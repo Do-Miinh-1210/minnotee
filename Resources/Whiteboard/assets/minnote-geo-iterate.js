@@ -78,6 +78,22 @@
     }
   };
 
+  const MAX_ITER_DEPTH = 40; // same cap as buildScopedIteration / rebuildIteration
+
+  /**
+   * Validate a typed ratio. Dilate k = 0 collapses every copy onto the centre and translate k = 0 stacks all
+   * copies on the source, so both are refused (keeping the previous value) instead of being replaced silently.
+   * @returns {{value:number, error:string}}
+   */
+  function normalizeIterRatio(method, raw, prev) {
+    const n = Number(String(raw ?? '').trim().replace(',', '.'));
+    if (!Number.isFinite(n)) return { value: prev, error: 'Tỉ số phải là một số.' };
+    if (Math.abs(n) < 1e-9) {
+      return { value: prev, error: method === 'translate' ? 'Hệ số bước phải khác 0.' : 'Tỉ số vị tự phải khác 0.' };
+    }
+    return { value: n, error: '' };
+  }
+
   let scrollerBound = null;
   let dialogPos = null;
   let syncScheduled = false;
@@ -147,7 +163,7 @@
 
   function formulaLatexForCfg(geo, cfg) {
     const v = texForVar(cfg.varName || 'n_1');
-    const n = Math.max(0, Math.min(20, Math.round(Number(cfg.depth) || 0)));
+    const n = Math.max(0, Math.min(MAX_ITER_DEPTH, Math.round(Number(cfg.depth) || 0)));
     if (cfg.method === 'rotate') {
       const cLbl = cfg.centerId ? ptLabel(geo, cfg.centerId) : 'O';
       const ang = fmtViNum(cfg.angle ?? 60, 2);
@@ -229,8 +245,10 @@
 
     const iterId = cfg.id || ('iter_' + idGen());
     const hideDots = cfg.hideIterDots !== false;
+    // Copies made by ANY iteration (this one or another) are never sources: iterating another
+    // iteration's copies multiplies them, and rebuilding that iteration would orphan our points.
     const allShapes = (geo.shapes || []).filter(sh =>
-      sh && !sh.hidden && sh.kind !== 'solid' && sh.kind !== 'flatLink' && sh._iterId !== iterId
+      sh && !sh.hidden && sh.kind !== 'solid' && sh.kind !== 'flatLink' && !sh._iterId
     );
     const scopeIds = Array.isArray(cfg.scopeShapeIds) ? cfg.scopeShapeIds.filter(Boolean) : [];
     const scopeSet = new Set(scopeIds);
@@ -355,7 +373,7 @@
     for (let changed = true; changed;) {
       changed = false;
       for (const pt of Object.values(geo.points)) {
-        if (!pt || pt._iterId === iterId || fwd.has(pt.id) || !pt.def) continue;
+        if (!pt || pt._iterId || fwd.has(pt.id) || !pt.def) continue;
         const deps = K.Om(pt.def);
         if (deps.length && deps.some(d => fwd.has(d))) {
           fwd.add(pt.id);
@@ -860,7 +878,7 @@
     const hit = [];
     for (const sh of (geo.shapes || [])) {
       if (!sh || sh.hidden || sh.kind === 'solid' || sh.kind === 'flatLink') continue;
-      if (STATE.editingIterId && sh._iterId === STATE.editingIterId) continue;
+      if (sh._iterId) continue; // iteration copies are never sources
       const ptIds = [...collectShapePointIds(sh)];
       const pts = ptIds.map(id => coords.get(id)).filter(Boolean);
       if (!pts.length) continue;
@@ -985,7 +1003,7 @@
 
     // STAGE 1: Pick target shapes to iterate (single click toggle OR drag crossing marquee box!)
     if (STATE.stage === 1) {
-      const availShapes = pg.geo.shapes.filter(s => s && !s.hidden && (!STATE.editingIterId || s._iterId !== STATE.editingIterId));
+      const availShapes = pg.geo.shapes.filter(s => s && !s.hidden && !s._iterId);
       const hitSh =
         (typeof K.$0 === 'function' ? K.$0(availShapes, coords, pt, tol, false) : null) ||
         (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(availShapes, coords, pt, false) : null);
@@ -1736,7 +1754,24 @@
     const ratIn = dlg.querySelector('#mn-iter-ratio-in');
     if (ratIn) {
       ratIn.onchange = () => {
-        c.ratio = parseViNum(ratIn.value, c.ratio);
+        const chk = normalizeIterRatio(c.method, ratIn.value, c.ratio);
+        ratIn.title = chk.error;
+        ratIn.style.borderColor = chk.error ? '#dc2626' : '';
+        ratIn.style.outline = chk.error ? '2px solid rgba(220,38,38,.35)' : '';
+        let errEl = ratIn.parentElement && ratIn.parentElement.querySelector('.mn-idlg-ratio-err');
+        if (chk.error && !errEl && ratIn.parentElement) {
+          errEl = document.createElement('div');
+          errEl.className = 'mn-idlg-ratio-err';
+          errEl.setAttribute('role', 'alert');
+          errEl.style.cssText = 'color:#dc2626;font-size:11px;margin-top:3px;flex-basis:100%';
+          ratIn.parentElement.appendChild(errEl);
+        }
+        if (errEl) errEl.textContent = chk.error;
+        if (chk.error) {
+          ratIn.value = fmtViNum(c.ratio, 2);
+          return;
+        }
+        c.ratio = chk.value;
         renderKatex(dlg.querySelector('#mn-idlg-formula'), formulaLatexForCfg(geo, c));
         if (STATE.editingIterId) rebuildIteration(STATE.pageIdx, STATE.editingIterId, { ratio: c.ratio });
       };
@@ -1856,7 +1891,7 @@
         const pg = b.doc.pages[STATE.pageIdx];
         const coords = K.Tt(pg.geo);
         const tol = Math.max(14 / (b.zoom || 1), typeof b.tol === 'function' ? b.tol() : 12);
-        const avail = pg.geo.shapes.filter(s => s && !s.hidden && (!STATE.editingIterId || s._iterId !== STATE.editingIterId));
+        const avail = pg.geo.shapes.filter(s => s && !s.hidden && !s._iterId);
         const hit = (typeof K.$0 === 'function' ? K.$0(avail, coords, pt, tol, false) : null) ||
           (typeof K._mnFilledPolyAt === 'function' ? K._mnFilledPolyAt(avail, coords, pt, false) : null);
         const nextId = hit ? hit.id : null;
@@ -2364,6 +2399,8 @@
   root.MinNoteGeoIterate = {
     STATE,
     buildScopedIteration,
+    formulaLatexForCfg,
+    normalizeIterRatio,
     syncGeoFromParams,
     applyIterationToPage,
     rebuildIteration,
