@@ -953,7 +953,7 @@
       { id: 's_MN', kind: 'segment', pts: ['M', 'N'], dashed: false, aux: true },
       { id: 's_AM', kind: 'segment', pts: ['A', 'M'], dashed: true, aux: true },
       { id: 's_AN', kind: 'segment', pts: ['A', 'N'], dashed: true, aux: true },
-      { id: 's_fill', kind: 'polygon', pts: ['A', 'M', 'N'], width: 0, fill: 'rgba(14, 165, 233, 0.14)', aux: true }
+      { id: 's_fill', kind: 'polygon', pts: ['A', 'M', 'N'], width: 0, gaps: [0, 1, 2], fill: 'rgba(14, 165, 233, 0.14)', aux: true }
     ];
     const steps = [
       { id: 'st_base', kind: 'group', customTitle: 'Đặt các đỉnh đáy A, B, C, D', items: ['A', 'B', 'C', 'D'].map((k) => ({ kind: 'point', refId: k })), effect: 'pop', easing: 'easeOut', enabled: true },
@@ -3218,7 +3218,7 @@
             shapes.push({ id: mkId('sh'), kind: 'segment', pts: [u.id, v.id], dashed: isD });
           }
           if (op.fill && pList.length >= 3) {
-            const sh = { id: mkId('sh'), kind: 'polygon', pts: pList.map((x) => x.id), width: 0, fill: op.fill, aux: true };
+            const sh = { id: mkId('sh'), kind: 'polygon', pts: pList.map((x) => x.id), width: 0, gaps: pList.map((_, idx) => idx), fill: op.fill, aux: true };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }
@@ -3227,7 +3227,7 @@
         case 'polygon_fill': {
           const pList = (op.pts || []).map(getP).filter(Boolean);
           if (pList.length >= 3) {
-            const sh = { id: mkId('sh'), kind: 'polygon', pts: pList.map((x) => x.id), width: 0, fill: op.fill || 'rgba(15, 23, 42, 0.06)', aux: true };
+            const sh = { id: mkId('sh'), kind: 'polygon', pts: pList.map((x) => x.id), width: 0, gaps: pList.map((_, idx) => idx), fill: op.fill || 'rgba(15, 23, 42, 0.06)', aux: true };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }

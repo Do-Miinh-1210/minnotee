@@ -5050,6 +5050,7 @@ ${prob}`;
         ...(validNameAt ? { nameAt: validNameAt } : {}),
         ...(opts.aux ? { aux: true } : {}),
         ...(opts.fill ? { fill: opts.fill } : {}),
+        ...(Array.isArray(opts.gaps) && opts.gaps.length ? { gaps: opts.gaps } : (kind === 'polygon' && opts.width === 0 && opts.fill ? { gaps: ptIds.map((_, idx) => idx) } : {})),
         ...(opts.arrow ? { arrow: true } : {}),
         ...(opts.plain ? { plain: true } : {}),
         ...(Number.isFinite(opts.n) ? { n: opts.n } : {})

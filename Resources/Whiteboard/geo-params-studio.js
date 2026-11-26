@@ -260,6 +260,9 @@
       let nextGeo = fn(baseGeo, pg);
       if (!nextGeo) return pg;
       nextGeo = { ...nextGeo, cmPx };
+      if (window.MinNoteGeoIterate && typeof window.MinNoteGeoIterate.syncGeoFromParams === "function") {
+        nextGeo = window.MinNoteGeoIterate.syncGeoFromParams(nextGeo);
+      }
       if (opts.refreshSolids) nextGeo = refreshSolidsOnGeo(nextGeo);
       return { ...pg, geo: nextGeo };
     });
@@ -274,6 +277,9 @@
       ed.emit();
     }
     renderCanvasChips(true);
+    if (window.MinNoteGeoIterate && typeof window.MinNoteGeoIterate.syncBadges === "function") {
+      window.MinNoteGeoIterate.syncBadges();
+    }
     syncArmedBar();
     return true;
   }
@@ -296,6 +302,12 @@
       if (name) {
         const exprs = [d.expr, d.distExpr, d.angExpr, d.kExpr, d.vx, d.vy, d.vz].filter(Boolean);
         if (exprs.some(ex => String(ex).includes(name))) count++;
+      }
+    }
+    if (Array.isArray(geo.iterations)) {
+      for (const it of geo.iterations) {
+        if (!it) continue;
+        if (it.depthParamId === paramId || it.angleParamId === paramId || it.ratioParamId === paramId) count++;
       }
     }
     return count;
@@ -1794,7 +1806,18 @@
         if (d.zParamId === paramId) nd = { ...(nd || d), zParamId: undefined, vz: valNow };
         if (nd) pts[id] = { ...pt, def: nd };
       }
-      return { ...geo, points: pts, params: (geo.params || []).filter(x => x.id !== paramId) };
+      const nextIters = Array.isArray(geo.iterations)
+        ? geo.iterations.map(it => {
+            if (!it) return it;
+            let changed = false;
+            const copy = { ...it };
+            if (copy.depthParamId === paramId) { copy.depthParamId = null; changed = true; }
+            if (copy.angleParamId === paramId) { copy.angleParamId = null; changed = true; }
+            if (copy.ratioParamId === paramId) { copy.ratioParamId = null; changed = true; }
+            return changed ? copy : it;
+          })
+        : geo.iterations;
+      return { ...geo, points: pts, ...(nextIters ? { iterations: nextIters } : {}), params: (geo.params || []).filter(x => x.id !== paramId) };
     }, { refreshSolids: true });
     if (STATE.open) renderPanel();
   }
@@ -1915,6 +1938,9 @@
     pages.forEach((pg, pIdx) => {
       const params = pg && pg.geo && Array.isArray(pg.geo.params) ? pg.geo.params : [];
       params.forEach((p, idx) => {
+        if (p && p._iterBadgeOwner && Array.isArray(pg.geo.iterations) && pg.geo.iterations.some(it => it && it.id === p._iterBadgeOwner && it.showBadge !== false)) {
+          return;
+        }
         const key = `${pIdx}:${p.id}`;
         const px = Number.isFinite(p.x) ? p.x : 48;
         const py = Number.isFinite(p.y) ? p.y : (44 + idx * 44);
@@ -3667,6 +3693,8 @@
     // Programmatic API
     upsertParam,
     deleteParam,
+    toggleParamAnim,
+    syncUI: () => { renderCanvasChips(true); if (STATE.open) renderPanel(); ensureAnimLoop(); },
     selectParam,
     clearSelectedParams,
     getSelectedParams,

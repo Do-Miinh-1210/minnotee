@@ -26,8 +26,8 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-26T03:54:28.398Z";
-        public const int FileCount = 143;
+        public const string GeneratedUtc = "2026-11-26T06:37:06.137Z";
+        public const int FileCount = 145;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -49,22 +49,24 @@ namespace MinNote.Services
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
                 ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
                 ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
-                ["assets/index-CTbULhps.js"] = "2c639fa900a6a8ede333e26b3b5e0b331d281131f670cb882c86d33f9c538fb0",
+                ["assets/index-CTbULhps.js"] = "bd59a82abbedddd1252bf880338539fe55150ecfe76305384f92dcd65629009a",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
                 ["assets/mea-question-card.js"] = "07ffdb7e4e60fdbf1b04b4830f857e920eafca74db681adaf0bf2f48c4aef5e4",
                 ["assets/mea-whiteboard-theme.css"] = "abbb8dc6feb756bc69a6be86aa828346e1f72f9e28fa00cdd55e4aec24b39737",
                 ["assets/minnote-ai-geo.css"] = "9ed4bbf66349b15c9eda62204d80a1f0ec1ce94ee4f29a8090e1ea2e72c90693",
-                ["assets/minnote-ai-geo.js"] = "1ddd85545c5c3d9249b0350e3c009d4d9adf1f96fce022aec029d7c177cfd13a",
+                ["assets/minnote-ai-geo.js"] = "5b353d757febc4a899307deb899f8af5f54a854290d1ba0a1e86655c6c942c8a",
                 ["assets/minnote-dialog.css"] = "4c7f1f210b84198809532249e42fcdd6fb10b05ff62b7168eb2eb7714692cb6e",
                 ["assets/minnote-dialog.js"] = "f33258d7e7dc53e431ce440e3990bfba658b4165db58af47bbfc23cc509fb39b",
+                ["assets/minnote-geo-iterate.css"] = "a0bf812bfc6b96d49f76276fe65410e47d42d6919792c0d799dfb29341854765",
+                ["assets/minnote-geo-iterate.js"] = "11d866701d2a88ca9966ca4ffa99ff846bdff0dd1f487b1fb52f413c62646079",
                 ["assets/minnote-geo-lock-ui.js"] = "77a1fce04b0592ae106f79a4583c48cf0447e513a7295569f732881aa7887372",
                 ["assets/minnote-geo-rigidity.js"] = "eb3e09ce5599d6969623870fa37b043ca004c2272405754092982165eeb9069a",
                 ["assets/minnote-hand-cursor.js"] = "6bfa26a5d9ff4b624d6155a32175c95d649384f77b445ec5bfb8416f5253f9d9",
                 ["assets/minnote-mea-sync.js"] = "c33d3956a497b60f6b8ab9f9fa885260146afdb428dc18c7b60dac1f22022877",
                 ["assets/minnote-motion-bridge.css"] = "7589308ea8aa260f7c813efe8cc7a147212a80f37a8a451d482f135cb7ada76f",
-                ["assets/minnote-motion-bridge.js"] = "748f1e85c57baec8418771a10b1baa6178f3559b009f80c970eb3cda8d927b3e",
+                ["assets/minnote-motion-bridge.js"] = "c8cbf02fc9918dc0db727efe29430b12037614afd81cea521b3cef6789cef8e2",
                 ["assets/minnote-motion-fx.js"] = "bb4382a8ba4d183494f8ade2670ffa9332b1124012ee506eeeb039286d195dba",
                 ["assets/minnote-noteboard-bridge.js"] = "204900e8e5dfae35cfccc2e9a9e4157683ccc9ec6d79f15075301047ddb94f81",
                 ["assets/minnote-persistence.css"] = "c8d31527246af769ed996fa5367a68ded51132d8499ea0ef958d68aa236a689a",
@@ -169,8 +171,8 @@ namespace MinNote.Services
                 ["geo-motion-replay.css"] = "b38568fc25ba41aaccfcf40ae92f6c675fae2a34de183e9bfe131eed9f61bffe",
                 ["geo-motion-replay.js"] = "4fac0752f6f95093f15d5ba24bad8f958275735c18d9f4a5dfc2fd1952d6e477",
                 ["geo-params-studio.css"] = "0aa9991d8f8153660f3c03d65a82c1847b34686a8f0464d071aeda2168fc0bfe",
-                ["geo-params-studio.js"] = "3d838f8befbfb76f9a0a0c6d15ca751cd5ee19ecdf69b2ee62799ab32e604dbd",
-                ["index.html"] = "151296725486506024d6ac0aa369e85804da767575f307db57bc7e6e0efa3d5f",
+                ["geo-params-studio.js"] = "ea733d53abbcaad4737aa275dc2b3fba6541b273cc25779a971dbfc67043be55",
+                ["index.html"] = "6b93136f8742aa8127ba5b2147cff99391779349b0a1494f9a8d0312fe82ee1e",
                 ["katex.min.css"] = "4597f0d14fe81bdcf985a0a667e2cc16d4cae413f6f1f66b5bcd6f4f32bceb96",
                 ["katex.min.js"] = "e6bfe5deebd4c7ccd272055bab63bd3ab2c73b907b6e6a22d352740a81381fd4",
                 ["mathjax/tex-svg.js"] = "d4295dc33744836935c1399feece5159577b34c5c8ffb9f1c6324cd82e03a882",
