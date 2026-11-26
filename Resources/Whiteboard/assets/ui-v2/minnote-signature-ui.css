@@ -1272,29 +1272,65 @@ html[data-ui="v2"] .formula-dialog .palette-quick button.palette-key.palette-key
   border-color: #93c5fd !important;
 }
 
-/* Signature MinMath Live Math-Field with Crisp Sky-Blue Ring (no black browser outline!) */
-html[data-ui="v2"] .formula-dialog .formula-field {
+/* Signature MinMath Live Math-Field with Crisp Sky-Blue Ring (no black browser outline or OS dark-mode dark highlight box!) */
+html[data-ui="v2"] .formula-dialog .formula-field,
+html[data-ui="v2"] .math-input-dialog .formula-field {
   min-height: 80px !important;
   padding: 6px 12px !important;
   font-size: 30px !important;
   border: 2px solid #93c5fd !important;
   border-radius: 10px !important;
   background: #ffffff !important;
+  color: #0f172a !important;
   outline: none !important;
+  color-scheme: light !important;
+  --hue: 221;
+  --caret-color: #2563eb;
+  --contains-highlight-color: #1d4ed8;
+  --contains-highlight-background-color: rgba(37, 99, 235, 0.08);
+  --selection-background-color: rgba(37, 99, 235, 0.22);
+  --selection-color: #0f172a;
+  --text-highlight-background-color: rgba(37, 99, 235, 0.08);
+  --placeholder-color: #2563eb;
+  --placeholder-opacity: 0.6;
+  --smart-fence-color: #94a3b8;
+  --smart-fence-opacity: 0.72;
+  --latex-color: #2563eb;
+  --mn-slot-border: #94a3b8;
+  --mn-slot-bg: rgba(37, 99, 235, 0.04);
+  --mn-slot-active-border: #2563eb;
+  --mn-slot-active-bg: rgba(37, 99, 235, 0.10);
+  --mn-slot-active-ring: rgba(37, 99, 235, 0.14);
   transition: border-color 0.14s, box-shadow 0.14s !important;
 }
 
 html[data-ui="v2"] .formula-dialog .formula-field:focus,
-html[data-ui="v2"] .formula-dialog .formula-field:focus-within {
+html[data-ui="v2"] .formula-dialog .formula-field:focus-within,
+html[data-ui="v2"] .math-input-dialog .formula-field:focus,
+html[data-ui="v2"] .math-input-dialog .formula-field:focus-within {
   outline: none !important;
   border-color: #2563eb !important;
   box-shadow: 0 0 0 3px #dbeafe !important;
 }
 
-html[data-ui="v2"].dark .formula-dialog .formula-field {
+html[data-ui="v2"].dark .formula-dialog .formula-field,
+html[data-ui="v2"].dark .math-input-dialog .formula-field {
   background: #162033 !important;
   border-color: #3b82f6 !important;
   color: #f8fafc !important;
+  color-scheme: dark !important;
+  --caret-color: #60a5fa;
+  --contains-highlight-color: #93c5fd;
+  --contains-highlight-background-color: rgba(59, 130, 246, 0.18);
+  --selection-background-color: rgba(59, 130, 246, 0.36);
+  --selection-color: #f8fafc;
+  --text-highlight-background-color: rgba(59, 130, 246, 0.18);
+  --placeholder-color: #60a5fa;
+  --mn-slot-border: #64748b;
+  --mn-slot-bg: rgba(96, 165, 250, 0.08);
+  --mn-slot-active-border: #60a5fa;
+  --mn-slot-active-bg: rgba(96, 165, 250, 0.20);
+  --mn-slot-active-ring: rgba(96, 165, 250, 0.24);
 }
 
 html[data-ui="v2"] .formula-dialog.mnm-compact .formula-field {

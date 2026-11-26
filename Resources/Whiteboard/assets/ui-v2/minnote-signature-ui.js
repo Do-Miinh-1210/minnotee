@@ -54,13 +54,15 @@
     {
       title: 'Cấu trúc cơ bản',
       items: [
-        { name: 'Phân số', key: '/', latex: '\\frac{#0}{#?}' },
+        { name: 'Phân số', key: '/', latex: '\\frac{#@}{#?}' },
         { name: 'Số mũ', key: '^', latex: '^{#0}' },
         { name: 'Chỉ số dưới', key: '_', latex: '_{#0}' },
         { name: 'Căn bậc 2', key: 'sqrt', latex: '\\sqrt{#0}' },
         { name: 'Căn bậc n', key: '\\nthroot', latex: '\\sqrt[#?]{#0}' },
         { name: 'Giá trị tuyệt đối', key: '|x|', latex: '\\left|#0\\right|' },
-        { name: 'Ngoặc tròn co giãn', key: '(', latex: '\\left(#0\\right)' }
+        { name: 'Ngoặc tròn co giãn', key: '(', latex: '\\left(#0\\right)' },
+        { name: 'Chèn công thức', key: 'Enter', latex: '' },
+        { name: 'Xuống dòng', key: 'Shift+Enter', latex: '' }
       ]
     },
     {
@@ -118,15 +120,23 @@
   }
 
   function insertIntoFormulaDialog(dlg, latex) {
+    if (!latex) return;
     const mf = dlg.querySelector('math-field.formula-field');
     const ta = dlg.querySelector('textarea.latex');
+    const tpl = typeof window.__mnSmartTemplate === 'function' ? window.__mnSmartTemplate(latex) : latex;
     if (mf) {
       try {
         mf.focus();
-        if (typeof mf.executeCommand === 'function') {
-          mf.executeCommand(['insert', latex, { insertionMode: 'replaceSelection', selectionMode: 'placeholder' }]);
+        if (mf.mode !== 'math' && typeof mf.executeCommand === 'function') {
+          mf.executeCommand(['switchMode', 'math']);
+        }
+        const hasSlot = tpl.includes('\\placeholder') || tpl.includes('#?') || tpl.includes('#0') || tpl.includes('#@');
+        if (typeof mf.insert === 'function') {
+          mf.insert(tpl, { format: 'latex', mode: 'math', insertionMode: 'replaceSelection', selectionMode: hasSlot ? 'placeholder' : 'after', focus: true });
+        } else if (typeof mf.executeCommand === 'function') {
+          mf.executeCommand(['insert', tpl, { insertionMode: 'replaceSelection', selectionMode: hasSlot ? 'placeholder' : 'after' }]);
         } else {
-          mf.value = (mf.value || '') + latex;
+          mf.value = (mf.value || '') + tpl;
         }
         mf.dispatchEvent(new Event('input', { bubbles: true }));
         if (ta && typeof mf.value === 'string') {
@@ -136,7 +146,7 @@
       } catch (_) {}
     }
     if (ta) {
-      setNativeTextareaValue(ta, (ta.value || '') + latex);
+      setNativeTextareaValue(ta, (ta.value || '') + tpl);
     }
   }
 
@@ -184,7 +194,7 @@
           '<button type="button" class="mnm-head-tab" data-mnm-tab-btn="common">Công thức mẫu</button>' +
           '<button type="button" class="mnm-head-tab" data-mnm-tab-btn="keys">Phím tắt</button>' +
         '</div>' +
-        '<span class="mnm-head-hint">gõ nhanh: &ldquo;/&rdquo; phân số, &ldquo;^&rdquo; mũ, &ldquo;_&rdquo; chỉ số, &ldquo;sqrt&rdquo; căn</span>' +
+        '<span class="mnm-head-hint">Enter: chèn • Shift+Enter: xuống hàng • gõ nhanh: &ldquo;/&rdquo; phân số, &ldquo;^&rdquo; mũ, &ldquo;_&rdquo; chỉ số</span>' +
         '<button type="button" class="mnm-collapse-btn" data-mnm-compact-btn title="Thu gọn bảng ký hiệu để nhập nhanh">' +
           '<span data-mnm-compact-txt>↙ Thu gọn lại</span>' +
         '</button>';

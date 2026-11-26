@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-25T23:07:32.040Z";
+        public const string GeneratedUtc = "2026-11-26T03:54:28.398Z";
         public const int FileCount = 143;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -47,9 +47,9 @@ namespace MinNote.Services
                 ["assets/casio-calc.css"] = "6a55e2b5f1d09ff47f7395ac76254f7d800f3e33c42c105829e0ebc43fcb9a6a",
                 ["assets/casio-calculator-ui.js"] = "3bd82ca687a8a979ec934911f9dfef5bbde9d44c3e3c6b6c7a7218fcf10444a1",
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
-                ["assets/emf-vector-bridge.js"] = "ced49c7e92f6a515f1e9357365f8c0071f40f49cd7a56b48294745f25d1f163e",
-                ["assets/index-BQ73TrLm.css"] = "cef5963eb2ea982e07470f12e32b354819c4a4bc83d5f83fd2fc6d71291916a7",
-                ["assets/index-CTbULhps.js"] = "2e08c64ddeb58edc767af72a4f2b0848d78b86b9d9c673e8ac753e3684128e96",
+                ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
+                ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
+                ["assets/index-CTbULhps.js"] = "2c639fa900a6a8ede333e26b3b5e0b331d281131f670cb882c86d33f9c538fb0",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
@@ -151,8 +151,8 @@ namespace MinNote.Services
                 ["assets/screen-recorder-studio.css"] = "87b2013cfd9672a44cf7732d5be95088e60079c4f3249fbf59cb33b5741d2a3d",
                 ["assets/screen-recorder-studio.js"] = "36264dd09e1e479fd9bff9122404acb3c40f644eeeac7434252251bd563fc6af",
                 ["assets/ui-v2/icons-v2.js"] = "d994a2cea833cb30dc04ac59d7f2f99efd79e6461f3479897bd7e18f99b3b1c9",
-                ["assets/ui-v2/minnote-signature-ui.css"] = "ebd2140af6d50f8732f43ea57261697f380f73c3947dfddffbebc53634147f84",
-                ["assets/ui-v2/minnote-signature-ui.js"] = "f69d209258662ab2ea8e13f5674a83f148db06578865e3e23d071a71fa9e08f0",
+                ["assets/ui-v2/minnote-signature-ui.css"] = "260ddf673747085b0b06a60e56cad003800352d44fe9ca9e5c58837fd4437d2f",
+                ["assets/ui-v2/minnote-signature-ui.js"] = "2108654db958f627c06e7bbace8d8a8fd18345922f6b257a2de0a004e71ecc88",
                 ["assets/ui-v2/minnote-ui-v2.css"] = "a72907b58f71b70d685df79201da5e3530bc7e7a6997b258d53947c58f36fc10",
                 ["assets/ui-v2/ui-switch.js"] = "9e55adcbb01bb10692dda78e1057389379662731e42183d7691fec622cd3227e",
                 ["assets/vinacal/index.html"] = "cf62eb2f67d57fdffe39f834ba8ad3aadf29f3495554274403ebdf81cf9f10d8",

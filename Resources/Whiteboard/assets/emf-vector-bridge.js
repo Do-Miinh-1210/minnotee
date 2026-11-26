@@ -324,7 +324,9 @@
         size = parseFloat(szMatch[1]);
         if (szMatch[2].toLowerCase() === 'pt') size *= 96 / 72;
         const afterSize = s.slice(szMatch.index + szMatch[0].length).replace(/^\s*\/\s*[\d.\w%]+\s*/, '').trim();
-        if (afterSize) family = afterSize;
+        if (afterSize) {
+          family = /KaTeX_/i.test(afterSize) ? 'Cambria Math, Times New Roman, serif' : afterSize;
+        }
       }
     }
     return { style, weight, size, family };
