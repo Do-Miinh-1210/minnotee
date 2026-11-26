@@ -228,6 +228,17 @@
       if (y < box.minY) box.minY = y;
       if (y > box.maxY) box.maxY = y;
     };
+    const K = typeof window !== 'undefined' ? window.__mnGeoKernel : null;
+    if (K && typeof K._mnShapeBBox === 'function') {
+      try {
+        const kb = K._mnShapeBBox(sh, coords);
+        if (kb && Number.isFinite(kb.x0) && Number.isFinite(kb.y0) && Number.isFinite(kb.x1) && Number.isFinite(kb.y1)) {
+          include(kb.x0, kb.y0);
+          include(kb.x1, kb.y1);
+          return;
+        }
+      } catch (_) {}
+    }
     for (const p of pts) include(p.x, p.y);
 
     if (sh.kind === 'circle' && pts.length >= 2) {
@@ -1164,12 +1175,15 @@
     // Ensure even dimensions for H.264/VP9 4:2:0 video encoders
     const outW = Math.max(240, Math.round((srcW * scale) / 2) * 2);
     const outH = Math.max(180, Math.round((srcH * scale) / 2) * 2);
+    // Center bounding box cleanly inside the quantized output frame
+    const offsetX = (outW / scale - bbox.w) * 0.5 - bbox.minX;
+    const offsetY = (outH / scale - bbox.h) * 0.5 - bbox.minY;
     return {
       outW,
       outH,
       scale,
-      offsetX: -bbox.minX + padding,
-      offsetY: -bbox.minY + padding
+      offsetX,
+      offsetY
     };
   }
 
@@ -1183,8 +1197,15 @@
   }
 
   // ---- Hình đi theo đầu nét khi xuất: 'hand' (tay bút) | 'stick' (người que) | 'none' ----
-  const STICK_EXPORT_HEIGHT = 150; // cỡ người que gốc (đơn vị bảng) — người que tự lớn theo khung bao hình
-  const STICK_MARGIN = 18;         // chừa đầu, viên phấn, nét vẽ quanh khung xương
+  const STICK_EXPORT_HEIGHT = 150; // cỡ người que mặc định (đơn vị bảng)
+  const STICK_HEAD_PAD = 13;       // bán kính đầu (11) + nửa nét vẽ (1.5) + biên khử răng cưa
+  const STICK_LIMB_PAD = 3.5;      // nửa nét vẽ chân tay + biên nhỏ (lề chính đã có dims.padding)
+
+  /** Chọn một chiều cao người que cố định, hài hòa với kích thước hình học suốt cả clip xuất. */
+  function computeStickExportHeight(geoBox) {
+    const refH = Math.max(120, geoBox && Number.isFinite(geoBox.h) ? geoBox.h : 360);
+    return Math.round(Math.max(115, Math.min(185, refH * 0.36)));
+  }
 
   function exportFigureOf(opts) {
     const f = opts && opts.figure;
@@ -1201,11 +1222,10 @@
   }
 
   /**
-   * Người que đứng cạnh hình và thường cao hơn hình → khung cắt chỉ ôm hình học sẽ cắt mất người.
-   * Chạy thử người que một lượt theo đúng lịch khung xuất (cùng bộ điều khiển, cùng dtMs → cùng tư thế)
-   * rồi nới khung cắt cho chứa trọn mọi khớp suốt clip.
+   * Người que đứng cạnh hình → chạy thử một lượt theo đúng lịch khung xuất (cùng chiều cao cố định,
+   * cùng dtMs) rồi nới khung cắt vừa đủ ôm trọn đầu/tay/chân/viên phấn mà không tạo khoảng trắng dư thừa.
    */
-  function computeFigureBBox(bbox, context, schedule, frameMs) {
+  function computeFigureBBox(bbox, context, schedule, frameMs, stickTargetH) {
     const S = window.MinNoteStickFigure;
     const board = context && context.board;
     if (!S || typeof S.createFollower !== 'function' || !board || typeof board.renderReplayExportFrame !== 'function') return bbox;
@@ -1215,8 +1235,16 @@
       cv.width = 2; cv.height = 2;
       scratch = cv.getContext('2d');
     }
-    const follower = S.createFollower({ targetHeight: STICK_EXPORT_HEIGHT });
+    const targetHeight = Number.isFinite(stickTargetH) ? stickTargetH : computeStickExportHeight(bbox);
+    const follower = S.createFollower({ targetHeight, fixedScale: true });
     const box = { minX: bbox.minX, minY: bbox.minY, maxX: bbox.maxX, maxY: bbox.maxY };
+    const addPt = (x, y, pad) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (x - pad < box.minX) box.minX = x - pad;
+      if (x + pad > box.maxX) box.maxX = x + pad;
+      if (y - pad < box.minY) box.minY = y - pad;
+      if (y + pad > box.maxY) box.maxY = y + pad;
+    };
     let last = null;
     for (const fs of schedule) {
       if (!fs || fs.kind !== 'step') continue;
@@ -1226,14 +1254,12 @@
       const tip = t ? Object.assign({}, t, { active: true, drawing: true }) : (last ? Object.assign({}, last, { active: true, drawing: false }) : null);
       if (!tip) continue;
       const fr = follower.step(tip, frameMs, { bounds: tip.bounds });
-      for (const p of Object.values(fr.joints)) {
-        const x = p.x * fr.scale;
-        const y = p.y * fr.scale;
-        const m = STICK_MARGIN * fr.scale;
-        if (x - m < box.minX) box.minX = x - m;
-        if (x + m > box.maxX) box.maxX = x + m;
-        if (y - m < box.minY) box.minY = y - m;
-        if (y + m > box.maxY) box.maxY = y + m;
+      for (const [k, p] of Object.entries(fr.joints)) {
+        const pad = (k === 'head' ? STICK_HEAD_PAD : STICK_LIMB_PAD) * fr.scale;
+        addPt(p.x * fr.scale, p.y * fr.scale, pad);
+      }
+      if (fr.chalkTipPx) {
+        addPt(fr.chalkTipPx.x, fr.chalkTipPx.y, STICK_LIMB_PAD * fr.scale);
       }
     }
     return { minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.maxY, w: box.maxX - box.minX, h: box.maxY - box.minY };
@@ -1291,8 +1317,9 @@
 
     const H = window.MinNoteHandCursor;
     if (figure === 'stick' && frameSpec.kind === 'step' && H && typeof H.paintReplayTip === 'function') {
-      // Người que: đi theo đầu nét; khung nghỉ / giữ cuối clip → dừng bút, thu tay, hạ tay theo nhịp khung xuất.
-      const stickOpts = { forceShow: true, figure: 'stick', dtMs: opts.frameMs || 1000 / 30, targetHeight: STICK_EXPORT_HEIGHT, isDark: bgMode === 'dark' };
+      // Người que: đi theo đầu nét với chiều cao cố định hài hòa theo hình; khung nghỉ / giữ cuối clip → hạ tay.
+      const stickTargetH = Number.isFinite(opts.stickTargetHeight) ? opts.stickTargetHeight : STICK_EXPORT_HEIGHT;
+      const stickOpts = { forceShow: true, figure: 'stick', dtMs: opts.frameMs || 1000 / 30, targetHeight: stickTargetH, fixedScale: true, isDark: bgMode === 'dark' };
       if (stepTip && stepTip.active !== false && !frameSpec.lifted) {
         H.paintReplayTip(ctx, Object.assign({}, stepTip, { active: true, drawing: true }), null, Object.assign({ bounds: stepTip.bounds }, stickOpts));
       } else if (typeof H.paintReplayIdle === 'function') {
@@ -1388,7 +1415,8 @@
     const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
     const baseSchedule = buildFrameSchedule(ctxObj.replay, gifFps, o.orbit360 && hasSolid);
     const schedule = o.figure === 'stick' ? withStickOutro(baseSchedule, gifFps) : baseSchedule;
-    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs) : geoBox;
+    o.stickTargetHeight = o.figure === 'stick' ? computeStickExportHeight(geoBox) : STICK_EXPORT_HEIGHT;
+    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs, o.stickTargetHeight) : geoBox;
     const dims = computeCanvasDims(bbox, o);
 
     const canvas = document.createElement('canvas');
@@ -1464,7 +1492,8 @@
     const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
     const baseSchedule = buildFrameSchedule(ctxObj.replay, vidFps, o.orbit360 && hasSolid);
     const schedule = o.figure === 'stick' ? withStickOutro(baseSchedule, vidFps) : baseSchedule;
-    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs) : geoBox;
+    o.stickTargetHeight = o.figure === 'stick' ? computeStickExportHeight(geoBox) : STICK_EXPORT_HEIGHT;
+    const bbox = o.figure === 'stick' ? computeFigureBBox(geoBox, ctxObj, schedule, o.frameMs, o.stickTargetHeight) : geoBox;
     const dims = computeCanvasDims(bbox, o);
 
     const canvas = document.createElement('canvas');
@@ -1485,9 +1514,16 @@
     const videoBps = computeVideoBitrate(o.quality, vidFps);
 
     async function recordWithMime(mimeType, preferManualFrame) {
-      // Paint frame 0 before starting MediaRecorder so encoder initializes on valid geometry pixels
+      // Paint frame 0 before starting MediaRecorder so encoder initializes on valid geometry pixels,
+      // then reset smoothing so frame 0 of the actual recording starts from the exact same initial pose.
+      if (o.showHand && window.MinNoteHandCursor && typeof window.MinNoteHandCursor.resetReplaySmoothing === 'function') {
+        window.MinNoteHandCursor.resetReplaySmoothing();
+      }
       if (schedule.length > 0) {
         drawSingleExportFrame(canvas, ctx, ctxObj, schedule[0], dims, o);
+      }
+      if (o.showHand && window.MinNoteHandCursor && typeof window.MinNoteHandCursor.resetReplaySmoothing === 'function') {
+        window.MinNoteHandCursor.resetReplaySmoothing();
       }
 
       let stream = null;
@@ -1554,8 +1590,44 @@
       return { buf, mimeType, recError };
     }
 
+    // Mượt tuyệt đối: mã hoá theo DẤU THỜI GIAN (WebCodecs) — khung i luôn ở đúng i/FPS dù máy vẽ 4K chậm hơn 60 FPS.
+    // MediaRecorder (theo đồng hồ thật) chỉ còn là dự phòng khi trình duyệt không mã hoá được khổ hình này.
     let usedMime = mimeCandidates[0];
-    let recOut = await recordWithMime(usedMime, usedMime === 'video/mp4');
+    let recOut = null;
+    let outDims = dims;
+    const WC = window.MinNoteVideoEncoder;
+    if (WC && typeof WC.encodeFrames === 'function') {
+      if (o.showHand && window.MinNoteHandCursor && typeof window.MinNoteHandCursor.resetReplaySmoothing === 'function') {
+        window.MinNoteHandCursor.resetReplaySmoothing();
+      }
+      try {
+        // Khổ vượt giới hạn H.264 (≈ 4096×2304) → thu về khổ lớn nhất mã hóa được, cùng tỉ lệ (khung hình y hệt).
+        const fit = typeof WC.fitSize === 'function'
+          ? await WC.fitSize(dims.outW, dims.outH, vidFps, videoBps)
+          : { width: dims.outW, height: dims.outH };
+        if (fit) {
+          const encDims = Object.assign({}, dims, { outW: fit.width, outH: fit.height, scale: dims.scale * (fit.width / dims.outW) });
+          const encCanvas = document.createElement('canvas');
+          encCanvas.width = encDims.outW;
+          encCanvas.height = encDims.outH;
+          const encCtx = encCanvas.getContext('2d');
+          const wcRes = await WC.encodeFrames({
+            width: encDims.outW, height: encDims.outH, fps: vidFps, bitrate: videoBps, frameCount: schedule.length, cancelSignal,
+            drawFrame: (i) => { drawSingleExportFrame(encCanvas, encCtx, ctxObj, schedule[i], encDims, o); return encCanvas; },
+            onFrame: (i) => {
+              if (onProgress && (i % 2 === 0 || i === schedule.length - 1)) {
+                onProgress(Math.round(((i + 1) / schedule.length) * 92), `Đang mã hóa video ${encDims.outW}×${encDims.outH}px @ ${vidFps} FPS (${i + 1}/${schedule.length})...`, encCanvas);
+              }
+            }
+          });
+          if (wcRes) { recOut = { buf: wcRes.bytes, mimeType: wcRes.mimeType, recError: null }; outDims = encDims; }
+        }
+      } catch (e) {
+        if (cancelSignal && cancelSignal.cancelled) throw e;
+        if (onProgress) onProgress(5, `Bộ mã hóa theo khung lỗi (${(e && e.message) || e}) — chuyển sang ghi thời gian thực...`, canvas);
+      }
+    }
+    if (!recOut) recOut = await recordWithMime(usedMime, usedMime === 'video/mp4');
     // Automatic resilient fallback if primary codec ever produces an empty stream
     if (recOut.buf.length < 512 && mimeCandidates.length > 1) {
       for (let ci = 1; ci < mimeCandidates.length; ci++) {
@@ -1579,8 +1651,8 @@
     const sizeLabel = buf.length >= 1048576
       ? `${(buf.length / 1048576).toFixed(2)} MB`
       : `${(buf.length / 1024).toFixed(1)} KB`;
-    if (onProgress) onProgress(100, `Hoàn tất video ${ext.toUpperCase()} ${dims.outW}×${dims.outH}px @ ${vidFps} FPS (${sizeLabel})`, canvas);
-    return { bytes: buf, width: dims.outW, height: dims.outH, fps: vidFps, bitrate: videoBps, mimeType, fileName, saveRes };
+    if (onProgress) onProgress(100, `Hoàn tất video ${ext.toUpperCase()} ${outDims.outW}×${outDims.outH}px @ ${vidFps} FPS (${sizeLabel})`, canvas);
+    return { bytes: buf, width: outDims.outW, height: outDims.outH, fps: vidFps, bitrate: videoBps, mimeType, fileName, saveRes };
   }
 
   function captureCurrentGeoPng(opts) {
@@ -1734,10 +1806,11 @@
       const hasSolid = !!findPrimarySolidId(ctxObj.geo, ctxObj.replay);
       const coords = evalGeoCoords(ctxObj.geo, ctxObj.board);
       const geoBox = computeTightBBox(ctxObj.geo, coords, ctxObj.replay.scopeShapes, ctxObj.replay.scopePoints, o.orbit360 && hasSolid ? 48 : 34);
-      // Người que: khung xuất nới ra để chứa trọn người → kích thước đầu ra hiển thị đúng như khi xuất.
+      // Người que: khung xuất nới ra vừa đủ chứa người → kích thước đầu ra hiển thị đúng như khi xuất.
       const effFpsBox = o.fmt === 'gif' ? Math.min(50, o.fps) : o.fps;
+      const stickH = o.figure === 'stick' ? computeStickExportHeight(geoBox) : STICK_EXPORT_HEIGHT;
       const bbox = o.figure === 'stick'
-        ? computeFigureBBox(geoBox, ctxObj, withStickOutro(buildFrameSchedule(ctxObj.replay, effFpsBox, false), effFpsBox), 1000 / effFpsBox)
+        ? computeFigureBBox(geoBox, ctxObj, withStickOutro(buildFrameSchedule(ctxObj.replay, effFpsBox, false), effFpsBox), 1000 / effFpsBox, stickH)
         : geoBox;
       const dims = computeCanvasDims(bbox, o);
       // Render crisp preview at capped display resolution so modal opens instantaneously even at 4K!

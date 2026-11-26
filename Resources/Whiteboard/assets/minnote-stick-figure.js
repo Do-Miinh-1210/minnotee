@@ -1014,6 +1014,7 @@
   function createFollower(options) {
     const opts = options || {};
     const baseScale = (Number.isFinite(opts.targetHeight) ? opts.targetHeight : DEFAULT_HEIGHT_PX) / FIG_H;
+    const maxScaleMul = opts.fixedScale ? 1 : (Number.isFinite(opts.maxScaleMul) ? Math.max(1, opts.maxScaleMul) : 1.32);
     let st = null;
 
     function init(tip, bounds) {
@@ -1024,19 +1025,22 @@
       const bw = hasB ? bounds.x1 - bounds.x0 : 0;
       const bh = hasB ? bounds.y1 - bounds.y0 : 0;
       // Hình cao → người đủ cao để với; hình "khối" (tròn/cung) → người tương xứng để vẽ gần như tại chỗ.
-      // Nét dài mảnh (đoạn thẳng) không phóng to — người đi theo.
-      const scale = hasB ? Math.max(baseScale, bh / FIT_BAND, Math.min(bw, bh) / FIT_W) : baseScale;
+      // Giới hạn tỷ lệ phóng (maxScaleMul) để không biến thành người khổng lồ trên hình lớn hay giật cỡ giữa các bước.
+      const rawScale = hasB ? Math.max(baseScale, bh / FIT_BAND, Math.min(bw, bh) / FIT_W) : baseScale;
+      const scale = Math.min(rawScale, baseScale * maxScaleMul);
       const t = { x: tip.x / scale, y: tip.y / scale };
       let ground;
       if (hasB) {
         // Độ cao vai khi đứng: ưu tiên hình ngang ngực; đủ thấp để với đáy hình chỉ bằng gập hông;
-        // nhưng không thấp tới mức kiễng chân cũng không với tới đỉnh hình. Hình cao hơn → khuỵu phần còn lại.
-        // Tính theo vị trí BÀN TAY (thấp hơn đầu phấn một đoạn viên phấn), không phải đầu phấn.
+        // nếu hình cao hơn tầm với tại chỗ, đặt mặt sàn bám theo độ cao điểm bắt đầu nét để không nhảy khung.
         const y0 = bounds.y0 / scale - CHALK.dy;
         const y1 = bounds.y1 / scale - CHALK.dy;
         const noCrouch = y1 - DOWN - HINGE_DROP;
         const topLimit = y0 + UP + TIPTOE_MAX;
-        const shoulderStand = noCrouch > topLimit ? topLimit : clamp((y0 + y1) / 2 - 5, noCrouch, topLimit);
+        const a0y = t.y - CHALK.dy;
+        const shoulderStand = noCrouch > topLimit
+          ? clamp(a0y, topLimit, noCrouch)
+          : clamp((y0 + y1) / 2 - 5, noCrouch, topLimit);
         ground = shoulderStand + B.shoulderAt + LEG_DROP;
       } else {
         ground = t.y + 38 + LEG_DROP;
@@ -1164,6 +1168,18 @@
 
     function planVertical(a, t, dtS) {
       if (dtS > 0) st.tipVy += ((t.y - st.last.y) / dtS - st.tipVy) * clamp(dtS * 12, 0, 1);
+      // Nếu nét vượt khỏi tầm với dọc tại chỗ (hình cao hơn tầm đứng), trượt mặt sàn theo nét
+      // để dáng người vẫn đứng thẳng/nghiêng nhẹ tự nhiên (không xổm bẹt) và giữ khung bao sát hình.
+      const shStand = st.ground - LEG_DROP - B.shoulderAt;
+      const hiReach = UP + TIPTOE_MAX;
+      const loReach = DOWN + HINGE_DROP + 6;
+      if (a.y > shStand + loReach) {
+        const wantG = a.y - (DOWN + HINGE_DROP) + LEG_DROP + B.shoulderAt;
+        st.ground = Math.max(st.ground + (wantG - st.ground) * clamp(dtS * 18, 0, 1), a.y - loReach + LEG_DROP + B.shoulderAt);
+      } else if (a.y < shStand - hiReach) {
+        const wantG = a.y + UP + LEG_DROP + B.shoulderAt;
+        st.ground = Math.min(st.ground + (wantG - st.ground) * clamp(dtS * 18, 0, 1), a.y + hiReach + LEG_DROP + B.shoulderAt);
+      }
       // Chỉ đón trước khi nét đi xuống (khuỵu/gập kịp); đi lên thì đứng dậy theo nét.
       // Dự đoán không vượt quá đáy hình (nếu biết khung bao) — không khuỵu cho chỗ nét không bao giờ tới.
       const aimY = Math.min(a.y + Math.max(0, st.tipVy) * LEAD_S, st.handMaxY);
@@ -1323,7 +1339,7 @@
         const k = 1 - REACH / d;
         st.hip.x += (a.x - S.x) * k;
         st.hip.y += (a.y - S.y) * k;
-        st.ground = clamp(st.ground, st.hip.y + LEG_MIN, st.hip.y + LEG_MAX);
+        st.ground = clamp(st.ground, st.hip.y + LEG_DROP - CROUCH_MAX, st.hip.y + LEG_MAX);
       }
       return torso(st.lean);
     }
@@ -1442,19 +1458,23 @@
 
   // ---------- adapter vẽ trực tiếp lên canvas MinNote ----------
   let shared = null;
-  let sharedHeight = null;
+  let sharedKey = null;
   let lastNow = null;
 
   /**
    * Cùng chữ ký với MinNoteHandCursor.paintReplayTip — ctx đã ở hệ toạ độ bảng.
-   * opts: { targetHeight, isDark, alpha, dtMs, bounds }
+   * opts: { targetHeight, isDark, alpha, dtMs, bounds, fixedScale, maxScaleMul }
    */
   function paintReplayTip(ctx, tip, board, opts) {
     if (!ctx || !tip || !tip.active || !Number.isFinite(tip.x) || !Number.isFinite(tip.y)) return null;
     const o = opts || {};
     const zoom = board && Number.isFinite(board.zoom) && board.zoom > 0 ? board.zoom : 1;
     const targetHeight = Number.isFinite(o.targetHeight) ? o.targetHeight : DEFAULT_HEIGHT_PX / clamp(zoom, 0.45, 2.6);
-    if (!shared || sharedHeight !== targetHeight) { shared = createFollower({ targetHeight }); sharedHeight = targetHeight; }
+    const key = `${Math.round(targetHeight * 10)}_${o.fixedScale ? 1 : 0}_${Number.isFinite(o.maxScaleMul) ? o.maxScaleMul : ''}`;
+    if (!shared || sharedKey !== key) {
+      shared = createFollower({ targetHeight, fixedScale: !!o.fixedScale, maxScaleMul: o.maxScaleMul });
+      sharedKey = key;
+    }
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const dt = Number.isFinite(o.dtMs) ? o.dtMs : (lastNow === null ? 1000 / 60 : now - lastNow);
     lastNow = now;
@@ -1474,7 +1494,7 @@
     return frame;
   }
 
-  function resetReplaySmoothing() { shared = null; sharedHeight = null; lastNow = null; }
+  function resetReplaySmoothing() { shared = null; sharedKey = null; lastNow = null; }
 
   const api = { createFollower, paintReplayTip, resetReplaySmoothing, REACH, COMFORT_REACH, FIG_H, UPPER_ARM, FORE_ARM };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
