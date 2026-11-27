@@ -316,6 +316,10 @@
             "arc",
             "arc3",
             "sector",
+            "spline",
+            "bezier",
+            "spiral",
+            "fibonacci",
             "cone",
             "cylinder",
             "sphere",
@@ -577,6 +581,44 @@
         },
         "ccw": {
           "type": "boolean"
+        },
+        "cw": {
+          "type": "boolean",
+          "description": "True để quét cung tròn hoặc xoắn ốc theo chiều kim đồng hồ."
+        },
+        "closed": {
+          "type": "boolean",
+          "description": "True để khép kín đường cong trơn spline."
+        },
+        "spiralKind": {
+          "type": "string",
+          "enum": [
+            "golden",
+            "archimedean",
+            "log"
+          ],
+          "description": "Loại xoắn ốc (golden = xoắn ốc vàng/logarit vỏ ốc, archimedean = xoắn ốc Archimede)."
+        },
+        "turns": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10,
+          "description": "Số vòng xoắn ốc."
+        },
+        "steps": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 10,
+          "description": "Số hình vuông / bậc của chuỗi xoắn ốc Fibonacci."
+        },
+        "showSquares": {
+          "type": "boolean",
+          "description": "Hiển thị lưới hình vuông Fibonacci kèm cung xoắn ốc."
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Hệ số tỉ lệ kích thước cho macro hình phẳng (ví dụ fibonacci)."
         },
         "startDeg": {
           "type": "number"

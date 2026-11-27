@@ -55,12 +55,19 @@
     clipUserTouched: false,
     marquee: null,        // { page, x0, y0, x1, y1 } during Stage-1 box drag
     cfg: {
-      method: 'map',      // 'map' | 'rotate' | 'dilate' | 'translate'
+      method: 'map',      // 'map' | 'rotate' | 'dilate' | 'translate' | 'presets'
       depth: 5,
       angle: 60,
       ratio: 0.5,
       scopeShapeIds: [],  // empty = auto scope
-      pairs: [],          // [[srcId, dstId], ...]
+      pairs: [],          // [[srcId, dstId], ...] (mirrors branches[0] for backward compatibility)
+      branches: [[]],     // Multi-branch IFS rules: Array<Array<[srcId, dstId]>>
+      activeBranch: 0,    // Branch index currently receiving canvas point picks
+      leavesOnly: false,  // Emit shapes ONLY at final depth step === depth (e.g. Koch snowflake)
+      replaceSource: false, // Hide scopeShapeIds when depth > 0 (restored at depth = 0 or delete)
+      seedTuples: null,   // Optional multi-seed start tuples, e.g. 3 sides of Koch triangle
+      stepFills: null,    // Optional per-step fill palette
+      stepColors: null,   // Optional per-step stroke palette
       pendingSrc: null,   // half-picked pair in 'map' mode
       centerId: null,     // for 'rotate' | 'dilate'
       vecA: null,         // for 'translate'
@@ -78,7 +85,84 @@
     }
   };
 
-  const MAX_ITER_DEPTH = 40; // same cap as buildScopedIteration / rebuildIteration
+  const MAX_ITER_DEPTH = 40; // single-branch cap
+  const MAX_IFS_SHAPES = 1800; // hard safety cap for multi-branch fractals
+  const MAX_IFS_POINTS = 9500;
+  const BRANCH_COLORS = ['#2563eb', '#db2777', '#059669', '#d97706', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5'];
+
+  function normalizeBranchesRaw(cfg) {
+    if (cfg && Array.isArray(cfg.branches) && cfg.branches.length) {
+      return cfg.branches.map(b => (Array.isArray(b) ? b.map(p => (Array.isArray(p) ? [p[0], p[1]] : null)).filter(Boolean) : []));
+    }
+    if (cfg && Array.isArray(cfg.pairs) && cfg.pairs.length) {
+      return [cfg.pairs.map(p => [p[0], p[1]])];
+    }
+    return [[]];
+  }
+
+  function syncCfgBranches(cfg) {
+    if (!cfg) return;
+    if (!Array.isArray(cfg.branches) || !cfg.branches.length) {
+      cfg.branches = [Array.isArray(cfg.pairs) ? cfg.pairs.map(p => [p[0], p[1]]) : []];
+    }
+    if (!Number.isInteger(cfg.activeBranch) || cfg.activeBranch < 0 || cfg.activeBranch >= cfg.branches.length) {
+      cfg.activeBranch = 0;
+    }
+    cfg.pairs = (cfg.branches[0] || []).map(p => [p[0], p[1]]);
+  }
+
+  function extractValidBranches(geo, cfg) {
+    const rawList = normalizeBranchesRaw(cfg);
+    const out = [];
+    for (const rawPairs of rawList) {
+      const seenSrc = new Set();
+      const pairs = [];
+      let hasMoving = false;
+      for (const pr of rawPairs) {
+        if (!Array.isArray(pr) || pr.length < 2) continue;
+        const [s, t] = pr;
+        if (!s || !t || seenSrc.has(s) || !geo.points[s] || !geo.points[t]) continue;
+        seenSrc.add(s);
+        pairs.push([s, t]);
+        if (s !== t) hasMoving = true;
+      }
+      if (pairs.length && hasMoving) out.push(pairs);
+    }
+    return out;
+  }
+
+  function maxSafeDepthForCfg(cfg, isBadge) {
+    const baseCap = isBadge ? 20 : MAX_ITER_DEPTH;
+    if (!cfg || cfg.method !== 'map') return baseCap;
+    const rawBr = normalizeBranchesRaw(cfg).filter(b => b.length > 0);
+    const B = rawBr.length;
+    if (B <= 1) return baseCap;
+    const seeds = (Array.isArray(cfg.seedTuples) && cfg.seedTuples.length) ? cfg.seedTuples.length : 1;
+    const perUnit = cfg.seedTuples ? 1 : Math.max(1, (cfg.scopeShapeIds || []).length);
+    let maxD = 1;
+    let accum = 0;
+    for (let d = 1; d <= 10; d++) {
+      const lvl = seeds * perUnit * Math.pow(B, d);
+      accum += lvl;
+      const total = cfg.leavesOnly ? lvl : accum;
+      if (total <= MAX_IFS_SHAPES && accum * 4 <= MAX_IFS_POINTS) maxD = d;
+      else break;
+    }
+    return Math.max(1, maxD);
+  }
+
+  function estimateIfsCount(cfg, depth) {
+    const rawBr = normalizeBranchesRaw(cfg).filter(b => b.length > 0);
+    const B = rawBr.length;
+    const d = Math.max(0, Math.round(Number(depth) || 0));
+    if (B <= 1 || d <= 0) return 0;
+    const seeds = (Array.isArray(cfg.seedTuples) && cfg.seedTuples.length) ? cfg.seedTuples.length : 1;
+    const perUnit = cfg.seedTuples ? 1 : Math.max(1, (cfg.scopeShapeIds || []).length);
+    if (cfg.leavesOnly) return Math.round(seeds * perUnit * Math.pow(B, d));
+    let sum = 0;
+    for (let k = 1; k <= d; k++) sum += seeds * perUnit * Math.pow(B, k);
+    return Math.round(sum);
+  }
 
   /**
    * Validate a typed ratio. Dilate k = 0 collapses every copy onto the centre and translate k = 0 stacks all
@@ -187,7 +271,11 @@
       return `\\mathcal{T}_{m\\cdot ${kPre}\\overrightarrow{${aLbl}${bLbl}}},\\quad ${v}=${n}`;
     }
     // method === 'map'
-    const pairs = Array.isArray(cfg.pairs) ? cfg.pairs : [];
+    const brs = normalizeBranchesRaw(cfg).filter(b => b.length > 0);
+    if (brs.length >= 2) {
+      return `\\{f_1,\\dots,f_{${brs.length}}\\}\;(${brs.length}\\text{ nhánh}),\\quad ${v} = ${n}`;
+    }
+    const pairs = brs[0] || [];
     if (!pairs.length) return `P_i \\mapsto P'_i,\\quad ${v} = ${n}`;
     const maps = pairs.slice(0, 4).map(([s, d]) => `${ptLabel(geo, s)}\\mapsto ${ptLabel(geo, d)}`).join(',\\; ');
     const more = pairs.length > 4 ? ',\\; \\ldots' : '';
@@ -235,16 +323,18 @@
 
   /**
    * Build parametric iterated points & shapes strictly scoped to cfg.scopeShapeIds
-   * (zero unwanted spillover into unrelated parts of the figure!).
+   * (supports single-branch GSP5 mappings AND multi-branch IFS fractal trees!).
    */
   function buildScopedIteration(geo, cfg, idGen) {
     const K = getKernel();
     if (!geo || !cfg || !K) return { points: [], shapes: [] };
-    const depth = Math.max(0, Math.min(40, Math.round(Number(cfg.depth) || 0)));
+    const safeMax = maxSafeDepthForCfg(cfg, false);
+    const depth = Math.max(0, Math.min(safeMax, Math.round(Number(cfg.depth) || 0)));
     if (depth <= 0) return { points: [], shapes: [] };
 
     const iterId = cfg.id || ('iter_' + idGen());
     const hideDots = cfg.hideIterDots !== false;
+    const leavesOnly = !!cfg.leavesOnly;
     // Copies made by ANY iteration (this one or another) are never sources: iterating another
     // iteration's copies multiplies them, and rebuilding that iteration would orphan our points.
     const allShapes = (geo.shapes || []).filter(sh =>
@@ -264,7 +354,16 @@
       group: undefined,
       named: undefined
     });
-    const tagSh = (sh, step) => ({ ...sh, _iterId: iterId, _iterStep: step, group: undefined });
+    const tagSh = (sh, step) => {
+      const out = { ...sh, _iterId: iterId, _iterStep: step, group: undefined };
+      if (sh && sh.fill && Array.isArray(cfg.stepFills) && cfg.stepFills.length) {
+        out.fill = cfg.stepFills[Math.min(step, cfg.stepFills.length - 1)];
+      }
+      if (Array.isArray(cfg.stepColors) && cfg.stepColors.length) {
+        out.color = cfg.stepColors[Math.min(step, cfg.stepColors.length - 1)];
+      }
+      return out;
+    };
 
     const outPts = [];
     const outShs = [];
@@ -290,6 +389,7 @@
       const kBase = cfg.method === 'dilate' ? (Number(cfg.ratio) || 0.5) : 1;
 
       for (let step = 1; step <= depth; step++) {
+        if (leavesOnly && step !== depth) continue;
         const mp = new Map();
         mp.set(cId, cId);
         const stepAng = -(step * alphaDeg);
@@ -330,6 +430,7 @@
       const kBase = Number.isFinite(Number(cfg.ratio)) ? Number(cfg.ratio) : 1;
 
       for (let step = 1; step <= depth; step++) {
+        if (leavesOnly && step !== depth) continue;
         const mp = new Map();
         const kStep = step * kBase;
         for (const pid of basePts) {
@@ -350,20 +451,257 @@
     }
 
     // ------------------------------------------------------------------
-    // METHOD 1: MAP — Backward-Pruned Scoped Parametric Mapping (GSP5)
+    // METHOD 1: MAP — Single-Branch OR Multi-Branch IFS Fractal Engine
     // ------------------------------------------------------------------
-    const rawPairs = Array.isArray(cfg.pairs) ? cfg.pairs : [];
-    const seenSrc = new Set();
-    const pairs = [];
-    for (const pr of rawPairs) {
-      if (!Array.isArray(pr) || pr.length < 2) continue;
-      const [s, t] = pr;
-      if (!s || !t || s === t || seenSrc.has(s) || !geo.points[s] || !geo.points[t]) continue;
-      seenSrc.add(s);
-      pairs.push([s, t]);
-    }
-    if (!pairs.length) return { points: [], shapes: [] };
+    const validBranches = extractValidBranches(geo, cfg);
+    if (!validBranches.length) return { points: [], shapes: [] };
 
+    // ==================== MULTI-BRANCH IFS FRACTAL TREE ====================
+    if (validBranches.length >= 2) {
+      const srcIds = [];
+      const srcSet = new Set();
+      for (const br of validBranches) {
+        for (const [s] of br) {
+          if (!srcSet.has(s)) { srcSet.add(s); srcIds.push(s); }
+        }
+      }
+      const branchDstTuples = validBranches.map(br => {
+        const bMap = new Map(br);
+        return srcIds.map(sid => (bMap.has(sid) ? bMap.get(sid) : sid));
+      });
+
+      // Forward reach from unified srcSet
+      const fwd = new Set(srcSet);
+      for (let changed = true; changed;) {
+        changed = false;
+        for (const pt of Object.values(geo.points)) {
+          if (!pt || pt._iterId || fwd.has(pt.id) || !pt.def) continue;
+          const deps = K.Om(pt.def);
+          if (deps.length && deps.some(d => fwd.has(d))) {
+            fwd.add(pt.id);
+            changed = true;
+          }
+        }
+      }
+
+      const hasDepTarget = branchDstTuples.some(tup => tup.some((tid, k) => tid !== srcIds[k] && fwd.has(tid)));
+
+      if (hasDepTarget) {
+        let targetShapes;
+        if (scopedShapes.length) {
+          targetShapes = scopedShapes;
+        } else {
+          const subAll = new Set([...fwd].filter(id => !srcSet.has(id)));
+          targetShapes = allShapes.filter(sh => {
+            const sPts = [...collectShapePointIds(sh)];
+            return sPts.length && (
+              sPts.some(pid => subAll.has(pid)) ||
+              (isFillOnly(K, sh) && sPts.every(pid => srcSet.has(pid)))
+            );
+          });
+          if (!targetShapes.length) {
+            targetShapes = allShapes.filter(sh => {
+              const sPts = [...collectShapePointIds(sh)];
+              return sPts.length && sPts.every(pid => srcSet.has(pid));
+            });
+          }
+        }
+        if (!targetShapes.length) return { points: [], shapes: [] };
+
+        const hasSeeds = Array.isArray(cfg.seedTuples) && cfg.seedTuples.length > 0;
+        let templateShapes = targetShapes;
+        if (hasSeeds) {
+          const tplSet = Array.isArray(cfg.templateShapeIds) && cfg.templateShapeIds.length
+            ? new Set(cfg.templateShapeIds)
+            : null;
+          const filtered = tplSet
+            ? targetShapes.filter(sh => tplSet.has(sh.id))
+            : targetShapes.filter(sh => {
+                const sPts = [...collectShapePointIds(sh)];
+                return sPts.length && sPts.every(pid => srcSet.has(pid));
+              });
+          if (filtered.length) templateShapes = filtered;
+        }
+
+        // Backward-prune points needed by templateShapes or any branch destination
+        const needed = new Set();
+        const stack = [];
+        for (const tup of branchDstTuples) {
+          for (const tid of tup) stack.push(tid);
+        }
+        for (const sh of templateShapes) {
+          for (const pid of collectShapePointIds(sh)) stack.push(pid);
+        }
+        while (stack.length) {
+          const pid = stack.pop();
+          if (!pid || needed.has(pid) || srcSet.has(pid) || !fwd.has(pid)) continue;
+          needed.add(pid);
+          const pt = geo.points[pid];
+          if (pt && pt.def) {
+            for (const d of K.Om(pt.def)) {
+              if (fwd.has(d) && !srcSet.has(d) && !needed.has(d)) stack.push(d);
+            }
+          }
+        }
+
+        const subPtsOrdered = [];
+        const vis = new Set();
+        const visit = (id) => {
+          if (vis.has(id) || !needed.has(id)) return;
+          vis.add(id);
+          const pt = geo.points[id];
+          if (pt && pt.def) {
+            for (const d of K.Om(pt.def)) if (needed.has(d)) visit(d);
+          }
+          subPtsOrdered.push(id);
+        };
+        for (const id of needed) visit(id);
+
+        const usesSubPts = templateShapes.some(sh => [...collectShapePointIds(sh)].some(pid => needed.has(pid)));
+        const identMp = new Map();
+        for (const sid of srcIds) identMp.set(sid, sid);
+        for (const pid of subPtsOrdered) identMp.set(pid, pid);
+
+        const isIdentTuple = (tup) => tup.length === srcIds.length && tup.every((id, k) => id === srcIds[k]);
+        const expandEntry = (entry, step) => {
+          if (entry.mp) return entry.mp;
+          if (isIdentTuple(entry.tuple)) {
+            entry.mp = identMp;
+            return identMp;
+          }
+          if (outPts.length + subPtsOrdered.length > MAX_IFS_POINTS) return null;
+          const mp = new Map();
+          const ms = new Map();
+          srcIds.forEach((sid, k) => mp.set(sid, entry.tuple[k]));
+          for (const pid of subPtsOrdered) mp.set(pid, idGen());
+          for (const sh of templateShapes) ms.set(sh.id, idGen());
+          for (const pid of subPtsOrdered) {
+            const orig = geo.points[pid];
+            const nid = mp.get(pid);
+            outPts.push(tagPt({
+              ...orig,
+              id: nid,
+              def: K._mnRemapDef(orig.def, mp, ms)
+            }, step));
+          }
+          entry.mp = mp;
+          entry.ms = ms;
+          return mp;
+        };
+
+        let frontier = hasSeeds
+          ? cfg.seedTuples
+              .filter(t => Array.isArray(t) && t.length === srcIds.length && t.every(id => geo.points[id]))
+              .map(t => ({ tuple: t.slice(), mp: null, ms: null }))
+          : [{ tuple: srcIds.slice(), mp: identMp, ms: null }];
+
+        if (!frontier.length) frontier = [{ tuple: srcIds.slice(), mp: identMp, ms: null }];
+
+        let capped = false;
+        for (let step = 1; step <= depth; step++) {
+          const emitHere = !leavesOnly || step === depth;
+          const nextFrontier = [];
+          for (const parent of frontier) {
+            const pMp = expandEntry(parent, step);
+            if (!pMp) { capped = true; break; }
+            for (const bDst of branchDstTuples) {
+              const childTuple = bDst.map(tid => (pMp.has(tid) ? pMp.get(tid) : tid));
+              const childEntry = { tuple: childTuple, mp: null, ms: null };
+              if (emitHere) {
+                if (outShs.length + templateShapes.length > MAX_IFS_SHAPES) { capped = true; break; }
+                if (usesSubPts) {
+                  const cMp = expandEntry(childEntry, step);
+                  if (!cMp) { capped = true; break; }
+                  for (const sh of templateShapes) {
+                    const nid = (childEntry.ms && childEntry.ms.get(sh.id)) || idGen();
+                    outShs.push(tagSh(remapShape(K, sh, pid => (cMp.has(pid) ? cMp.get(pid) : pid), nid, false), step));
+                  }
+                } else {
+                  const cMp = new Map();
+                  srcIds.forEach((sid, k) => cMp.set(sid, childTuple[k]));
+                  for (const sh of templateShapes) {
+                    outShs.push(tagSh(remapShape(K, sh, pid => (cMp.has(pid) ? cMp.get(pid) : pid), idGen(), false), step));
+                  }
+                }
+              }
+              if (step < depth) nextFrontier.push(childEntry);
+            }
+            if (capped) break;
+          }
+          frontier = nextFrontier;
+          if (capped || !frontier.length) break;
+        }
+        return { points: outPts, shapes: outShs };
+      }
+
+      // Independent Multi-Branch IFS Fallback (free points with >= 2 pairs per branch)
+      const targetShapes = scopedShapes.length
+        ? scopedShapes
+        : allShapes.filter(sh => [...collectShapePointIds(sh)].some(pid => srcSet.has(pid)));
+      if (!targetShapes.length) return { points: [], shapes: [] };
+
+      const coords = K.Tt(geo);
+      const simSpecs = [];
+      for (const br of validBranches) {
+        if (br.length < 2) continue;
+        const [a1Id, b1Id] = br[0];
+        const [a2Id, b2Id] = br[1];
+        const A1 = coords.get(a1Id), B1 = coords.get(b1Id), A2 = coords.get(a2Id), B2 = coords.get(b2Id);
+        if (!A1 || !B1 || !A2 || !B2) continue;
+        const dA = K.Je(A1, A2), dB = K.Je(B1, B2);
+        if (dA <= 1e-6 || dB <= 1e-6) continue;
+        const kSim = dB / dA;
+        const dAngDeg = ((Math.atan2(B2.y - B1.y, B2.x - B1.x) - Math.atan2(A2.y - A1.y, A2.x - A1.x)) * 180) / Math.PI;
+        simSpecs.push({ a1Id, b1Id, kSim, dAngDeg });
+      }
+      if (!simSpecs.length) return { points: [], shapes: [] };
+
+      const trackedSet = new Set();
+      for (const sh of targetShapes) {
+        for (const pid of collectShapePointIds(sh)) if (geo.points[pid]) trackedSet.add(pid);
+      }
+      for (const sp of simSpecs) { trackedSet.add(sp.a1Id); trackedSet.add(sp.b1Id); }
+      const trackedPts = [...trackedSet];
+
+      let frontier = [new Map(trackedPts.map(id => [id, id]))];
+      let capped = false;
+      for (let step = 1; step <= depth; step++) {
+        const emitHere = !leavesOnly || step === depth;
+        const nextFrontier = [];
+        for (const prevMap of frontier) {
+          for (const sp of simSpecs) {
+            if (outPts.length + trackedPts.length * 2 > MAX_IFS_POINTS || (emitHere && outShs.length + targetShapes.length > MAX_IFS_SHAPES)) {
+              capped = true;
+              break;
+            }
+            const curA1 = prevMap.get(sp.a1Id) || sp.a1Id;
+            const curB1 = prevMap.get(sp.b1Id) || sp.b1Id;
+            const nextMap = new Map();
+            for (const pid of trackedPts) {
+              const prevId = prevMap.get(pid) || pid;
+              const rotId = idGen();
+              const outId = idGen();
+              outPts.push(tagPt({ id: rotId, def: { t: 'rot', c: curA1, p: prevId, ang: sp.dAngDeg, k: sp.kSim } }, step));
+              outPts.push(tagPt({ id: outId, def: { t: 'sum', a: rotId, b: curB1, c: curA1 } }, step));
+              nextMap.set(pid, outId);
+            }
+            if (emitHere) {
+              for (const sh of targetShapes) {
+                outShs.push(tagSh(remapShape(K, sh, pid => nextMap.get(pid) || pid, idGen(), false), step));
+              }
+            }
+            if (step < depth) nextFrontier.push(nextMap);
+          }
+          if (capped) break;
+        }
+        frontier = nextFrontier;
+        if (capped || !frontier.length) break;
+      }
+      return { points: outPts, shapes: outShs };
+    }
+
+    // ==================== SINGLE-BRANCH MAP (GSP5 BACKWARD-PRUNED) ====================
+    const pairs = validBranches[0];
     const srcIds = pairs.map(p => p[0]);
     const dstIds = pairs.map(p => p[1]);
     const srcSet = new Set(srcIds);
@@ -382,7 +720,7 @@
       }
     }
 
-    const hasDepTarget = dstIds.some(t => fwd.has(t));
+    const hasDepTarget = dstIds.some((t, idx) => t !== srcIds[idx] && fwd.has(t));
 
     if (hasDepTarget) {
       // Determine shapes to clone
@@ -475,9 +813,11 @@
           }
         });
 
-        for (const sh of targetShapes) {
-          const nid = ms.get(sh.id) || idGen();
-          outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, nid, false), step));
+        if (!leavesOnly || step === depth) {
+          for (const sh of targetShapes) {
+            const nid = ms.get(sh.id) || idGen();
+            outShs.push(tagSh(remapShape(K, sh, pid => mp.has(pid) ? mp.get(pid) : pid, nid, false), step));
+          }
         }
         curImg = nextImg;
       }
@@ -530,8 +870,10 @@
               }, step));
               nextMap.set(pid, outId);
             }
-            for (const sh of targetShapes) {
-              outShs.push(tagSh(remapShape(K, sh, pid => nextMap.get(pid) || pid, idGen(), false), step));
+            if (!leavesOnly || step === depth) {
+              for (const sh of targetShapes) {
+                outShs.push(tagSh(remapShape(K, sh, pid => nextMap.get(pid) || pid, idGen(), false), step));
+              }
             }
             // Advance anchor A1->B1 for next step
             const nextRotB = idGen(), nextB1 = idGen();
@@ -548,6 +890,7 @@
 
     // Single pair A -> B translation array on targetShapes
     for (let step = 1; step <= depth; step++) {
+      if (leavesOnly && step !== depth) continue;
       const mp = new Map();
       for (const pid of basePts) {
         const nid = idGen();
@@ -574,8 +917,32 @@
       if (v && v._iterId === iterId) continue;
       points[k] = v;
     }
-    const shapes = (geo.shapes || []).filter(sh => sh && sh._iterId !== iterId);
+    const shapes = (geo.shapes || [])
+      .filter(sh => sh && sh._iterId !== iterId)
+      .map(sh => {
+        if (sh && sh._iterHiddenBy === iterId) {
+          const rest = { ...sh, hidden: false };
+          delete rest._iterHiddenBy;
+          return rest;
+        }
+        return sh;
+      });
     return { ...geo, points, shapes };
+  }
+
+  function mergeIterResult(cleanGeo, iterDef, res) {
+    const nextPoints = { ...cleanGeo.points };
+    for (const pt of res.points) nextPoints[pt.id] = pt;
+    const hideScope = !!(iterDef && iterDef.replaceSource && Number(iterDef.depth) > 0 && res.shapes.length > 0);
+    const scopeSet = hideScope && Array.isArray(iterDef.scopeShapeIds) ? new Set(iterDef.scopeShapeIds) : null;
+    const baseShapes = scopeSet
+      ? (cleanGeo.shapes || []).map(sh => (sh && scopeSet.has(sh.id) ? { ...sh, hidden: true, _iterHiddenBy: iterDef.id } : sh))
+      : (cleanGeo.shapes || []);
+    return {
+      ...cleanGeo,
+      points: nextPoints,
+      shapes: [...baseShapes, ...res.shapes]
+    };
   }
 
   function evalLinkedParam(K, geo, paramId, fallback) {
@@ -610,7 +977,8 @@
       if (it.depthParamId) {
         const dp = params.find(x => x && x.id === it.depthParamId);
         if (dp) {
-          const newDepth = Math.max(0, Math.min(40, Math.round(evalLinkedParam(K, curGeo, it.depthParamId, it.depth))));
+          const dCap = maxSafeDepthForCfg(nextIt, false);
+          const newDepth = Math.max(0, Math.min(dCap, Math.round(evalLinkedParam(K, curGeo, it.depthParamId, it.depth))));
           if (newDepth !== it.depth) { nextIt = { ...nextIt, depth: newDepth }; needRebuild = true; }
           if (dp.name && dp.name !== nextIt.varName) nextIt = { ...nextIt, varName: dp.name };
         }
@@ -633,13 +1001,7 @@
       if (needRebuild) {
         const clean = stripIterFromGeo(curGeo, nextIt.id);
         const res = buildScopedIteration(clean, nextIt, K.nt);
-        const nextPoints = { ...clean.points };
-        for (const pt of res.points) nextPoints[pt.id] = pt;
-        curGeo = {
-          ...clean,
-          points: nextPoints,
-          shapes: [...clean.shapes, ...res.shapes]
-        };
+        curGeo = mergeIterResult(clean, nextIt, res);
         anyRebuilt = true;
       }
       nextIters.push(nextIt);
@@ -664,6 +1026,8 @@
       let cleanGeo = stripIterFromGeo(pg.geo, iterDef.id);
       let params = Array.isArray(cleanGeo.params) ? cleanGeo.params.slice() : [];
       const finalDef = { ...iterDef };
+      const dCap = maxSafeDepthForCfg(finalDef, false);
+      finalDef.depth = Math.max(0, Math.min(dCap, Math.round(Number(finalDef.depth) || 0)));
 
       // Ensure real parameter in geo.params for depth (2-way unified!)
       if (!finalDef.depthParamId) {
@@ -673,13 +1037,14 @@
           finalDef.depthParamId = owned.id;
         } else {
           const pid = 'pm_' + K.nt();
+          const defaultMax = Math.min(dCap, Math.max(finalDef.depth, dCap < 12 ? dCap : 12));
           params.push({
             id: pid,
             name: finalDef.varName || 't_1',
             value: finalDef.depth,
             unit: 'none',
             min: 0,
-            max: Math.max(10, finalDef.depth, 12),
+            max: defaultMax,
             step: 1,
             expr: '',
             animating: false,
@@ -699,7 +1064,8 @@
         if (p._iterBadgeOwner === finalDef.id && finalDef.varName) up.name = finalDef.varName;
         if (!p.expr) {
           up.value = finalDef.depth;
-          if (finalDef.depth > (up.max ?? 12)) up.max = Math.min(40, finalDef.depth);
+          if (finalDef.depth > (up.max ?? 12)) up.max = Math.min(dCap, finalDef.depth);
+          if ((up.max ?? 12) > dCap) up.max = dCap;
         }
         return up;
       });
@@ -716,7 +1082,7 @@
       // Re-evaluate if any linked param is formula-driven (e.g. alpha = 360 / (t_1 + 1))
       if (finalDef.depthParamId) {
         const dp = params.find(p => p && p.id === finalDef.depthParamId);
-        if (dp && dp.expr) finalDef.depth = Math.max(0, Math.min(40, Math.round(evalLinkedParam(K, cleanGeo, finalDef.depthParamId, finalDef.depth))));
+        if (dp && dp.expr) finalDef.depth = Math.max(0, Math.min(dCap, Math.round(evalLinkedParam(K, cleanGeo, finalDef.depthParamId, finalDef.depth))));
         if (dp && dp.name) finalDef.varName = dp.name;
       }
       if (finalDef.angleParamId) {
@@ -727,9 +1093,7 @@
       }
 
       const res = buildScopedIteration(cleanGeo, finalDef, K.nt);
-      const nextPoints = { ...cleanGeo.points };
-      for (const pt of res.points) nextPoints[pt.id] = pt;
-      const nextShapes = [...cleanGeo.shapes, ...res.shapes];
+      const merged = mergeIterResult(cleanGeo, finalDef, res);
       const existingIters = Array.isArray(cleanGeo.iterations) ? cleanGeo.iterations : [];
       const found = existingIters.some(x => x && x.id === finalDef.id);
       const nextIters = found
@@ -737,9 +1101,7 @@
         : [...existingIters, { ...finalDef }];
 
       let nextGeo = {
-        ...cleanGeo,
-        points: nextPoints,
-        shapes: nextShapes,
+        ...merged,
         params,
         iterations: nextIters
       };
@@ -762,7 +1124,8 @@
     const cur = list.find(x => x && x.id === iterId);
     if (!cur) return false;
     const nextDef = { ...cur, ...patch };
-    nextDef.depth = Math.max(0, Math.min(40, Math.round(Number(nextDef.depth) || 0)));
+    const dCap = maxSafeDepthForCfg(nextDef, false);
+    nextDef.depth = Math.max(0, Math.min(dCap, Math.round(Number(nextDef.depth) || 0)));
     return applyIterationToPage(pageIdx, nextDef);
   }
 
@@ -1120,19 +1483,35 @@
         STATE.cfg.vecB = nearPt;
         autoUpdateClipBound(pg.geo);
       }
-    } else {
-      // method === 'map': pairs of Source -> Image
+    } else if (STATE.cfg.method === 'map') {
+      // method === 'map': pairs of Source -> Image on active branch (supports multi-branch IFS!)
+      syncCfgBranches(STATE.cfg);
+      const bIdx = STATE.cfg.activeBranch;
+      const curPairs = STATE.cfg.branches[bIdx] || [];
       if (!STATE.cfg.pendingSrc) {
         STATE.cfg.pendingSrc = nearPt;
       } else if (nearPt !== STATE.cfg.pendingSrc) {
-        const filtered = (STATE.cfg.pairs || []).filter(p => p[0] !== STATE.cfg.pendingSrc);
+        const filtered = curPairs.filter(p => p[0] !== STATE.cfg.pendingSrc);
         filtered.push([STATE.cfg.pendingSrc, nearPt]);
-        STATE.cfg.pairs = filtered;
+        STATE.cfg.branches[bIdx] = filtered;
+        STATE.cfg.seedTuples = null;
+        syncCfgBranches(STATE.cfg);
         STATE.cfg.pendingSrc = null;
-        autoUpdateClipBound(pg.geo);
+        if (STATE.cfg.branches.filter(b => b.length > 0).length <= 1) autoUpdateClipBound(pg.geo);
       } else {
+        // Clicking the same point twice in multi-branch IFS locks it as a fixed corner P -> P (if not already present)
+        const hasFixed = curPairs.some(p => p[0] === nearPt && p[1] === nearPt);
+        if (STATE.cfg.branches.length >= 2 && !hasFixed) {
+          const filtered = curPairs.filter(p => p[0] !== nearPt);
+          filtered.push([nearPt, nearPt]);
+          STATE.cfg.branches[bIdx] = filtered;
+          STATE.cfg.seedTuples = null;
+          syncCfgBranches(STATE.cfg);
+        }
         STATE.cfg.pendingSrc = null;
       }
+    } else {
+      return true;
     }
 
     board.redraw();
@@ -1264,10 +1643,22 @@
       };
 
       if (STATE.cfg.method === 'map') {
-        (STATE.cfg.pairs || []).forEach(([sId, dId], idx) => {
-          drawDotRing(sId, '#2563eb');
-          drawDotRing(dId, '#ec4899');
-          drawArrow(coords.get(sId), coords.get(dId), '#2563eb', `${idx + 1}`);
+        const brs = normalizeBranchesRaw(STATE.cfg);
+        const multi = brs.length >= 2;
+        brs.forEach((pairs, bIdx) => {
+          const col = BRANCH_COLORS[bIdx % BRANCH_COLORS.length];
+          ctx.save();
+          if (multi && bIdx !== STATE.cfg.activeBranch) ctx.globalAlpha = 0.52;
+          pairs.forEach(([sId, dId], idx) => {
+            if (sId === dId) {
+              drawDotRing(sId, col, multi ? `N${bIdx + 1} cố định` : 'Cố định');
+            } else {
+              drawDotRing(sId, col);
+              drawDotRing(dId, multi ? col : '#ec4899');
+              drawArrow(coords.get(sId), coords.get(dId), col, multi ? `N${bIdx + 1}·${idx + 1}` : `${idx + 1}`);
+            }
+          });
+          ctx.restore();
         });
         if (STATE.cfg.pendingSrc) {
           drawDotRing(STATE.cfg.pendingSrc, '#f59e0b', 'Nguồn');
@@ -1316,7 +1707,11 @@
 
   function canConfirm() {
     const c = STATE.cfg;
-    if (c.method === 'map') return Array.isArray(c.pairs) && c.pairs.length >= 1;
+    if (c.method === 'presets') return false;
+    if (c.method === 'map') {
+      const brs = normalizeBranchesRaw(c);
+      return brs.some(br => br.some(p => Array.isArray(p) && p[0] && p[1] && p[0] !== p[1]));
+    }
     if (c.method === 'rotate' || c.method === 'dilate') return !!c.centerId;
     if (c.method === 'translate') return !!(c.vecA && c.vecB && c.vecA !== c.vecB);
     return false;
@@ -1330,6 +1725,10 @@
     const pg = board.doc.pages[pIdx];
     if (!pg || !pg.geo) return false;
 
+    syncCfgBranches(STATE.cfg);
+    const nonEmptyBranches = STATE.cfg.branches.filter(b => b && b.length > 0).map(b => b.map(p => [p[0], p[1]]));
+    const dCap = maxSafeDepthForCfg(STATE.cfg, false);
+
     const existingList = Array.isArray(pg.geo.iterations) ? pg.geo.iterations : [];
     const existing = STATE.editingIterId ? existingList.find(x => x && x.id === STATE.editingIterId) : null;
     const id = existing ? existing.id : ('iter_' + K.nt());
@@ -1342,11 +1741,17 @@
       id,
       varName,
       method: STATE.cfg.method,
-      depth: Math.max(0, Math.min(40, Math.round(Number(STATE.cfg.depth) || 0))),
+      depth: Math.max(0, Math.min(dCap, Math.round(Number(STATE.cfg.depth) || 0))),
       angle: Number(STATE.cfg.angle) || 0,
       ratio: Number.isFinite(Number(STATE.cfg.ratio)) ? Number(STATE.cfg.ratio) : (STATE.cfg.method === 'translate' ? 1 : 0.5),
       scopeShapeIds: (STATE.cfg.scopeShapeIds || []).slice(),
-      pairs: (STATE.cfg.pairs || []).map(p => [p[0], p[1]]),
+      pairs: (nonEmptyBranches[0] || []).map(p => [p[0], p[1]]),
+      branches: nonEmptyBranches.length >= 2 ? nonEmptyBranches : undefined,
+      leavesOnly: !!STATE.cfg.leavesOnly,
+      replaceSource: !!STATE.cfg.replaceSource,
+      seedTuples: Array.isArray(STATE.cfg.seedTuples) ? STATE.cfg.seedTuples.map(t => t.slice()) : undefined,
+      stepFills: Array.isArray(STATE.cfg.stepFills) ? STATE.cfg.stepFills.slice() : undefined,
+      stepColors: Array.isArray(STATE.cfg.stepColors) ? STATE.cfg.stepColors.slice() : undefined,
       centerId: STATE.cfg.centerId || null,
       vecA: STATE.cfg.vecA || null,
       vecB: STATE.cfg.vecB || null,
@@ -1379,6 +1784,22 @@
     return true;
   }
 
+  /* ========================== Toast Helper ========================== */
+
+  let toastTimer = null;
+  function showIterToast(msg) {
+    let el = document.getElementById('mn-iter-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'mn-iter-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3600);
+  }
+
   /* ========================== DOM: Top 2-Stage Bar ========================== */
 
   function ensureStageBar() {
@@ -1407,6 +1828,7 @@
       <span class="mn-isb-cnt">${scCount} hình</span>
       ${scCount > 0 ? '<button type="button" class="mn-isb-btn" data-act="clearScope">Bỏ chọn</button>' : ''}
       <button type="button" class="mn-isb-btn primary" data-act="stage2">${scCount > 0 ? 'Tiếp tục →' : 'Bỏ qua (Tự động) →'}</button>
+      <button type="button" class="mn-isb-btn preset" data-act="openPresets" title="Dựng nhanh 10 bài toán Cấp số nhân & Fractal Toán 11">✨ Mẫu CSN 11</button>
       <button type="button" class="mn-isb-btn" data-act="close" title="Đóng (Esc)">✕</button>
     `;
 
@@ -1417,6 +1839,14 @@
         if (act === 'stage2') {
           STATE.stage = 2;
           STATE.dialogOpen = true;
+          if (STATE.cfg.method === 'presets') STATE.cfg.method = 'map';
+          renderStageBar();
+          renderDialog();
+          board && board.redraw();
+        } else if (act === 'openPresets') {
+          STATE.stage = 2;
+          STATE.dialogOpen = true;
+          STATE.cfg.method = 'presets';
           renderStageBar();
           renderDialog();
           board && board.redraw();
@@ -1460,24 +1890,45 @@
     const pg = board && board.doc && board.doc.pages[STATE.pageIdx];
     const geo = (pg && pg.geo) || { points: {}, shapes: [], iterations: [] };
     const c = STATE.cfg;
+    syncCfgBranches(c);
     const scCount = (c.scopeShapeIds || []).length;
     const ready = canConfirm();
+    const isPresetsTab = c.method === 'presets';
+    const dCap = maxSafeDepthForCfg(c, false);
+    if (c.depth > dCap) c.depth = dCap;
 
-    if (!c.varName) c.varName = nextVarName(geo, c.method);
+    if (!c.varName) c.varName = nextVarName(geo, c.method === 'presets' ? 'map' : c.method);
 
     // Pick-status HTML per method
     let pickHtml = '';
+    const isMultiIfs = c.method === 'map' && c.branches.length >= 2;
     if (c.method === 'map') {
-      const chips = (c.pairs || []).map(([s, d], idx) =>
-        `<span class="mn-idlg-chip">${escapeHtml(ptLabel(geo, s))} → ${escapeHtml(ptLabel(geo, d))}<button type="button" data-rm-pair="${idx}" title="Xóa cặp">×</button></span>`
+      const bIdx = c.activeBranch;
+      const curPairs = c.branches[bIdx] || [];
+      const brPills = c.branches.map((br, i) => {
+        const col = BRANCH_COLORS[i % BRANCH_COLORS.length];
+        return `<span class="mn-idlg-br-pill ${i === bIdx ? 'active' : ''}" data-sel-branch="${i}">
+          <span class="mn-idlg-br-dot" style="background:${col}"></span>
+          <span>Nhánh ${i + 1}${br.length ? ` (${br.length})` : ''}</span>
+          ${c.branches.length > 1 ? `<button type="button" class="mn-idlg-br-rm" data-rm-branch="${i}" title="Xóa nhánh này">×</button>` : ''}
+        </span>`;
+      }).join('');
+      const addBrBtn = c.branches.length < 8
+        ? `<button type="button" class="mn-idlg-br-add" data-act="addBranch" title="Thêm quy tắc ánh xạ để dựng Fractal nhiều nhánh (Sierpinski, Koch, Pythagoras)">+ Thêm nhánh</button>`
+        : '';
+
+      const chips = curPairs.map(([s, d], idx) =>
+        `<span class="mn-idlg-chip">${escapeHtml(ptLabel(geo, s))} → ${escapeHtml(ptLabel(geo, d))}${s === d ? ' <small style="color:#6d28d9">(cố định)</small>' : ''}<button type="button" data-rm-pair="${idx}" title="Xóa cặp">×</button></span>`
       ).join('');
       const pending = c.pendingSrc
-        ? `<span class="mn-idlg-chip" style="border-color:#f59e0b;background:#fffbeb">${escapeHtml(ptLabel(geo, c.pendingSrc))} → ? (bấm điểm ảnh)</span>`
+        ? `<span class="mn-idlg-chip" style="border-color:#f59e0b;background:#fffbeb">${escapeHtml(ptLabel(geo, c.pendingSrc))} → ? (bấm điểm ảnh)<button type="button" class="mn-idlg-fix-btn" data-act="fixPending" title="Giữ điểm này cố định (P → P)">Cố định</button></span>`
         : '';
+      const hasAnyPair = c.branches.some(br => br.some(p => p[0] !== p[1]));
       pickHtml = `
-        <div class="mn-idlg-pick-box ${(c.pairs || []).length ? 'ready' : ''}">
-          <div><strong>Chọn cặp điểm Nguồn → Ảnh ngay trên bảng vẽ:</strong></div>
-          <div class="mn-idlg-chips">${chips}${pending || (!chips ? '<span style="color:#64748b">Chưa chọn cặp nào — bấm điểm Nguồn rồi bấm điểm Ảnh</span>' : '')}</div>
+        <div class="mn-idlg-pick-box ${hasAnyPair ? 'ready' : ''}">
+          <div class="mn-idlg-branches-bar">${brPills}${addBrBtn}</div>
+          <div><strong>${isMultiIfs ? `Nhánh ${bIdx + 1} — chọn cặp Nguồn → Ảnh trên bảng:` : 'Chọn cặp điểm Nguồn → Ảnh ngay trên bảng vẽ:'}</strong></div>
+          <div class="mn-idlg-chips">${chips}${pending || (!chips ? '<span style="color:#64748b">Bấm điểm Nguồn rồi bấm điểm Ảnh (Fractal: bấm "+ Thêm nhánh")</span>' : '')}</div>
         </div>`;
     } else if (c.method === 'rotate' || c.method === 'dilate') {
       const label = c.method === 'rotate' ? 'tâm quay' : 'tâm vị tự';
@@ -1488,7 +1939,7 @@
             ${c.centerId ? `<span class="mn-idlg-chip">${escapeHtml(ptLabel(geo, c.centerId))}<button type="button" data-clear-center="1">×</button></span>` : '<span style="color:#64748b">Chưa chọn</span>'}
           </div>
         </div>`;
-    } else {
+    } else if (c.method === 'translate') {
       pickHtml = `
         <div class="mn-idlg-pick-box ${(c.vecA && c.vecB) ? 'ready' : ''}">
           <div class="mn-idlg-row">
@@ -1507,7 +1958,26 @@
     };
 
     let extraControls = '';
-    if (c.method === 'rotate') {
+    if (isMultiIfs) {
+      const nonEmptyB = c.branches.filter(b => b.length > 0).length;
+      const est = estimateIfsCount(c, c.depth);
+      extraControls += `
+        <div class="mn-idlg-ifs-box">
+          <div class="mn-idlg-ifs-meta">
+            <span>Fractal IFS • ${Math.max(nonEmptyB, c.branches.length)} nhánh</span>
+            <span>Tối đa n = ${dCap}${est > 0 ? ` (~${est} hình)` : ''}</span>
+          </div>
+          <label class="mn-idlg-check" title="Chỉ giữ các hình ở tầng lặp cuối cùng (ví dụ: Bông tuyết Von Koch)">
+            <input type="checkbox" id="mn-iter-leaves-only" ${c.leavesOnly ? 'checked' : ''} />
+            <span>Chỉ giữ tầng cuối (thay thế cạnh/mặt)</span>
+          </label>
+          <label class="mn-idlg-check" title="Ẩn tạm hình gốc khi n > 0 và tự hiện lại khi n = 0">
+            <input type="checkbox" id="mn-iter-replace-src" ${c.replaceSource ? 'checked' : ''} />
+            <span>Ẩn hình gốc khi n &gt; 0</span>
+          </label>
+        </div>
+      `;
+    } else if (c.method === 'rotate') {
       extraControls += `
         <div class="mn-idlg-row">
           <label><span class="mn-idlg-katex-inline" data-tex="\\alpha"></span> Góc quay (°)</label>
@@ -1592,37 +2062,50 @@
       </div>
     ` : '';
 
-    dlg.innerHTML = `
-      <div class="mn-idlg-hdr" id="mn-idlg-drag">
-        <div class="mn-idlg-title">
-          <span>${STATE.editingIterId ? 'Sửa Phép lặp' : 'Phép lặp'}</span>
-          <button type="button" class="mn-idlg-scope-pill" data-act="backScope" title="Quay lại Bước 1 để chọn lại đối tượng lặp">${scCount > 0 ? `${scCount} hình` : 'Tự động'}</button>
+    const presetsBodyHtml = isPresetsTab ? (() => {
+      const renderCard = (p) => `
+        <button type="button" class="mn-idlg-preset-card" data-spawn-preset="${escapeHtml(p.id)}">
+          <span class="mn-idlg-preset-icon">${p.svg}</span>
+          <span class="mn-idlg-preset-info">
+            <span class="mn-idlg-preset-name">
+              <span>${escapeHtml(p.name)}</span>
+              <span class="mn-idlg-preset-tag ${p.group === 'csn' ? 'csn' : ''}">${escapeHtml(p.badge)}</span>
+            </span>
+            <span class="mn-idlg-preset-desc">
+              <span class="mn-idlg-katex-inline" data-tex="${escapeHtml(p.tex)}"></span>
+              <span>• ${escapeHtml(p.sub)}</span>
+            </span>
+          </span>
+        </button>`;
+      const ifsCards = CSN_PRESETS.filter(p => p.group === 'ifs').map(renderCard).join('');
+      const csnCards = CSN_PRESETS.filter(p => p.group === 'csn').map(renderCard).join('');
+      return `
+        <div class="mn-idlg-presets-wrap">
+          <div class="mn-idlg-preset-tip">Bấm 1 lần để dựng hình động 100% chuẩn SGK Toán 11 — kéo đỉnh để biến dạng hoặc bấm thẻ <strong>n</strong> để tăng/giảm bậc.</div>
+          <div class="mn-idlg-preset-sec">Fractal nhiều nhánh (IFS)</div>
+          <div class="mn-idlg-preset-grid">${ifsCards}</div>
+          <div class="mn-idlg-preset-sec">Chuỗi Cấp số nhân (CSN) lùi vô hạn</div>
+          <div class="mn-idlg-preset-grid">${csnCards}</div>
         </div>
-        <button type="button" class="mn-idlg-close" data-act="close" title="Đóng">×</button>
-      </div>
-      <div class="mn-idlg-body">
-        <div class="mn-idlg-methods">
-          <button type="button" class="mn-idlg-mbtn ${c.method === 'map' ? 'active' : ''}" data-method="map">Ánh xạ</button>
-          <button type="button" class="mn-idlg-mbtn ${c.method === 'rotate' ? 'active' : ''}" data-method="rotate">Quay</button>
-          <button type="button" class="mn-idlg-mbtn ${c.method === 'dilate' ? 'active' : ''}" data-method="dilate">Vị tự</button>
-          <button type="button" class="mn-idlg-mbtn ${c.method === 'translate' ? 'active' : ''}" data-method="translate">Tịnh tiến</button>
-        </div>
+      `;
+    })() : '';
 
+    const regularBodyHtml = isPresetsTab ? '' : `
         ${pickHtml}
 
         <div class="mn-idlg-row">
           <label><span class="mn-idlg-katex-inline" data-tex="${escapeHtml(texForVar(c.varName))}"></span> Số lần lặp</label>
           <div class="mn-idlg-num-ctrl">
             <button type="button" class="mn-idlg-mini-btn" data-step-depth="-1">−</button>
-            <input type="number" id="mn-iter-depth-in" min="0" max="40" step="1" value="${c.depth}" />
+            <input type="number" id="mn-iter-depth-in" min="0" max="${dCap}" step="1" value="${c.depth}" />
             <button type="button" class="mn-idlg-mini-btn" data-step-depth="1">+</button>
           </div>
         </div>
-        <input type="range" class="mn-idlg-slider" id="mn-iter-depth-rng" min="0" max="40" step="1" value="${c.depth}" />
+        <input type="range" class="mn-idlg-slider" id="mn-iter-depth-rng" min="0" max="${dCap}" step="1" value="${c.depth}" />
 
         ${extraControls}
 
-        ${(() => {
+        ${!isMultiIfs ? (() => {
           const hasBound = !!(c.clipSeg || c.clipShapeId);
           const bLbl = Array.isArray(c.clipSeg) && c.clipSeg.length === 2
             ? `${ptLabel(geo, c.clipSeg[0])}${ptLabel(geo, c.clipSeg[1])}`
@@ -1637,18 +2120,43 @@
               <button type="button" class="mn-idlg-bound-btn ${STATE.pickingBound ? 'picking' : ''}" data-act="pickBound" title="Bấm chọn điểm đích, đoạn thẳng, hoặc đa giác/đường tròn làm biên giới hạn trên bảng vẽ">${STATE.pickingBound ? 'Bấm trên bảng…' : (hasBound ? 'Đổi' : 'Chọn biên')}</button>
             </div>
           `;
-        })()}
+        })() : ''}
 
         <button type="button" class="mn-idlg-adv-toggle" data-act="toggleAdv">
           <span>${STATE.advancedOpen ? '▾' : '▸'} Tùy chọn nâng cao (Tham số, KaTeX)</span>
         </button>
         ${advBodyHtml}
+    `;
+
+    dlg.innerHTML = `
+      <div class="mn-idlg-hdr" id="mn-idlg-drag">
+        <div class="mn-idlg-title">
+          <span>${STATE.editingIterId ? 'Sửa Phép lặp' : 'Phép lặp'}</span>
+          ${!isPresetsTab ? `<button type="button" class="mn-idlg-scope-pill" data-act="backScope" title="Quay lại Bước 1 để chọn lại đối tượng lặp">${scCount > 0 ? `${scCount} hình` : 'Tự động'}</button>` : '<span class="mn-idlg-preset-tag">Toán 11</span>'}
+        </div>
+        <button type="button" class="mn-idlg-close" data-act="close" title="Đóng">×</button>
+      </div>
+      <div class="mn-idlg-body">
+        <div class="mn-idlg-methods">
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'map' ? 'active' : ''}" data-method="map">Ánh xạ</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'rotate' ? 'active' : ''}" data-method="rotate">Quay</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'dilate' ? 'active' : ''}" data-method="dilate">Vị tự</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'translate' ? 'active' : ''}" data-method="translate">Tịnh tiến</button>
+          <button type="button" class="mn-idlg-mbtn ${c.method === 'presets' ? 'active' : ''}" data-method="presets">Mẫu CSN</button>
+        </div>
+
+        ${isPresetsTab ? presetsBodyHtml : regularBodyHtml}
       </div>
       <div class="mn-idlg-ftr">
-        <button type="button" class="mn-isb-btn" data-act="backScope">← Chọn hình</button>
-        <button type="button" class="mn-isb-btn primary" data-act="confirm" ${ready ? '' : 'disabled'}>
-          ${STATE.editingIterId ? '✓ Cập nhật' : '✓ Dựng lặp'}
-        </button>
+        ${isPresetsTab ? `
+          <button type="button" class="mn-isb-btn" data-act="backScope">← Tự dựng lặp</button>
+          <button type="button" class="mn-isb-btn" data-act="close">Đóng</button>
+        ` : `
+          <button type="button" class="mn-isb-btn" data-act="backScope">← Chọn hình</button>
+          <button type="button" class="mn-isb-btn primary" data-act="confirm" ${ready ? '' : 'disabled'}>
+            ${STATE.editingIterId ? '✓ Cập nhật' : '✓ Dựng lặp'}
+          </button>
+        `}
       </div>
     `;
 
@@ -1658,6 +2166,14 @@
     dlg.querySelectorAll('.mn-idlg-katex-inline').forEach(sp => renderKatex(sp, sp.dataset.tex));
     const advBtn = dlg.querySelector('[data-act="toggleAdv"]');
     if (advBtn) advBtn.onclick = () => { STATE.advancedOpen = !STATE.advancedOpen; renderDialog(); };
+
+    // Preset spawn click handlers
+    dlg.querySelectorAll('[data-spawn-preset]').forEach(btn => {
+      btn.onclick = () => {
+        const pid = btn.dataset.spawnPreset;
+        if (spawnCsnPreset(pid)) closeWorkflow(true);
+      };
+    });
 
     // Bind drag on header
     const hdr = dlg.querySelector('#mn-idlg-drag');
@@ -1698,10 +2214,84 @@
       };
     });
 
+    // Multi-branch controls
+    dlg.querySelectorAll('[data-sel-branch]').forEach(el => {
+      el.onclick = (e) => {
+        if (e.target.closest('[data-rm-branch]')) return;
+        c.activeBranch = Number(el.dataset.selBranch) || 0;
+        c.pendingSrc = null;
+        renderDialog();
+        board && board.redraw();
+      };
+    });
+    dlg.querySelectorAll('[data-rm-branch]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.rmBranch);
+        if (c.branches.length > 1) {
+          c.branches.splice(idx, 1);
+          c.activeBranch = Math.max(0, Math.min(c.activeBranch, c.branches.length - 1));
+          c.seedTuples = null;
+          syncCfgBranches(c);
+          renderDialog();
+          board && board.redraw();
+        }
+      };
+    });
+    const addBr = dlg.querySelector('[data-act="addBranch"]');
+    if (addBr) {
+      addBr.onclick = () => {
+        if (c.branches.length < 8) {
+          c.branches.push([]);
+          c.activeBranch = c.branches.length - 1;
+          c.pendingSrc = null;
+          const cap = maxSafeDepthForCfg(c, false);
+          if (c.depth > cap) c.depth = Math.min(cap, 4);
+          syncCfgBranches(c);
+          renderDialog();
+          board && board.redraw();
+        }
+      };
+    }
+    const fixPend = dlg.querySelector('[data-act="fixPending"]');
+    if (fixPend) {
+      fixPend.onclick = () => {
+        if (c.pendingSrc) {
+          const bIdx = c.activeBranch;
+          const filtered = (c.branches[bIdx] || []).filter(p => p[0] !== c.pendingSrc);
+          filtered.push([c.pendingSrc, c.pendingSrc]);
+          c.branches[bIdx] = filtered;
+          c.pendingSrc = null;
+          syncCfgBranches(c);
+          renderDialog();
+          board && board.redraw();
+        }
+      };
+    }
+    const leavesChk = dlg.querySelector('#mn-iter-leaves-only');
+    if (leavesChk) {
+      leavesChk.onchange = () => {
+        c.leavesOnly = !!leavesChk.checked;
+        if (STATE.editingIterId) rebuildIteration(STATE.pageIdx, STATE.editingIterId, { leavesOnly: c.leavesOnly });
+        renderDialog();
+      };
+    }
+    const repSrcChk = dlg.querySelector('#mn-iter-replace-src');
+    if (repSrcChk) {
+      repSrcChk.onchange = () => {
+        c.replaceSource = !!repSrcChk.checked;
+        if (STATE.editingIterId) rebuildIteration(STATE.pageIdx, STATE.editingIterId, { replaceSource: c.replaceSource });
+        renderDialog();
+      };
+    }
+
     dlg.querySelectorAll('[data-rm-pair]').forEach(btn => {
       btn.onclick = () => {
         const idx = Number(btn.dataset.rmPair);
-        c.pairs = (c.pairs || []).filter((_, i) => i !== idx);
+        const bIdx = c.activeBranch;
+        c.branches[bIdx] = (c.branches[bIdx] || []).filter((_, i) => i !== idx);
+        c.seedTuples = null;
+        syncCfgBranches(c);
         renderStageBar();
         renderDialog();
         board && board.redraw();
@@ -1714,7 +2304,8 @@
     if (clrV) clrV.onclick = () => { c.vecA = null; c.vecB = null; renderStageBar(); renderDialog(); board && board.redraw(); };
 
     const updateDepth = (v) => {
-      c.depth = Math.max(0, Math.min(40, Math.round(Number(v) || 0)));
+      const cap = maxSafeDepthForCfg(c, false);
+      c.depth = Math.max(0, Math.min(cap, Math.round(Number(v) || 0)));
       const numIn = dlg.querySelector('#mn-iter-depth-in');
       const rngIn = dlg.querySelector('#mn-iter-depth-rng');
       if (numIn && document.activeElement !== numIn) numIn.value = String(c.depth);
@@ -2045,12 +2636,13 @@
     const showAng = it.method === 'rotate' || (it.method === 'dilate' && Math.abs(Number(it.angle) || 0) > 1e-4);
     const showRatio = it.method === 'dilate' || (it.method === 'translate' && Math.abs((Number(it.ratio) || 1) - 1) > 1e-4);
 
+    const liveCapInit = maxSafeDepthForCfg(it, true);
     let html = `
       <span class="mn-iter-chip-group">
         <span class="mn-iter-katex-lbl" data-tex="${escapeHtml(varTex)} ="></span>
         <span class="mn-iter-val-box">
           <button type="button" class="mn-iter-step-btn" data-bstep="-1" title="Giảm số lần lặp">−</button>
-          <input type="text" class="mn-iter-val-input" data-bfield="depth" value="${escapeHtml(String(it.depth))}" title="Nhập số lần lặp (0–20) — đồng bộ 2 chiều với bảng Tham số" />
+          <input type="text" class="mn-iter-val-input" data-bfield="depth" value="${escapeHtml(String(it.depth))}" title="Nhập số lần lặp (0–${liveCapInit}) — đồng bộ 2 chiều với bảng Tham số" />
           <button type="button" class="mn-iter-step-btn" data-bstep="1" title="Tăng số lần lặp">+</button>
         </span>
       </span>
@@ -2102,8 +2694,9 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         const live = getLiveIt();
+        const cap = maxSafeDepthForCfg(live, true);
         const delta = Number(btn.dataset.bstep);
-        rebuildIteration(pageIdx, live.id, { depth: Math.max(0, Math.min(20, (Number(live.depth) || 0) + delta)) });
+        rebuildIteration(pageIdx, live.id, { depth: Math.max(0, Math.min(cap, (Number(live.depth) || 0) + delta)) });
       };
     });
 
@@ -2112,9 +2705,10 @@
       inp.addEventListener('pointerdown', e => e.stopPropagation());
       const commitVal = () => {
         const live = getLiveIt();
+        const cap = maxSafeDepthForCfg(live, true);
         const field = inp.dataset.bfield;
         if (field === 'depth') {
-          const v = Math.max(0, Math.min(20, Math.round(parseViNum(inp.value, live.depth))));
+          const v = Math.max(0, Math.min(cap, Math.round(parseViNum(inp.value, live.depth))));
           rebuildIteration(pageIdx, live.id, { depth: v });
         } else if (field === 'angle') {
           const v = parseViNum(inp.value, live.angle);
@@ -2127,12 +2721,13 @@
       inp.addEventListener('keydown', (e) => {
         e.stopPropagation();
         const live = getLiveIt();
+        const cap = maxSafeDepthForCfg(live, true);
         if (e.key === 'Enter') {
           commitVal();
           inp.blur();
         } else if (e.key === 'ArrowUp' && inp.dataset.bfield === 'depth') {
           e.preventDefault();
-          rebuildIteration(pageIdx, live.id, { depth: Math.min(20, (Number(live.depth) || 0) + 1) });
+          rebuildIteration(pageIdx, live.id, { depth: Math.min(cap, (Number(live.depth) || 0) + 1) });
         } else if (e.key === 'ArrowDown' && inp.dataset.bfield === 'depth') {
           e.preventDefault();
           rebuildIteration(pageIdx, live.id, { depth: Math.max(0, (Number(live.depth) || 0) - 1) });
@@ -2215,6 +2810,484 @@
     requestAnimationFrame(syncBadgesNow);
   }
 
+  /* ========================== 1-Click Toán 11 CSN & IFS Fractal Presets ========================== */
+
+  const CSN_PRESETS = [
+    {
+      id: 'sierpinski_tri',
+      group: 'ifs',
+      name: 'Tam giác Sierpinski',
+      badge: '3 nhánh',
+      tex: 'q_S = \\tfrac{3}{4}',
+      sub: 'SGK Toán 11',
+      toast: 'Đã dựng Tam giác Sierpinski (3 nhánh, q_S = 3/4) — kéo A, B hoặc bấm thẻ n để đổi bậc!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><polygon points="18,4 4,31 32,31" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/><polygon points="11,17.5 25,17.5 18,31" fill="#fff" stroke="#2563eb" stroke-width="1.2"/><polygon points="14.5,10.7 21.5,10.7 18,17.5" fill="#fff" stroke="#2563eb" stroke-width="0.9"/><polygon points="7.5,24.2 14.5,24.2 11,31" fill="#fff" stroke="#2563eb" stroke-width="0.9"/><polygon points="21.5,24.2 28.5,24.2 25,31" fill="#fff" stroke="#2563eb" stroke-width="0.9"/></svg>'
+    },
+    {
+      id: 'sierpinski_carpet',
+      group: 'ifs',
+      name: 'Thảm Sierpinski (Chia 9 ô)',
+      badge: '8 nhánh',
+      tex: 'q_S = \\tfrac{8}{9}',
+      sub: 'KNTT Toán 11',
+      toast: 'Đã dựng Thảm Sierpinski (8 nhánh, q_S = 8/9) — kéo A, B hoặc bấm thẻ n (0–3)!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><rect x="4" y="4" width="28" height="28" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.6"/><rect x="13.3" y="13.3" width="9.4" height="9.4" fill="#fff" stroke="#0f766e" stroke-width="1.1"/><rect x="7" y="7" width="3" height="3" fill="#fff"/><rect x="16.5" y="7" width="3" height="3" fill="#fff"/><rect x="26" y="7" width="3" height="3" fill="#fff"/><rect x="7" y="16.5" width="3" height="3" fill="#fff"/><rect x="26" y="16.5" width="3" height="3" fill="#fff"/><rect x="7" y="26" width="3" height="3" fill="#fff"/><rect x="16.5" y="26" width="3" height="3" fill="#fff"/><rect x="26" y="26" width="3" height="3" fill="#fff"/></svg>'
+    },
+    {
+      id: 'koch_snowflake',
+      group: 'ifs',
+      name: 'Bông tuyết Von Koch',
+      badge: '4 nhánh',
+      tex: 'p_n = 3a(\\tfrac{4}{3})^n',
+      sub: 'S = 8/5 S₀',
+      toast: 'Đã dựng Bông tuyết Von Koch (4 nhánh × 3 cạnh) — bấm thẻ n (0–4) để xem tăng bậc!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><polygon points="18,3 22,11 31,11 26.5,18 31,25 22,25 18,33 14,25 5,25 9.5,18 5,11 14,11" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+    },
+    {
+      id: 'pythagoras_tree',
+      group: 'ifs',
+      name: 'Cây Pythagoras (Nhị phân)',
+      badge: '2 nhánh',
+      tex: 'q_S = \\tfrac{1}{2}',
+      sub: 'Định lý Pitago',
+      toast: 'Đã dựng Cây Pythagoras (2 nhánh vuông) — kéo gốc A, B hoặc bấm thẻ n để cây mọc tán!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><rect x="13" y="22" width="10" height="10" fill="#fef3c7" stroke="#92400e" stroke-width="1.4"/><polygon points="13,22 6,15 13,8 20,15" fill="#dcfce7" stroke="#15803d" stroke-width="1.2"/><polygon points="23,22 30,15 23,8 16,15" fill="#d1fae5" stroke="#047857" stroke-width="1.2"/></svg>'
+    },
+    {
+      id: 'semicircle_spiral',
+      group: 'csn',
+      name: 'Xoắn ốc nửa đường tròn CSN',
+      badge: 'CSN',
+      tex: 'R_{n+1} = q R_n',
+      sub: 'Cung tiếp xúc',
+      toast: 'Đã dựng Xoắn ốc nửa đường tròn CSN (q = 0,72) — kéo A_0, A_1 hoặc bấm thẻ n!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><line x1="4" y1="20" x2="32" y2="20" stroke="#94a3b8" stroke-dasharray="2 2"/><path d="M5,20 A13,13 0 0 1 31,20 A9.5,9.5 0 0 1 12,20 A6.5,6.5 0 0 1 25,20 A4,4 0 0 1 17,20" stroke="#db2777" stroke-width="1.8" stroke-linecap="round"/></svg>'
+    },
+    {
+      id: 'nested_squares',
+      group: 'csn',
+      name: 'Hình vuông xoay lồng nhau',
+      badge: 'CSN',
+      tex: 'q_S = \\tfrac{1}{2}',
+      sub: 'Trung điểm cạnh',
+      toast: 'Đã dựng Hình vuông xoay lồng nhau (q_S = 1/2, S_∞ = 2S_1) — kéo A, B hoặc bấm thẻ n!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><rect x="5" y="5" width="26" height="26" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4"/><polygon points="18,5 31,18 18,31 5,18" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.3"/><rect x="11.5" y="11.5" width="13" height="13" fill="#c7d2fe" stroke="#4f46e5" stroke-width="1.2"/><polygon points="18,11.5 24.5,18 18,24.5 11.5,18" fill="#fff" stroke="#4f46e5" stroke-width="1"/></svg>'
+    },
+    {
+      id: 'tangent_circles_angle',
+      group: 'csn',
+      name: 'Chuỗi đường tròn trong góc',
+      badge: 'CSN',
+      tex: 'q = \\tfrac{1-\\sin\\alpha}{1+\\sin\\alpha}',
+      sub: 'Tiếp xúc 2 tia',
+      toast: 'Đã dựng Chuỗi đường tròn tiếp xúc trong góc nhọn — kéo tia OA, OB để đổi góc α trực tiếp!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><line x1="4" y1="18" x2="33" y2="7" stroke="#334155" stroke-width="1.5"/><line x1="4" y1="18" x2="33" y2="29" stroke="#334155" stroke-width="1.5"/><circle cx="25" cy="18" r="6.5" fill="#cffafe" stroke="#0891b2" stroke-width="1.4"/><circle cx="15" cy="18" r="3.6" fill="#cffafe" stroke="#0891b2" stroke-width="1.3"/><circle cx="9.6" cy="18" r="2" fill="#cffafe" stroke="#0891b2" stroke-width="1.1"/></svg>'
+    },
+    {
+      id: 'zigzag_perp_angle',
+      group: 'csn',
+      name: 'Đường gấp khúc vuông góc',
+      badge: 'CSN',
+      tex: 'q = \\cos\\theta',
+      sub: 'Chiếu vuông góc',
+      toast: 'Đã dựng Đường gấp khúc vuông góc trong góc nhọn — kéo A, B để đổi góc θ và q = cos θ!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><line x1="4" y1="29" x2="32" y2="29" stroke="#334155" stroke-width="1.5"/><line x1="4" y1="29" x2="30" y2="7" stroke="#334155" stroke-width="1.5"/><polyline points="28,9 28,29 19,17 19,29 13,21 13,29" stroke="#e11d48" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+    },
+    {
+      id: 'right_angle_spiral',
+      group: 'csn',
+      name: 'Xoắn ốc vuông góc CSN',
+      badge: 'CSN',
+      tex: 'A_nA_{n+1} = a q^n',
+      sub: 'Quay 90° liên tiếp',
+      toast: 'Đã dựng Xoắn ốc vuông góc CSN (q = 0,78) — kéo O, A_1 hoặc bấm thẻ n!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><polyline points="5,29 30,29 30,9 12,9 12,24 25,24 25,14 16,14 16,20" stroke="#7c3aed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    },
+    {
+      id: 'bouncing_ball',
+      group: 'csn',
+      name: 'Quả bóng nảy Parabol CSN',
+      badge: 'CSN',
+      tex: 'h_{n+1} = q h_n',
+      sub: 'Tổng quãng đường',
+      toast: 'Đã dựng Quả bóng nảy Parabol CSN (q = 0,72) — kéo A_0, A_1 hoặc bấm thẻ n!',
+      svg: '<svg viewBox="0 0 36 36" fill="none"><line x1="3" y1="30" x2="33" y2="30" stroke="#334155" stroke-width="1.5"/><path d="M5,30 Q10.5,6 16,30 Q20,13 24,30 Q26.8,18 29.5,30 Q31.2,22 33,30" stroke="#ea580c" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>'
+    }
+  ];
+
+  function spawnCsnPreset(presetId, opts) {
+    const board = getBoard();
+    const K = getKernel();
+    const meta = CSN_PRESETS.find(p => p.id === presetId);
+    if (!board || !K || !meta || !board.doc || !board.doc.pages) return false;
+
+    const pIdx = (opts && Number.isInteger(opts.pageIdx))
+      ? opts.pageIdx
+      : (typeof board.currentPage === 'function' ? board.currentPage() : (STATE.pageIdx || 0));
+    const pg0 = board.doc.pages[pIdx];
+    if (!pg0) return false;
+
+    const pgW = Number(pg0.w) || 794;
+    const pgH = Number(pg0.h) || 1123;
+    const sc = (opts && Number(opts.scale)) || 1;
+    let cx = (opts && Number.isFinite(opts.cx)) ? opts.cx : (pgW * 0.5);
+    let cy = (opts && Number.isFinite(opts.cy)) ? opts.cy : (pgH * 0.42);
+
+    // If user viewport is scrolled, default cleanly inside the visible page center
+    if (!(opts && (Number.isFinite(opts.cx) || Number.isFinite(opts.cy))) && board.scroller && typeof board.toDoc === 'function' && typeof board.toPage === 'function') {
+      try {
+        const sr = board.scroller.getBoundingClientRect();
+        const midDoc = board.toDoc(sr.width * 0.5, sr.height * 0.48);
+        const midPg = board.toPage(midDoc, pIdx);
+        if (midPg && Number.isFinite(midPg.x) && Number.isFinite(midPg.y)) {
+          cx = Math.max(240, Math.min(pgW - 240, midPg.x));
+          cy = Math.max(230, Math.min(pgH - 230, midPg.y));
+        }
+      } catch (_) {}
+    }
+
+    let createdIterId = null;
+
+    board.commit(board.updatePage(pIdx, pg => {
+      const baseGeo = (opts && opts.clearPage)
+        ? { points: {}, shapes: [], params: [], iterations: [] }
+        : (pg.geo || { points: {}, shapes: [] });
+      const points = { ...(baseGeo.points || {}) };
+      const shapes = Array.isArray(baseGeo.shapes) ? baseGeo.shapes.slice() : [];
+      const params = Array.isArray(baseGeo.params) ? baseGeo.params.slice() : [];
+      const iterations = Array.isArray(baseGeo.iterations) ? baseGeo.iterations.slice() : [];
+
+      const addPt = (def, label, show) => {
+        const id = K.nt();
+        points[id] = {
+          id,
+          def,
+          label: label || '',
+          show: !!show,
+          noName: !show || !label
+        };
+        return id;
+      };
+      const addSh = (kind, pts, extra) => {
+        const id = K.nt();
+        shapes.push({
+          id,
+          kind,
+          pts,
+          color: '#1e293b',
+          width: 2,
+          ...(extra || {})
+        });
+        return id;
+      };
+
+      let iterCfg = null;
+      let badgePos = { x: Math.max(28, cx - 220 * sc), y: Math.max(36, cy - 205 * sc) };
+
+      if (presetId === 'sierpinski_tri') {
+        const L = 340 * sc;
+        const A = addPt({ t: 'free', x: cx - L / 2, y: cy + L * 0.36 }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + L / 2, y: cy + L * 0.36 }, 'B', true);
+        const C = addPt({ t: 'rot', c: A, p: B, ang: -60, k: 1 }, 'C', true);
+        const M1 = addPt({ t: 'mid', a: A, b: B }, 'M_1', false);
+        const M2 = addPt({ t: 'mid', a: B, b: C }, 'M_2', false);
+        const M3 = addPt({ t: 'mid', a: C, b: A }, 'M_3', false);
+        addSh('polygon', [A, B, C], { color: '#1d4ed8', fill: 'rgba(37, 99, 235, 0.22)', width: 2 });
+        const cut = addSh('polygon', [M1, M2, M3], { color: '#2563eb', fill: '#ffffff', width: 1.2 });
+        badgePos = { x: Math.max(28, cx - L * 0.52), y: Math.max(36, cy - L * 0.56) };
+        iterCfg = {
+          method: 'map',
+          depth: 4,
+          scopeShapeIds: [cut],
+          branches: [
+            [[A, A], [B, M1], [C, M3]],
+            [[A, M1], [B, B], [C, M2]],
+            [[A, M3], [B, M2], [C, C]]
+          ],
+          theme: 'blue'
+        };
+      } else if (presetId === 'sierpinski_carpet') {
+        const L = 300 * sc;
+        const A = addPt({ t: 'free', x: cx - L / 2, y: cy - L / 2 }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + L / 2, y: cy - L / 2 }, 'B', true);
+        const C = addPt({ t: 'rot', c: B, p: A, ang: -90, k: 1 }, 'C', true);
+        const D = addPt({ t: 'sum', a: A, b: C, c: B }, 'D', true);
+        const T1 = addPt({ t: 'on', a: A, b: B, k: 1 / 3 }, 'T_1', false);
+        const T2 = addPt({ t: 'on', a: A, b: B, k: 2 / 3 }, 'T_2', false);
+        const L1 = addPt({ t: 'on', a: A, b: D, k: 1 / 3 }, 'L_1', false);
+        const L2 = addPt({ t: 'on', a: A, b: D, k: 2 / 3 }, 'L_2', false);
+        const R1 = addPt({ t: 'on', a: B, b: C, k: 1 / 3 }, 'R_1', false);
+        const R2 = addPt({ t: 'on', a: B, b: C, k: 2 / 3 }, 'R_2', false);
+        const P11 = addPt({ t: 'on', a: L1, b: R1, k: 1 / 3 }, 'P_1', false);
+        const P12 = addPt({ t: 'on', a: L1, b: R1, k: 2 / 3 }, 'P_2', false);
+        const P21 = addPt({ t: 'on', a: L2, b: R2, k: 1 / 3 }, 'P_3', false);
+        const P22 = addPt({ t: 'on', a: L2, b: R2, k: 2 / 3 }, 'P_4', false);
+        addSh('polygon', [A, B, C, D], { color: '#0f766e', fill: 'rgba(13, 148, 136, 0.24)', width: 2 });
+        const cut = addSh('polygon', [P11, P12, P22, P21], { color: '#0f766e', fill: '#ffffff', width: 1.1 });
+        badgePos = { x: Math.max(28, cx - L * 0.5), y: Math.max(36, cy - L * 0.5 - 46) };
+        iterCfg = {
+          method: 'map',
+          depth: 2,
+          scopeShapeIds: [cut],
+          branches: [
+            [[A, A], [B, T1]],
+            [[A, T1], [B, T2]],
+            [[A, T2], [B, B]],
+            [[A, L1], [B, P11]],
+            [[A, P12], [B, R1]],
+            [[A, L2], [B, P21]],
+            [[A, P21], [B, P22]],
+            [[A, P22], [B, R2]]
+          ],
+          theme: 'emerald'
+        };
+      } else if (presetId === 'koch_snowflake') {
+        const L = 290 * sc;
+        const A = addPt({ t: 'free', x: cx - L / 2, y: cy + L * 0.25 }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + L / 2, y: cy + L * 0.25 }, 'B', true);
+        const C = addPt({ t: 'rot', c: A, p: B, ang: -60, k: 1 }, 'C', true);
+        const P1 = addPt({ t: 'on', a: A, b: B, k: 1 / 3 }, 'P_1', false);
+        const P2 = addPt({ t: 'on', a: A, b: B, k: 2 / 3 }, 'P_2', false);
+        const Q = addPt({ t: 'rot', c: P1, p: P2, ang: 60, k: 1 }, 'Q', false);
+        const segAB = addSh('segment', [A, B], { color: '#0284c7', width: 1.8 });
+        const segBC = addSh('segment', [B, C], { color: '#0284c7', width: 1.8 });
+        const segCA = addSh('segment', [C, A], { color: '#0284c7', width: 1.8 });
+        badgePos = { x: Math.max(28, cx - L * 0.58), y: Math.max(36, cy - L * 0.65) };
+        iterCfg = {
+          method: 'map',
+          depth: 3,
+          leavesOnly: true,
+          replaceSource: true,
+          scopeShapeIds: [segAB, segBC, segCA],
+          seedTuples: [[A, B], [B, C], [C, A]],
+          branches: [
+            [[A, A], [B, P1]],
+            [[A, P1], [B, Q]],
+            [[A, Q], [B, P2]],
+            [[A, P2], [B, B]]
+          ],
+          theme: 'blue'
+        };
+      } else if (presetId === 'pythagoras_tree') {
+        const L = 76 * sc;
+        const A = addPt({ t: 'free', x: cx - L / 2, y: cy + 165 * sc }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + L / 2, y: cy + 165 * sc }, 'B', true);
+        const D = addPt({ t: 'rot', c: A, p: B, ang: -90, k: 1 }, 'D', false);
+        const C = addPt({ t: 'sum', a: B, b: D, c: A }, 'C', false);
+        const E = addPt({ t: 'rot', c: D, p: C, ang: -45, k: Math.SQRT1_2 }, 'E', false);
+        const trunk = addSh('polygon', [A, B, C, D], { color: '#92400e', fill: 'rgba(180, 83, 9, 0.24)', width: 1.5 });
+        badgePos = { x: Math.max(28, cx - 220 * sc), y: Math.max(36, cy - 175 * sc) };
+        iterCfg = {
+          method: 'map',
+          depth: 6,
+          scopeShapeIds: [trunk],
+          branches: [
+            [[A, D], [B, E]],
+            [[A, E], [B, C]]
+          ],
+          stepColors: ['#92400e', '#a16207', '#65a30d', '#16a34a', '#059669', '#0d9488', '#047857', '#065f46'],
+          stepFills: [
+            'rgba(180,83,9,0.24)',
+            'rgba(161,98,7,0.22)',
+            'rgba(101,163,13,0.22)',
+            'rgba(22,163,74,0.22)',
+            'rgba(5,150,105,0.24)',
+            'rgba(13,148,136,0.24)',
+            'rgba(16,185,129,0.26)',
+            'rgba(4,120,87,0.28)'
+          ],
+          theme: 'emerald'
+        };
+      } else if (presetId === 'semicircle_spiral') {
+        const R = 165 * sc;
+        const P0 = addPt({ t: 'free', x: cx - R, y: cy + 25 * sc }, 'A_0', true);
+        const P1 = addPt({ t: 'free', x: cx + R, y: cy + 25 * sc }, 'A_1', true);
+        const O1 = addPt({ t: 'mid', a: P0, b: P1 }, '', false);
+        const P2 = addPt({ t: 'on', a: P1, b: P0, k: 0.72 }, 'A_2', true);
+        addSh('segment', [P0, P1], { color: '#94a3b8', width: 1.3, dashed: true });
+        const arc1 = addSh('arc', [O1, P0, P1], { color: '#db2777', width: 2.3, cw: true });
+        badgePos = { x: Math.max(28, cx - R), y: Math.max(36, cy - R - 26) };
+        iterCfg = {
+          method: 'map',
+          depth: 7,
+          scopeShapeIds: [arc1],
+          pairs: [[P0, P1], [P1, P2]],
+          theme: 'pink'
+        };
+      } else if (presetId === 'nested_squares') {
+        const L = 290 * sc;
+        const A = addPt({ t: 'free', x: cx - L / 2, y: cy - L / 2 }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + L / 2, y: cy - L / 2 }, 'B', true);
+        const C = addPt({ t: 'rot', c: B, p: A, ang: -90, k: 1 }, 'C', true);
+        const D = addPt({ t: 'sum', a: A, b: C, c: B }, 'D', true);
+        const A1 = addPt({ t: 'mid', a: A, b: B }, 'A_1', false);
+        const B1 = addPt({ t: 'mid', a: B, b: C }, 'B_1', false);
+        const sq0 = addSh('polygon', [A, B, C, D], { color: '#4f46e5', fill: 'rgba(99, 102, 241, 0.11)', width: 1.8 });
+        badgePos = { x: Math.max(28, cx - L * 0.5), y: Math.max(36, cy - L * 0.5 - 46) };
+        iterCfg = {
+          method: 'map',
+          depth: 8,
+          scopeShapeIds: [sq0],
+          pairs: [[A, A1], [B, B1]],
+          theme: 'violet'
+        };
+      } else if (presetId === 'tangent_circles_angle') {
+        const O = addPt({ t: 'free', x: cx - 220 * sc, y: cy }, 'O', true);
+        const A = addPt({ t: 'free', x: cx + 220 * sc, y: cy - 140 * sc }, 'A', true);
+        const B = addPt({ t: 'free', x: cx + 220 * sc, y: cy + 140 * sc }, 'B', true);
+        const Bbis = addPt({ t: 'bis', a: A, o: O, b: B }, '', false);
+        const I1 = addPt({ t: 'on', a: O, b: Bbis, k: 0.78 }, 'I_1', true);
+        const T1 = addPt({ t: 'foot', p: I1, a: O, b: A }, '', false);
+        const K1 = addPt({ t: 'inter', l1: [O, I1], c1: false, l2: [I1, T1], c2: true, which: 0 }, '', false);
+        const K1p = addPt({ t: 'rot', c: K1, p: I1, ang: 90, k: 1 }, '', false);
+        const Q1 = addPt({ t: 'inter', l1: [K1, K1p], c1: false, l2: [O, A], c2: false, which: 0 }, '', false);
+        const Q1b = addPt({ t: 'bis', a: O, o: Q1, b: K1 }, '', false);
+        const I2 = addPt({ t: 'inter', l1: [O, I1], c1: false, l2: [Q1, Q1b], c2: false, which: 0 }, 'I_2', false);
+        addSh('segment', [O, A], { color: '#334155', width: 2 });
+        addSh('segment', [O, B], { color: '#334155', width: 2 });
+        addSh('segment', [O, Bbis], { color: '#94a3b8', width: 1.2, dashed: true });
+        const c1 = addSh('circle', [I1, T1], { color: '#0891b2', fill: 'rgba(6, 182, 212, 0.14)', width: 2 });
+        badgePos = { x: Math.max(28, cx - 220 * sc), y: Math.max(36, cy - 165 * sc) };
+        iterCfg = {
+          method: 'map',
+          depth: 6,
+          scopeShapeIds: [c1],
+          pairs: [[I1, I2]],
+          theme: 'blue'
+        };
+      } else if (presetId === 'zigzag_perp_angle') {
+        const O = addPt({ t: 'free', x: cx - 205 * sc, y: cy + 100 * sc }, 'O', true);
+        const B = addPt({ t: 'free', x: cx + 215 * sc, y: cy + 100 * sc }, 'B', true);
+        const A = addPt({ t: 'free', x: cx + 185 * sc, y: cy - 150 * sc }, 'A', true);
+        const P1 = addPt({ t: 'foot', p: A, a: O, b: B }, 'A_1', true);
+        const P2 = addPt({ t: 'foot', p: P1, a: O, b: A }, 'A_2', true);
+        addSh('segment', [O, A], { color: '#334155', width: 2 });
+        addSh('segment', [O, B], { color: '#334155', width: 2 });
+        const s1 = addSh('segment', [A, P1], { color: '#e11d48', width: 2 });
+        const s2 = addSh('segment', [P1, P2], { color: '#2563eb', width: 2 });
+        const r1 = addSh('right', [A, P1, O], { color: '#e11d48', width: 1.3 });
+        const r2 = addSh('right', [P1, P2, O], { color: '#2563eb', width: 1.3 });
+        badgePos = { x: Math.max(28, cx - 205 * sc), y: Math.max(36, cy - 165 * sc) };
+        iterCfg = {
+          method: 'map',
+          depth: 6,
+          scopeShapeIds: [s1, s2, r1, r2],
+          pairs: [[A, P2]],
+          theme: 'pink'
+        };
+      } else if (presetId === 'right_angle_spiral') {
+        const O = addPt({ t: 'free', x: cx - 115 * sc, y: cy + 105 * sc }, 'O', true);
+        const A1 = addPt({ t: 'free', x: cx + 135 * sc, y: cy + 105 * sc }, 'A_1', true);
+        const A2 = addPt({ t: 'rot', c: A1, p: O, ang: 90, k: 0.78 }, 'A_2', true);
+        const seg0 = addSh('segment', [O, A1], { color: '#7c3aed', width: 2.3 });
+        const ra0 = addSh('right', [O, A1, A2], { color: '#7c3aed', width: 1.3 });
+        badgePos = { x: Math.max(28, cx - 140 * sc), y: Math.max(36, cy - 155 * sc) };
+        iterCfg = {
+          method: 'map',
+          depth: 10,
+          scopeShapeIds: [seg0, ra0],
+          pairs: [[O, A1], [A1, A2]],
+          theme: 'violet'
+        };
+      } else if (presetId === 'bouncing_ball') {
+        const yFloor = cy + 115 * sc;
+        const G0 = addPt({ t: 'free', x: cx - 255 * sc, y: yFloor }, '', false);
+        const G1 = addPt({ t: 'free', x: cx + 255 * sc, y: yFloor }, '', false);
+        const B0 = addPt({ t: 'free', x: cx - 235 * sc, y: yFloor }, 'A_0', true);
+        const B1 = addPt({ t: 'free', x: cx - 105 * sc, y: yFloor }, 'A_1', true);
+        const M1 = addPt({ t: 'mid', a: B0, b: B1 }, '', false);
+        const V1 = addPt({ t: 'rot', c: M1, p: B1, ang: -90, k: 2.65 }, 'H_1', true);
+        const B2 = addPt({ t: 'vec', o: B1, a: B0, b: B1, k: 0.72, perp: false }, 'A_2', true);
+        addSh('segment', [G0, G1], { color: '#334155', width: 2.2 });
+        const arch1 = addSh('parabola', [V1, M1, B1], { color: '#ea580c', width: 2.3 });
+        const h1 = addSh('segment', [M1, V1], { color: '#94a3b8', width: 1.2, dashed: true });
+        badgePos = { x: Math.max(28, cx - 245 * sc), y: Math.max(36, cy - 125 * sc) };
+        iterCfg = {
+          method: 'map',
+          depth: 6,
+          scopeShapeIds: [arch1, h1],
+          pairs: [[B0, B1], [B1, B2]],
+          theme: 'pink'
+        };
+      }
+
+      if (!iterCfg) return pg;
+
+      const iterId = 'iter_' + K.nt();
+      createdIterId = iterId;
+      const varName = nextVarName({ iterations }, 'map');
+      const dCap = maxSafeDepthForCfg(iterCfg, false);
+      const paramId = 'pm_' + K.nt();
+      params.push({
+        id: paramId,
+        name: varName,
+        value: iterCfg.depth,
+        unit: 'none',
+        min: 0,
+        max: Math.min(dCap, Math.max(iterCfg.depth, dCap < 12 ? dCap : 12)),
+        step: 1,
+        expr: '',
+        animating: false,
+        animDir: 1,
+        x: Math.round(badgePos.x),
+        y: Math.round(badgePos.y),
+        _iterBadgeOwner: iterId
+      });
+
+      const finalDef = {
+        id: iterId,
+        varName,
+        method: iterCfg.method,
+        depth: iterCfg.depth,
+        angle: 0,
+        ratio: 0.5,
+        scopeShapeIds: iterCfg.scopeShapeIds.slice(),
+        pairs: iterCfg.branches ? iterCfg.branches[0].map(p => [p[0], p[1]]) : iterCfg.pairs.map(p => [p[0], p[1]]),
+        branches: iterCfg.branches ? iterCfg.branches.map(b => b.map(p => [p[0], p[1]])) : undefined,
+        leavesOnly: !!iterCfg.leavesOnly,
+        replaceSource: !!iterCfg.replaceSource,
+        seedTuples: iterCfg.seedTuples ? iterCfg.seedTuples.map(t => t.slice()) : undefined,
+        stepColors: iterCfg.stepColors ? iterCfg.stepColors.slice() : undefined,
+        stepFills: iterCfg.stepFills ? iterCfg.stepFills.slice() : undefined,
+        centerId: null,
+        vecA: null,
+        vecB: null,
+        clipEnabled: false,
+        clipSeg: null,
+        clipShapeId: null,
+        hideIterDots: true,
+        showBadge: true,
+        theme: iterCfg.theme || 'blue',
+        depthParamId: paramId,
+        angleParamId: null,
+        ratioParamId: null,
+        presetId,
+        x: Math.round(badgePos.x),
+        y: Math.round(badgePos.y)
+      };
+
+      const preGeo = { ...baseGeo, points, shapes, params, iterations };
+      const res = buildScopedIteration(preGeo, finalDef, K.nt);
+      const merged = mergeIterResult(preGeo, finalDef, res);
+      return {
+        ...pg,
+        geo: {
+          ...merged,
+          params,
+          iterations: [...iterations, finalDef]
+        }
+      };
+    }));
+
+    if (typeof board.setTool === 'function') board.setTool({ k: 'select' });
+    board.redraw();
+    board.emit();
+    notifyParamsStudio();
+    scheduleSyncBadges();
+    if (!(opts && opts.silent)) showIterToast(meta.toast);
+    return createdIterId || true;
+  }
+
   /* ========================== Workflow Entry Points ========================== */
 
   function openNewWorkflow(preselectedShapeIds, jumpStage2) {
@@ -2236,6 +3309,13 @@
       ratio: 0.5,
       scopeShapeIds: Array.isArray(preselectedShapeIds) ? preselectedShapeIds.slice() : [],
       pairs: [],
+      branches: [[]],
+      activeBranch: 0,
+      leavesOnly: false,
+      replaceSource: false,
+      seedTuples: null,
+      stepFills: null,
+      stepColors: null,
       pendingSrc: null,
       centerId: null,
       vecA: null,
@@ -2285,13 +3365,21 @@
     STATE.clipUserTouched = true;
     STATE.hoverShapeId = null;
     STATE.marquee = null;
+    const loadedBranches = normalizeBranchesRaw(it);
     STATE.cfg = {
       method: it.method || 'map',
       depth: Number.isFinite(Number(it.depth)) ? Number(it.depth) : 5,
       angle: Number(it.angle) || 60,
       ratio: Number.isFinite(Number(it.ratio)) ? Number(it.ratio) : 0.5,
       scopeShapeIds: (it.scopeShapeIds || []).slice(),
-      pairs: (it.pairs || []).map(p => [p[0], p[1]]),
+      pairs: (loadedBranches[0] || []).map(p => [p[0], p[1]]),
+      branches: loadedBranches,
+      activeBranch: 0,
+      leavesOnly: !!it.leavesOnly,
+      replaceSource: !!it.replaceSource,
+      seedTuples: Array.isArray(it.seedTuples) ? it.seedTuples.map(t => t.slice()) : null,
+      stepFills: Array.isArray(it.stepFills) ? it.stepFills.slice() : null,
+      stepColors: Array.isArray(it.stepColors) ? it.stepColors.slice() : null,
       pendingSrc: null,
       centerId: it.centerId || null,
       vecA: it.vecA || null,
@@ -2398,6 +3486,9 @@
 
   root.MinNoteGeoIterate = {
     STATE,
+    CSN_PRESETS,
+    spawnCsnPreset,
+    maxSafeDepthForCfg,
     buildScopedIteration,
     formulaLatexForCfg,
     normalizeIterRatio,

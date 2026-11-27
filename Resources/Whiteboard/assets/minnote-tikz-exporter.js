@@ -1476,7 +1476,7 @@
     }
 
     // Determine whether curve mode needs `line join=round` (Rule 4.5: ONLY for graphs/curves, NEVER geometry!)
-    const hasSmoothCurve = renderShapes.some((s) => s.kind === 'parabola' || s.kind === 'hyperbola');
+    const hasSmoothCurve = renderShapes.some((s) => s.kind === 'parabola' || s.kind === 'hyperbola' || s.kind === 'spline' || s.kind === 'bezier' || s.kind === 'spiral');
 
     // ============================================================================
     // Assemble 5-Layer Output (Rule 7) — ZERO blank lines inside tikzpicture!
@@ -1753,9 +1753,11 @@
           const r = dist2(oPt, p1);
           const a1 = Math.atan2(p1.y - oPt.y, p1.x - oPt.x) * 180 / Math.PI;
           let a2 = Math.atan2(p2.y - oPt.y, p2.x - oPt.x) * 180 / Math.PI;
-          let diff = ((a2 - a1) % 360 + 360) % 360;
+          let diff = sh.cw
+            ? (((a1 - a2) % 360 + 360) % 360)
+            : (((a2 - a1) % 360 + 360) % 360);
           if (diff < 1e-3) diff = 360;
-          const endDeg = a1 + diff;
+          const endDeg = sh.cw ? (a1 - diff) : (a1 + diff);
           const rExpr = radiusExprBetween(pIds[0], pIds[1]);
           if (sh.kind === 'sector') {
             layer1Fills.push(`\\fill[${fillStyleStr()}] (${T(pIds[0])}) -- (${T(pIds[1])}) arc[start angle=${fmtNum(a1, 1)}, end angle=${fmtNum(endDeg, 1)}, radius=${rExpr}] -- cycle;`);
@@ -1831,6 +1833,73 @@
           layer2Dashed.push(`\\draw[dashed, line width=0.4pt] (${fmtNum(oPt.x - 2.2 * Number(a), 2)},${fmtNum(oPt.y + 2.2 * Number(b), 2)}) -- (${fmtNum(oPt.x + 2.2 * Number(a), 2)},${fmtNum(oPt.y - 2.2 * Number(b), 2)});`);
           layer3Solid.push(`\\draw[line width=0.6pt, smooth, samples=80, domain=-1.4:1.4] plot ({${cx}+${a}*cosh(\\x)},{${cy}+${b}*sinh(\\x)});`);
           layer3Solid.push(`\\draw[line width=0.6pt, smooth, samples=80, domain=-1.4:1.4] plot ({${cx}-${a}*cosh(\\x)},{${cy}+${b}*sinh(\\x)});`);
+          break;
+        }
+
+        case 'spline': {
+          if (pIds.length < 2) break;
+          const cPts = pIds.map((id) => tikzCoords.get(id)).filter(Boolean);
+          if (cPts.length < 2) break;
+          const coordStr = cPts.map((p) => `(${fmtNum(p.x, 3)},${fmtNum(p.y, 3)})`).join(' ');
+          const plotOpt = sh.closed ? 'smooth cycle' : 'smooth';
+          if (sh.closed && sh.fill) {
+            layer1Fills.push(`\\fill[${fillStyleStr()}] plot[${plotOpt}] coordinates {${coordStr}};`);
+          }
+          const sStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+          (sh.dashed ? layer2Dashed : layer3Solid).push(
+            `\\draw[${sStyle}] plot[${plotOpt}] coordinates {${coordStr}};`
+          );
+          break;
+        }
+
+        case 'bezier': {
+          if (pIds.length < 3) break;
+          const bPts = pIds.map((id) => tikzCoords.get(id)).filter(Boolean);
+          if (bPts.length < 3) break;
+          const bStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+          if (bPts.length === 3) {
+            const [p0, q, p2] = bPts;
+            const c1 = { x: p0.x + (2 / 3) * (q.x - p0.x), y: p0.y + (2 / 3) * (q.y - p0.y) };
+            const c2 = { x: p2.x + (2 / 3) * (q.x - p2.x), y: p2.y + (2 / 3) * (q.y - p2.y) };
+            (sh.dashed ? layer2Dashed : layer3Solid).push(
+              `\\draw[${bStyle}] (${T(pIds[0])}) .. controls (${fmtNum(c1.x, 3)},${fmtNum(c1.y, 3)}) and (${fmtNum(c2.x, 3)},${fmtNum(c2.y, 3)}) .. (${T(pIds[2])});`
+            );
+          } else {
+            const segs = [];
+            for (let bi = 0; bi + 3 < pIds.length; bi += 3) {
+              segs.push(`${bi === 0 ? `(${T(pIds[bi])})` : ''} .. controls (${T(pIds[bi + 1])}) and (${T(pIds[bi + 2])}) .. (${T(pIds[bi + 3])})`);
+            }
+            if (segs.length) {
+              (sh.dashed ? layer2Dashed : layer3Solid).push(`\\draw[${bStyle}] ${segs.join(' ')};`);
+            }
+          }
+          break;
+        }
+
+        case 'spiral': {
+          if (pIds.length < 2) break;
+          const oPt = tikzCoords.get(pIds[0]), aPt = tikzCoords.get(pIds[1]);
+          if (!oPt || !aPt) break;
+          const R = dist2(oPt, aPt);
+          if (R < 1e-4) break;
+          const sk = sh.spiralKind || 'golden';
+          const turns = Math.max(0.25, Math.min(10, Number(sh.turns) || (sk === 'archimedean' ? 3 : 2.5)));
+          const thMax = 2 * Math.PI * turns;
+          const base = Math.atan2(aPt.y - oPt.y, aPt.x - oPt.x);
+          const bG = (2 * Math.log((1 + Math.sqrt(5)) / 2)) / Math.PI;
+          const nSamp = Math.max(48, Math.min(200, Math.round(turns * 40)));
+          const coordsArr = [];
+          for (let k = 0; k <= nSamp; k++) {
+            const u = k / nSamp;
+            const th = u * thMax;
+            const r = sk === 'archimedean' ? R * u : R * Math.exp(bG * (th - thMax));
+            const ang = sh.cw ? (base + (thMax - th)) : (base - (thMax - th));
+            coordsArr.push(`(${fmtNum(oPt.x + r * Math.cos(ang), 3)},${fmtNum(oPt.y + r * Math.sin(ang), 3)})`);
+          }
+          const spStyle = sh.dashed ? 'dashed, line width=0.4pt' : 'line width=0.6pt';
+          (sh.dashed ? layer2Dashed : layer3Solid).push(
+            `\\draw[${spStyle}] plot[smooth] coordinates {${coordsArr.join(' ')}};`
+          );
           break;
         }
 

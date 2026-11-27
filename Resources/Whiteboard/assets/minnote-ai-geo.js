@@ -300,7 +300,8 @@ TÓM TẮT SCHEMA "ops" (trong {"schema":"mn-geo-motion/2.0","title":"...","is3D
   • {"op":"intersection_lc","id":"K","line":"A-O","circle":"O-R","which":0} | {"op":"intersection_cc","id":"B","c1":"M-O","c2":"O-R","which":0}
   • {"op":"tangent_point","id":"B","p":"A","center":"O","rim":"R","which":0} | {"op":"common_tangent","id":"T1","c1":"O1-R1","c2":"O2-R2","inner":false,"which":0,"on":1}
   • {"op":"circle","center":"O","r":2.2} | {"op":"point_on_circle","id":"D","center":"O","rim":"R","angleDeg":125}
-  • {"op":"arc","pts":["O","A","B"]} | {"op":"arc3","pts":["A","B","C"]} | {"op":"sector","pts":["O","A","B"],"fill":"rgba(15,23,42,0.06)"}
+  • {"op":"arc","pts":["O","A","B"],"cw":false} | {"op":"arc3","pts":["A","B","C"]} | {"op":"sector","pts":["O","A","B"],"fill":"rgba(15,23,42,0.06)"}
+  • {"op":"spline","pts":["A","B","C","D"],"closed":false} | {"op":"bezier","pts":["P0","C1","C2","P3"]} | {"op":"spiral","center":"O","rim":"A","spiralKind":"golden"|"archimedean","turns":2.5} | {"op":"fibonacci","steps":7,"showSquares":true}
   • {"op":"cone","apex":"S","center":"O","rim":"A","r":2.2,"h":3.8} | {"op":"cylinder","center":"O","rim":"A","topCenter":"O'","r":2.0,"h":3.4} | {"op":"sphere","center":"O","r":2.4} | {"op":"frustumCone","pts":["O","A","O'","A'"]}
   • {"op":"segment"|"line"|"ray","s":"S-O","dashed":true,"aux":true}
   • {"op":"connect_polygon","pts":["A","B","M","I"],"dashedEdges":["A-I"],"fill":"rgba(15,23,42,0.06)","effect":"fade","step":"Thiết diện ABMI"}
@@ -2457,6 +2458,91 @@ ${prob}`;
         continue;
       }
 
+      if (op.op === 'fibonacci') {
+        expandedMacroCount++;
+        if (plan.is3D === undefined) plan.is3D = false;
+        const nSteps = Math.max(3, Math.min(10, Math.round(parseMathNumber(op.steps ?? op.n, 7))));
+        const showSq = op.showSquares !== false;
+        const F = [1, 1];
+        while (F.length < nSteps) F.push(F[F.length - 1] + F[F.length - 2]);
+        let minX = 0, minY = 0, maxX = 1, maxY = 1;
+        const rawSq = [{ x0: 0, y0: 0, x1: 1, y1: 1, dir: 0, size: 1 }];
+        for (let k = 1; k < nSteps; k++) {
+          const sz = F[k], dir = k % 4;
+          let x0, y0, x1, y1;
+          if (dir === 0) { x0 = minX - sz; y0 = minY; x1 = minX; y1 = minY + sz; minX -= sz; }
+          else if (dir === 1) { x0 = minX; y0 = minY - sz; x1 = minX + sz; y1 = minY; minY -= sz; }
+          else if (dir === 2) { x0 = maxX; y0 = minY; x1 = maxX + sz; y1 = minY + sz; maxX += sz; }
+          else { x0 = minX; y0 = maxY; x1 = minX + sz; y1 = maxY + sz; maxY += sz; }
+          rawSq.push({ x0, y0, x1, y1, dir, size: sz });
+        }
+        const rotSteps = (4 - ((nSteps - 1) % 4)) % 4;
+        const rotPt = (x, y) => {
+          let rx = x, ry = y;
+          for (let i = 0; i < rotSteps; i++) { const nx = -ry, ny = rx; rx = nx; ry = ny; }
+          return [rx, ry];
+        };
+        const sqs = rawSq.map((q) => {
+          const { x0, y0, x1, y1, dir, size } = q;
+          let center, start, end;
+          if (dir === 0) { center = [x1, y0]; start = [x1, y1]; end = [x0, y0]; }
+          else if (dir === 1) { center = [x1, y1]; start = [x0, y1]; end = [x1, y0]; }
+          else if (dir === 2) { center = [x0, y1]; start = [x0, y0]; end = [x1, y1]; }
+          else { center = [x0, y0]; start = [x1, y0]; end = [x0, y1]; }
+          return {
+            size,
+            corners: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([px, py]) => rotPt(px, py)),
+            center: rotPt(center[0], center[1]),
+            start: rotPt(start[0], start[1]),
+            end: rotPt(end[0], end[1])
+          };
+        });
+        let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+        for (const sq of sqs) for (const [px, py] of sq.corners) {
+          if (px < gx0) gx0 = px; if (py < gy0) gy0 = py;
+          if (px > gx1) gx1 = px; if (py > gy1) gy1 = py;
+        }
+        const W = Math.max(1, gx1 - gx0), H = Math.max(1, gy1 - gy0);
+        const spanW = Math.max(1.5, parseMathNumber(op.scale, 1) * 6.4);
+        const unit = spanW / W;
+        const cx0 = parseMathNumber(op.x, 0) - spanW * 0.5;
+        const cy0 = parseMathNumber(op.y, 0) - (H * unit) * 0.5;
+        const pfx = cleanRef(op.id || 'F');
+        const pA = pfx + 'A', pB = pfx + 'B';
+        emitPointIfMissing(pA, cx0, cy0);
+        emitPointIfMissing(pB, cx0 + spanW, cy0);
+        const gridMap = new Map([['0,0', pA], [W + ',0', pB]]);
+        const ensureGridPt = (gx, gy) => {
+          const sx = gx - gx0, sy = gy - gy0;
+          const ky = sx + ',' + sy;
+          if (gridMap.has(ky)) return gridMap.get(ky);
+          const pid = '__' + pfx + '_' + sx + '_' + sy;
+          if (sy === 0) {
+            emitOp({ op: 'point_on_segment', id: pid, label: '', a: pA, b: pB, ratio: sx / W, lock: true, show: false, noDot: true });
+          } else if (sx === 0) {
+            emitOp({ op: 'point_perp', id: pid, label: '', through: pA, a: pA, b: pB, k: sy / W, show: false, noDot: true });
+          } else {
+            const baseId = ensureGridPt(gx, gy0);
+            emitOp({ op: 'point_perp', id: pid, label: '', through: baseId, a: pA, b: pB, k: sy / W, show: false, noDot: true });
+          }
+          gridMap.set(ky, pid);
+          return pid;
+        };
+        if (showSq) {
+          sqs.forEach((sq, idx) => {
+            const cIds = sq.corners.map(([px, py]) => ensureGridPt(px, py));
+            emitOp({ op: 'connect_polygon', pts: cIds, step: 'Hình vuông Fibonacci F' + (idx + 1) + ' = ' + sq.size });
+          });
+        }
+        sqs.forEach((sq, idx) => {
+          const cId = ensureGridPt(sq.center[0], sq.center[1]);
+          const sId = ensureGridPt(sq.start[0], sq.start[1]);
+          const eId = ensureGridPt(sq.end[0], sq.end[1]);
+          emitOp({ op: 'arc', pts: [cId, sId, eId], step: 'Cung xoắn ốc Fibonacci bậc ' + (idx + 1) + ' (R = ' + sq.size + ')' });
+        });
+        continue;
+      }
+
       if (op.op === 'square_2d') {
         expandedMacroCount++;
         if (plan.is3D === undefined) plan.is3D = false;
@@ -2805,9 +2891,17 @@ ${prob}`;
         if (op.op === 'section' && !op.fill) {
           op.fill = 'rgba(15, 23, 42, 0.06)';
         }
-      } else if (op.op === 'arc' || op.op === 'arc3' || op.op === 'sector') {
+      } else if (op.op === 'arc' || op.op === 'arc3' || op.op === 'sector' || op.op === 'spline' || op.op === 'bezier' || op.op === 'spiral') {
         if (typeof op.pts === 'string') {
           op.pts = parseVertexList(op.pts);
+        }
+        if (op.op === 'spiral' && !Array.isArray(op.pts)) {
+          const cSym = cleanRef(op.center || op.o);
+          let rSym = cleanRef(op.rim || op.a);
+          if (!rSym && cSym && isNumericRadiusVal(op.r ?? op.radius)) {
+            rSym = ensureRimForNumericRadius(cSym, op.r ?? op.radius);
+          }
+          if (cSym && rSym) op.pts = [cSym, rSym];
         }
       }
 
@@ -2945,11 +3039,15 @@ ${prob}`;
         }
         break;
       case 'arc3':
+      case 'spline':
+      case 'bezier':
+      case 'spiral':
       case 'cone':
       case 'cylinder':
       case 'sphere':
       case 'frustumCone':
         if (Array.isArray(op.pts)) op.pts.forEach(push);
+        else if (op.op === 'spiral') { push(op.center || op.o); push(op.rim || op.a || op.r); }
         break;
       case 'intersection_ll': {
         const l1 = Array.isArray(op.l1) ? op.l1 : [op.a1, op.b1];
@@ -5034,7 +5132,7 @@ ${prob}`;
     const addShapeRec = (kind, ptIds, opts = {}) => {
       const useCustomCol = !!(opts.explicitColor && opts.color);
       const useCustomW = !!(opts.explicitWidth && Number.isFinite(opts.width));
-      const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle' || kind === 'arc' || kind === 'arc3' || kind === 'sector';
+      const hasStrokeDash = kind === 'segment' || kind === 'line' || kind === 'ray' || kind === 'circle' || kind === 'arc' || kind === 'arc3' || kind === 'sector' || kind === 'spline' || kind === 'bezier' || kind === 'spiral';
       const cleanName = opts.name != null ? String(opts.name).trim() : '';
       const validNameAt = opts.nameAt && Number.isFinite(Number(opts.nameAt.x)) && Number.isFinite(Number(opts.nameAt.y))
         ? { x: Number(opts.nameAt.x), y: Number(opts.nameAt.y) }
@@ -5053,6 +5151,10 @@ ${prob}`;
         ...(Array.isArray(opts.gaps) && opts.gaps.length ? { gaps: opts.gaps } : (kind === 'polygon' && opts.width === 0 && opts.fill ? { gaps: ptIds.map((_, idx) => idx) } : {})),
         ...(opts.arrow ? { arrow: true } : {}),
         ...(opts.plain ? { plain: true } : {}),
+        ...(opts.cw ? { cw: true } : {}),
+        ...(opts.closed ? { closed: true } : {}),
+        ...(opts.spiralKind ? { spiralKind: opts.spiralKind } : {}),
+        ...(Number.isFinite(opts.turns) ? { turns: opts.turns } : {}),
         ...(Number.isFinite(opts.n) ? { n: opts.n } : {})
       };
       if (opts.explicitDashed !== undefined) {
@@ -6129,6 +6231,7 @@ ${prob}`;
               : undefined;
             const sh = addShapeRec(op.op, [o.id, s.id, e.id], {
               dashed: !!op.dashed,
+              cw: !!op.cw,
               fill: fillVal,
               color: op.color,
               width: op.width,
@@ -6140,6 +6243,65 @@ ${prob}`;
             const st = makeStepForShape(sh.id, stepLabel || (op.op === 'sector' ? `Hình quạt ${s.label}${o.label}${e.label}` : `Cung ${s.label}${e.label}`), !!op.tempHide, mMeta);
             rawSteps.push(st);
             recordSymStep(cleanRef(op.id || `${op.op}_${o.label}_${s.label}_${e.label}`), st);
+          }
+          break;
+        }
+        case 'spline': {
+          const resolved = (Array.isArray(op.pts) ? op.pts : []).map(sym => resolvePt(sym)).filter(Boolean);
+          if (resolved.length >= 2) {
+            const sh = addShapeRec('spline', resolved.map(p => p.id), {
+              closed: !!op.closed,
+              dashed: !!op.dashed,
+              fill: op.closed ? op.fill : undefined,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux
+            });
+            const st = makeStepForShape(sh.id, stepLabel || ('Đường cong trơn ' + resolved.slice(0, 5).map(p => p.label).join('')), !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || ('spline_' + resolved[0].label)), st);
+          }
+          break;
+        }
+        case 'bezier': {
+          const resolved = (Array.isArray(op.pts) ? op.pts : []).map(sym => resolvePt(sym)).filter(Boolean);
+          if (resolved.length >= 3) {
+            const sh = addShapeRec('bezier', resolved.map(p => p.id), {
+              dashed: !!op.dashed,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux
+            });
+            const st = makeStepForShape(sh.id, stepLabel || ('Đường cong Bézier ' + resolved.slice(0, 4).map(p => p.label).join('')), !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || ('bezier_' + resolved[0].label)), st);
+          }
+          break;
+        }
+        case 'spiral': {
+          const pArr = Array.isArray(op.pts) && op.pts.length >= 2 ? op.pts.slice(0, 2) : [op.center || op.o, op.rim || op.a || op.r];
+          const o = resolvePt(pArr[0]), a = resolvePt(pArr[1]);
+          if (o && a) {
+            const sk = op.spiralKind || 'golden';
+            const turns = Math.max(0.25, Math.min(10, Number(op.turns) || (sk === 'archimedean' ? 3 : 2.5)));
+            const sh = addShapeRec('spiral', [o.id, a.id], {
+              spiralKind: sk,
+              turns,
+              cw: !!op.cw,
+              dashed: !!op.dashed,
+              color: op.color,
+              width: op.width,
+              explicitColor: !!op.explicitColor,
+              explicitWidth: !!op.explicitWidth,
+              aux: !!op.aux
+            });
+            const st = makeStepForShape(sh.id, stepLabel || (sk === 'archimedean' ? ('Xoắn ốc Archimede (' + o.label + ')') : ('Xoắn ốc vàng (' + o.label + ')')), !!op.tempHide, mMeta);
+            rawSteps.push(st);
+            recordSymStep(cleanRef(op.id || ('spiral_' + o.label)), st);
           }
           break;
         }

@@ -306,6 +306,17 @@
   background: #1d4ed8;
 }
 
+.mn-isb-btn.preset {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  border-color: #6d28d9;
+  color: #ffffff;
+}
+
+.mn-isb-btn.preset:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6d28d9 0%, #4338ca 100%);
+  border-color: #5b21b6;
+}
+
 .mn-isb-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -316,7 +327,7 @@
   position: fixed;
   top: 108px;
   right: 22px;
-  width: 326px;
+  width: 362px;
   max-width: calc(100vw - 20px);
   max-height: calc(100vh - 130px);
   z-index: 120;
@@ -399,23 +410,23 @@
   gap: 10px;
 }
 
-/* 4 concise 1-line method tabs */
+/* 5 concise 1-line method tabs (including Mẫu CSN 11 presets) */
 .mn-idlg-methods {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
   padding: 3px;
   border-radius: 10px;
   background: #f1f5f9;
 }
 
 .mn-idlg-mbtn {
-  padding: 6px 4px;
+  padding: 6px 2px;
   border-radius: 7px;
   border: none;
   background: transparent;
   color: #475569;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   text-align: center;
   cursor: pointer;
@@ -423,6 +434,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   transition: all 0.12s ease;
+}
+
+.mn-idlg-mbtn[data-method="presets"] {
+  color: #6d28d9;
+}
+
+.mn-idlg-mbtn[data-method="presets"].active {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #ffffff;
 }
 
 .mn-idlg-mbtn:hover {
@@ -801,6 +821,313 @@ html.dark .mn-idlg-num-ctrl input[type="text"] {
 
 html.dark .mn-idlg-katex-preview .katex {
   color: #f8fafc;
+}
+
+/* ---------------- Multi-Branch IFS Controls ---------------- */
+.mn-idlg-branches-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.mn-idlg-br-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.mn-idlg-br-pill:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.mn-idlg-br-pill.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.16);
+}
+
+.mn-idlg-br-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.mn-idlg-br-rm {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 1px;
+  cursor: pointer;
+}
+
+.mn-idlg-br-rm:hover {
+  color: #dc2626;
+}
+
+.mn-idlg-br-add {
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px dashed #6366f1;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mn-idlg-br-add:hover {
+  background: #e0e7ff;
+  border-color: #4f46e5;
+}
+
+.mn-idlg-ifs-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+.mn-idlg-ifs-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6d28d9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mn-idlg-fix-btn {
+  border: 1px solid #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  cursor: pointer;
+  margin-left: 3px;
+}
+
+.mn-idlg-fix-btn:hover {
+  background: #fde68a;
+}
+
+/* ---------------- Mẫu CSN 11 & Fractal Preset Gallery ---------------- */
+.mn-idlg-presets-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mn-idlg-preset-sec {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.mn-idlg-preset-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mn-idlg-preset-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.13s ease, background 0.13s ease, box-shadow 0.13s ease, transform 0.1s ease;
+}
+
+.mn-idlg-preset-card:hover {
+  border-color: #6366f1;
+  background: #f5f3ff;
+  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.12);
+  transform: translateY(-1px);
+}
+
+.mn-idlg-preset-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mn-idlg-preset-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.mn-idlg-preset-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mn-idlg-preset-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mn-idlg-preset-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  flex-shrink: 0;
+}
+
+.mn-idlg-preset-tag.csn {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.mn-idlg-preset-desc {
+  font-size: 11px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mn-idlg-preset-desc .katex {
+  font-size: 0.98em;
+  color: #1e293b;
+}
+
+.mn-idlg-preset-tip {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* ---------------- Compact In-App Toast ---------------- */
+#mn-iter-toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 160;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+
+#mn-iter-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Dark mode for multi-branch & presets */
+html.dark .mn-idlg-br-pill {
+  background: #0f172a;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+html.dark .mn-idlg-br-pill.active {
+  background: #1e3a5f;
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+html.dark .mn-idlg-br-add {
+  background: #312e81;
+  border-color: #818cf8;
+  color: #c7d2fe;
+}
+
+html.dark .mn-idlg-ifs-box {
+  background: #1e1b4b;
+  border-color: #4338ca;
+}
+
+html.dark .mn-idlg-ifs-meta {
+  color: #c4b5fd;
+}
+
+html.dark .mn-idlg-preset-card {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html.dark .mn-idlg-preset-card:hover {
+  background: #1e1b4b;
+  border-color: #818cf8;
+}
+
+html.dark .mn-idlg-preset-icon {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html.dark .mn-idlg-preset-name {
+  color: #f8fafc;
+}
+
+html.dark .mn-idlg-preset-desc,
+html.dark .mn-idlg-preset-desc .katex,
+html.dark .mn-idlg-preset-sec,
+html.dark .mn-idlg-preset-tip {
+  color: #cbd5e1;
 }
 
 /* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

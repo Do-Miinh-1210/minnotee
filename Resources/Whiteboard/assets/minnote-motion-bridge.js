@@ -1595,7 +1595,13 @@
       } else if (sh.kind === 'circle' && pSyms.length >= 2) {
         ops.push({ op: 'circle', id: shSym, center: pSyms[0], rim: pSyms[1], dashed: !!sh.dashed, ...(sh.aux ? { aux: true } : {}) });
       } else if ((sh.kind === 'arc' || sh.kind === 'sector' || sh.kind === 'arc3') && pSyms.length >= 3) {
-        ops.push({ op: sh.kind, id: shSym, pts: pSyms, dashed: !!sh.dashed, ...(sh.fill ? { fill: sh.fill } : {}), ...(sh.aux ? { aux: true } : {}) });
+        ops.push({ op: sh.kind, id: shSym, pts: pSyms, dashed: !!sh.dashed, ...(sh.cw ? { cw: true } : {}), ...(sh.fill ? { fill: sh.fill } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if (sh.kind === 'spline' && pSyms.length >= 2) {
+        ops.push({ op: 'spline', id: shSym, pts: pSyms, ...(sh.closed ? { closed: true } : {}), ...(sh.dashed ? { dashed: true } : {}), ...(sh.fill ? { fill: sh.fill } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if (sh.kind === 'bezier' && pSyms.length >= 3) {
+        ops.push({ op: 'bezier', id: shSym, pts: pSyms, ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
+      } else if (sh.kind === 'spiral' && pSyms.length >= 2) {
+        ops.push({ op: 'spiral', id: shSym, center: pSyms[0], rim: pSyms[1], pts: pSyms.slice(0, 2), spiralKind: sh.spiralKind || 'golden', turns: Number(sh.turns) || 2.5, ...(sh.cw ? { cw: true } : {}), ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
       } else if ((sh.kind === 'cone' || sh.kind === 'cylinder') && pSyms.length >= 3) {
         ops.push({ op: sh.kind, id: shSym, pts: pSyms.slice(0, 3), ...(sh.dashed ? { dashed: true } : {}), ...(sh.aux ? { aux: true } : {}) });
       } else if (sh.kind === 'sphere' && pSyms.length >= 2) {
@@ -2101,14 +2107,17 @@
             // Math +y UP angles: MinNote canvas sweeps from p1 CCW in math coords to p2
             const a1 = Math.atan2(p1.y - oP.y, p1.x - oP.x) * 180 / Math.PI;
             const a2 = Math.atan2(p2.y - oP.y, p2.x - oP.x) * 180 / Math.PI;
-            let diff = ((a2 - a1) % 360 + 360) % 360;
+            let diff = sh.cw
+              ? (((a1 - a2) % 360 + 360) % 360)
+              : (((a2 - a1) % 360 + 360) % 360);
             if (diff < 1e-3) diff = 360;
-            const endDeg = a1 + diff;
+            const signedDiff = sh.cw ? -diff : diff;
+            const endDeg = a1 + signedDiff;
             const a1s = fmtNum(a1, 4);
             const endS = fmtNum(endDeg, 4);
-            const diffS = fmtNum(diff, 4);
+            const diffS = fmtNum(signedDiff, 4);
             const startAng = isRev ? endS : a1s;
-            const dynEnd = isRev ? `{${endS}-${diffS}*${pVar}}` : `{${a1s}+${diffS}*${pVar}}`;
+            const dynEnd = isRev ? `{${endS}-(${diffS})*${pVar}}` : `{${a1s}+(${diffS})*${pVar}}`;
             if (sh.kind === 'sector') {
               fillCmds.push(`      \\fill[cyan!22!gray, opacity={0.28*${pVar}}] (${oTid}) -- ($(${oTid})+(${startAng}:${R})$) arc (${startAng}:${dynEnd}:${R}) -- cycle;`);
               geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${oTid}) -- ($(${oTid})+(${startAng}:${R})$) arc (${startAng}:${dynEnd}:${R}) -- cycle;`);
@@ -2136,6 +2145,61 @@
               const endExpr = isRev ? `{${fmtNum(a1 + span, 4)}-(${fmtNum(span, 4)})*${pVar}}` : `{${fmtNum(a1, 4)}+(${fmtNum(span, 4)})*${pVar}}`;
               geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${fmtNum(cx, 5)},${fmtNum(cy, 5)}) ++(${startA}:${r}) arc (${startA}:${endExpr}:${r});`);
             }
+            break;
+          }
+          case 'spline': {
+            if (sh.pts.length < 2) break;
+            const cPts = sh.pts.map((id) => ptById.get(id)).filter(Boolean);
+            if (cPts.length < 2) break;
+            const coordStr = cPts.map((p) => `(${fmtNum(p.x, 4)},${fmtNum(p.y, 4)})`).join(' ');
+            const plotOpt = sh.closed ? 'smooth cycle' : 'smooth';
+            if (sh.closed && sh.fill) {
+              fillCmds.push(`      \\fill[cyan!22!gray, opacity={0.28*${pVar}}] plot[${plotOpt}] coordinates {${coordStr}};`);
+            }
+            geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] plot[${plotOpt}] coordinates {${coordStr}};`);
+            break;
+          }
+          case 'bezier': {
+            if (sh.pts.length < 3) break;
+            if (sh.pts.length === 3) {
+              const p0 = ptById.get(sh.pts[0]), q = ptById.get(sh.pts[1]), p2 = ptById.get(sh.pts[2]);
+              if (p0 && q && p2) {
+                const c1 = { x: p0.x + (2 / 3) * (q.x - p0.x), y: p0.y + (2 / 3) * (q.y - p0.y) };
+                const c2 = { x: p2.x + (2 / 3) * (q.x - p2.x), y: p2.y + (2 / 3) * (q.y - p2.y) };
+                geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] (${tidOf(sh.pts[0])}) .. controls (${fmtNum(c1.x, 4)},${fmtNum(c1.y, 4)}) and (${fmtNum(c2.x, 4)},${fmtNum(c2.y, 4)}) .. (${tidOf(sh.pts[2])});`);
+              }
+            } else {
+              const segs = [];
+              for (let bi = 0; bi + 3 < sh.pts.length; bi += 3) {
+                segs.push(`${bi === 0 ? `(${tidOf(sh.pts[bi])})` : ''} .. controls (${tidOf(sh.pts[bi + 1])}) and (${tidOf(sh.pts[bi + 2])}) .. (${tidOf(sh.pts[bi + 3])})`);
+              }
+              if (segs.length) {
+                geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] ${segs.join(' ')};`);
+              }
+            }
+            break;
+          }
+          case 'spiral': {
+            if (sh.pts.length < 2) break;
+            const oP = ptById.get(sh.pts[0]), aP = ptById.get(sh.pts[1]);
+            if (!oP || !aP) break;
+            const R = dist2(oP, aP);
+            if (R < 1e-4) break;
+            const sk = sh.spiralKind || 'golden';
+            const turns = Math.max(0.25, Math.min(10, Number(sh.turns) || (sk === 'archimedean' ? 3 : 2.5)));
+            const thMax = 2 * Math.PI * turns;
+            const base = Math.atan2(aP.y - oP.y, aP.x - oP.x);
+            const bG = (2 * Math.log((1 + Math.sqrt(5)) / 2)) / Math.PI;
+            const nSamp = Math.max(48, Math.min(180, Math.round(turns * 36)));
+            const ptsArr = [];
+            for (let k = 0; k <= nSamp; k++) {
+              const u = k / nSamp;
+              const th = u * thMax;
+              const r = sk === 'archimedean' ? R * u : R * Math.exp(bG * (th - thMax));
+              const ang = sh.cw ? (base + (thMax - th)) : (base - (thMax - th));
+              ptsArr.push(`(${fmtNum(oP.x + r * Math.cos(ang), 4)},${fmtNum(oP.y + r * Math.sin(ang), 4)})`);
+            }
+            geomCmds.push(`      \\draw[${dashOpt}${strokeCol}, line width=${baseW}, opacity={${opVar}}] plot[smooth] coordinates {${ptsArr.join(' ')}};`);
             break;
           }
           case 'polygon':
@@ -3173,7 +3237,34 @@
         case 'arc3': {
           const pList = (op.pts || [op.center || op.o || op.a, op.a || op.b, op.b || op.c]).map(getP).filter(Boolean);
           if (pList.length >= 3) {
-            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.fill ? { fill: op.fill } : {}), ...(op.aux ? { aux: true } : {}) };
+            const sh = { id: mkId('sh'), kind: op.op, pts: pList.slice(0, 3).map((x) => x.id), dashed: !!op.dashed, ...(op.cw ? { cw: true } : {}), ...(op.fill ? { fill: op.fill } : {}), ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'spline': {
+          const pList = (op.pts || []).map(getP).filter(Boolean);
+          if (pList.length >= 2) {
+            const sh = { id: mkId('sh'), kind: 'spline', pts: pList.map((x) => x.id), ...(op.closed ? { closed: true } : {}), ...(op.dashed ? { dashed: true } : {}), ...(op.fill ? { fill: op.fill } : {}), ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'bezier': {
+          const pList = (op.pts || []).map(getP).filter(Boolean);
+          if (pList.length >= 3) {
+            const sh = { id: mkId('sh'), kind: 'bezier', pts: pList.map((x) => x.id), ...(op.dashed ? { dashed: true } : {}), ...(op.aux ? { aux: true } : {}) };
+            shapes.push(sh);
+            if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
+          }
+          break;
+        }
+        case 'spiral': {
+          const pList = (op.pts || [op.center || op.o, op.rim || op.a || op.r]).map(getP).filter(Boolean);
+          if (pList.length >= 2) {
+            const sh = { id: mkId('sh'), kind: 'spiral', pts: pList.slice(0, 2).map((x) => x.id), spiralKind: op.spiralKind || 'golden', turns: Math.max(0.25, Math.min(10, Number(op.turns) || 2.5)), ...(op.cw ? { cw: true } : {}), ...(op.dashed ? { dashed: true } : {}), ...(op.aux ? { aux: true } : {}) };
             shapes.push(sh);
             if (op.id) opIdMap.set(op.id, { kind: 'shape', id: sh.id });
           }

@@ -376,6 +376,7 @@
       const map = {
         circle: "đường tròn", arc: "cung tròn", arc3: "cung tròn", sector: "hình quạt",
         ellipse: "elip", parabola: "parabol", hyperbola: "hypebol", annulus: "hình vành khuyên",
+        spline: "đường cong trơn", bezier: "đường cong Bézier", spiral: "xoắn ốc",
         polygon: "đa giác", plane: "mặt phẳng", cone: "hình nón", cylinder: "hình trụ",
         sphere: "hình cầu", frustumCone: "hình nón cụt", truncCylinder: "hình trụ cụt", cap: "chỏm cầu"
       };

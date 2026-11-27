@@ -794,6 +794,12 @@
       case 'ellipse': return `Elip (${names[0]})`;
       case 'parabola': return `Parabol (${names[0]})`;
       case 'hyperbola': return `Hypebol (${names[0]})`;
+      case 'arc': return `Cung tròn (${names[0]}; ${names[1] || ''}${names[2] || ''})${tagStr}`;
+      case 'arc3': return `Cung qua ${names.join('')}${tagStr}`;
+      case 'sector': return `Hình quạt (${names[0]}; ${names[1] || ''}${names[2] || ''})${tagStr}`;
+      case 'spline': return `Đường cong trơn ${names.slice(0, 5).join('')}${names.length > 5 ? '…' : ''}${sh.closed ? ' (khép kín)' : ''}${tagStr}`;
+      case 'bezier': return `Đường cong Bézier ${names.slice(0, 4).join('')}${tagStr}`;
+      case 'spiral': return `${(sh.spiralKind || 'golden') === 'archimedean' ? 'Xoắn ốc Archimede' : 'Xoắn ốc vàng'} (${names[0] || 'O'})${tagStr}`;
       default:
         return `${sh.kind} ${names.join('')}${tagStr}`;
     }

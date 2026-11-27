@@ -531,7 +531,7 @@ html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides input.sides {
   position: absolute !important;
   top: 4px !important;
   right: 4px !important;
-  width: 30px !important;
+  width: 34px !important;
   height: 18px !important;
   padding: 0 2px !important;
   border-radius: 5px !important;
@@ -541,6 +541,13 @@ html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides input.sides {
   font-size: 10.5px !important;
   font-weight: 700 !important;
   text-align: center !important;
+  -moz-appearance: textfield !important;
+}
+
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides input.sides::-webkit-outer-spin-button,
+html[data-ui="v2"] .dropdown-menu.mn-shapes-pop .shape-sides input.sides::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
 }
 
 html[data-ui="v2"].dark .dropdown-menu.mn-shapes-pop .shape-sides input.sides {
