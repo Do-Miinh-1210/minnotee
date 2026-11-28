@@ -498,6 +498,9 @@ function __aoeTemplate({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r})
   const P={...l,stepX:_(d.stepX),stepY:_(d.stepY)};
   const L=C?{...P,xmin:T(u.xmin),xmax:T(u.xmax),ymin:T(u.ymin),ymax:T(u.ymax)}:P;
   const O=l.equal&&C?JQ(L):L;
+  if(typeof window!=="undefined"){
+    window.__mnGraphKernel={evalFn:$i,verticalX:Gd,isImplicit:$r,asymptotes:SJ,evalNum:Lr,evalPt:$2,getLim:zF,parseIneq:DS,formatNum:U$,toComma:OF,exprTex:Yr};
+  }
   const G=l.fns.map(le=>{if(!Sl(le.expr).trim())return"";const fe=$i(le.expr);return fe instanceof Uo?a.parse[fe.code](fe.text):fe instanceof Error?fe.message:""});
   const Z=l.fns.map((le,fe)=>!!Sl(le.expr).trim()&&!G[fe]);
   const X=l.ineqs??[];
@@ -805,8 +808,8 @@ function __aoeTemplate({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r})
       setCmd("");return;
     }
 
-    // 6. Coordinate Point or Vector: A = (1; 2), (2; -1), A(1, 2), u = (2; 3)
-    const ptM=/^(?:([A-Za-z][A-Za-z0-9']*)\s*=?\s*)?\(\s*([^;()]+)\s*;\s*([^;()]+)\s*\)$/.exec(norm)||/^([A-Za-z][A-Za-z0-9']*)\s*=?\s*\(\s*([^,()]+)\s*,\s*([^,()]+)\s*\)$/.exec(norm);
+    // 6. Coordinate Point or Vector: A = (1; 2), A=(sqrt(2); 3/2), (2; -1), A(1, 2), u = (2; 3)
+    const ptM=/^(?:([A-Za-z][A-Za-z0-9']*)\s*=?\s*)?\(\s*([^;]+)\s*;\s*([^;]+)\s*\)$/.exec(norm)||/^([A-Za-z][A-Za-z0-9']*)\s*=?\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*\)$/.exec(norm);
     if(ptM&&!/\bx\b/i.test(ptM[2])&&!/\bx\b/i.test(ptM[3])){
       const nm=ptM[1]||"",pxS=ptM[2].trim(),pyS=ptM[3].trim();
       const xv=Lr(pxS.replace(",",".")),yv=Lr(pyS.replace(",","."));
@@ -2041,6 +2044,18 @@ function __aoeTemplate({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r})
     h.jsxs("footer",{className:"dialog-actions mng-footer",children:[
       h.jsx("span",{className:"mng-foot-tip",children:isVi?"Kéo chuột trên đồ thị để di chuyển · Lăn chuột để phóng to/thu nhỏ":"Drag graph to pan · Scroll to zoom"}),
       h.jsxs("div",{className:"mng-foot-btns",children:[
+        h.jsx("button",{
+          type:"button",
+          className:"mng-btn-tikz",
+          disabled:!C,
+          title:isVi?"Xuất mã TikZ chuẩn DoMinhMath từ đồ thị hiện tại":"Export DoMinhMath TikZ code from this graph",
+          onClick:()=>{
+            if(typeof window!=="undefined"&&window.MinNoteTikzExport&&typeof window.MinNoteTikzExport.openModal==="function"){
+              window.MinNoteTikzExport.openModal({mode:"graph",graph:O});
+            }
+          },
+          children:isVi?"📐 Xuất TikZ":"📐 Export TikZ"
+        }),
         h.jsx("button",{type:"button",onClick:r,children:a.cancel}),
         h.jsx("button",{type:"button",className:"primary",disabled:!C,onClick:at,children:a.done})
       ]})
@@ -2062,6 +2077,27 @@ const aoeStart = src.includes("function __mnNormShorthand(")
     : "function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){");
 replaceRange("GeoGebra-Style Graph Studio (aoe + Seamless f(x) + Live KaTeX MathBox)", aoeStart, "const C9=46,n8=", geoGraphCode);
 
+// 7. Add direct "📐 Xuất TikZ" action button to Whiteboard selection-bar when a graph item is selected
+const selBarEditAnchor = `(J==null?void 0:J.selectedItem())&&J.selectedItem().item.type!=="image"&&h.jsxs("button",{onClick:ll,children:[h.jsx(oe.edit,{})," ",n.edit]})`;
+const selBarGraphTikzBtn = `${selBarEditAnchor},(J==null?void 0:J.selectedItem())&&J.selectedItem().item.type==="graph"&&h.jsxs("button",{className:"mng-sel-tikz",title:"Xuất mã TikZ chuẩn DoMinhMath từ đồ thị đang chọn",onClick:()=>{const it=J.selectedItem();it&&window.MinNoteTikzExport&&window.MinNoteTikzExport.openModal({mode:"graph",graph:it.item})},children:["📐 Xuất TikZ"]})`;
+if (!src.includes('className:"mng-sel-tikz"')) {
+  replaceExact("Selection-bar Graph Export TikZ button", selBarEditAnchor, selBarGraphTikzBtn);
+} else {
+  console.log("[OK] Selection-bar Graph Export TikZ button already present");
+}
+
+// 8. Also register window.__mnGraphKernel eagerly with TDZ-safe lazy getters right after SJ()!
+const sjKernelAnchor = `function SJ(e){return e.asymptotes?e.fns.flatMap(t=>{if($r(t.expr)||Gd(t.expr)!==null)return[];const n=$i(t.expr);return n instanceof Error?[]:KF(n,e.xmin,e.xmax,e.ymin,e.ymax).map(o=>({a:o,color:t.color}))}):[]}`;
+const sjKernelOldBad = `${sjKernelAnchor}if(typeof window!=="undefined"&&!window.__mnGraphKernel){window.__mnGraphKernel={evalFn:$i,verticalX:Gd,isImplicit:$r,asymptotes:SJ,evalNum:Lr,evalPt:$2,getLim:zF,parseIneq:DS,formatNum:U$,toComma:OF,exprTex:Yr};}`;
+const sjKernelWithReg = `${sjKernelAnchor}if(typeof window!=="undefined"&&!window.__mnGraphKernel){window.__mnGraphKernel={get evalFn(){return $i},get verticalX(){return Gd},get isImplicit(){return $r},get asymptotes(){return SJ},get evalNum(){return Lr},get evalPt(){return $2},get getLim(){return zF},get parseIneq(){return DS},get formatNum(){return U$},get toComma(){return OF},get exprTex(){return Yr}};} `;
+if (src.includes(sjKernelOldBad)) {
+  replaceExact("Upgrade window.__mnGraphKernel to TDZ-safe lazy getters", sjKernelOldBad, sjKernelWithReg);
+} else if (!src.includes("get evalFn(){return $i}")) {
+  replaceExact("Eager window.__mnGraphKernel registration (TDZ-safe)", sjKernelAnchor, sjKernelWithReg);
+} else {
+  console.log("[OK] TDZ-safe window.__mnGraphKernel registration already present");
+}
+
 fs.writeFileSync(jsPath, src, "utf8");
-console.log("[DONE] Successfully applied all v0.0.9.27 patches!");
+console.log("[DONE] Successfully applied all v0.0.9.27/v0.0.9.29 patches!");
 /* [DM-COPYRIGHT-CORE: DoMiinhMath] Copyright (c) 2026 Đỗ Miinh Math — MinNote Proprietary (TDM-Reservation: 1). */

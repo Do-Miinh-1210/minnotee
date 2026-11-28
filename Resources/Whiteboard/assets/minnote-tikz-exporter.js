@@ -2228,9 +2228,10 @@
     record('R07', 'Font chuẩn \\normalsize (Quy tắc 4.1)', hasNormFont && !hasBadFont, hasBadFont ? 'err' : 'warn',
       hasBadFont ? 'Chứa lệnh cỡ chữ bị cấm (\\Large/\\small/\\tiny/\\textbf).' : (!hasNormFont ? 'Nên đặt every node/.style={font=\\normalsize}.' : 'Đạt'));
 
-    // Rule 8: No comma decimals in coordinates/dimensions (T12)
+    // Rule 8: No comma decimals in coordinates/dimensions (T12) — ignore valid TikZ coordinate pairs like (-2,2pt)
+    const srcNoParenCoord = src.replace(/\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*(?:cm|pt|mm)?\s*\)/g, '(0,0)');
     const hasCommaDec = /(?:scale\s*=|line\s+width\s*=|radius\s*=|circle\s*\()\s*-?\d+,\d+/.test(src) ||
-      /\d+,\d+\s*(?:cm|pt|mm)\b/.test(src);
+      /\d+,\d+\s*(?:cm|pt|mm)\b/.test(srcNoParenCoord);
     record('R08', 'Số thập phân dùng dấu chấm (T12)', !hasCommaDec, 'err',
       hasCommaDec ? 'Phát hiện số thập phân dùng dấu phẩy trong mã TikZ.' : 'Đạt');
 
@@ -2257,10 +2258,31 @@
     record('R11', 'Lệnh vẽ kết thúc đúng dấu ";" (T05)', !missingSemi, 'err',
       missingSemi ? 'Có lệnh \\coordinate/\\draw/\\fill/\\path thiếu dấu ";" cuối dòng.' : 'Đạt');
 
-    // Rule 12: No % comments inside declare function & no above/below in \foreach labels (4.2, 4.6)
+    // Rule 12: No % comments inside declare function & no above/below inside \foreach body (4.2, 4.6)
     const declMatch = src.match(/declare\s+function\s*=\s*\{([^}]*)\}/);
     const declHasComment = !!(declMatch && declMatch[1].includes('%'));
-    const foreachBadDir = /\\foreach[\s\S]*?node\s*\[\s*(?:above|below|left|right)\b/.test(src);
+    let foreachBadDir = false;
+    const feRe = /\\foreach\b/g;
+    let feM;
+    while ((feM = feRe.exec(src)) !== null) {
+      const inIdx = src.indexOf('{', feM.index);
+      if (inIdx < 0) continue;
+      let d1 = 0, p1 = inIdx;
+      for (; p1 < src.length; p1++) {
+        if (src[p1] === '{') d1++; else if (src[p1] === '}') { d1--; if (d1 === 0) break; }
+      }
+      const bodyStart = src.indexOf('{', p1 + 1);
+      if (bodyStart < 0) continue;
+      let d2 = 0, p2 = bodyStart;
+      for (; p2 < src.length; p2++) {
+        if (src[p2] === '{') d2++; else if (src[p2] === '}') { d2--; if (d2 === 0) break; }
+      }
+      const feBody = src.slice(bodyStart + 1, p2);
+      if (/node\s*\[\s*(?:above|below|left|right)\b/.test(feBody)) {
+        foreachBadDir = true;
+        break;
+      }
+    }
     record('R12', 'Chuẩn declare function & \\foreach góc (4.2/4.6)', !declHasComment && !foreachBadDir, 'warn',
       declHasComment ? 'Có comment % trong declare function.' : (foreachBadDir ? 'Nên dùng shift={(\\g:9pt)} trong \\foreach thay cho above/below.' : 'Đạt'));
 
@@ -2276,11 +2298,1410 @@
   }
 
   // ============================================================================
-  // 7. UNIFIED TIKZ STUDIO MODAL (Static Textbook TikZ + Animated BetaTikz)
+  // 6B. GRAPH-TO-TIKZ ENGINE (DoMinhMath / MatrixExamAI Pro v5 — tikz-domiinhmath.md)
+  // ============================================================================
+  const PGF_RESERVED_FN_NAMES = new Set([
+    'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'asin', 'acos', 'atan', 'atan2',
+    'sinh', 'cosh', 'tanh', 'exp', 'ln', 'log', 'log10', 'log2', 'sqrt', 'cbrt',
+    'abs', 'min', 'max', 'mod', 'int', 'frac', 'floor', 'ceil', 'round', 'pow',
+    'rad', 'deg', 'sign', 'rand', 'rnd', 'pi', 'e', 'x', 'y', 'xmin', 'xmax', 'ymin', 'ymax'
+  ]);
+  const GRAPH_SAFE_FN_POOL = ['f', 'g', 'h', 'p', 'q', 'u', 'v', 'w', 'fa', 'fb', 'fc', 'fd', 'fe', 'ff'];
+  const GRAPH_HATCH_ANGLES = [45, 135, 30, 60, 120, 150];
+  const GRAPH_FUNC_WORDS = new Set([
+    'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan',
+    'sinh', 'cosh', 'tanh', 'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+    'sqrt', 'cbrt', 'abs', 'exp', 'ln', 'log', 'lg', 'sgn', 'sign', 'floor', 'ceil', 'round'
+  ]);
+
+  function normalizeGraphInputExpr(raw) {
+    let s = String(raw || '').trim();
+    if (!s) return '';
+    s = s
+      .replace(/\u2212|\u2013|\u2014/g, '-')
+      .replace(/\u00d7|\u00b7/g, '*')
+      .replace(/\u00f7/g, '/')
+      .replace(/\u03c0/g, 'pi')
+      .replace(/\u221a\s*\(/g, 'sqrt(')
+      .replace(/\u221a\s*([0-9a-zA-Z]+)/g, 'sqrt($1)')
+      .replace(/(\d),(\d)/g, '$1.$2')
+      .replace(/\u00b2/g, '^2')
+      .replace(/\u00b3/g, '^3');
+    // Strip leading y= or f(x)= when evaluating pure rhs
+    s = s.replace(/^[a-zA-Z][a-zA-Z0-9_]?\s*\(\s*x\s*\)\s*=\s*/i, '');
+    if (/^y\s*=\s*/i.test(s) && !/y/i.test(s.replace(/^y\s*=\s*/i, ''))) {
+      s = s.replace(/^y\s*=\s*/i, '');
+    }
+    // Shorthand trig/log power & bare argument: sin^2 x -> sin(x)^2, sinx -> sin(x), cos2x -> cos(2*x)
+    s = s.replace(/\b(sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|ln|log|lg)\s*\^\s*(\d+|\([^)]+\))\s*\(\s*([^()]+)\s*\)/gi, '($1($3))^$2');
+    s = s.replace(/\b(sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|ln|log|lg)\s*\^\s*(\d+)\s*([a-zA-Z](?![a-zA-Z]))/gi, '($1($3))^$2');
+    s = s.replace(/\b(arcsin|arccos|arctan|sinh|cosh|tanh|asin|acos|atan|sin|cos|tan|cot|sec|csc|sqrt|cbrt|abs|exp|ln|log|lg)(?!\s*\()(?=\s*(?:\d*\.?\d*\s*x\b|\d*\.?\d*\s*pi\b|pi\b|x\b))/gi, (m, fn) => fn + ' ');
+    // Convert "sin 2x" or "sin x" into "sin(2x)" / "sin(x)"
+    s = s.replace(/\b(arcsin|arccos|arctan|sinh|cosh|tanh|asin|acos|atan|sin|cos|tan|cot|sec|csc|sqrt|cbrt|abs|exp|ln|log|lg)\s+(\d*\.?\d*\s*(?:pi\b|x\b)(?:\s*\^\s*\d+)?)/gi, '$1($2)');
+    // Convert concatenated sinx, cosx, lnx, sqrtx
+    s = s.replace(/\b(arcsin|arccos|arctan|sinh|cosh|tanh|asin|acos|atan|sin|cos|tan|cot|sec|csc|sqrt|cbrt|abs|exp|ln|log|lg)(\d*\.?\d*x)\b/gi, '$1($2)');
+    // Convert |...| into abs(...)
+    let guard = 0;
+    while (s.includes('|') && guard++ < 8) {
+      const next = s.replace(/\|([^|]+)\|/g, 'abs($1)');
+      if (next === s) break;
+      s = next;
+    }
+    return s.trim();
+  }
+
+  function tokenizeMathExpr(raw) {
+    const s = normalizeGraphInputExpr(raw);
+    const toks = [];
+    let i = 0;
+    while (i < s.length) {
+      const ch = s[i];
+      if (/\s/.test(ch)) { i++; continue; }
+      if (/\d/.test(ch) || (ch === '.' && /\d/.test(s[i + 1] || ''))) {
+        let j = i;
+        while (j < s.length && /[\d.]/.test(s[j])) j++;
+        if ((s[j] === 'e' || s[j] === 'E') && /[+\-\d]/.test(s[j + 1] || '')) {
+          j++;
+          if (s[j] === '+' || s[j] === '-') j++;
+          while (j < s.length && /\d/.test(s[j])) j++;
+        }
+        toks.push({ t: 'num', v: s.slice(i, j) });
+        i = j;
+        continue;
+      }
+      if (/[a-zA-Z]/.test(ch)) {
+        // Check log_base first (e.g., log_2, log_10)
+        const lm = /^log_([0-9]+(?:\.[0-9]+)?|[a-zA-Z])/.exec(s.slice(i));
+        if (lm) {
+          toks.push({ t: 'id', v: 'log_' + lm[1] });
+          i += lm[0].length;
+          continue;
+        }
+        let j = i;
+        while (j < s.length && /[a-zA-Z]/.test(s[j])) j++;
+        const word = s.slice(i, j);
+        const low = word.toLowerCase();
+        if (GRAPH_FUNC_WORDS.has(low) || low === 'pi') {
+          toks.push({ t: 'id', v: low });
+        } else if (word.length > 1) {
+          // Split multi-letter product like xy or ex into individual tokens unless known fn prefix
+          let matched = false;
+          for (const fw of ['arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'asin', 'acos', 'atan', 'sqrt', 'cbrt', 'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'abs', 'exp', 'log', 'ln', 'lg', 'pi']) {
+            if (low.startsWith(fw)) {
+              toks.push({ t: 'id', v: fw });
+              i += fw.length;
+              matched = true;
+              break;
+            }
+          }
+          if (matched) continue;
+          for (let k = 0; k < word.length; k++) toks.push({ t: 'id', v: word[k] });
+        } else {
+          toks.push({ t: 'id', v: word });
+        }
+        i = j;
+        continue;
+      }
+      if ('+-*/^(),'.includes(ch)) {
+        toks.push({ t: 'op', v: ch });
+        i++;
+        continue;
+      }
+      i++;
+    }
+    return toks;
+  }
+
+  function parseMathExprToAst(raw) {
+    const toks = tokenizeMathExpr(raw);
+    if (!toks.length) return null;
+    let pos = 0;
+    const peek = () => toks[pos] || null;
+    const consume = () => toks[pos++];
+    const isFuncTok = (tk) => tk && tk.t === 'id' && (GRAPH_FUNC_WORDS.has(tk.v) || /^log_/.test(tk.v));
+
+    function parseAdd() {
+      let node = parseMul();
+      while (peek() && peek().t === 'op' && (peek().v === '+' || peek().v === '-')) {
+        const op = consume().v;
+        const right = parseMul();
+        node = { type: 'bin', op, left: node, right };
+      }
+      return node;
+    }
+
+    function canImplicitMul(nextTk) {
+      if (!nextTk) return false;
+      if (nextTk.t === 'id') return true;
+      if (nextTk.t === 'num') return true;
+      if (nextTk.t === 'op' && nextTk.v === '(') return true;
+      return false;
+    }
+
+    function parseMul() {
+      let node = parseUnary();
+      while (peek()) {
+        const tk = peek();
+        if (tk.t === 'op' && (tk.v === '*' || tk.v === '/')) {
+          const op = consume().v;
+          const right = parseUnary();
+          node = { type: 'bin', op, left: node, right };
+        } else if (canImplicitMul(tk)) {
+          const right = parseUnary();
+          node = { type: 'bin', op: '*', left: node, right, implicit: true };
+        } else {
+          break;
+        }
+      }
+      return node;
+    }
+
+    function parseUnary() {
+      if (peek() && peek().t === 'op' && (peek().v === '+' || peek().v === '-')) {
+        const op = consume().v;
+        const arg = parseUnary();
+        return op === '-' ? { type: 'neg', arg } : arg;
+      }
+      return parsePow();
+    }
+
+    function parsePow() {
+      let base = parsePrimary();
+      if (peek() && peek().t === 'op' && peek().v === '^') {
+        consume();
+        const exp = parseUnary();
+        base = { type: 'pow', base, exp };
+      }
+      return base;
+    }
+
+    function parsePrimary() {
+      const tk = peek();
+      if (!tk) return { type: 'num', v: '0' };
+      if (tk.t === 'num') {
+        consume();
+        return { type: 'num', v: tk.v };
+      }
+      if (tk.t === 'op' && tk.v === '(') {
+        consume();
+        const inner = parseAdd();
+        if (peek() && peek().t === 'op' && peek().v === ')') consume();
+        return { type: 'group', inner };
+      }
+      if (tk.t === 'id') {
+        consume();
+        if (isFuncTok(tk)) {
+          let fnExp = null;
+          if (peek() && peek().t === 'op' && peek().v === '^') {
+            consume();
+            fnExp = parsePrimary();
+          }
+          let arg;
+          if (peek() && peek().t === 'op' && peek().v === '(') {
+            consume();
+            arg = parseAdd();
+            if (peek() && peek().t === 'op' && peek().v === ')') consume();
+          } else {
+            arg = parsePow();
+          }
+          const callNode = { type: 'call', fn: tk.v, arg };
+          return fnExp ? { type: 'pow', base: callNode, exp: fnExp } : callNode;
+        }
+        return { type: 'var', v: tk.v };
+      }
+      consume();
+      return { type: 'num', v: '0' };
+    }
+
+    return parseAdd();
+  }
+
+  function evalMathAst(node, xVal) {
+    if (!node) return NaN;
+    switch (node.type) {
+      case 'num': return Number(node.v);
+      case 'var': {
+        const v = node.v.toLowerCase();
+        if (v === 'x') return xVal;
+        if (v === 'pi') return Math.PI;
+        if (v === 'e') return Math.E;
+        return NaN;
+      }
+      case 'group': return evalMathAst(node.inner, xVal);
+      case 'neg': return -evalMathAst(node.arg, xVal);
+      case 'bin': {
+        const a = evalMathAst(node.left, xVal);
+        const b = evalMathAst(node.right, xVal);
+        if (node.op === '+') return a + b;
+        if (node.op === '-') return a - b;
+        if (node.op === '*') return a * b;
+        if (node.op === '/') return Math.abs(b) < 1e-15 ? NaN : a / b;
+        return NaN;
+      }
+      case 'pow': {
+        const a = evalMathAst(node.base, xVal);
+        const b = evalMathAst(node.exp, xVal);
+        if (a < 0 && Number.isFinite(b) && !Number.isInteger(b)) {
+          // Real odd root check (e.g., x^(1/3))
+          for (const den of [3, 5, 7, 9]) {
+            const num = Math.round(b * den);
+            if (Math.abs(num / den - b) < 1e-7) {
+              return (num % 2 !== 0 ? -1 : 1) * Math.pow(Math.abs(a), b);
+            }
+          }
+          return NaN;
+        }
+        return Math.pow(a, b);
+      }
+      case 'call': {
+        const u = evalMathAst(node.arg, xVal);
+        const fn = node.fn;
+        if (/^log_(.+)$/.test(fn)) {
+          const baseStr = fn.slice(4);
+          const b = baseStr === 'e' ? Math.E : (baseStr === 'pi' ? Math.PI : Number(baseStr));
+          return u > 0 && b > 0 && Math.abs(b - 1) > 1e-12 ? Math.log(u) / Math.log(b) : NaN;
+        }
+        switch (fn) {
+          case 'sin': return Math.sin(u);
+          case 'cos': return Math.cos(u);
+          case 'tan': return Math.abs(Math.cos(u)) < 1e-12 ? NaN : Math.tan(u);
+          case 'cot': return Math.abs(Math.sin(u)) < 1e-12 ? NaN : Math.cos(u) / Math.sin(u);
+          case 'sec': return Math.abs(Math.cos(u)) < 1e-12 ? NaN : 1 / Math.cos(u);
+          case 'csc': return Math.abs(Math.sin(u)) < 1e-12 ? NaN : 1 / Math.sin(u);
+          case 'asin': case 'arcsin': return Math.asin(u);
+          case 'acos': case 'arccos': return Math.acos(u);
+          case 'atan': case 'arctan': return Math.atan(u);
+          case 'sinh': return Math.sinh(u);
+          case 'cosh': return Math.cosh(u);
+          case 'tanh': return Math.tanh(u);
+          case 'sqrt': return u < 0 ? NaN : Math.sqrt(u);
+          case 'cbrt': return Math.cbrt(u);
+          case 'abs': return Math.abs(u);
+          case 'exp': return Math.exp(u);
+          case 'ln': return u <= 0 ? NaN : Math.log(u);
+          case 'log': case 'lg': return u <= 0 ? NaN : Math.log10(u);
+          case 'sgn': case 'sign': return Math.sign(u);
+          case 'floor': return Math.floor(u);
+          case 'ceil': return Math.ceil(u);
+          case 'round': return Math.round(u);
+          default: return NaN;
+        }
+      }
+      default: return NaN;
+    }
+  }
+
+  function astToPgfExpr(node, mode) {
+    // mode: 'tikz' (\x + trig r) | 'pgfplots' (x + trig deg(...))
+    const isPlot = mode === 'pgfplots';
+    const xTok = isPlot ? 'x' : '\\x';
+
+    const unwrap = (n) => (n && n.type === 'group' ? unwrap(n.inner) : n);
+    const wrapIf = (n, cond) => {
+      const s = emit(n);
+      return cond ? `(${s})` : s;
+    };
+
+    function emit(rawNode) {
+      const n = unwrap(rawNode);
+      if (!n) return '0';
+      switch (n.type) {
+        case 'num': return n.v;
+        case 'var': {
+          const v = n.v.toLowerCase();
+          if (v === 'x') return xTok;
+          if (v === 'pi') return 'pi';
+          if (v === 'e') return 'e';
+          return n.v;
+        }
+        case 'neg': {
+          const inner = unwrap(n.arg);
+          if (inner.type === 'bin' && (inner.op === '+' || inner.op === '-')) {
+            return `-(${emit(inner)})`;
+          }
+          if (inner.type === 'neg') {
+            return emit(inner.arg);
+          }
+          return `-${emit(inner)}`;
+        }
+        case 'bin': {
+          const l = unwrap(n.left);
+          const r = unwrap(n.right);
+          if (n.op === '+' || n.op === '-') {
+            const ls = emit(l);
+            const rs = wrapIf(r, n.op === '-' && (r.type === 'bin' && (r.op === '+' || r.op === '-') || r.type === 'neg'));
+            return `${ls}${n.op}${rs}`;
+          }
+          if (n.op === '*') {
+            const ls = wrapIf(l, l.type === 'bin' && (l.op === '+' || l.op === '-'));
+            const rs = wrapIf(r, (r.type === 'bin' && (r.op === '+' || r.op === '-')) || r.type === 'neg');
+            return `${ls}*${rs}`;
+          }
+          if (n.op === '/') {
+            const ls = wrapIf(l, l.type === 'bin' && (l.op === '+' || l.op === '-'));
+            const rs = wrapIf(r, r.type === 'bin' || r.type === 'neg');
+            return `${ls}/${rs}`;
+          }
+          return `${emit(l)}${n.op}${emit(r)}`;
+        }
+        case 'pow': {
+          const b = unwrap(n.base);
+          const e = unwrap(n.exp);
+          // Rule T11: always wrap x or compound/negative base before ^ so -\x^2 or (\x)^2 is crystal clear
+          const bStr = b.type === 'num'
+            ? b.v
+            : (b.type === 'var' && b.v.toLowerCase() === 'e' ? null : `(${emit(b)})`);
+          if (b.type === 'var' && b.v.toLowerCase() === 'e') {
+            return `exp(${emit(e)})`;
+          }
+          // Check odd rational exponent like (1/3)
+          if (e.type === 'bin' && e.op === '/' && unwrap(e.left).type === 'num' && unwrap(e.right).type === 'num') {
+            const num = Number(unwrap(e.left).v), den = Number(unwrap(e.right).v);
+            if (den === 3 && num === 1) {
+              const bs = emit(b);
+              return `(sign(${bs})*pow(abs(${bs}),1/3))`;
+            }
+          }
+          const eStr = wrapIf(e, e.type === 'bin' || e.type === 'neg' || e.type === 'pow');
+          return `${bStr}^${eStr}`;
+        }
+        case 'call': {
+          const a = unwrap(n.arg);
+          const aStr = emit(a);
+          const trigArg = isPlot
+            ? `deg(${aStr})`
+            : ((a.type === 'var' && a.v.toLowerCase() === 'x') ? `${xTok} r` : `(${aStr}) r`);
+          if (/^log_(.+)$/.test(n.fn)) {
+            const base = n.fn.slice(4);
+            return `(ln(${aStr})/ln(${base}))`;
+          }
+          switch (n.fn) {
+            case 'sin': return `sin(${trigArg})`;
+            case 'cos': return `cos(${trigArg})`;
+            case 'tan': return `tan(${trigArg})`;
+            case 'cot': return `(1/tan(${trigArg}))`;
+            case 'sec': return `(1/cos(${trigArg}))`;
+            case 'csc': return `(1/sin(${trigArg}))`;
+            case 'asin': case 'arcsin': return `rad(asin(${aStr}))`;
+            case 'acos': case 'arccos': return `rad(acos(${aStr}))`;
+            case 'atan': case 'arctan': return `rad(atan(${aStr}))`;
+            case 'sinh': return `sinh(${aStr})`;
+            case 'cosh': return `cosh(${aStr})`;
+            case 'tanh': return `tanh(${aStr})`;
+            case 'sqrt': return `sqrt(${aStr})`;
+            case 'cbrt': return `(sign(${aStr})*pow(abs(${aStr}),1/3))`;
+            case 'abs': return `abs(${aStr})`;
+            case 'exp': return `exp(${aStr})`;
+            case 'ln': return `ln(${aStr})`;
+            case 'log': case 'lg': return `log10(${aStr})`;
+            case 'sgn': case 'sign': return `sign(${aStr})`;
+            case 'floor': return `floor(${aStr})`;
+            case 'ceil': return `ceil(${aStr})`;
+            case 'round': return `round(${aStr})`;
+            default: return `${n.fn}(${aStr})`;
+          }
+        }
+        default: return '0';
+      }
+    }
+
+    return emit(node);
+  }
+
+  function formatMathNumLabel(val, useComma, maxDec) {
+    if (!Number.isFinite(val)) return '0';
+    const d = maxDec != null ? maxDec : 3;
+    const rounded = Math.abs(val) < 1e-9 ? 0 : Number(val.toFixed(d));
+    let s = Object.is(rounded, -0) ? '0' : String(rounded).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+    if (useComma) s = s.replace('.', '{,}');
+    return s;
+  }
+
+  function astToLatexExpr(rawNode, useComma) {
+    const unwrap = (n) => (n && n.type === 'group' ? unwrap(n.inner) : n);
+    const fmtN = (v) => (useComma ? String(v).replace('.', '{,}') : String(v));
+
+    function emit(node) {
+      const n = unwrap(node);
+      if (!n) return '';
+      switch (n.type) {
+        case 'num': return fmtN(n.v);
+        case 'var': {
+          const v = n.v.toLowerCase();
+          if (v === 'pi') return '\\pi';
+          return n.v;
+        }
+        case 'neg': {
+          const inner = unwrap(n.arg);
+          if (inner.type === 'bin' && (inner.op === '+' || inner.op === '-')) return `-(${emit(inner)})`;
+          return `-${emit(inner)}`;
+        }
+        case 'bin': {
+          const l = unwrap(n.left), r = unwrap(n.right);
+          if (n.op === '+' || n.op === '-') {
+            const rs = (n.op === '-' && ((r.type === 'bin' && (r.op === '+' || r.op === '-')) || r.type === 'neg'))
+              ? `(${emit(r)})` : emit(r);
+            return `${emit(l)}${n.op}${rs}`;
+          }
+          if (n.op === '/') {
+            return `\\dfrac{${emit(l)}}{${emit(r)}}`;
+          }
+          if (n.op === '*') {
+            const ls = (l.type === 'bin' && (l.op === '+' || l.op === '-')) ? `(${emit(l)})` : emit(l);
+            const rs = ((r.type === 'bin' && (r.op === '+' || r.op === '-')) || r.type === 'neg') ? `(${emit(r)})` : emit(r);
+            const needsDot = (l.type === 'num' && r.type === 'num') || (l.type === 'var' && r.type === 'num');
+            return needsDot ? `${ls}\\cdot ${rs}` : `${ls}${rs}`;
+          }
+          return `${emit(l)}${n.op}${emit(r)}`;
+        }
+        case 'pow': {
+          const b = unwrap(n.base), e = unwrap(n.exp);
+          const bs = (b.type === 'bin' || b.type === 'neg' || b.type === 'pow') ? `\\left(${emit(b)}\\right)` : emit(b);
+          return `${bs}^{${emit(e)}}`;
+        }
+        case 'call': {
+          const a = unwrap(n.arg);
+          const as = emit(a);
+          if (n.fn === 'sqrt') return `\\sqrt{${as}}`;
+          if (n.fn === 'cbrt') return `\\sqrt[3]{${as}}`;
+          if (n.fn === 'abs') return `\\left|${as}\\right|`;
+          if (n.fn === 'exp') return `e^{${as}}`;
+          if (/^log_(.+)$/.test(n.fn)) return `\\log_{${n.fn.slice(4)}}(${as})`;
+          const stdTex = {
+            sin: '\\sin', cos: '\\cos', tan: '\\tan', cot: '\\cot',
+            arcsin: '\\arcsin', asin: '\\arcsin', arccos: '\\arccos', acos: '\\arccos',
+            arctan: '\\arctan', atan: '\\arctan', ln: '\\ln', log: '\\log', lg: '\\lg',
+            sinh: '\\sinh', cosh: '\\cosh', tanh: '\\tanh'
+          }[n.fn];
+          if (stdTex) {
+            const simpleArg = a.type === 'var' || a.type === 'num';
+            return simpleArg ? `${stdTex} ${as}` : `${stdTex}(${as})`;
+          }
+          return `\\operatorname{${n.fn}}(${as})`;
+        }
+        default: return '';
+      }
+    }
+    return emit(rawNode);
+  }
+
+  function exprStrToLatex(raw, useComma) {
+    const clean = String(raw || '').trim();
+    if (!clean) return '0';
+    const ast = parseMathExprToAst(clean);
+    if (!ast) return clean;
+    return astToLatexExpr(ast, useComma);
+  }
+
+  function evalGraphNumber(raw) {
+    if (typeof raw === 'number') return raw;
+    const s = String(raw == null ? '' : raw).trim();
+    if (!s) return NaN;
+    const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+    if (gk && typeof gk.evalNum === 'function') {
+      const v = gk.evalNum(s.replace(/(\d),(\d)/g, '$1.$2'));
+      if (Number.isFinite(v)) return v;
+    }
+    const ast = parseMathExprToAst(s);
+    return ast ? evalMathAst(ast, 0) : NaN;
+  }
+
+  function parseVerticalLineX(expr) {
+    const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+    if (gk && typeof gk.verticalX === 'function') {
+      const vx = gk.verticalX(expr);
+      if (vx !== null && Number.isFinite(vx)) return vx;
+    }
+    const m = /^\s*x\s*=\s*(.+)$/i.exec(String(expr || '').trim());
+    if (!m) return null;
+    if (/[xy]/i.test(m[1].replace(/\b(exp)\b/gi, ''))) return null;
+    const v = evalGraphNumber(m[1]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function isImplicitGraphExpr(expr) {
+    const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+    if (gk && typeof gk.isImplicit === 'function') {
+      return !!gk.isImplicit(expr);
+    }
+    const s = String(expr || '').trim();
+    if (!s.includes('=')) return false;
+    const parts = s.split('=');
+    if (parts.length !== 2) return false;
+    const lhs = parts[0].trim();
+    const rhs = parts[1].trim();
+    if (/^(y|f\s*\(\s*x\s*\))$/i.test(lhs)) return /\by\b/i.test(rhs);
+    if (/^x$/i.test(lhs)) return /[xy]/i.test(rhs.replace(/\bexp\b/gi, ''));
+    return true;
+  }
+
+  function makeGraphFnEvaluator(expr) {
+    const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+    if (gk && typeof gk.evalFn === 'function') {
+      try {
+        const ev = gk.evalFn(expr);
+        if (typeof ev === 'function') return ev;
+      } catch (_) {}
+    }
+    const ast = parseMathExprToAst(expr);
+    if (!ast) return null;
+    return (x) => evalMathAst(ast, x);
+  }
+
+  function detectStandaloneAsymptotes(ev, xmin, xmax, ymin, ymax) {
+    const res = [];
+    const xSpan = Math.max(1e-3, xmax - xmin);
+    const ySpan = Math.max(1e-3, ymax - ymin);
+    const thresh = 15 * Math.max(1, ySpan);
+    const N = 1600;
+    const xs = new Array(N + 1);
+    const ys = new Array(N + 1);
+    for (let i = 0; i <= N; i++) {
+      xs[i] = xmin + (xSpan * i) / N;
+      ys[i] = ev(xs[i]);
+    }
+    // 1. Vertical asymptotes
+    const vPoles = [];
+    for (let i = 1; i < N; i++) {
+      const y1 = ys[i], y2 = ys[i + 1];
+      const signFlip = Number.isFinite(y1) && Number.isFinite(y2) && y1 * y2 < 0 && Math.max(Math.abs(y1), Math.abs(y2)) > thresh;
+      const finFlip = Number.isFinite(y1) !== Number.isFinite(y2);
+      const peak = Number.isFinite(y1) && Math.abs(y1) > thresh && Math.abs(y1) >= Math.abs(ys[i - 1]) && Math.abs(y1) >= Math.abs(ys[i + 1] || 0);
+      if (!signFlip && !finFlip && !peak) continue;
+      let a = xs[peak ? i - 1 : i], b = xs[i + 1];
+      for (let k = 0; k < 50; k++) {
+        const m = 0.5 * (a + b);
+        const ym = ev(m);
+        if (signFlip) {
+          if (!Number.isFinite(ym) || Math.sign(ym) === Math.sign(ev(a))) a = m; else b = m;
+        } else if (finFlip) {
+          if (Number.isFinite(ym) === Number.isFinite(ev(a))) a = m; else b = m;
+        } else {
+          const m1 = a + (b - a) / 3, m2 = b - (b - a) / 3;
+          const v1 = Math.abs(ev(m1)), v2 = Math.abs(ev(m2));
+          if (!Number.isFinite(v1) || v1 >= v2) b = m2; else a = m1;
+        }
+      }
+      let px = 0.5 * (a + b);
+      const nearInt = Math.round(px * 4) / 4;
+      if (Math.abs(px - nearInt) < 1e-3 * xSpan) px = nearInt;
+      // Confirm blows up on at least one side
+      const probe = (dir) => {
+        const vals = [1e-2, 1e-4, 1e-6].map((h) => Math.abs(ev(px + dir * h * Math.max(1, xSpan))));
+        return vals.every(Number.isFinite) && vals[1] > vals[0] && vals[2] > vals[1] && vals[2] > Math.max(8, 2 * ySpan);
+      };
+      if ((probe(1) || probe(-1)) && !vPoles.some((p) => Math.abs(p - px) < 0.02 * xSpan)) {
+        vPoles.push(px);
+        res.push({ k: 'v', x: px, text: `x = ${fmtNum(px, 3)}` });
+      }
+    }
+    // 2. Horizontal / Oblique asymptotes via large |x|
+    const checkEnd = (sgn) => {
+      const x1 = sgn * 1e4, x2 = sgn * 2e4, x3 = sgn * 4e4;
+      const y1 = ev(x1), y2 = ev(x2), y3 = ev(x3);
+      if (!Number.isFinite(y1) || !Number.isFinite(y2) || !Number.isFinite(y3)) return null;
+      const a1 = (y2 - y1) / (x2 - x1), a2 = (y3 - y2) / (x3 - x2);
+      if (Math.abs(a1 - a2) > 1e-4 || Math.abs(a2) > 50) return null;
+      const slope = Math.abs(a2) < 1e-4 ? 0 : (Math.abs(a2 - Math.round(a2 * 4) / 4) < 1e-3 ? Math.round(a2 * 4) / 4 : Number(a2.toFixed(3)));
+      const b1 = y2 - slope * x2, b2 = y3 - slope * x3;
+      if (!Number.isFinite(b1) || !Number.isFinite(b2) || Math.abs(b1 - b2) > 1e-2 || Math.abs(b2) > 1e3) return null;
+      const intercept = Math.abs(b2 - Math.round(b2 * 4) / 4) < 1e-3 ? Math.round(b2 * 4) / 4 : Number(b2.toFixed(3));
+      return slope === 0 ? { k: 'h', y: intercept, text: `y = ${fmtNum(intercept, 3)}` } : { k: 's', a: slope, b: intercept, text: `y = ${fmtNum(slope, 3)}x${intercept >= 0 ? ' + ' : ' - '}${fmtNum(Math.abs(intercept), 3)}` };
+    };
+    for (const cand of [checkEnd(1), checkEnd(-1)]) {
+      if (!cand) continue;
+      if (cand.k === 'h' && !res.some((r) => r.k === 'h' && Math.abs(r.y - cand.y) < 1e-2)) res.push(cand);
+      if (cand.k === 's' && !res.some((r) => r.k === 's' && Math.abs(r.a - cand.a) < 1e-2 && Math.abs(r.b - cand.b) < 1e-2)) res.push(cand);
+    }
+    return res;
+  }
+
+  function computeSafePlotBranches(ev, domMin, domMax, ymin, ymax) {
+    if (!(domMax > domMin)) return [];
+    const ySpan = Math.max(1, ymax - ymin);
+    // Rule 5.3: stop domain cleanly just outside [ymin, ymax] (with \clip) to avoid PGF Dimension too large!
+    const pad = Math.min(Math.max(0.18 * ySpan, 0.45), 2.5);
+    const yLo = Math.max(ymin - pad, -40);
+    const yHi = Math.min(ymax + pad, 40);
+    const jumpMax = Math.max(1.5 * ySpan, 10);
+
+    const N = 1600;
+    const step = (domMax - domMin) / N;
+    const branches = [];
+    let curStart = null;
+    let prevX = domMin;
+    let prevY = NaN;
+    let prevOk = false;
+
+    const refineEdge = (xIn, yIn, xOut) => {
+      let lo = xIn, hi = xOut;
+      const target = yIn > ymax ? yHi : (yIn < ymin ? yLo : null);
+      for (let k = 0; k < 22; k++) {
+        const mid = 0.5 * (lo + hi);
+        const ym = ev(mid);
+        const ok = Number.isFinite(ym) && ym >= yLo && ym <= yHi && Math.abs(ym - yIn) < jumpMax;
+        if (ok) {
+          lo = mid;
+          if (target !== null && Math.abs(ym - target) < 0.02) break;
+        } else {
+          hi = mid;
+        }
+      }
+      return lo;
+    };
+
+    for (let i = 0; i <= N; i++) {
+      const x = i === N ? domMax : domMin + step * i;
+      const y = ev(x);
+      const ok = Number.isFinite(y) && y >= yLo && y <= yHi;
+      const jumped = ok && prevOk && Math.abs(y - prevY) > jumpMax;
+
+      if (ok && !jumped) {
+        if (!prevOk) {
+          curStart = i === 0 ? x : refineEdge(x, y, prevX);
+        }
+      } else {
+        if (prevOk && curStart !== null) {
+          const endX = refineEdge(prevX, prevY, x);
+          if (endX - curStart > 1e-3 * (domMax - domMin)) {
+            branches.push([curStart, endX]);
+          }
+          curStart = null;
+        }
+        if (jumped) {
+          curStart = refineEdge(x, y, prevX);
+        }
+      }
+      prevX = x;
+      prevY = y;
+      prevOk = ok;
+    }
+    if (prevOk && curStart !== null && domMax - curStart > 1e-3 * (domMax - domMin)) {
+      branches.push([curStart, domMax]);
+    }
+    // Keep only branches that actually visit near [ymin - 0.1*ySpan, ymax + 0.1*ySpan]
+    return branches.filter(([a, b]) => {
+      for (let k = 0; k <= 24; k++) {
+        const y = ev(a + ((b - a) * k) / 24);
+        if (Number.isFinite(y) && y >= ymin - 0.12 * ySpan && y <= ymax + 0.12 * ySpan) return true;
+      }
+      return false;
+    });
+  }
+
+  function niceGraphTickStep(span, targetTicks) {
+    const raw = Math.abs(span) / Math.max(2, targetTicks || 7);
+    if (!(raw > 0)) return 1;
+    const p10 = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p10;
+    const step = m <= 1.25 ? 1 : (m <= 2.5 ? 2 : (m <= 6 ? 5 : 10));
+    return step * p10;
+  }
+
+  function hexToTikzColorDef(hex, name) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    if (!m) return null;
+    return `\\definecolor{${name}}{HTML}{${m[1].toUpperCase()}}`;
+  }
+
+  function extractTargetGraph(graphArg) {
+    if (graphArg && Array.isArray(graphArg.fns) && Number.isFinite(Number(graphArg.xmin)) && Number.isFinite(Number(graphArg.xmax))) {
+      return graphArg;
+    }
+    const b = getBoard();
+    if (!b || !b.doc || !b.doc.pages) return null;
+    if (typeof b.selectedItem === 'function') {
+      const selIt = b.selectedItem();
+      if (selIt && selIt.item && selIt.item.type === 'graph') return selIt.item;
+    }
+    const pgIdx = (b.sel && Number.isInteger(b.sel.page))
+      ? b.sel.page
+      : (typeof b.currentPage === 'function' ? b.currentPage() : 0);
+    const pg = b.doc.pages[pgIdx];
+    if (!pg || !Array.isArray(pg.items)) return null;
+    for (let i = pg.items.length - 1; i >= 0; i--) {
+      if (pg.items[i] && pg.items[i].type === 'graph') return pg.items[i];
+    }
+    return null;
+  }
+
+  function generateGraphTikz(graphArg, opts) {
+    const g = extractTargetGraph(graphArg);
+    if (!g) {
+      return {
+        code: '',
+        stats: { fns: 0, points: 0, areas: 0, asymptotes: 0, engine: 'tikz' },
+        validation: validateTikz('')
+      };
+    }
+
+    const o = Object.assign({
+      engine: 'tikz',          // 'tikz' (Chuẩn Đỗ Minh — tikz-domiinhmath.md) | 'pgfplots'
+      scaleMode: 'auto',       // 'auto' | '1' | '0.8' | '0.7' | '0.6' | '0.5'
+      useColors: false,        // false = chuẩn đen-trắng SGK / ex_test; true = giữ màu MinNote
+      showGrid: !!g.grid,
+      showTicks: !g.hideCoords,
+      hatchAreas: true,        // Rule 4.9: pattern={Lines[angle=45, distance=4pt, line width=0.3pt]}
+      showEqLabels: false,     // false = comment % postaction=... (Rule 4.7); true = bật nhãn trên đồ thị
+      samples: 150
+    }, opts || {});
+
+    const xmin = Number(g.xmin);
+    const xmax = Number(g.xmax);
+    const ymin = Number(g.ymin);
+    const ymax = Number(g.ymax);
+    if (!(xmax > xmin && ymax > ymin)) {
+      return {
+        code: '',
+        stats: { fns: 0, points: 0, areas: 0, asymptotes: 0, engine: o.engine },
+        validation: validateTikz('')
+      };
+    }
+
+    const xSpan = xmax - xmin;
+    const ySpan = ymax - ymin;
+    const useComma = !!g.comma;
+    const xAxisLbl = (g.xName && g.xName.trim()) ? g.xName.trim() : 'x';
+    const yAxisLbl = (g.yName && g.yName.trim()) ? g.yName.trim() : 'y';
+
+    // Compute clean auto scale (Rule 9: width 4–10 cm, use scale=...)
+    let scaleVal = null;
+    if (o.scaleMode === 'auto') {
+      const domSpan = Math.max(xSpan, ySpan);
+      if (domSpan > 9.5) {
+        scaleVal = Math.max(0.35, Math.min(0.95, Math.round((7.2 / domSpan) * 20) / 20));
+      } else if (domSpan < 3.6) {
+        scaleVal = Math.min(1.6, Math.round((5.0 / domSpan) * 20) / 20);
+      }
+    } else if (o.scaleMode && o.scaleMode !== '1') {
+      const parsedScale = Number(o.scaleMode);
+      if (Number.isFinite(parsedScale) && parsedScale > 0 && Math.abs(parsedScale - 1) > 1e-4) {
+        scaleVal = parsedScale;
+      }
+    }
+
+    // Prepare functions with safe PGF alphabetic identifiers
+    const usedFnNames = new Set();
+    const fnEntries = (g.fns || []).map((fnObj, idx) => {
+      if (!fnObj || fnObj.hidden) return null;
+      const rawExpr = String(fnObj.expr || '').trim();
+      if (!rawExpr) return null;
+      const vx = parseVerticalLineX(rawExpr);
+      if (vx !== null) {
+        return { idx, fnObj, kind: 'vertical', vx, color: fnObj.color || '#2563eb' };
+      }
+      if (isImplicitGraphExpr(rawExpr)) {
+        return { idx, fnObj, kind: 'implicit', rawExpr, color: fnObj.color || '#2563eb' };
+      }
+      const ast = parseMathExprToAst(rawExpr);
+      const ev = makeGraphFnEvaluator(rawExpr);
+      if (!ast || !ev) return null;
+
+      // Pick safe alphabetic PGF name (no digits, no PGF reserved keywords!)
+      let pgfName = String(fnObj.name || '').replace(/[^a-zA-Z]/g, '');
+      if (!pgfName || PGF_RESERVED_FN_NAMES.has(pgfName.toLowerCase()) || usedFnNames.has(pgfName)) {
+        pgfName = GRAPH_SAFE_FN_POOL.find((cand) => !usedFnNames.has(cand)) || ('fn' + String.fromCharCode(97 + (idx % 26)));
+      }
+      usedFnNames.add(pgfName);
+
+      const lim = fnObj.lim || null;
+      const lXmin = lim && lim.xmin !== '' && lim.xmin != null ? evalGraphNumber(lim.xmin) : -Infinity;
+      const lXmax = lim && lim.xmax !== '' && lim.xmax != null ? evalGraphNumber(lim.xmax) : Infinity;
+      const lYmin = lim && lim.ymin !== '' && lim.ymin != null ? evalGraphNumber(lim.ymin) : -Infinity;
+      const lYmax = lim && lim.ymax !== '' && lim.ymax != null ? evalGraphNumber(lim.ymax) : Infinity;
+      const effXmin = Math.max(xmin, Number.isFinite(lXmin) ? lXmin : xmin);
+      const effXmax = Math.min(xmax, Number.isFinite(lXmax) ? lXmax : xmax);
+      const effYmin = Math.max(ymin, Number.isFinite(lYmin) ? lYmin : ymin);
+      const effYmax = Math.min(ymax, Number.isFinite(lYmax) ? lYmax : ymax);
+
+      const branches = computeSafePlotBranches(ev, effXmin, effXmax, effYmin, effYmax);
+      const pgfBody = astToPgfExpr(ast, o.engine);
+      const texBody = astToLatexExpr(ast, useComma);
+      const eqPrefix = fnObj.labelMode === 'fn' ? `${pgfName}(x)` : 'y';
+      const eqTex = `${eqPrefix}=${texBody}`;
+
+      return {
+        idx,
+        fnObj,
+        kind: 'explicit',
+        pgfName,
+        pgfBody,
+        texBody,
+        eqTex,
+        ev,
+        branches,
+        effXmin,
+        effXmax,
+        effYmin,
+        effYmax,
+        hasLim: !!(Number.isFinite(lXmin) || Number.isFinite(lXmax) || Number.isFinite(lYmin) || Number.isFinite(lYmax)),
+        color: fnObj.color || '#2563eb'
+      };
+    }).filter(Boolean);
+
+    const fnByIdx = new Map(fnEntries.map((e) => [e.idx, e]));
+
+    // Collect asymptotes (Rule 4.7: drawn AFTER \clip, BEFORE curves!)
+    let asymEntries = [];
+    if (g.asymptotes) {
+      const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+      if (gk && typeof gk.asymptotes === 'function') {
+        try {
+          asymEntries = (gk.asymptotes(g) || []).map((it) => ({ a: it.a, color: it.color }));
+        } catch (_) { asymEntries = []; }
+      }
+      if (!asymEntries.length) {
+        for (const fe of fnEntries) {
+          if (fe.kind !== 'explicit') continue;
+          const det = detectStandaloneAsymptotes(fe.ev, xmin, xmax, ymin, ymax);
+          for (const a0 of det) asymEntries.push({ a: a0, color: fe.color });
+        }
+      }
+    }
+
+    // Collect valid points
+    const ptEntries = (g.points || []).map((pt, idx) => {
+      if (!pt || pt.hidden) return null;
+      const px = evalGraphNumber(pt.x);
+      let py = NaN;
+      if (Number.isInteger(pt.fn) && pt.fn >= 0 && fnByIdx.has(pt.fn)) {
+        const fe = fnByIdx.get(pt.fn);
+        if (fe && fe.ev && Number.isFinite(px)) py = fe.ev(px);
+      } else {
+        py = evalGraphNumber(pt.y);
+      }
+      if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+      const xRaw = String(pt.x || '').trim();
+      const yRaw = (Number.isInteger(pt.fn) && pt.fn >= 0) ? '' : String(pt.y || '').trim();
+      const xTex = xRaw && /[a-zA-Z/√π]/.test(xRaw) ? exprStrToLatex(xRaw, useComma) : formatMathNumLabel(px, useComma, 3);
+      const yTex = yRaw && /[a-zA-Z/√π]/.test(yRaw) ? exprStrToLatex(yRaw, useComma) : formatMathNumLabel(py, useComma, 3);
+      return {
+        idx,
+        pt,
+        x: px,
+        y: py,
+        xTex,
+        yTex,
+        label: String(pt.label || '').trim(),
+        guides: !!pt.guides,
+        coords: !!pt.coords,
+        hideLabel: !!pt.hideLabel,
+        color: pt.color || (pt.fn >= 0 && fnByIdx.has(pt.fn) ? fnByIdx.get(pt.fn).color : '#0f172a')
+      };
+    }).filter(Boolean);
+
+    // Collect valid integral areas (Rule 4.9 & 6.7 & Sample 6)
+    const areaEntries = (g.areas || []).map((ar, idx) => {
+      if (!ar) return null;
+      const fe1 = fnByIdx.get(ar.fn);
+      if (!fe1 || fe1.kind !== 'explicit') return null;
+      const fe2 = (ar.fn2 !== undefined && ar.fn2 !== null) ? fnByIdx.get(ar.fn2) : null;
+      let a0 = evalGraphNumber(ar.a);
+      let b0 = evalGraphNumber(ar.b);
+      if (!Number.isFinite(a0) || !Number.isFinite(b0) || Math.abs(b0 - a0) < 1e-6) return null;
+      if (a0 > b0) { const tmp = a0; a0 = b0; b0 = tmp; }
+      return {
+        idx,
+        ar,
+        fe1,
+        fe2: fe2 && fe2.kind === 'explicit' ? fe2 : null,
+        a: a0,
+        b: b0,
+        aTex: ar.a && /[a-zA-Z/√π]/.test(String(ar.a)) ? exprStrToLatex(ar.a, useComma) : formatMathNumLabel(a0, useComma, 3),
+        bTex: ar.b && /[a-zA-Z/√π]/.test(String(ar.b)) ? exprStrToLatex(ar.b, useComma) : formatMathNumLabel(b0, useComma, 3),
+        color: ar.color || fe1.color
+      };
+    }).filter(Boolean);
+
+    // Collect valid vectors
+    const vecEntries = (g.vectors || []).map((vc) => {
+      if (!vc) return null;
+      const splitPair = (str) => {
+        const parts = String(str || '').split(/[;,]/).map((s) => evalGraphNumber(s));
+        return parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) ? { x: parts[0], y: parts[1] } : null;
+      };
+      const p1 = splitPair(vc.from), p2 = splitPair(vc.to);
+      if (!p1 || !p2) return null;
+      return { p1, p2, label: String(vc.label || '').trim(), color: vc.color || '#2563eb' };
+    }).filter(Boolean);
+
+    // Collect valid linear inequalities (half-planes)
+    const ineqEntries = (g.ineqs || []).map((iq) => {
+      if (!iq || !iq.expr) return null;
+      const gk = typeof window !== 'undefined' ? window.__mnGraphKernel : null;
+      let parsed = null;
+      if (gk && typeof gk.parseIneq === 'function') {
+        try {
+          const r = gk.parseIneq(iq.expr);
+          if (r && !(r instanceof Error) && Number.isFinite(r.a) && Number.isFinite(r.b) && Number.isFinite(r.c)) parsed = r;
+        } catch (_) {}
+      }
+      if (!parsed) return null;
+      // Clip rectangle [xmin,xmax] x [ymin,ymax] against half-plane
+      const sgn = parsed.less ? 1 : -1;
+      const fVal = (pt) => sgn * (parsed.a * pt.x + parsed.b * pt.y + parsed.c);
+      const rect = [{ x: xmin, y: ymin }, { x: xmax, y: ymin }, { x: xmax, y: ymax }, { x: xmin, y: ymax }];
+      const poly = [];
+      for (let i = 0; i < 4; i++) {
+        const A = rect[i], B = rect[(i + 1) % 4];
+        const vA = fVal(A), vB = fVal(B);
+        if (vA >= -1e-9) poly.push(A);
+        if ((vA > 0) !== (vB > 0)) {
+          const t = vA / (vA - vB);
+          poly.push({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
+        }
+      }
+      if (poly.length < 3) return null;
+      return { iq, parsed, poly, color: iq.color || '#2563eb' };
+    }).filter(Boolean);
+
+    // =========================================================================
+    // ENGINE B: PGFPLOTS MODE (03_PROMPT_VE_HINH_TIKZ & 08_PROMPT_OVERLEAF_TIKZ)
+    // =========================================================================
+    if (o.engine === 'pgfplots') {
+      const pLines = [];
+      pLines.push('\\begin{tikzpicture}[every node/.style={font=\\normalsize}]');
+      const colorMap = new Map();
+      if (o.useColors) {
+        fnEntries.forEach((fe, k) => {
+          const cname = 'mnFn' + String.fromCharCode(65 + (k % 26));
+          const def = hexToTikzColorDef(fe.color, cname);
+          if (def) { colorMap.set(fe.idx, cname); pLines.push(def); }
+        });
+      }
+      const axOpts = [
+        'axis lines=middle',
+        `xlabel={$${xAxisLbl}$}`,
+        `ylabel={$${yAxisLbl}$}`,
+        `xmin=${fmtNum(xmin, 3)}`,
+        `xmax=${fmtNum(xmax, 3)}`,
+        `ymin=${fmtNum(ymin, 3)}`,
+        `ymax=${fmtNum(ymax, 3)}`,
+        'axis line style={-Stealth, line width=0.7pt}',
+        'xlabel style={below}',
+        'ylabel style={below left}'
+      ];
+      if (o.showGrid) axOpts.push('grid=major', 'grid style={gray!20, line width=0.3pt}');
+      if (g.stepX && Number(g.stepX) > 0) axOpts.push(`xtick distance=${fmtNum(Number(g.stepX), 3)}`);
+      if (g.stepY && Number(g.stepY) > 0) axOpts.push(`ytick distance=${fmtNum(Number(g.stepY), 3)}`);
+      if (!o.showTicks) axOpts.push('xtick=\\empty', 'ytick=\\empty');
+      if (g.equal) axOpts.push('axis equal image');
+      if (scaleVal) axOpts.push(`scale=${fmtNum(scaleVal, 2)}`);
+      pLines.push(`\\begin{axis}[${axOpts.join(', ')}]`);
+      if (xmin < 0 && xmax > 0 && ymin < 0 && ymax > 0) {
+        pLines.push('\\node[below left] at (axis cs:0,0) {$O$};');
+      }
+      // Areas
+      const hDist = areaEntries.length >= 3 ? '5pt' : '4pt';
+      areaEntries.forEach((ae, k) => {
+        const ang = GRAPH_HATCH_ANGLES[k % GRAPH_HATCH_ANGLES.length];
+        const fillOpt = o.hatchAreas
+          ? `pattern={Lines[angle=${ang}, distance=${hDist}, line width=0.3pt]}, pattern color=gray!70`
+          : (o.useColors && colorMap.has(ae.fe1.idx) ? `${colorMap.get(ae.fe1.idx)}, opacity=0.22` : 'gray!20');
+        const aS = fmtNum(ae.a, 3), bS = fmtNum(ae.b, 3);
+        if (ae.fe2) {
+          pLines.push(`\\addplot[${fillOpt}, draw=none, domain=${aS}:${bS}, samples=${o.samples}, smooth] {${ae.fe1.pgfBody}} \\closedcycle;`);
+        } else {
+          pLines.push(`\\addplot[${fillOpt}, draw=none, domain=${aS}:${bS}, samples=${o.samples}, smooth] {${ae.fe1.pgfBody}} \\closedcycle;`);
+        }
+      });
+      // Asymptotes
+      for (const asy of asymEntries) {
+        const a0 = asy.a;
+        if (a0.k === 'v') {
+          pLines.push(`\\addplot[dashed, line width=0.6pt] coordinates {(${fmtNum(a0.x, 3)},${fmtNum(ymin, 3)}) (${fmtNum(a0.x, 3)},${fmtNum(ymax, 3)})};`);
+        } else if (a0.k === 'h') {
+          pLines.push(`\\addplot[dashed, line width=0.6pt, domain=${fmtNum(xmin, 3)}:${fmtNum(xmax, 3)}, samples=2] {${fmtNum(a0.y, 3)}};`);
+        } else if (a0.k === 's') {
+          pLines.push(`\\addplot[dashed, line width=0.6pt, domain=${fmtNum(xmin, 3)}:${fmtNum(xmax, 3)}, samples=2] {${fmtNum(a0.a, 3)}*x+(${fmtNum(a0.b, 3)})};`);
+        }
+      }
+      // Functions
+      for (const fe of fnEntries) {
+        const colOpt = (o.useColors && colorMap.has(fe.idx)) ? `, ${colorMap.get(fe.idx)}` : '';
+        const dashOpt = fe.fnObj.dashStyle === 'dot' ? ', dotted' : (fe.fnObj.dashed ? ', dashed' : '');
+        if (fe.kind === 'vertical') {
+          pLines.push(`\\addplot[line width=0.6pt${dashOpt}${colOpt}] coordinates {(${fmtNum(fe.vx, 3)},${fmtNum(ymin, 3)}) (${fmtNum(fe.vx, 3)},${fmtNum(ymax, 3)})};`);
+        } else if (fe.kind === 'explicit') {
+          for (const [bA, bB] of fe.branches) {
+            pLines.push(`\\addplot[line width=0.6pt${dashOpt}${colOpt}, smooth, samples=${o.samples}, domain=${fmtNum(bA, 3)}:${fmtNum(bB, 3)}] {${fe.pgfBody}};`);
+          }
+        }
+      }
+      // Points & Guides
+      for (const pe of ptEntries) {
+        if (pe.guides) {
+          pLines.push(`\\draw[dashed, line width=0.4pt] (axis cs:${fmtNum(pe.x, 3)},0) -- (axis cs:${fmtNum(pe.x, 3)},${fmtNum(pe.y, 3)}) -- (axis cs:0,${fmtNum(pe.y, 3)});`);
+        }
+        pLines.push(`\\fill (axis cs:${fmtNum(pe.x, 3)},${fmtNum(pe.y, 3)}) circle (1pt);`);
+        if (!pe.hideLabel && (pe.label || pe.coords)) {
+          const txt = pe.coords
+            ? `${pe.label}(${pe.xTex};\\,${pe.yTex})`
+            : pe.label;
+          pLines.push(`\\node[above right] at (axis cs:${fmtNum(pe.x, 3)},${fmtNum(pe.y, 3)}) {$${txt}$};`);
+        }
+      }
+      pLines.push('\\end{axis}');
+      pLines.push('\\end{tikzpicture}');
+      const pCode = pLines.filter((l) => l.trim().length > 0).join('\n');
+      return {
+        code: pCode,
+        stats: { fns: fnEntries.length, points: ptEntries.length, areas: areaEntries.length, asymptotes: asymEntries.length, engine: 'pgfplots' },
+        validation: validateTikz(pCode)
+      };
+    }
+
+    // =========================================================================
+    // ENGINE A: CHUẨN ĐỖ MINH / MATRIXEXAMAI PRO v5 (tikz-domiinhmath.md)
+    // =========================================================================
+    const lines = [];
+    const declParts = [];
+    for (const fe of fnEntries) {
+      if (fe.kind === 'explicit') {
+        declParts.push(`${fe.pgfName}(\\x)=${fe.pgfBody};`);
+      }
+    }
+    declParts.push(`xmin=${fmtNum(xmin, 3)};`);
+    declParts.push(`xmax=${fmtNum(xmax, 3)};`);
+    declParts.push(`ymin=${fmtNum(ymin, 3)};`);
+    declParts.push(`ymax=${fmtNum(ymax, 3)};`);
+
+    const headerOpts = ['line join=round', 'every node/.style={font=\\normalsize}'];
+    if (scaleVal) headerOpts.push(`scale=${fmtNum(scaleVal, 2)}`);
+    headerOpts.push(`declare function={${declParts.join(' ')}}`);
+    lines.push(`\\begin{tikzpicture}[${headerOpts.join(', ')}]`);
+
+    // Optional color definitions (only when user enables Giữ màu đồ thị)
+    const colorMap = new Map();
+    if (o.useColors) {
+      fnEntries.forEach((fe, k) => {
+        const cname = 'mnFn' + String.fromCharCode(65 + (k % 26));
+        const def = hexToTikzColorDef(fe.color, cname);
+        if (def) { colorMap.set(fe.idx, cname); lines.push(def); }
+      });
+    }
+
+    // LAYER 1: Grid + Inequality Regions + Integral Area Fills (Rule 7, 4.9, 6.7, Sample 6)
+    if (o.showGrid) {
+      const gxStep = g.stepX && Number(g.stepX) > 0 ? Number(g.stepX) : niceGraphTickStep(xSpan, 8);
+      const gyStep = g.stepY && Number(g.stepY) > 0 ? Number(g.stepY) : niceGraphTickStep(ySpan, 8);
+      lines.push(`\\draw[gray!20, line width=0.3pt] (xmin,ymin) grid[xstep=${fmtNum(gxStep, 3)}, ystep=${fmtNum(gyStep, 3)}] (xmax,ymax);`);
+    }
+
+    if (ineqEntries.length || areaEntries.length) {
+      lines.push('\\begin{scope}');
+      lines.push('\\clip (xmin,ymin) rectangle (xmax,ymax);');
+      const totalRegions = ineqEntries.length + areaEntries.length;
+      const hatchDist = totalRegions >= 3 ? '5pt' : '4pt';
+      let regionIdx = 0;
+
+      for (const ie of ineqEntries) {
+        const ang = GRAPH_HATCH_ANGLES[regionIdx++ % GRAPH_HATCH_ANGLES.length];
+        const polyPath = ie.poly.map((p) => `(${fmtNum(p.x, 3)},${fmtNum(p.y, 3)})`).join(' -- ') + ' -- cycle';
+        const fStyle = o.hatchAreas
+          ? `pattern={Lines[angle=${ang}, distance=${hatchDist}, line width=0.3pt]}, pattern color=gray!60`
+          : 'gray!15';
+        lines.push(`\\fill[${fStyle}] ${polyPath};`);
+      }
+
+      for (const ae of areaEntries) {
+        const ang = GRAPH_HATCH_ANGLES[regionIdx++ % GRAPH_HATCH_ANGLES.length];
+        const aS = fmtNum(ae.a, 3), bS = fmtNum(ae.b, 3);
+        const fStyle = o.hatchAreas
+          ? `pattern={Lines[angle=${ang}, distance=${hatchDist}, line width=0.3pt]}, pattern color=gray!70`
+          : (o.useColors && colorMap.has(ae.fe1.idx) ? `${colorMap.get(ae.fe1.idx)}, opacity=0.22` : 'gray!20');
+        if (ae.fe2) {
+          lines.push(`\\fill[${fStyle}] plot[domain=${aS}:${bS}, samples=${o.samples}, smooth] (\\x,{${ae.fe1.pgfName}(\\x)}) -- plot[domain=${bS}:${aS}, samples=${o.samples}, smooth] (\\x,{${ae.fe2.pgfName}(\\x)}) -- cycle;`);
+        } else {
+          lines.push(`\\fill[${fStyle}] (${aS},0) -- plot[domain=${aS}:${bS}, samples=${o.samples}, smooth] (\\x,{${ae.fe1.pgfName}(\\x)}) -- (${bS},0) -- cycle;`);
+        }
+      }
+      lines.push('\\end{scope}');
+    }
+
+    // LAYER 2: Dashed Projection Guides + Integral Bound Guides (Sample 3 & Sample 6)
+    const guideSegs = [];
+    const guideFootDots = [];
+    const axisLabelsX = []; // { x, side: 'below'|'above', tex }
+    const axisLabelsY = []; // { y, side: 'left'|'right', tex }
+    const dotCoords = [];   // { x, y }
+
+    const pushDotUniq = (x, y) => {
+      if (!dotCoords.some((d) => Math.hypot(d.x - x, d.y - y) < 1e-3)) {
+        dotCoords.push({ x, y });
+      }
+    };
+    const pushXLabelUniq = (x, side, tex) => {
+      if (Math.abs(x) < 1e-3) return;
+      if (x <= xmin + 0.03 * xSpan || x >= xmax - 0.06 * xSpan) return;
+      if (!axisLabelsX.some((it) => Math.abs(it.x - x) < 0.03 * xSpan)) {
+        axisLabelsX.push({ x, side, tex });
+      }
+    };
+    const pushYLabelUniq = (y, side, tex) => {
+      if (Math.abs(y) < 1e-3) return;
+      if (y <= ymin + 0.03 * ySpan || y >= ymax - 0.06 * ySpan) return;
+      if (!axisLabelsY.some((it) => Math.abs(it.y - y) < 0.03 * ySpan)) {
+        axisLabelsY.push({ y, side, tex });
+      }
+    };
+
+    // Integral bound guides (Sample 6: dashed vertical drop from (a,0) to (a,{f(a)}) and (b,0) to (b,{f(b)}))
+    for (const ae of areaEntries) {
+      for (const [bv, bTex] of [[ae.a, ae.aTex], [ae.b, ae.bTex]]) {
+        const y1 = ae.fe1.ev(bv);
+        const y2 = ae.fe2 ? ae.fe2.ev(bv) : 0;
+        if (Math.abs(bv) > 1e-3 && bv >= xmin && bv <= xmax) {
+          pushDotUniq(bv, 0);
+          const avgY = Number.isFinite(y1) ? y1 : 0;
+          pushXLabelUniq(bv, avgY >= 0 ? 'below' : 'above', bTex);
+          if (Number.isFinite(y1) && Math.abs(y1 - y2) > 1e-2) {
+            const bS = fmtNum(bv, 3);
+            const fromExpr = ae.fe2 ? `(${bS},{${ae.fe2.pgfName}(${bS})})` : `(${bS},0)`;
+            guideSegs.push(`${fromExpr} -- (${bS},{${ae.fe1.pgfName}(${bS})})`);
+          }
+        }
+      }
+    }
+
+    // Point dots & projection guides (Sample 3: opposite-side labels so they NEVER touch dashed lines!)
+    for (const pe of ptEntries) {
+      if (pe.x < xmin - 1e-3 || pe.x > xmax + 1e-3 || pe.y < ymin - 1e-3 || pe.y > ymax + 1e-3) continue;
+      pushDotUniq(pe.x, pe.y);
+      if (pe.guides) {
+        const xs = fmtNum(pe.x, 3), ys = fmtNum(pe.y, 3);
+        const onX = Math.abs(pe.y) < 1e-3;
+        const onY = Math.abs(pe.x) < 1e-3;
+        if (!onX && !onY) {
+          guideSegs.push(`(${xs},0) -- (${xs},${ys}) -- (0,${ys})`);
+          guideFootDots.push({ x: pe.x, y: 0 }, { x: 0, y: pe.y });
+          pushXLabelUniq(pe.x, pe.y >= 0 ? 'below' : 'above', pe.xTex);
+          pushYLabelUniq(pe.y, pe.x <= 0 ? 'right' : 'left', pe.yTex);
+        } else if (onX && !onY) {
+          pushXLabelUniq(pe.x, 'below', pe.xTex);
+        } else if (onY && !onX) {
+          pushYLabelUniq(pe.y, 'left', pe.yTex);
+        }
+      }
+    }
+    for (const fd of guideFootDots) pushDotUniq(fd.x, fd.y);
+
+    // Axes & Origin (Rule 4.7)
+    if (!g.hideAxes) {
+      const hasXAxis = ymin <= 0 && ymax >= 0;
+      const hasYAxis = xmin <= 0 && xmax >= 0;
+      if (hasXAxis) {
+        lines.push(`\\draw[-Stealth, line width=0.7pt] (xmin,0) -- (xmax,0) node[below]{$${xAxisLbl}$};`);
+      }
+      if (hasYAxis) {
+        lines.push(`\\draw[-Stealth, line width=0.7pt] (0,ymin) -- (0,ymax) node[below left]{$${yAxisLbl}$};`);
+      }
+      if (hasXAxis && hasYAxis) {
+        lines.push('\\path (0,0) node[below left]{$O$};');
+      }
+    }
+
+    if (guideSegs.length) {
+      lines.push(`\\draw[dashed, line width=0.4pt] ${guideSegs.join(' ')};`);
+    }
+
+    // LAYER 3: Scoped Clip — Asymptotes FIRST (dashed 0.6pt), THEN Curves (0.6pt smooth samples=150)
+    const hasScopedContent = asymEntries.length > 0 || fnEntries.length > 0;
+    if (hasScopedContent) {
+      lines.push('\\begin{scope}');
+      lines.push('\\clip (xmin,ymin) rectangle (xmax,ymax);');
+
+      // Asymptotes (Rule 4.7: AFTER \clip, BEFORE curves!)
+      if (asymEntries.length) {
+        const asymPaths = [];
+        for (const asy of asymEntries) {
+          const a0 = asy.a;
+          if (a0.k === 'v') {
+            const xs = fmtNum(a0.x, 3);
+            asymPaths.push(`(${xs},ymin) -- (${xs},ymax)`);
+            pushXLabelUniq(a0.x, 'below right', formatMathNumLabel(a0.x, useComma, 3));
+          } else if (a0.k === 'h') {
+            const ys = fmtNum(a0.y, 3);
+            asymPaths.push(`(xmin,${ys}) -- (xmax,${ys})`);
+            pushYLabelUniq(a0.y, 'above left', formatMathNumLabel(a0.y, useComma, 3));
+          } else if (a0.k === 's') {
+            const yL = a0.a * xmin + a0.b;
+            const yR = a0.a * xmax + a0.b;
+            asymPaths.push(`(xmin,${fmtNum(yL, 3)}) -- (xmax,${fmtNum(yR, 3)})`);
+          }
+        }
+        if (asymPaths.length) {
+          lines.push(`\\draw[dashed, line width=0.6pt] ${asymPaths.join(' ')};`);
+        }
+      }
+
+      // Function curves
+      const eqLabelNodes = [];
+      for (const fe of fnEntries) {
+        const colOpt = (o.useColors && colorMap.has(fe.idx)) ? `, ${colorMap.get(fe.idx)}` : '';
+        const dashOpt = fe.fnObj.dashStyle === 'dot' ? ', dotted' : (fe.fnObj.dashed ? ', dashed' : '');
+        const opOpt = (fe.fnObj.opacity != null && fe.fnObj.opacity < 0.99) ? `, opacity=${fmtNum(fe.fnObj.opacity, 2)}` : '';
+
+        if (fe.kind === 'vertical') {
+          const xs = fmtNum(fe.vx, 3);
+          lines.push(`\\draw[line width=0.6pt${dashOpt}${colOpt}${opOpt}] (${xs},ymin) -- (${xs},ymax);`);
+          continue;
+        }
+        if (fe.kind === 'implicit') {
+          // Exact circle shortcut: x^2 + y^2 = r^2 or (x-a)^2 + (y-b)^2 = r^2
+          const cM = /^\s*(?:\(\s*x\s*([+-]\s*[\d.]+)\s*\)|x)\s*\^\s*2\s*\+\s*(?:\(\s*y\s*([+-]\s*[\d.]+)\s*\)|y)\s*\^\s*2\s*=\s*([\d.]+)\s*$/i.exec(normalizeGraphInputExpr(fe.rawExpr));
+          if (cM) {
+            const cx = cM[1] ? -Number(cM[1].replace(/\s+/g, '')) : 0;
+            const cy = cM[2] ? -Number(cM[2].replace(/\s+/g, '')) : 0;
+            const rad = Math.sqrt(Math.max(0, Number(cM[3])));
+            if (rad > 0) {
+              lines.push(`\\draw[line width=0.6pt${dashOpt}${colOpt}${opOpt}] (${fmtNum(cx, 3)},${fmtNum(cy, 3)}) circle[radius=${fmtNum(rad, 3)}];`);
+            }
+          }
+          continue;
+        }
+
+        const markPost = `postaction={decoration={markings, mark=at position 0.8 with {\\node[transform shape, sloped, above left]{$${fe.eqTex}$};}}, decorate}`;
+        if (!o.showEqLabels && !fe.fnObj.hideLabel) {
+          // Rule 4.7: curve equation label provided as comment so teacher can uncomment anytime
+          lines.push(`% ${markPost}`);
+        }
+        fe.branches.forEach(([bA, bB]) => {
+          lines.push(`\\draw[line width=0.6pt${dashOpt}${colOpt}${opOpt}, smooth, samples=${o.samples}, domain=${fmtNum(bA, 3)}:${fmtNum(bB, 3)}] plot (\\x,{${fe.pgfName}(\\x)});`);
+        });
+        if (o.showEqLabels && !fe.fnObj.hideLabel && fe.branches.length) {
+          // Pick a clean visible point on the rightmost branch well inside the viewport (immune to PGF decoration overflow!)
+          let bestPt = null;
+          for (let bi = fe.branches.length - 1; bi >= 0 && !bestPt; bi--) {
+            const [bA, bB] = fe.branches[bi];
+            for (const frac of [0.78, 0.72, 0.65, 0.35, 0.5, 0.25, 0.85]) {
+              const cx = bA + (bB - bA) * frac;
+              const cy = fe.ev(cx);
+              if (Number.isFinite(cy) && cx >= xmin + 0.1 * xSpan && cx <= xmax - 0.12 * xSpan && cy >= ymin + 0.12 * ySpan && cy <= ymax - 0.12 * ySpan) {
+                const eps = Math.max(1e-3, 0.005 * xSpan);
+                const dy = (fe.ev(cx + eps) - fe.ev(cx - eps)) / (2 * eps);
+                const side = Number.isFinite(dy) && dy > 0.3 ? 'above left' : (Number.isFinite(dy) && dy < -0.3 ? 'above right' : 'above');
+                bestPt = { x: cx, y: cy, side, eqTex: fe.eqTex, colOpt };
+                break;
+              }
+            }
+          }
+          if (bestPt) eqLabelNodes.push(bestPt);
+        }
+      }
+
+      lines.push('\\end{scope}');
+      if (eqLabelNodes.length) {
+        const eqParts = eqLabelNodes.map((n) => `(${fmtNum(n.x, 3)},${fmtNum(n.y, 3)}) node[${n.side}${n.colOpt}]{$${n.eqTex}$}`);
+        lines.push(`\\path ${eqParts.join(' ')};`);
+      }
+    }
+
+    // LAYER 4: Solid Graph Dots (\fill circle (1pt)) & Vectors (Rule 4.6, Sample 3 & 6)
+    if (dotCoords.length === 1) {
+      lines.push(`\\fill (${fmtNum(dotCoords[0].x, 3)},${fmtNum(dotCoords[0].y, 3)}) circle (1pt);`);
+    } else if (dotCoords.length > 1) {
+      const pairs = dotCoords.map((d) => `${fmtNum(d.x, 3)}/${fmtNum(d.y, 3)}`).join(', ');
+      lines.push(`\\foreach \\x/\\y in {${pairs}}{\\fill (\\x,\\y) circle (1pt);}`);
+    }
+
+    for (const vc of vecEntries) {
+      const lblPart = vc.label ? ` node[pos=0.5, sloped, above]{$\\vec{${vc.label}}$}` : '';
+      lines.push(`\\draw[-Stealth, line width=0.6pt] (${fmtNum(vc.p1.x, 3)},${fmtNum(vc.p1.y, 3)}) -- (${fmtNum(vc.p2.x, 3)},${fmtNum(vc.p2.y, 3)})${lblPart};`);
+    }
+
+    // LAYER 5: Axis Labels, Optional Regular Ticks & Point Labels (Rule 4.6, 4.7, T12, T15, T29)
+    const tickMarks = [];
+    if (o.showTicks && !g.hideAxes) {
+      const sx = g.stepX && Number(g.stepX) > 0 ? Number(g.stepX) : niceGraphTickStep(xSpan, 7);
+      const sy = g.stepY && Number(g.stepY) > 0 ? Number(g.stepY) : niceGraphTickStep(ySpan, 7);
+      if (ymin <= 0 && ymax >= 0 && xSpan / sx <= 30) {
+        for (let xv = Math.ceil((xmin + 0.35 * sx) / sx) * sx; xv <= xmax - 0.55 * sx; xv += sx) {
+          if (Math.abs(xv) < 0.25 * sx) continue;
+          if (axisLabelsX.some((it) => Math.abs(it.x - xv) < 0.38 * sx)) continue;
+          const xs = fmtNum(xv, 3);
+          tickMarks.push(`(${xs}, 2pt) -- (${xs}, -2pt)`);
+          axisLabelsX.push({ x: xv, side: 'below', tex: formatMathNumLabel(xv, useComma, 3) });
+        }
+      }
+      if (xmin <= 0 && xmax >= 0 && ySpan / sy <= 30) {
+        for (let yv = Math.ceil((ymin + 0.35 * sy) / sy) * sy; yv <= ymax - 0.55 * sy; yv += sy) {
+          if (Math.abs(yv) < 0.25 * sy) continue;
+          if (axisLabelsY.some((it) => Math.abs(it.y - yv) < 0.38 * sy)) continue;
+          const ys = fmtNum(yv, 3);
+          tickMarks.push(`(2pt, ${ys}) -- (-2pt, ${ys})`);
+          axisLabelsY.push({ y: yv, side: 'left', tex: formatMathNumLabel(yv, useComma, 3) });
+        }
+      }
+    }
+    if (tickMarks.length) {
+      lines.push(`\\draw[line width=0.5pt] ${tickMarks.join(' ')};`);
+    }
+
+    // Axis coordinate labels (single clean \path statement just like Sample 3!)
+    const axisNodeParts = [];
+    axisLabelsX.sort((a, b) => a.x - b.x);
+    axisLabelsY.sort((a, b) => a.y - b.y);
+    for (const lx of axisLabelsX) {
+      axisNodeParts.push(`(${fmtNum(lx.x, 3)},0) node[${lx.side}]{$${lx.tex}$}`);
+    }
+    for (const ly of axisLabelsY) {
+      axisNodeParts.push(`(0,${fmtNum(ly.y, 3)}) node[${ly.side}]{$${ly.tex}$}`);
+    }
+    if (axisNodeParts.length) {
+      lines.push(`\\path ${axisNodeParts.join(' ')};`);
+    }
+
+    // Point name / coordinate labels (smartly shifted away from axes & guides)
+    const ptNodeParts = [];
+    for (const pe of ptEntries) {
+      if (pe.hideLabel || (!pe.label && !pe.coords)) continue;
+      if (pe.x < xmin - 1e-3 || pe.x > xmax + 1e-3 || pe.y < ymin - 1e-3 || pe.y > ymax + 1e-3) continue;
+      const txt = pe.coords
+        ? `${pe.label ? pe.label : ''}(${pe.xTex};\\,${pe.yTex})`
+        : pe.label;
+      // Pick clean corner away from guide lines toward origin
+      const deg = (pe.x >= 0 && pe.y >= 0) ? 45 : (pe.x < 0 && pe.y >= 0 ? 135 : (pe.x < 0 && pe.y < 0 ? 225 : 315));
+      const radPt = pe.coords ? 12 : 9;
+      ptNodeParts.push(`(${fmtNum(pe.x, 3)},${fmtNum(pe.y, 3)}) node[shift={(${deg}:${radPt}pt)}]{$${txt}$}`);
+    }
+    if (ptNodeParts.length) {
+      lines.push(`\\path ${ptNodeParts.join(' ')};`);
+    }
+
+    lines.push('\\end{tikzpicture}');
+    const code = lines.filter((l) => l.trim().length > 0).join('\n');
+    const validation = validateTikz(code);
+    return {
+      code,
+      stats: {
+        fns: fnEntries.length,
+        points: ptEntries.length,
+        areas: areaEntries.length,
+        asymptotes: asymEntries.length,
+        scale: scaleVal || 1,
+        engine: 'tikz'
+      },
+      validation
+    };
+  }
+
+  // ============================================================================
+  // 7. UNIFIED TIKZ STUDIO MODAL (Geometry + Graph + Animated BetaTikz)
   // ============================================================================
   let modalBackdrop = null;
   let lastRenderedPng = '';
-  let currentMode = 'static'; // 'static' | 'animated'
+  let currentMode = 'static'; // 'static' | 'graph' | 'animated'
+  let pendingGraphObj = null;
+  let graphOptsState = {
+    engine: 'tikz',
+    scaleMode: 'auto',
+    useColors: false,
+    showGrid: null,   // null = sync from graph.grid on open
+    showTicks: null,  // null = sync from !graph.hideCoords on open
+    hatchAreas: true,
+    showEqLabels: false
+  };
   let animState = {
     fmt: 'out_tikz', // 'out_tikz' | 'animate'
     fps: 24,
@@ -2298,6 +3719,16 @@
     'gộp các đoạn nét đứt vào 1 lệnh \\draw[dashed, line width=0.4pt] ...; và nét liền vào 1 lệnh \\draw[line width=0.6pt] ...;, ' +
     'điểm circle (0.4pt) và nhãn \\foreach \\p/\\g dùng shift={(\\g:9pt)}. ' +
     'CHỈ trả về đúng một khối \\begin{tikzpicture}...\\end{tikzpicture}, không giải thích thêm.';
+
+  const DOMIINH_AI_GRAPH_PROMPT =
+    'Bạn là chuyên gia vẽ Đồ thị hàm số TikZ phong cách Thầy Đỗ Minh (MatrixExamAI Pro v5 / tikz-domiinhmath). ' +
+    'Hãy tối ưu mã TikZ đồ thị sau giữ nguyên chính xác hàm số, tiệm cận, cực trị, điểm và miền tích phân: ' +
+    'dùng [line join=round, every node/.style={font=\\normalsize}, declare function={f(\\x)=...; xmin=...; xmax=...; ymin=...; ymax=...;}], ' +
+    'KHÔNG dùng line cap=round, KHÔNG dòng trống, KHÔNG preamble, lượng giác radian có r (sin(\\x r)), ' +
+    'trục [-Stealth, line width=0.7pt], đồ thị [line width=0.6pt, smooth, samples=150] trong scope có \\clip (xmin,ymin) rectangle (xmax,ymax);, ' +
+    'tiệm cận [dashed, line width=0.6pt] vẽ SAU \\clip và TRƯỚC đồ thị, tách nhánh không vắt qua tiệm cận, ' +
+    'điểm đồ thị \\fill (x,y) circle (1pt);, miền tích phân dùng pattern={Lines[angle=45, distance=4pt, line width=0.3pt]}, pattern color=gray!70, ' +
+    'nhãn số trục không chạm đường gióng. CHỈ trả về đúng một khối \\begin{tikzpicture}...\\end{tikzpicture}, không giải thích thêm.';
 
   const ANIM_FX_CLASSES = new Set([
     'draw', 'chalk', 'glow', 'pop', 'pulse', 'fade', 'wipe', 'stamp'
@@ -2365,8 +3796,9 @@
               <span>📐 Xuất TikZ</span>
             </div>
             <div class="mn-tikz-mode-switch" role="tablist" aria-label="Chế độ xuất TikZ">
-              <button type="button" role="tab" aria-selected="true" class="mn-tikz-mode-btn active" id="mn-tikz-tab-static" data-tikz-mode="static">📐 TikZ Tĩnh (Chuẩn SGK)</button>
-              <button type="button" role="tab" aria-selected="false" class="mn-tikz-mode-btn" id="mn-tikz-tab-animated" data-tikz-mode="animated">🎬 TikZ Chuyển Động (BetaTikz)</button>
+              <button type="button" role="tab" aria-selected="true" class="mn-tikz-mode-btn active" id="mn-tikz-tab-static" data-tikz-mode="static">📐 Hình học (Chuẩn SGK)</button>
+              <button type="button" role="tab" aria-selected="false" class="mn-tikz-mode-btn" id="mn-tikz-tab-graph" data-tikz-mode="graph">📈 Đồ thị (Chuẩn SGK)</button>
+              <button type="button" role="tab" aria-selected="false" class="mn-tikz-mode-btn" id="mn-tikz-tab-animated" data-tikz-mode="animated">🎬 Chuyển động (BetaTikz)</button>
             </div>
           </div>
           <div class="mn-tikz-head-right">
@@ -2393,6 +3825,44 @@
               <label class="mn-v80-toggle">
                 <input type="checkbox" id="mn-tikz-opt-hatch" />
                 <span>Tô gạch chéo thiết diện</span>
+              </label>
+            </div>
+
+            <div class="mn-tikz-graph-opts" id="mn-tikz-graph-opts" style="display:none;">
+              <div class="mn-tikz-fmt-group" role="group" aria-label="Động cơ xuất TikZ Đồ thị">
+                <button type="button" class="mn-tikz-fmt-pill active" data-graph-engine="tikz">Chuẩn Đỗ Minh</button>
+                <button type="button" class="mn-tikz-fmt-pill" data-graph-engine="pgfplots">PGFPlots</button>
+              </div>
+              <label class="mn-tikz-ctrl-inline">
+                <span>Tỉ lệ</span>
+                <select id="mn-tikz-graph-scale" class="mn-tikz-inline-select">
+                  <option value="auto" selected>Tự động (4–10cm)</option>
+                  <option value="1">1.0</option>
+                  <option value="0.8">0.8</option>
+                  <option value="0.7">0.7</option>
+                  <option value="0.6">0.6</option>
+                  <option value="0.5">0.5</option>
+                </select>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-graph-colors" />
+                <span>Giữ màu đồ thị</span>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-graph-grid" />
+                <span>Lưới</span>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-graph-ticks" checked />
+                <span>Vạch trục</span>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-graph-hatch" checked />
+                <span>Gạch chéo miền</span>
+              </label>
+              <label class="mn-v80-toggle">
+                <input type="checkbox" id="mn-tikz-graph-eqs" />
+                <span>Nhãn hàm</span>
               </label>
             </div>
 
@@ -2514,8 +3984,10 @@
     const stageEl = el.querySelector('#mn-tikz-preview-stage');
 
     const tabStaticBtn = el.querySelector('#mn-tikz-tab-static');
+    const tabGraphBtn = el.querySelector('#mn-tikz-tab-graph');
     const tabAnimBtn = el.querySelector('#mn-tikz-tab-animated');
     const staticOptsEl = el.querySelector('#mn-tikz-static-opts');
+    const graphOptsEl = el.querySelector('#mn-tikz-graph-opts');
     const animOptsEl = el.querySelector('#mn-tikz-anim-opts');
     const staticSideEl = el.querySelector('#mn-tikz-static-side');
     const animSideEl = el.querySelector('#mn-tikz-anim-side');
@@ -2527,15 +3999,20 @@
     const animStepsEl = el.querySelector('#mn-tikz-anim-steps');
     const animEmptyBox = el.querySelector('#mn-tikz-anim-empty-box');
 
-    const close = () => el.classList.remove('open');
+    const close = () => {
+      el.classList.remove('open');
+      pendingGraphObj = null;
+    };
     el.querySelector('#mn-tikz-close').addEventListener('click', close);
     el.addEventListener('click', (e) => { if (e.target === el) close(); });
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && el.classList.contains('open')) {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         close();
       }
-    });
+    }, true);
 
     const readStaticOpts = () => ({
       strictInteger: !!el.querySelector('#mn-tikz-opt-strict').checked,
@@ -2543,6 +4020,16 @@
       useForeach: !!el.querySelector('#mn-tikz-opt-foreach').checked,
       showDots: !!el.querySelector('#mn-tikz-opt-dots').checked,
       hatchFills: !!el.querySelector('#mn-tikz-opt-hatch').checked
+    });
+
+    const readGraphOpts = () => ({
+      engine: graphOptsState.engine === 'pgfplots' ? 'pgfplots' : 'tikz',
+      scaleMode: el.querySelector('#mn-tikz-graph-scale').value || 'auto',
+      useColors: !!el.querySelector('#mn-tikz-graph-colors').checked,
+      showGrid: !!el.querySelector('#mn-tikz-graph-grid').checked,
+      showTicks: !!el.querySelector('#mn-tikz-graph-ticks').checked,
+      hatchAreas: !!el.querySelector('#mn-tikz-graph-hatch').checked,
+      showEqLabels: !!el.querySelector('#mn-tikz-graph-eqs').checked
     });
 
     const renderValidation = (val) => {
@@ -2579,6 +4066,35 @@
         `Điểm: ${st.points} (${st.primaryPoints} gốc + ${st.symbolicPoints} tính bằng calc) • ` +
         `Hình: ${st.shapes} • Lưới: ${st.gridStep === 1 ? 'Số nguyên Z²' : 'Nửa nguyên (.5)'} • ` +
         `Sai số chuẩn hóa: ${(st.rmsError * 100).toFixed(1)}%`;
+      renderValidation(res.validation);
+    };
+
+    const regenerateGraph = (syncDefaultsFromGraph) => {
+      lastRenderedPng = '';
+      const targetG = extractTargetGraph(pendingGraphObj);
+      if (!targetG) {
+        codeArea.value = '% Chưa có Đồ thị hàm số nào trên trang hiện tại để xuất mã TikZ.';
+        statsEl.textContent = 'Hãy tạo Đồ thị hàm số (phím G) hoặc chọn 1 đồ thị trên bảng rồi bấm Xuất TikZ.';
+        renderValidation(validateTikz(''));
+        return;
+      }
+      if (syncDefaultsFromGraph) {
+        el.querySelector('#mn-tikz-graph-grid').checked = !!targetG.grid;
+        el.querySelector('#mn-tikz-graph-ticks').checked = !targetG.hideCoords;
+      }
+      const res = generateGraphTikz(targetG, readGraphOpts());
+      if (!res.code) {
+        codeArea.value = '% Đồ thị chưa có khung miền hợp lệ để xuất mã TikZ.';
+        statsEl.textContent = 'Kiểm tra lại miền [xmin; xmax], [ymin; ymax] của đồ thị.';
+        renderValidation(validateTikz(''));
+        return;
+      }
+      codeArea.value = res.code;
+      const st = res.stats;
+      statsEl.textContent =
+        `Đồ thị chuẩn ${st.engine === 'pgfplots' ? 'PGFPlots' : 'Đỗ Minh (tikz-domiinhmath)'} • ` +
+        `Hàm: ${st.fns} • Điểm: ${st.points} • Tiệm cận: ${st.asymptotes} • Miền tích phân: ${st.areas}` +
+        (st.scale && st.scale !== 1 ? ` • scale=${st.scale}` : '');
       renderValidation(res.validation);
     };
 
@@ -2673,12 +4189,14 @@
 
     const regenerate = () => {
       if (currentMode === 'animated') regenerateAnimated();
+      else if (currentMode === 'graph') regenerateGraph(false);
       else regenerateStatic();
     };
 
     const applyModeUI = (mode, opts) => {
-      currentMode = mode === 'animated' ? 'animated' : 'static';
+      currentMode = mode === 'animated' ? 'animated' : (mode === 'graph' ? 'graph' : 'static');
       if (opts && typeof opts === 'object') {
+        if (opts.graph !== undefined) pendingGraphObj = opts.graph || null;
         if (opts.fmt === 'animate' || opts.fmt === 'out_tikz') animState.fmt = opts.fmt;
         if (Number.isFinite(Number(opts.fps)) && Number(opts.fps) > 0) animState.fps = Number(opts.fps);
         if (Number.isFinite(Number(opts.durationSec)) && Number(opts.durationSec) > 0) animState.durationSec = Number(opts.durationSec);
@@ -2690,12 +4208,17 @@
       }
 
       const isAnim = currentMode === 'animated';
-      tabStaticBtn.classList.toggle('active', !isAnim);
-      tabStaticBtn.setAttribute('aria-selected', String(!isAnim));
+      const isGraph = currentMode === 'graph';
+      const isStatic = currentMode === 'static';
+      tabStaticBtn.classList.toggle('active', isStatic);
+      tabStaticBtn.setAttribute('aria-selected', String(isStatic));
+      tabGraphBtn.classList.toggle('active', isGraph);
+      tabGraphBtn.setAttribute('aria-selected', String(isGraph));
       tabAnimBtn.classList.toggle('active', isAnim);
       tabAnimBtn.setAttribute('aria-selected', String(isAnim));
 
-      staticOptsEl.style.display = isAnim ? 'none' : 'flex';
+      staticOptsEl.style.display = isStatic ? 'flex' : 'none';
+      graphOptsEl.style.display = isGraph ? 'flex' : 'none';
       animOptsEl.style.display = isAnim ? 'flex' : 'none';
       staticSideEl.style.display = isAnim ? 'none' : 'flex';
       animSideEl.style.display = isAnim ? 'flex' : 'none';
@@ -2716,14 +4239,22 @@
         if (loopChk) loopChk.checked = animState.loop;
       }
 
-      regenerate();
+      if (isGraph) {
+        el.querySelectorAll('[data-graph-engine]').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.graphEngine === graphOptsState.engine);
+        });
+        regenerateGraph(true);
+      } else {
+        regenerate();
+      }
     };
 
     tabStaticBtn.addEventListener('click', () => applyModeUI('static'));
+    tabGraphBtn.addEventListener('click', () => applyModeUI('graph'));
     tabAnimBtn.addEventListener('click', () => applyModeUI('animated'));
 
     codeArea.addEventListener('input', () => {
-      if (currentMode === 'static') {
+      if (currentMode === 'static' || currentMode === 'graph') {
         renderValidation(validateTikz(codeArea.value));
       }
     });
@@ -2731,6 +4262,20 @@
     ['#mn-tikz-opt-strict', '#mn-tikz-opt-foreach', '#mn-tikz-opt-dots', '#mn-tikz-opt-hatch'].forEach((id) => {
       el.querySelector(id).addEventListener('change', () => {
         if (currentMode === 'static') regenerateStatic();
+      });
+    });
+
+    el.querySelectorAll('[data-graph-engine]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        graphOptsState.engine = btn.dataset.graphEngine === 'pgfplots' ? 'pgfplots' : 'tikz';
+        el.querySelectorAll('[data-graph-engine]').forEach((b) => b.classList.toggle('active', b === btn));
+        if (currentMode === 'graph') regenerateGraph(false);
+      });
+    });
+
+    ['#mn-tikz-graph-scale', '#mn-tikz-graph-colors', '#mn-tikz-graph-grid', '#mn-tikz-graph-ticks', '#mn-tikz-graph-hatch', '#mn-tikz-graph-eqs'].forEach((id) => {
+      el.querySelector(id).addEventListener('change', () => {
+        if (currentMode === 'graph') regenerateGraph(false);
       });
     });
 
@@ -2786,17 +4331,23 @@
       }
     });
 
-    el.querySelector('#mn-tikz-regen').addEventListener('click', regenerate);
+    el.querySelector('#mn-tikz-regen').addEventListener('click', () => {
+      if (currentMode === 'graph' && !document.querySelector('.mn-geo-graph-dlg')) {
+        pendingGraphObj = null;
+      }
+      regenerate();
+    });
 
-    // Static Footer Actions
+    // Static & Graph Footer Actions
     el.querySelector('#mn-tikz-copy').addEventListener('click', () => {
-      copyEditorText(codeArea.value, codeArea, '📋 Đã sao chép mã TikZ chuẩn DoMinhMath!');
+      copyEditorText(codeArea.value, codeArea, currentMode === 'graph' ? '📋 Đã sao chép mã TikZ Đồ thị chuẩn DoMinhMath!' : '📋 Đã sao chép mã TikZ chuẩn DoMinhMath!');
     });
 
     el.querySelector('#mn-tikz-save').addEventListener('click', () => {
       const txt = codeArea.value.trim();
       if (!txt) return;
-      saveMediaOrBlob(txt, `minnote_figure_${Date.now().toString(36)}.tex`, '.tex', 'text/plain;charset=utf-8');
+      const prefix = currentMode === 'graph' ? 'minnote_graph_' : 'minnote_figure_';
+      saveMediaOrBlob(txt, `${prefix}${Date.now().toString(36)}.tex`, '.tex', 'text/plain;charset=utf-8');
     });
 
     el.querySelector('#mn-tikz-compile').addEventListener('click', async () => {
@@ -2842,9 +4393,12 @@
       btn.disabled = true;
       btn.textContent = '✨ AI đang tối ưu...';
       try {
+        const isGraphMode = currentMode === 'graph';
         const res = await window.MinNoteMeaSync.executeAiPrompt(
-          'Hãy tối ưu mã TikZ sau giữ nguyên chính xác hình học và nhãn điểm:\n\n' + txt,
-          DOMIINH_AI_SYSTEM_PROMPT,
+          (isGraphMode
+            ? 'Hãy tối ưu mã TikZ đồ thị hàm số sau giữ nguyên chính xác hàm số, tiệm cận, điểm và miền tích phân:\n\n'
+            : 'Hãy tối ưu mã TikZ sau giữ nguyên chính xác hình học và nhãn điểm:\n\n') + txt,
+          isGraphMode ? DOMIINH_AI_GRAPH_PROMPT : DOMIINH_AI_SYSTEM_PROMPT,
           { timeoutMs: 180000 }
         );
         const cleaned = extractTikzBlock(res && res.content);
@@ -2880,7 +4434,7 @@
         await window.MinNoteMeaSync.pushCurrentFigure({
           tikzCode: txt,
           pngDataUrl: lastRenderedPng || undefined,
-          tags: ['MinNote', 'TikZ']
+          tags: currentMode === 'graph' ? ['MinNote', 'TikZ', 'DoThi'] : ['MinNote', 'TikZ']
         });
       } catch (err) {
         toast('Lỗi đẩy sang Kho hình MEA: ' + (err.message || err));
@@ -2939,13 +4493,30 @@
   function setMode(mode, opts) {
     const el = ensureModal();
     if (typeof el._applyModeUI === 'function') {
-      el._applyModeUI(mode === 'animated' ? 'animated' : 'static', opts);
+      const m = mode === 'animated' ? 'animated' : (mode === 'graph' ? 'graph' : 'static');
+      el._applyModeUI(m, opts);
     }
   }
 
   function openModal(opts) {
     const el = ensureModal();
-    const requestedMode = (opts && (opts.mode === 'animated' || opts.mode === 'betatikz')) ? 'animated' : 'static';
+    let requestedMode = 'static';
+    if (opts && (opts.mode === 'animated' || opts.mode === 'betatikz')) {
+      requestedMode = 'animated';
+    } else if (opts && (opts.mode === 'graph' || opts.graph)) {
+      requestedMode = 'graph';
+    } else if (!opts || !opts.mode) {
+      pendingGraphObj = null;
+      const b = getBoard();
+      const selIt = b && typeof b.selectedItem === 'function' ? b.selectedItem() : null;
+      if (selIt && selIt.item && selIt.item.type === 'graph') {
+        requestedMode = 'graph';
+      } else {
+        const hasGeo = !!(extractTargetGeo(null) && Object.keys(extractTargetGeo(null).points || {}).length > 0);
+        const hasGraph = !!extractTargetGraph(null);
+        if (!hasGeo && hasGraph) requestedMode = 'graph';
+      }
+    }
     if (typeof el._applyModeUI === 'function') {
       el._applyModeUI(requestedMode, opts);
     } else if (typeof el._regenerate === 'function') {
@@ -2974,6 +4545,8 @@
     getMode,
     isOpen,
     generateTikz,
+    generateGraphTikz,
+    extractTargetGraph,
     validateTikz,
     evalGeo,
     formatShapeLabelTex

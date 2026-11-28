@@ -113,6 +113,9 @@ html.dark {
   font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, -apple-system, sans-serif;
   box-sizing: border-box;
 }
+#mn-tikz-export-backdrop.mn-v80-backdrop {
+  z-index: 100200 !important;
+}
 
 .mn-v80-backdrop.open {
   display: flex;
@@ -706,10 +709,11 @@ html.dark {
   border: 1px solid var(--mn80-border);
 }
 
-.mn-tikz-static-opts {
+.mn-tikz-static-opts,
+.mn-tikz-graph-opts {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   min-width: 0;
 }

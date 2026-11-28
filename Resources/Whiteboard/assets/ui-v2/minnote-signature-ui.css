@@ -6280,7 +6280,44 @@ html.dark .mng-footer {
 }
 .mng-foot-btns {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+.dialog.mn-geo-graph-dlg button.mng-btn-tikz {
+  height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 8px !important;
+  border: 1px solid #bfdbfe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  cursor: pointer !important;
+  transition: background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease !important;
+}
+.dialog.mn-geo-graph-dlg button.mng-btn-tikz:hover:not(:disabled) {
+  background: #dbeafe !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18) !important;
+}
+.dialog.mn-geo-graph-dlg button.mng-btn-tikz:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+}
+html.dark .dialog.mn-geo-graph-dlg button.mng-btn-tikz {
+  background: rgba(37, 99, 235, 0.16) !important;
+  border-color: rgba(96, 165, 250, 0.35) !important;
+  color: #93c5fd !important;
+}
+.selection-bar button.mng-sel-tikz {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+}
+html.dark .selection-bar button.mng-sel-tikz {
+  color: #93c5fd !important;
 }
 
 /* Accessibility: honor OS reduced motion preference cleanly */
