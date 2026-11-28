@@ -6366,6 +6366,10 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
   const [catOpen,setCatOpen]=D.useState(!1);
   const [catGroup,setCatGroup]=D.useState("all");
   const [hoverXY,setHoverXY]=D.useState(null);
+  const [hoverTarget,setHoverTarget]=D.useState(null); // null | { kind: "fn"|"pt", index: number, sx: number, sy: number }
+  const [rowHover,setRowHover]=D.useState(null); // null | { kind: "fn"|"pt", index: number }
+  const [selTarget,setSelTarget]=D.useState(null); // null | { kind: "fn"|"pt", index: number }
+  const [isPanning,setIsPanning]=D.useState(!1);
   const [cSize,setCSize]=D.useState({w:640,h:420});
   const w=D.useRef(null);
   const shellRef=D.useRef(null);
@@ -6434,21 +6438,21 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
   const ce=D.useRef(null);
   D.useEffect(()=>()=>cancelAnimationFrame(U.current),[]);
 
-  // Track responsive coordinate plane dimensions
+  // Track responsive coordinate plane dimensions with exact CSS pixel precision (zero bilinear blur!)
   D.useEffect(()=>{
     const el=stageRef.current;
     if(!el)return;
     const upd=()=>{
       const r=el.getBoundingClientRect();
-      const nw=Math.max(320,Math.floor(r.width)),nh=Math.max(260,Math.floor(r.height));
-      setCSize(prev=>Math.abs(prev.w-nw)>2||Math.abs(prev.h-nh)>2?{w:nw,h:nh}:prev);
+      const nw=Math.max(260,Math.round(r.width)),nh=Math.max(220,Math.round(r.height));
+      setCSize(prev=>Math.abs(prev.w-nw)>=1||Math.abs(prev.h-nh)>=1?{w:nw,h:nh}:prev);
     };
     upd();
     let ro=null;
     if(typeof ResizeObserver!=="undefined"){ro=new ResizeObserver(upd);ro.observe(el)}
     window.addEventListener("resize",upd);
     return()=>{ro&&ro.disconnect(),window.removeEventListener("resize",upd)};
-  },[kbOpen]);
+  },[kbOpen,!!propsTarget]);
 
   const he=()=>{
     if(!F)return;
@@ -6464,7 +6468,7 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
   const [,Q]=D.useState(0);
   D.useEffect(()=>{const le=zb(()=>Q(fe=>fe+1));return()=>void le()},[]);
 
-  // High-DPI live coordinate plane render (fills entire right canvas cleanly!)
+  // High-DPI (2x–3x Retina supersampled) live coordinate plane render + interactive glow highlight!
   const renderW=cSize.w,renderH=cSize.h;
   const viewBoxO=D.useMemo(()=>{
     if(!C)return{...O,w:renderW,h:renderH};
@@ -6479,14 +6483,94 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
   D.useEffect(()=>{
     const le=w.current;
     if(!le)return;
-    const dpr=window.devicePixelRatio||1;
+    const dpr=Math.max(2,Math.ceil((window.devicePixelRatio||1)*1.5));
     const pw=Math.round(renderW*dpr),ph=Math.round(renderH*dpr);
     if(le.width!==pw||le.height!==ph){le.width=pw,le.height=ph}
     const ctx=le.getContext("2d");
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pw,ph);
+    ctx.imageSmoothingEnabled=!0;
+    ctx.imageSmoothingQuality="high";
     ctx.setTransform(dpr,0,0,dpr,0,0);
     t9(ctx,{...viewBoxO,x:0,y:0});
+
+    // Draw crisp live hover / selection / propsTarget visual glow right over the target curve or point!
+    const drawTargets=[];
+    const pushUniq=(tg,strong)=>{
+      if(!tg)return;
+      if(!drawTargets.some(d0=>d0.kind===tg.kind&&d0.index===tg.index))drawTargets.push({...tg,strong});
+    };
+    pushUniq(hoverTarget,!0);
+    pushUniq(rowHover,!0);
+    pushUniq(propsTarget,!1);
+    pushUniq(selTarget,!1);
+    if(drawTargets.length&&C&&viewBoxO.xmax>viewBoxO.xmin&&viewBoxO.ymax>viewBoxO.ymin){
+      const x0=viewBoxO.xmin,x1=viewBoxO.xmax,y0=viewBoxO.ymin,y1=viewBoxO.ymax;
+      const toPx=gx=>(gx-x0)/(x1-x0)*renderW;
+      const toPy=gy=>renderH-(gy-y0)/(y1-y0)*renderH;
+      const yClamp=(y1-y0)*1.6;
+      for(const tg of drawTargets){
+        if(tg.kind==="fn"&&l.fns[tg.index]&&!l.fns[tg.index].hidden){
+          const fnObj=l.fns[tg.index];
+          const col=fnObj.color||"#2563eb";
+          const baseW=(fnObj.width??(l.plain?1.8:2.6))*(l.lineScale??1);
+          const vx=Gd(fnObj.expr);
+          ctx.save();
+          ctx.beginPath();ctx.rect(0,0,renderW,renderH);ctx.clip();
+          if(fnObj.lim){
+            const lm=zF(fnObj);
+            const lx0=Math.max(0,toPx(lm.xmin)),ly0=Math.max(0,toPy(lm.ymax));
+            ctx.beginPath();
+            ctx.rect(lx0,ly0,Math.max(0,Math.min(renderW,toPx(lm.xmax))-lx0),Math.max(0,Math.min(renderH,toPy(lm.ymin))-ly0));
+            ctx.clip();
+          }
+          const strokeCurve=(lw,alpha)=>{
+            ctx.save();
+            ctx.strokeStyle=col;
+            ctx.globalAlpha=alpha;
+            ctx.lineWidth=lw;
+            ctx.lineCap="round";
+            ctx.lineJoin="round";
+            if(vx!==null){
+              const px=toPx(vx);
+              ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,renderH);ctx.stroke();
+            }else if(!$r(fnObj.expr)){
+              const ev=$i(fnObj.expr);
+              if(!(ev instanceof Error)&&typeof ev==="function"){
+                const steps=Math.ceil(renderW*1.5);
+                ctx.beginPath();
+                let penDown=!1,prevY=NaN;
+                for(let k=0;k<=steps;k++){
+                  const gx=x0+(x1-x0)*k/steps,gy=ev(gx);
+                  if(!Number.isFinite(gy)||(penDown&&Math.abs(gy-prevY)>yClamp)){penDown=!1;prevY=gy;continue}
+                  const py=Math.min(Math.max(toPy(gy),-renderH),renderH*2);
+                  penDown?ctx.lineTo(toPx(gx),py):ctx.moveTo(toPx(gx),py);
+                  penDown=!0;prevY=gy;
+                }
+                ctx.stroke();
+              }
+            }
+            ctx.restore();
+          };
+          strokeCurve(baseW+(tg.strong?9.5:6.5),tg.strong?0.26:0.16);
+          strokeCurve(baseW+(tg.strong?1.1:0.5),tg.strong?0.98:0.85);
+          ctx.restore();
+        }else if(tg.kind==="pt"&&x[tg.index]&&!x[tg.index].hidden){
+          const ptObj=x[tg.index];
+          const atPt=$2(viewBoxO,ptObj);
+          if(atPt){
+            const px=toPx(atPt.x),py=toPy(atPt.y);
+            const col=ptObj.color||(ptObj.fn>=0?((l.fns[ptObj.fn]||{}).color||"#2563eb"):"#0f172a");
+            ctx.save();
+            ctx.beginPath();ctx.arc(px,py,tg.strong?13:10,0,Math.PI*2);
+            ctx.fillStyle=col;ctx.globalAlpha=tg.strong?0.24:0.16;ctx.fill();
+            ctx.beginPath();ctx.arc(px,py,tg.strong?8.5:7.5,0,Math.PI*2);
+            ctx.strokeStyle=col;ctx.lineWidth=2.2;ctx.globalAlpha=0.95;ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+    }
   });
 
   const be=(le,fe)=>c({...l,fns:l.fns.map((Le,Ue)=>Ue===le?{...Le,...fe}:Le)});
@@ -6671,7 +6755,7 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
     c(prev=>{
       const hasOnlyEmpty=prev.fns.length===1&&!Sl(prev.fns[0].expr).trim();
       if(hasOnlyEmpty)return{...prev,fns:[{...prev.fns[0],expr:fnExpr,...customName?{name:customName}:{}}]};
-      return{...prev,fns:[...prev.fns,{expr:fnExpr,...customName?{name:customName}:{},color:pm[prev.fns.length%pm.length]}]};
+      return{...prev,fns:[...prev.fns,{expr:fnExpr,...customName?{name:customName}:{},color:pickNextColor(prev.fns)}]};
     });
     setCmd("");
   };
@@ -7001,11 +7085,20 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
     setPropsTab(tab);
     setPropsTarget({kind,index});
   };
+  const pickNextColor=existingFns=>{
+    const toRgb=hex=>{const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex||""));return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:null};
+    const used=(existingFns||[]).map(f0=>toRgb(f0.color)).filter(Boolean);
+    for(const cand of pm){
+      const c0=toRgb(cand);
+      if(!c0||used.every(u0=>Math.hypot(u0[0]-c0[0],u0[1]-c0[1],u0[2]-c0[2])>88))return cand;
+    }
+    return pm[(existingFns||[]).length%pm.length];
+  };
   const duplicateFn=idx=>{
     const srcFn=l.fns[idx];
     if(!srcFn)return;
     const {name:_drop,...rest}=srcFn;
-    c(prev=>({...prev,fns:[...prev.fns,{...rest,color:pm[prev.fns.length%pm.length]}]}));
+    c(prev=>({...prev,fns:[...prev.fns,{...rest,color:pickNextColor(prev.fns)}]}));
     setCtxMenu(null);
   };
   const duplicatePt=idx=>{
@@ -7164,14 +7257,17 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
                 const isImp=$r(le.expr)&&!Qr(le.expr);
                 const isX=Qr(le.expr);
                 const isEd=editKey===`fn-${fe}`||!Sl(le.expr).trim()||!!G[fe];
-                const isSelProps=propsTarget&&propsTarget.kind==="fn"&&propsTarget.index===fe;
+                const isSelProps=(propsTarget&&propsTarget.kind==="fn"&&propsTarget.index===fe)||(selTarget&&selTarget.kind==="fn"&&selTarget.index===fe);
+                const isHov=hoverTarget&&hoverTarget.kind==="fn"&&hoverTarget.index===fe;
                 const fullTex=(isImp||isX)
                   ?(isX?`x = ${exprToTex(Sl(le.expr))}`:exprToTex(le.expr))
                   :`${fNm}(x) = ${exprToTex(le.expr)}`;
                 const fullFb=(isImp||isX)?le.expr:`${fNm}(x) = ${le.expr}`;
                 const draftVal=editKey===`fn-${fe}`?fnDraft:((isImp||isX)?le.expr:(Sl(le.expr).trim()?`${fNm}(x) = ${le.expr}`:""));
                 return h.jsxs("div",{
-                  className:`mng-item${G[fe]?" bad":""}${isEd?" editing":""}${isSelProps?" selected":""}${le.hidden?" is-hidden":""}`,
+                  className:`mng-item${G[fe]?" bad":""}${isEd?" editing":""}${isSelProps?" selected":""}${isHov?" is-hover":""}${le.hidden?" is-hidden":""}`,
+                  onMouseEnter:()=>setRowHover({kind:"fn",index:fe}),
+                  onMouseLeave:()=>setRowHover(null),
                   onContextMenu:ev=>openCtxMenu(ev,{kind:"fn",index:fe}),
                   children:[
                   h.jsxs("div",{className:"mng-item-row",children:[
@@ -7255,11 +7351,14 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
                 const Le=$2(O,le);
                 const col=le.color||(le.fn>=0?((l.fns[le.fn]||{}).color||"#2563eb"):"#0f172a");
                 const isEd=editKey===`pt-${fe}`;
-                const isSelProps=propsTarget&&propsTarget.kind==="pt"&&propsTarget.index===fe;
+                const isSelProps=(propsTarget&&propsTarget.kind==="pt"&&propsTarget.index===fe)||(selTarget&&selTarget.kind==="pt"&&selTarget.index===fe);
+                const isHov=hoverTarget&&hoverTarget.kind==="pt"&&hoverTarget.index===fe;
                 const yDisplay=le.fn>=0?(Le?ioe(Go(Le.y)):"0"):(le.y||"0");
                 const ptTex=`${le.label||"A"}\\left(${exprToTex(le.x||"0")};\\, ${exprToTex(yDisplay)}\\right)`;
                 return h.jsx("div",{
-                  className:`mng-item mng-item-pt${isEd?" editing":""}${isSelProps?" selected":""}${le.hidden?" is-hidden":""}`,
+                  className:`mng-item mng-item-pt${isEd?" editing":""}${isSelProps?" selected":""}${isHov?" is-hover":""}${le.hidden?" is-hidden":""}`,
+                  onMouseEnter:()=>setRowHover({kind:"pt",index:fe}),
+                  onMouseLeave:()=>setRowHover(null),
                   onContextMenu:ev=>openCtxMenu(ev,{kind:"pt",index:fe}),
                   children:h.jsxs("div",{className:"mng-item-row",children:[
                   h.jsx("button",{
@@ -7498,30 +7597,36 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
           ]})
         ]}),
 
-        // 3. Right Spacious GeoGebra Coordinate Plane (PAN & ZOOM ONLY — NO CLICK-TO-ADD-POINT!)
+        // 3. Right Spacious GeoGebra Coordinate Plane (PAN & ZOOM + LIVE HOVER GLOW & TARGET TOOLTIP!)
         h.jsxs("div",{className:"mng-stage",ref:stageRef,children:[
           h.jsx("canvas",{
             ref:w,
             className:"mng-canvas graph-preview",
             "data-dark":n?"":void 0,
-            style:{width:"100%",height:"100%",cursor:Y?"grab":"move",touchAction:"none"},
+            style:{width:"100%",height:"100%",cursor:isPanning?"grabbing":(hoverTarget?"pointer":"grab"),touchAction:"none"},
             onPointerDown:ev=>{
               if(ctxMenu)setCtxMenu(null);
               if(ev.button!==0)return;
               ev.currentTarget.setPointerCapture(ev.pointerId);
               if(Y&&F){ce.current={x:ev.clientX,y:ev.clientY};return}
               if(!C)return;
-              panRef.current={sx:ev.clientX,sy:ev.clientY,xmin:T(u.xmin),xmax:T(u.xmax),ymin:T(u.ymin),ymax:T(u.ymax),vxSpan:viewBoxO.xmax-viewBoxO.xmin,vySpan:viewBoxO.ymax-viewBoxO.ymin,w:renderW,h:renderH};
+              panRef.current={sx:ev.clientX,sy:ev.clientY,moved:!1,xmin:T(u.xmin),xmax:T(u.xmax),ymin:T(u.ymin),ymax:T(u.ymax),vxSpan:viewBoxO.xmax-viewBoxO.xmin,vySpan:viewBoxO.ymax-viewBoxO.ymin,w:renderW,h:renderH};
             },
             onContextMenu:ev=>{
               const hit=hitTestCanvas(ev.clientX,ev.clientY);
+              if(hit.kind==="fn"||hit.kind==="pt")setSelTarget({kind:hit.kind,index:hit.index});
               openCtxMenu(ev,hit);
+            },
+            onDoubleClick:ev=>{
+              const hit=hitTestCanvas(ev.clientX,ev.clientY);
+              if(hit.kind==="fn"||hit.kind==="pt")openProps(hit.kind,hit.index,"basic");
             },
             onPointerMove:ev=>{
               const rc=ev.currentTarget.getBoundingClientRect();
+              const sx=ev.clientX-rc.left,sy=ev.clientY-rc.top;
               if(C&&rc.width>0&&rc.height>0){
-                const gx=viewBoxO.xmin+(ev.clientX-rc.left)/rc.width*(viewBoxO.xmax-viewBoxO.xmin);
-                const gy=viewBoxO.ymax-(ev.clientY-rc.top)/rc.height*(viewBoxO.ymax-viewBoxO.ymin);
+                const gx=viewBoxO.xmin+sx/rc.width*(viewBoxO.xmax-viewBoxO.xmin);
+                const gy=viewBoxO.ymax-sy/rc.height*(viewBoxO.ymax-viewBoxO.ymin);
                 setHoverXY({x:Math.round(gx*100)/100,y:Math.round(gy*100)/100});
               }
               if(Y&&F&&ce.current){
@@ -7531,15 +7636,35 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
                 return;
               }
               const pr=panRef.current;
-              if(!pr)return;
-              const dx=(ev.clientX-pr.sx)/Math.max(1,pr.w)*pr.vxSpan;
-              const dy=(ev.clientY-pr.sy)/Math.max(1,pr.h)*pr.vySpan;
-              j(!1);
-              p({xmin:_e(pr.xmin-dx),xmax:_e(pr.xmax-dx),ymin:_e(pr.ymin+dy),ymax:_e(pr.ymax+dy)});
+              if(pr){
+                if(!pr.moved&&Math.hypot(ev.clientX-pr.sx,ev.clientY-pr.sy)>=4){pr.moved=!0;setIsPanning(!0);setHoverTarget(null)}
+                if(pr.moved){
+                  const dx=(ev.clientX-pr.sx)/Math.max(1,pr.w)*pr.vxSpan;
+                  const dy=(ev.clientY-pr.sy)/Math.max(1,pr.h)*pr.vySpan;
+                  j(!1);
+                  p({xmin:_e(pr.xmin-dx),xmax:_e(pr.xmax-dx),ymin:_e(pr.ymin+dy),ymax:_e(pr.ymax+dy)});
+                }
+                return;
+              }
+              // Live hover target detection for visual curve/point glow & tooltip
+              const hit=hitTestCanvas(ev.clientX,ev.clientY);
+              if(hit.kind==="fn"||hit.kind==="pt"){
+                setHoverTarget({kind:hit.kind,index:hit.index,sx,sy});
+              }else{
+                setHoverTarget(prev=>prev?null:prev);
+              }
             },
-            onPointerUp:()=>{panRef.current=null,ce.current=null},
-            onPointerCancel:()=>{panRef.current=null,ce.current=null},
-            onPointerLeave:()=>setHoverXY(null),
+            onPointerUp:ev=>{
+              const pr=panRef.current;
+              if(pr&&!pr.moved){
+                const hit=hitTestCanvas(ev.clientX,ev.clientY);
+                if(hit.kind==="fn"||hit.kind==="pt")setSelTarget({kind:hit.kind,index:hit.index});
+                else setSelTarget(null);
+              }
+              panRef.current=null;ce.current=null;setIsPanning(!1);
+            },
+            onPointerCancel:()=>{panRef.current=null;ce.current=null;setIsPanning(!1)},
+            onPointerLeave:()=>{setHoverXY(null);setHoverTarget(null)},
             onWheel:ev=>{
               ev.preventDefault();
               const rc=ev.currentTarget.getBoundingClientRect();
@@ -7548,6 +7673,31 @@ function aoe({item:e,isNew:t,dark:n,box:o,onBox:s,onSave:i,onClose:r}){
               zoomView(ev.deltaY>0?1.16:0.86,cxR,cyR);
             }
           }),
+
+          // Floating Target Tooltip Pill near hovered curve or point!
+          hoverTarget&&!isPanning&&!ctxMenu&&(()=>{
+            let col="#2563eb",tex="",fb="";
+            if(hoverTarget.kind==="fn"&&l.fns[hoverTarget.index]){
+              const f0=l.fns[hoverTarget.index],nm=fnNames[hoverTarget.index]||"f";
+              col=f0.color||"#2563eb";
+              const isImp=$r(f0.expr)&&!Qr(f0.expr),isX=Qr(f0.expr);
+              tex=(isImp||isX)?(isX?`x = ${exprToTex(Sl(f0.expr))}`:exprToTex(f0.expr)):`${nm}(x) = ${exprToTex(f0.expr)}`;
+              fb=`${nm}(x) = ${f0.expr}`;
+            }else if(hoverTarget.kind==="pt"&&x[hoverTarget.index]){
+              const p0=x[hoverTarget.index],at0=$2(O,p0);
+              col=p0.color||(p0.fn>=0?((l.fns[p0.fn]||{}).color||"#2563eb"):"#0f172a");
+              const yD=p0.fn>=0?(at0?ioe(Go(at0.y)):"0"):(p0.y||"0");
+              tex=`${p0.label||"A"}(${exprToTex(p0.x||"0")};\\, ${exprToTex(yD)})`;
+              fb=`${p0.label||"A"}(${p0.x}; ${yD})`;
+            }else return null;
+            const lx=Math.max(10,Math.min(hoverTarget.sx+14,renderW-255));
+            const ly=Math.max(10,hoverTarget.sy>48?hoverTarget.sy-38:hoverTarget.sy+16);
+            return h.jsxs("div",{className:"mng-hover-tip",style:{left:lx,top:ly},children:[
+              h.jsx("span",{className:"mng-dot-static",style:{background:col,width:10,height:10}}),
+              renderTex(tex,fb),
+              h.jsx("span",{className:"mng-hover-hint",children:isVi?"Chuột phải: Thiết lập":"Right-click: Settings"})
+            ]});
+          })(),
 
           // Read-only live cursor coordinates badge (bottom-left)
           hoverXY&&h.jsx("div",{className:"mng-coord-pill",children:`(${String(hoverXY.x).replace(".",",")}; ${String(hoverXY.y).replace(".",",")})`}),

@@ -1279,12 +1279,20 @@ html[data-ui="v2"] .formula-dialog .palette-quick button.palette-key.palette-key
   border-color: #93c5fd !important;
 }
 
-/* Signature MinMath Live Math-Field with Crisp Sky-Blue Ring (no black browser outline or OS dark-mode dark highlight box!) */
+/* Signature MinMath Live Math-Field with Crisp Sky-Blue Ring (auto-expanding for tall ∑, ∫, stacked fractions!) */
 html[data-ui="v2"] .formula-dialog .formula-field,
 html[data-ui="v2"] .math-input-dialog .formula-field {
-  min-height: 80px !important;
-  padding: 6px 12px !important;
-  font-size: 30px !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 98px !important;
+  max-height: 220px !important;
+  padding: 16px 14px !important;
+  line-height: 1.55 !important;
+  font-size: 28px !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
   border: 2px solid #93c5fd !important;
   border-radius: 10px !important;
   background: #ffffff !important;
@@ -1309,6 +1317,19 @@ html[data-ui="v2"] .math-input-dialog .formula-field {
   --mn-slot-active-bg: rgba(37, 99, 235, 0.10);
   --mn-slot-active-ring: rgba(37, 99, 235, 0.14);
   transition: border-color 0.14s, box-shadow 0.14s !important;
+}
+
+html[data-ui="v2"] .formula-dialog .formula-field::part(container),
+html[data-ui="v2"] .math-input-dialog .formula-field::part(container) {
+  min-height: 62px;
+  padding: 6px 2px;
+  overflow: visible;
+}
+
+html[data-ui="v2"] .formula-dialog .formula-field::part(content),
+html[data-ui="v2"] .math-input-dialog .formula-field::part(content) {
+  padding: 6px 2px;
+  overflow: visible;
 }
 
 html[data-ui="v2"] .formula-dialog .formula-field:focus,
@@ -1341,7 +1362,8 @@ html[data-ui="v2"].dark .math-input-dialog .formula-field {
 }
 
 html[data-ui="v2"] .formula-dialog.mnm-compact .formula-field {
-  min-height: 54px !important;
+  min-height: 80px !important;
+  padding: 14px 12px !important;
   font-size: 24px !important;
 }
 
@@ -5774,8 +5796,58 @@ html.dark .dialog.mn-geo-graph-dlg button.mng-k.del {
 .mng-item.selected {
   background: #eff6ff !important;
 }
+.mng-item.is-hover {
+  background: #f0f6ff !important;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
 html.dark .mng-item.selected {
   background: rgba(37, 99, 235, 0.18) !important;
+}
+html.dark .mng-item.is-hover {
+  background: rgba(59, 130, 246, 0.16) !important;
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+
+/* Floating Target Tooltip Pill when hovering a curve or point on the coordinate plane */
+.mng-hover-tip {
+  position: absolute;
+  z-index: 12;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 8px 22px -6px rgba(15, 23, 42, 0.22), 0 0 0 2px rgba(37, 99, 235, 0.08);
+  color: #0f172a;
+  font-size: 12.5px;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+}
+.mng-hover-tip .katex {
+  font-size: 1em !important;
+  color: #0f172a !important;
+}
+.mng-hover-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  padding-left: 4px;
+  border-left: 1px solid #e2e8f0;
+}
+html.dark .mng-hover-tip {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: #3b82f6;
+  color: #f8fafc;
+}
+html.dark .mng-hover-tip .katex {
+  color: #f8fafc !important;
+}
+html.dark .mng-hover-hint {
+  color: #94a3b8;
+  border-left-color: #334155;
 }
 .mng-lock-ico {
   font-size: 11px;
