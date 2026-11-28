@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-27T23:06:28.497Z";
+        public const string GeneratedUtc = "2026-11-28T00:06:55.411Z";
         public const int FileCount = 147;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -49,7 +49,7 @@ namespace MinNote.Services
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
                 ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
                 ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
-                ["assets/index-CTbULhps.js"] = "b82c5081a6daabe8ccabb5b55d77032a267141d7ae617981593bf192a790dbc1",
+                ["assets/index-CTbULhps.js"] = "6c82737e6b395026f78e4d33feaccec1be86eddb5d3e92fd91ccaaa4600beabc",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
@@ -155,7 +155,7 @@ namespace MinNote.Services
                 ["assets/screen-recorder-studio.css"] = "87b2013cfd9672a44cf7732d5be95088e60079c4f3249fbf59cb33b5741d2a3d",
                 ["assets/screen-recorder-studio.js"] = "36264dd09e1e479fd9bff9122404acb3c40f644eeeac7434252251bd563fc6af",
                 ["assets/ui-v2/icons-v2.js"] = "d994a2cea833cb30dc04ac59d7f2f99efd79e6461f3479897bd7e18f99b3b1c9",
-                ["assets/ui-v2/minnote-signature-ui.css"] = "ed10630af87b3fd6c82dc85e90e97de42a9d81ba8740c8d8bbb25df5bb9d534d",
+                ["assets/ui-v2/minnote-signature-ui.css"] = "3e603ea5f1cabdcfe1be99eac273dcf92c0d8a2b26502edadbaf7947871d820b",
                 ["assets/ui-v2/minnote-signature-ui.js"] = "2108654db958f627c06e7bbace8d8a8fd18345922f6b257a2de0a004e71ecc88",
                 ["assets/ui-v2/minnote-ui-v2.css"] = "a72907b58f71b70d685df79201da5e3530bc7e7a6997b258d53947c58f36fc10",
                 ["assets/ui-v2/ui-switch.js"] = "9e55adcbb01bb10692dda78e1057389379662731e42183d7691fec622cd3227e",
