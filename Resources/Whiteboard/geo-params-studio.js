@@ -1972,6 +1972,7 @@
         chip.style.transform = `scale(${Math.max(0.7, Math.min(1.5, pos.zoom))})`;
         chip.classList.toggle("selected", selSet.has(p.id));
         chip.classList.toggle("animating", !!p.animating);
+        chip.classList.toggle("calc-pickable", !!(window.MinNoteGeoTools && typeof window.MinNoteGeoTools.isCalcOpen === "function" && window.MinNoteGeoTools.isCalcOpen()));
 
         const mathSpan = chip.querySelector(".mn-kp-math");
         renderLatexInto(mathSpan, pg.geo, p);
@@ -1994,6 +1995,11 @@
       const pg = getPage(pageIdx);
       const p = pg && pg.geo && (pg.geo.params || []).find(x => x.id === paramId);
       if (!p) return;
+      if (window.MinNoteGeoTools && typeof window.MinNoteGeoTools.isCalcOpen === "function" && window.MinNoteGeoTools.isCalcOpen()) {
+        e.preventDefault();
+        window.MinNoteGeoTools.insertToken(p.name, { flashEl: chip });
+        return;
+      }
       const ed = getEditor();
       dragState = {
         sx: e.clientX, sy: e.clientY,

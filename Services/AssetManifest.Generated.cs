@@ -26,7 +26,7 @@ namespace MinNote.Services
 {
     internal static partial class AssetManifest
     {
-        public const string GeneratedUtc = "2026-11-28T00:06:55.411Z";
+        public const string GeneratedUtc = "2026-11-28T05:52:34.198Z";
         public const int FileCount = 147;
 
         public static readonly IReadOnlyDictionary<string, string> ExpectedSha256 =
@@ -44,12 +44,12 @@ namespace MinNote.Services
                 ["assets/capacitor-DzLgjwi1.js"] = "888629a2cab4108b04d808acdf0434f21902904d1bba07a1e623b626b3cb1a10",
                 ["assets/capacitor-Zu4hWx3Q.js"] = "f2b45db0e5329ffb4ac3df3d19d4a624e3da45ce1d0c6164e1c46521d9f8c552",
                 ["assets/casio-calc-engine.js"] = "b3f0faf267f1d058a933e2a036ded03eb2c00d43e5454d70c7fbf738ebad87ff",
-                ["assets/casio-calc.css"] = "6a55e2b5f1d09ff47f7395ac76254f7d800f3e33c42c105829e0ebc43fcb9a6a",
+                ["assets/casio-calc.css"] = "3343a9556e03a1dfdc142318f9b8640b3596dabdcc835fe64fb0acfde2020307",
                 ["assets/casio-calculator-ui.js"] = "3bd82ca687a8a979ec934911f9dfef5bbde9d44c3e3c6b6c7a7218fcf10444a1",
                 ["assets/default-lesson-chuong3.html"] = "8a2eed405dede059e908efad433846261761cccfcfca30ed7286f192debbbeb0",
                 ["assets/emf-vector-bridge.js"] = "c69329fd85da7eba91c3869c0f6d947db1e326853f3fc150d7f949650c07c1c1",
-                ["assets/index-BQ73TrLm.css"] = "229bd2afaff75b1e47b78af7154090d41b09dd214390e02bdec960e4843801e8",
-                ["assets/index-CTbULhps.js"] = "6c82737e6b395026f78e4d33feaccec1be86eddb5d3e92fd91ccaaa4600beabc",
+                ["assets/index-BQ73TrLm.css"] = "855533d581be85bd453f24b5daab51f49b5a94e7307c0f0a9b33429826cb712b",
+                ["assets/index-CTbULhps.js"] = "79aadf62e704109511238ee881092e0973d526026f1edcd3f8e661114dff2721",
                 ["assets/mea-mindmap.css"] = "a38a6d2bc7eed0c577eda5748127fc95dac41b2637516687c7cf9e769771c5c3",
                 ["assets/mea-mindmap.js"] = "71f2322084afdffdfe5eae5893712e371899b15ef51b614eedac380bd3bd8dd2",
                 ["assets/mea-question-card.css"] = "5d893e5006a3cc04e3873dd72f90b65da1df3f2ca122b2afce58e049ca95a974",
@@ -155,7 +155,7 @@ namespace MinNote.Services
                 ["assets/screen-recorder-studio.css"] = "87b2013cfd9672a44cf7732d5be95088e60079c4f3249fbf59cb33b5741d2a3d",
                 ["assets/screen-recorder-studio.js"] = "36264dd09e1e479fd9bff9122404acb3c40f644eeeac7434252251bd563fc6af",
                 ["assets/ui-v2/icons-v2.js"] = "d994a2cea833cb30dc04ac59d7f2f99efd79e6461f3479897bd7e18f99b3b1c9",
-                ["assets/ui-v2/minnote-signature-ui.css"] = "3e603ea5f1cabdcfe1be99eac273dcf92c0d8a2b26502edadbaf7947871d820b",
+                ["assets/ui-v2/minnote-signature-ui.css"] = "4871f991be8c694d64d07f7639e116868906ab63a47b0849db01dc558bdde505",
                 ["assets/ui-v2/minnote-signature-ui.js"] = "2108654db958f627c06e7bbace8d8a8fd18345922f6b257a2de0a004e71ecc88",
                 ["assets/ui-v2/minnote-ui-v2.css"] = "a72907b58f71b70d685df79201da5e3530bc7e7a6997b258d53947c58f36fc10",
                 ["assets/ui-v2/ui-switch.js"] = "9e55adcbb01bb10692dda78e1057389379662731e42183d7691fec622cd3227e",
@@ -168,12 +168,12 @@ namespace MinNote.Services
                 ["assets/web-CQgguti2.js"] = "f3889c38cd2e8227ca67310ee4cbd4412ff042a197f55b658571fa74ad903c36",
                 ["assets/web-DnjvsJld.js"] = "c15f29451d7269a9fac56b117954782c09f55d8becacb510fd840f077dab56d3",
                 ["assets/web-n_Fc06V0.js"] = "329a952e1bc76e67f4aa395a8a11720f17004bed3f9632dac46b2457089cba72",
-                ["geo-gsp-tools.css"] = "ad0ab1487e16edbbcf128f229820791080780d1e43630288e281b4367079ed2a",
-                ["geo-gsp-tools.js"] = "f41c66583d9b80a507377613fe726d97096893f5eecbc765bc52827da50f31fb",
+                ["geo-gsp-tools.css"] = "3287b0192a797dff2adb401586483ae9f930128ff001556e41998b8a8456a7ba",
+                ["geo-gsp-tools.js"] = "dd4497d594ebce6cb3b59d40e88eeb41e9d602ed7661251c74a541ae7d335c14",
                 ["geo-motion-replay.css"] = "69fa0024a86be8d21a39e79b0d46b31936798479338c0e256a5b166ed409718b",
                 ["geo-motion-replay.js"] = "413cebd1f308ea394526457573acc7e0228fdfe902826fa8201bd35f735efdb1",
                 ["geo-params-studio.css"] = "0aa9991d8f8153660f3c03d65a82c1847b34686a8f0464d071aeda2168fc0bfe",
-                ["geo-params-studio.js"] = "fb5e064a7e3a08194fa7156857c65ca6a9f0ed3d4317655acbf7724c914c1abb",
+                ["geo-params-studio.js"] = "436aabe08e59767c182b9cea937009aaf342f5f95440769828fe4f77e1bcf3b1",
                 ["index.html"] = "3d2536093d1ae120acded45e921cbfee006a92c4700e17f41450ebb8bab0ab78",
                 ["katex.min.css"] = "4597f0d14fe81bdcf985a0a667e2cc16d4cae413f6f1f66b5bcd6f4f32bceb96",
                 ["katex.min.js"] = "e6bfe5deebd4c7ccd272055bab63bd3ab2c73b907b6e6a22d352740a81381fd4",

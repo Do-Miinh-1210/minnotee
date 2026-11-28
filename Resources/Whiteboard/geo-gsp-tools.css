@@ -225,181 +225,635 @@ html.dark .mn-gsp-item small {
   color: #94a3b8;
 }
 
-/* Live Dynamic Expression Calculator Modal */
-#mn-calc-backdrop {
+/* Flash feedback when a measurement or parameter chip is picked into calculator */
+.mn-meas-card.calc-picked-flash,
+.mn-katex-param.calc-picked-flash {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.32) !important;
+  transform: scale(1.05);
+}
+.mn-katex-param.calc-pickable {
+  cursor: pointer !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+}
+body.mn-calc-picking .board-scroller canvas {
+  cursor: crosshair !important;
+}
+
+/* Live Canvas Geometry Hover Highlight Overlay (zero interference, pointer-events: none) */
+#mn-calc-hover-layer {
   position: fixed;
-  inset: 0;
-  z-index: 460;
-  background: rgba(15, 23, 42, 0.36);
-  backdrop-filter: blur(3px);
+  pointer-events: none;
+  z-index: 6;
+  overflow: hidden;
   display: none;
-  align-items: center;
-  justify-content: center;
+}
+#mn-calc-hover-layer.active {
+  display: block;
+}
+#mn-calc-hover-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+#mn-calc-hover-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #1e3a8a;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.35);
+  display: none;
+}
+#mn-calc-hover-tip.ok {
+  background: #059669;
 }
 
-#mn-calc-backdrop.open {
-  display: flex;
-}
-
-.mn-calc-box {
-  width: min(440px, calc(100vw - 28px));
+/* Compact Floating Draggable Dynamic Calculator (GSP-inspired, Modeless, Zero Blur!) */
+#mn-calc-window {
+  position: fixed;
+  z-index: 460;
+  width: min(352px, calc(100vw - 20px));
   border-radius: 16px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 24px 56px -14px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 20px 48px -14px rgba(15, 23, 42, 0.28), 0 4px 12px rgba(15, 23, 42, 0.08);
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #0f172a;
+  display: none;
+  user-select: none;
 }
-
-html.dark .mn-calc-box {
+#mn-calc-window.open {
+  display: block;
+  animation: mnCalcPopIn 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#mn-calc-window.dragging {
+  box-shadow: 0 28px 60px -12px rgba(15, 23, 42, 0.36), 0 0 0 2px rgba(37, 99, 235, 0.24);
+}
+@keyframes mnCalcPopIn {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+html.dark #mn-calc-window {
   background: #0f172a;
   border-color: #334155;
   color: #f1f5f9;
+  box-shadow: 0 24px 56px -10px rgba(0, 0, 0, 0.72);
 }
 
 .mn-calc-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 15px;
-  background: #f8fafc;
+  gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 11px;
+  background: linear-gradient(90deg, #f8fafc 0%, #eff6ff 100%);
   border-bottom: 1px solid #e2e8f0;
-  font-size: 13.5px;
+  cursor: grab;
+}
+#mn-calc-window.dragging .mn-calc-head {
+  cursor: grabbing;
+}
+html.dark .mn-calc-head {
+  background: linear-gradient(90deg, #111827 0%, #172554 100%);
+  border-bottom-color: #1e293b;
+}
+.mn-calc-head-l,
+.mn-calc-head-r {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mn-calc-badge {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  font: 700 10.5px/1.2 ui-monospace, Consolas, monospace;
+}
+#mn-calc-title {
+  font-size: 12.5px;
   font-weight: 700;
   color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-html.dark .mn-calc-head {
-  background: #111827;
-  border-bottom-color: #1f2937;
+html.dark #mn-calc-title {
+  color: #f8fafc;
+}
+.mn-calc-pick-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 23px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.mn-calc-pick-pill.on {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+html.dark .mn-calc-pick-pill {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+html.dark .mn-calc-pick-pill.on {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #6ee7b7;
+}
+.mn-calc-pick-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+.mn-calc-pick-pill.on .mn-calc-pick-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.28);
+}
+.mn-calc-x {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mn-calc-x:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+html.dark .mn-calc-x:hover {
+  background: #1e293b;
   color: #f8fafc;
 }
 
 .mn-calc-body {
-  padding: 13px 15px;
+  padding: 10px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
 }
 
-.mn-calc-label {
-  font-size: 11px;
+/* Live KaTeX Display Screen */
+.mn-calc-screen {
+  padding: 8px 11px 7px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+  border: 1.5px solid #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 54px;
+}
+html.dark .mn-calc-screen {
+  background: linear-gradient(180deg, #111827 0%, #172554 100%);
+  border-color: #1e40af;
+}
+.mn-calc-katex {
+  min-height: 24px;
+  font-size: 15px;
+  color: #0f172a;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  white-space: nowrap;
+}
+html.dark .mn-calc-katex {
+  color: #f8fafc;
+}
+.mn-calc-placeholder {
+  font-size: 11.5px;
+  font-style: italic;
+  color: #64748b;
+}
+.mn-calc-res-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px dashed rgba(37, 99, 235, 0.22);
+  padding-top: 4px;
+}
+.mn-calc-res-lbl {
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #2563eb;
-  margin-bottom: 3px;
+  letter-spacing: 0.04em;
+  color: #64748b;
 }
-
-html.dark .mn-calc-label {
+.mn-calc-res-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+}
+.mn-calc-res-val.invalid {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+}
+html.dark .mn-calc-res-val {
   color: #60a5fa;
 }
+html.dark .mn-calc-res-val.invalid {
+  color: #f87171;
+}
 
+.mn-calc-pick-bar {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  padding: 0 2px;
+  line-height: 1.3;
+}
+.mn-calc-pick-bar.pending {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+html.dark .mn-calc-pick-bar {
+  color: #94a3b8;
+}
+html.dark .mn-calc-pick-bar.pending {
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.2);
+  border-color: #3b82f6;
+}
+
+/* Editable Expression Input + Optional Label Toggle */
+.mn-calc-expr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .mn-calc-input {
   width: 100%;
   box-sizing: border-box;
-  height: 36px;
-  padding: 0 11px;
+  height: 32px;
+  padding: 0 10px;
   border: 1.5px solid #cbd5e1;
-  border-radius: 9px;
-  background: #f8fafc;
+  border-radius: 8px;
+  background: #ffffff;
   color: #0f172a;
-  font: 600 13.5px/1 ui-monospace, Consolas, monospace;
+  font: 600 13px/1 ui-monospace, Consolas, monospace;
   outline: none;
+  user-select: text;
 }
-
 .mn-calc-input:focus {
   border-color: #2563eb;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px #dbeafe;
+  box-shadow: 0 0 0 2.5px #dbeafe;
 }
-
 html.dark .mn-calc-input {
   background: #162033;
   border-color: #334155;
   color: #f8fafc;
 }
-
-.mn-calc-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.mn-calc-chip {
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 11.5px;
-  font-weight: 600;
+.mn-calc-lbl-tog {
+  flex: none;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
 }
+.mn-calc-lbl-tog.on {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+html.dark .mn-calc-lbl-tog {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+.mn-calc-lbl-wrap {
+  display: none;
+}
+.mn-calc-lbl-wrap.show {
+  display: block;
+}
+.mn-calc-lbl-inp {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+}
 
-.mn-calc-chip:hover {
+/* GSP-Style 2-Column Calculator Deck: 5x4 Keypad + 3 Pop-up Menus + Clear */
+.mn-calc-deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 7px;
+  align-items: stretch;
+}
+.mn-calc-pad {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+.mn-ck {
+  height: 33px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  transition: background 0.1s, border-color 0.1s, transform 0.08s;
+}
+.mn-ck:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.mn-ck:active {
+  transform: scale(0.95);
+}
+.mn-ck.wide {
+  grid-column: span 2;
+}
+.mn-ck.op {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  font-size: 15px;
+}
+.mn-ck.op:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+.mn-ck.del {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #e11d48;
+  font-size: 13.5px;
+}
+.mn-ck.del:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+html.dark .mn-ck {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+html.dark .mn-ck:hover {
+  background: #334155;
+}
+html.dark .mn-ck.op {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+html.dark .mn-ck.del {
+  background: rgba(225, 29, 72, 0.2);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #fda4af;
+}
+
+.mn-calc-menus {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mn-calc-mbtn {
+  height: 33px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.mn-calc-mbtn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mn-calc-mbtn b {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.mn-calc-mbtn:hover,
+.mn-calc-mbtn.open {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+.mn-calc-mbtn.clear {
+  justify-content: center;
+  color: #64748b;
+  font-size: 11.5px;
+}
+.mn-calc-mbtn.clear:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+html.dark .mn-calc-mbtn {
+  background: #162033;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+html.dark .mn-calc-mbtn:hover,
+html.dark .mn-calc-mbtn.open {
+  background: rgba(37, 99, 235, 0.24);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+/* Pop-up Dropdown Menu for Giá trị / Hàm số / Đơn vị */
+#mn-calc-menu-pop {
+  position: fixed;
+  z-index: 480;
+  min-width: 205px;
+  max-width: 268px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 18px 40px -10px rgba(15, 23, 42, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: none;
+}
+#mn-calc-menu-pop.open {
+  display: block;
+}
+html.dark #mn-calc-menu-pop {
+  background: #0f172a;
+  border-color: #334155;
+  box-shadow: 0 20px 44px -8px rgba(0, 0, 0, 0.72);
+}
+.mn-cm-sec {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #2563eb;
+  padding: 5px 7px 3px;
+}
+html.dark .mn-cm-sec {
+  color: #60a5fa;
+}
+.mn-cm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.mn-cm-row:hover,
+.mn-cm-row.on {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.mn-cm-row small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+html.dark .mn-cm-row {
+  color: #e2e8f0;
+}
+html.dark .mn-cm-row:hover,
+html.dark .mn-cm-row.on {
+  background: rgba(37, 99, 235, 0.22);
+  color: #93c5fd;
+}
+.mn-cm-fn-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.mn-cm-fn {
+  height: 30px;
+  padding: 0 4px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mn-cm-fn:hover {
   background: #2563eb;
   border-color: #2563eb;
   color: #ffffff;
 }
-
-html.dark .mn-calc-chip {
-  background: rgba(37, 99, 235, 0.18);
-  border-color: rgba(59, 130, 246, 0.35);
-  color: #93c5fd;
-}
-
-.mn-calc-preview {
-  padding: 9px 12px;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 14px;
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-html.dark .mn-calc-preview {
-  background: #162033;
-  border-color: #263248;
+html.dark .mn-cm-fn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
 }
 
 .mn-calc-foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 10px 15px 13px;
+  padding: 8px 12px 10px;
+  background: #f8fafc;
   border-top: 1px solid #e2e8f0;
 }
-
 html.dark .mn-calc-foot {
-  border-top-color: #1f2937;
+  background: #0b1220;
+  border-top-color: #1e293b;
 }
-
+.mn-calc-drag-tip {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.mn-calc-foot-btns {
+  display: flex;
+  gap: 6px;
+}
 .mn-calc-btn {
-  height: 33px;
-  padding: 0 14px;
+  height: 30px;
+  padding: 0 12px;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
   color: #334155;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
-
+.mn-calc-btn:hover {
+  background: #f1f5f9;
+}
 .mn-calc-btn.primary {
   background: #2563eb;
   border-color: #2563eb;
   color: #ffffff;
 }
-
-.mn-calc-btn.primary:hover {
+.mn-calc-btn.primary:hover:not(:disabled) {
   background: #1d4ed8;
 }
-
+.mn-calc-btn.primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 html.dark .mn-calc-btn:not(.primary) {
   background: #1e293b;
   border-color: #334155;
